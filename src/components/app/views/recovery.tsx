@@ -1,100 +1,245 @@
-import { useState } from "react";
-import { Plus, Moon, Heart } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, Moon, Heart, Trash2, Activity, BarChart3 } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import type { FatigueLevel } from "@/lib/types";
-import { Card, PageHeader, PrimaryButton, GhostButton, EmptyState, Input, Label, Ring, Chip, Textarea } from "@/components/app/ui";
-import { BottomSheet } from "@/components/app/sheet";
+import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Input, Label, Ring, Textarea, SubTabs, SectionHeader } from "@/components/app/ui";
+import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
+import { GoalsTab } from "@/components/app/goals-tab";
 
 const MUSCLES = ["chest","back","shoulders","biceps","triceps","quads","hamstrings","glutes","calves","core"];
 const LEVELS: FatigueLevel[] = ["fresh","moderate","fatigued","very"];
 const LEVEL_COLOR: Record<FatigueLevel,string> = { fresh: "var(--section)", moderate: "oklch(0.7 0.18 90)", fatigued: "oklch(0.65 0.2 40)", very: "oklch(0.6 0.22 25)" };
 
+type Tab = "home" | "sleep" | "readiness" | "stats" | "goals" | "history";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "home", label: "Home" },
+  { id: "sleep", label: "Sleep" },
+  { id: "readiness", label: "Readiness" },
+  { id: "stats", label: "Stats" },
+  { id: "goals", label: "Goals" },
+  { id: "history", label: "History" },
+];
+
+function readiness(state: ReturnType<typeof useStore>["state"]) {
+  const lastCheck = state.recoveryCheckIns[state.recoveryCheckIns.length - 1];
+  const lastSleep = state.sleepEntries[state.sleepEntries.length - 1];
+  let total = 0, parts = 0;
+  if (lastSleep) { total += Math.min(100, (lastSleep.hours / 8) * 50 + lastSleep.quality * 5); parts++; }
+  if (lastCheck) { total += (lastCheck.energy + (10 - lastCheck.soreness) + (10 - lastCheck.stress) + lastCheck.motivation) * 2.5; parts++; }
+  return { score: parts ? Math.round(total / parts) : 0, parts };
+}
+
 export function RecoveryView() {
-  const { state, set } = useStore();
+  const [tab, setTab] = useState<Tab>("home");
+  const { state } = useStore();
+  const { score, parts } = readiness(state);
+  return (
+    <div className="pb-24">
+      <PageHeader title="Recovery" subtitle={parts ? `Readiness ${score}%` : "Add a check-in to start"} />
+      <SubTabs tabs={TABS} active={tab} onChange={setTab} />
+      {tab === "home" && <HomeTab onJump={setTab} />}
+      {tab === "sleep" && <SleepTab />}
+      {tab === "readiness" && <ReadinessTab />}
+      {tab === "stats" && <StatsTab />}
+      {tab === "goals" && <GoalsTab section="recovery" typeOptions={["sleep","readiness","habit"]} />}
+      {tab === "history" && <HistoryTab />}
+    </div>
+  );
+}
+
+function HomeTab({ onJump }: { onJump: (t: Tab) => void }) {
+  const { state } = useStore();
+  const { score, parts } = readiness(state);
   const [checkOpen, setCheckOpen] = useState(false);
   const [sleepOpen, setSleepOpen] = useState(false);
   const [fatigueOpen, setFatigueOpen] = useState(false);
-
-  // Readiness
   const lastCheck = state.recoveryCheckIns[state.recoveryCheckIns.length - 1];
-  const lastSleep = state.sleepEntries[state.sleepEntries.length - 1];
-  let readiness = 0; let parts = 0;
-  if (lastSleep) { readiness += Math.min(100, (lastSleep.hours / 8) * 50 + lastSleep.quality * 5); parts++; }
-  if (lastCheck) { readiness += (lastCheck.energy + (10 - lastCheck.soreness) + (10 - lastCheck.stress) + lastCheck.motivation) * 2.5; parts++; }
-  const score = parts > 0 ? Math.round(readiness / parts) : 0;
-
   const weekSleep = state.sleepEntries.filter(s => s.createdAt > Date.now() - 7*86400000);
   const avgSleep = weekSleep.length ? (weekSleep.reduce((a, s) => a + s.hours, 0) / weekSleep.length).toFixed(1) : "—";
-
+  const rec = !parts ? "Add a check-in or sleep entry to get a recommendation."
+    : score >= 75 ? "Great recovery — train hard today." : score >= 50 ? "Train at moderate intensity." : "Consider a lighter session or rest day.";
+  const mostFatigued = MUSCLES.filter(m => state.muscleFatigue[m] && state.muscleFatigue[m] !== "fresh");
   return (
-    <div className="pb-6">
-      <PageHeader title="Recovery" subtitle={parts ? `Readiness ${score}%` : "Add a check-in to start"} />
-
-      <div className="px-5">
-        <div className="card-elev p-5 section-gradient ring-section">
-          <div className="flex items-center gap-4">
-            <Ring value={score} max={100} size={96} label="ready" />
-            <div className="flex-1">
-              <p className="text-xs uppercase tracking-wider text-muted-foreground">Readiness</p>
-              <p className="text-3xl font-bold tabular-nums mt-1">{parts ? score : "—"}</p>
-              <p className="text-xs text-muted-foreground mt-1">{parts ? (score >= 75 ? "Good to push hard" : score >= 50 ? "Train at moderate intensity" : "Consider an easy session") : "Needs more data"}</p>
-            </div>
-          </div>
-          <div className="flex gap-2 mt-4">
-            <PrimaryButton className="flex-1" onClick={() => setCheckOpen(true)}><Plus size={16} />Check-in</PrimaryButton>
-            <GhostButton onClick={() => setSleepOpen(true)}><Moon size={16} />Sleep</GhostButton>
+    <div className="px-5">
+      <div className="card-elev p-5 section-gradient ring-section">
+        <div className="flex items-center gap-4">
+          <Ring value={score} max={100} size={96} label="ready" />
+          <div className="flex-1">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Readiness</p>
+            <p className="text-3xl font-bold tabular-nums mt-1">{parts ? score : "—"}</p>
+            <p className="text-xs text-muted-foreground mt-1">{rec}</p>
           </div>
         </div>
-
-        <div className="grid grid-cols-2 gap-3 mt-4">
-          <Card>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Avg sleep 7d</p>
-            <p className="text-2xl font-bold tabular-nums mt-1">{avgSleep}h</p>
-          </Card>
-          <Card>
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">Check-ins</p>
-            <p className="text-2xl font-bold tabular-nums mt-1">{state.recoveryCheckIns.length}</p>
-          </Card>
+        <div className="flex gap-2 mt-4">
+          <PrimaryButton className="flex-1" onClick={() => setCheckOpen(true)}><Plus size={16} />Check-in</PrimaryButton>
+          <GhostButton onClick={() => setSleepOpen(true)}><Moon size={16} />Sleep</GhostButton>
         </div>
+      </div>
 
-        <div className="flex items-center justify-between mt-6 mb-2 px-1">
-          <h3 className="font-semibold">Muscle fatigue</h3>
-          <button onClick={() => setFatigueOpen(true)} className="text-xs text-muted-foreground hover:text-foreground">Update</button>
-        </div>
+      <div className="grid grid-cols-2 gap-3 mt-4">
+        <StatCard label="Sleep avg 7d" value={`${avgSleep}h`} />
+        <StatCard label="Check-ins" value={state.recoveryCheckIns.length} />
+      </div>
+
+      <SectionHeader title="Muscle fatigue" action={<button onClick={() => setFatigueOpen(true)} className="text-xs text-muted-foreground">Update</button>} />
+      {mostFatigued.length === 0 ? (
+        <Card><p className="text-sm text-muted-foreground">All muscles marked fresh. Tap Update if you feel sore.</p></Card>
+      ) : (
         <Card>
-          <div className="grid grid-cols-2 gap-2">
-            {MUSCLES.map(m => {
-              const lvl = state.muscleFatigue[m] ?? "fresh";
-              return (
-                <div key={m} className="flex items-center justify-between p-2 rounded-lg bg-[var(--surface-2)]">
-                  <span className="text-sm capitalize">{m}</span>
-                  <span className="text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full text-white" style={{ background: LEVEL_COLOR[lvl] }}>{lvl}</span>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-
-        <h3 className="font-semibold mt-6 mb-2 px-1">Recent check-ins</h3>
-        {state.recoveryCheckIns.length === 0 ? (
-          <EmptyState icon={<Heart size={22} />} title="No check-ins yet" description="Daily check-ins power your readiness score." />
-        ) : (
-          <div className="space-y-2">
-            {[...state.recoveryCheckIns].reverse().slice(0, 5).map(c => (
-              <Card key={c.id}>
-                <div className="flex justify-between">
-                  <p className="text-xs text-muted-foreground">{new Date(c.createdAt).toLocaleDateString()}</p>
-                  <p className="text-xs">⚡{c.energy} • 💪{10-c.soreness} • 😌{10-c.stress} • 🔥{c.motivation}</p>
-                </div>
-              </Card>
+          <div className="flex flex-wrap gap-1.5">
+            {mostFatigued.map(m => (
+              <span key={m} className="text-[10px] uppercase font-semibold tracking-wider px-2 py-1 rounded-full text-white capitalize" style={{ background: LEVEL_COLOR[state.muscleFatigue[m]!] }}>{m} · {state.muscleFatigue[m]}</span>
             ))}
           </div>
-        )}
+        </Card>
+      )}
+
+      <SectionHeader title="Quick actions" />
+      <div className="grid grid-cols-2 gap-3">
+        <QA icon={<Moon size={16} />} label="Log sleep" onClick={() => onJump("sleep")} />
+        <QA icon={<Heart size={16} />} label="Check-in" onClick={() => onJump("readiness")} />
+        <QA icon={<Activity size={16} />} label="Fatigue" onClick={() => setFatigueOpen(true)} />
+        <QA icon={<BarChart3 size={16} />} label="Stats" onClick={() => onJump("stats")} />
       </div>
+
+      {lastCheck && (
+        <>
+          <SectionHeader title="Last check-in" />
+          <Card>
+            <div className="flex justify-between text-sm">
+              <p className="text-muted-foreground">{new Date(lastCheck.createdAt).toLocaleDateString()}</p>
+              <p>⚡{lastCheck.energy} • 💪{10-lastCheck.soreness} • 😌{10-lastCheck.stress} • 🔥{lastCheck.motivation}</p>
+            </div>
+          </Card>
+        </>
+      )}
 
       <CheckInSheet open={checkOpen} onClose={() => setCheckOpen(false)} />
       <SleepSheet open={sleepOpen} onClose={() => setSleepOpen(false)} />
       <FatigueSheet open={fatigueOpen} onClose={() => setFatigueOpen(false)} />
+    </div>
+  );
+}
+
+function QA({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="card-elev p-4 flex items-center gap-3 text-left active:scale-[0.98]">
+      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "var(--section-soft)", color: "var(--section)" }}>{icon}</div>
+      <span className="font-medium">{label}</span>
+    </button>
+  );
+}
+
+function SleepTab() {
+  const { state, set } = useStore();
+  const [hours, setHours] = useState("7.5");
+  const [quality, setQuality] = useState(7);
+  const [bed, setBed] = useState("");
+  const [wake, setWake] = useState("");
+  const [notes, setNotes] = useState("");
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+
+  const week = state.sleepEntries.filter(s => s.createdAt > Date.now() - 7*86400000);
+  const avg = week.length ? (week.reduce((a, s) => a + s.hours, 0) / week.length).toFixed(1) : "—";
+  const best = week.length ? Math.max(...week.map(s => s.hours)) : 0;
+  const worst = week.length ? Math.min(...week.map(s => s.hours)) : 0;
+
+  const submit = () => {
+    const h = Number(hours); if (!h) return;
+    const notesAll = [bed && `Bed ${bed}`, wake && `Wake ${wake}`, notes].filter(Boolean).join(" • ");
+    set(s => ({ ...s, sleepEntries: [...s.sleepEntries, { id: uid(), hours: h, quality, notes: notesAll || undefined, createdAt: Date.now() }] }));
+    setNotes("");
+  };
+
+  return (
+    <div className="px-5">
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <StatCard label="7d avg" value={`${avg}h`} accent />
+        <StatCard label="Best" value={best ? `${best}h` : "—"} />
+        <StatCard label="Worst" value={worst ? `${worst}h` : "—"} />
+      </div>
+
+      <SectionHeader title="Log sleep" />
+      <div className="space-y-3">
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Hours</Label><Input inputMode="decimal" value={hours} onChange={e => setHours(e.target.value)} /></div>
+          <div>
+            <div className="flex justify-between"><Label>Quality</Label><span className="text-xs tabular-nums">{quality}/10</span></div>
+            <input type="range" min={1} max={10} value={quality} onChange={e => setQuality(Number(e.target.value))} className="w-full accent-[var(--section)] mt-1" />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Bedtime</Label><Input value={bed} onChange={e => setBed(e.target.value)} placeholder="11:30 PM" /></div>
+          <div><Label>Wake</Label><Input value={wake} onChange={e => setWake(e.target.value)} placeholder="7:00 AM" /></div>
+        </div>
+        <div><Label>Notes</Label><Textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} /></div>
+        <PrimaryButton className="w-full" onClick={submit}>Save sleep</PrimaryButton>
+      </div>
+
+      <SectionHeader title="Recent" />
+      {state.sleepEntries.length === 0 ? (
+        <EmptyState icon={<Moon size={22} />} title="No sleep logged" description="Track sleep to power your readiness score." />
+      ) : (
+        <div className="space-y-2">
+          {[...state.sleepEntries].reverse().slice(0, 10).map(s => (
+            <Card key={s.id}>
+              <div className="flex justify-between">
+                <div>
+                  <p className="font-semibold tabular-nums">{s.hours}h <span className="text-xs text-muted-foreground">• {s.quality}/10</span></p>
+                  <p className="text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleDateString()}{s.notes ? ` • ${s.notes}` : ""}</p>
+                </div>
+                <button onClick={() => setConfirmDel(s.id)} className="text-muted-foreground"><Trash2 size={14} /></button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+      <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
+        onConfirm={() => { set(s => ({ ...s, sleepEntries: s.sleepEntries.filter(x => x.id !== confirmDel) })); setConfirmDel(null); }}
+        title="Delete sleep entry?" message="This can't be undone." confirmLabel="Delete" destructive />
+    </div>
+  );
+}
+
+function ReadinessTab() {
+  const { state, set } = useStore();
+  const [energy, setEnergy] = useState(7);
+  const [soreness, setSoreness] = useState(3);
+  const [stress, setStress] = useState(3);
+  const [motivation, setMotivation] = useState(8);
+  const [notes, setNotes] = useState("");
+  const { score, parts } = readiness(state);
+
+  const submit = () => {
+    set(s => ({ ...s, recoveryCheckIns: [...s.recoveryCheckIns, { id: uid(), energy, soreness, stress, motivation, notes: notes || undefined, createdAt: Date.now() }] }));
+    setNotes("");
+  };
+
+  const reco = !parts ? "Needs more data — log a check-in or sleep first."
+    : score >= 75 ? "✅ Train hard. Push intensity and volume."
+    : score >= 60 ? "🟢 Normal training day."
+    : score >= 40 ? "🟡 Reduce volume or intensity ~20%."
+    : "🔴 Rest, mobility, or light cardio only.";
+
+  return (
+    <div className="px-5">
+      <div className="card-elev p-5 section-gradient ring-section">
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">Today's readiness</p>
+        <p className="text-4xl font-bold tabular-nums mt-1">{parts ? `${score}%` : "—"}</p>
+        <p className="text-sm mt-2">{reco}</p>
+      </div>
+
+      <SectionHeader title="New check-in" />
+      <div className="space-y-4">
+        <Slider label="Energy" value={energy} onChange={setEnergy} />
+        <Slider label="Soreness" value={soreness} onChange={setSoreness} />
+        <Slider label="Stress" value={stress} onChange={setStress} />
+        <Slider label="Motivation" value={motivation} onChange={setMotivation} />
+        <div><Label>Notes</Label><Textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} /></div>
+        <PrimaryButton className="w-full" onClick={submit}>Save check-in</PrimaryButton>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground text-center mt-4">General fitness guidance. Not medical advice.</p>
     </div>
   );
 }
@@ -109,15 +254,137 @@ function Slider({ label, value, onChange }: { label: string; value: number; onCh
   );
 }
 
+function StatsTab() {
+  const { state, set } = useStore();
+  const [hrv, setHrv] = useState("");
+  const [rhr, setRhr] = useState("");
+
+  const week = state.recoveryCheckIns.filter(c => c.createdAt > Date.now() - 7*86400000);
+  const sleep7 = state.sleepEntries.filter(s => s.createdAt > Date.now() - 7*86400000);
+  const avg = (arr: number[]) => arr.length ? (arr.reduce((a, n) => a + n, 0) / arr.length).toFixed(1) : "—";
+  const sorenessRanked = MUSCLES
+    .map(m => ({ m, lvl: state.muscleFatigue[m] ?? "fresh" }))
+    .filter(x => x.lvl !== "fresh");
+
+  const trainingLoad = state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000).length;
+
+  return (
+    <div className="px-5">
+      <SectionHeader title="7-day averages" />
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Readiness" value={avg(week.length ? week.map(c => (c.energy + (10-c.soreness) + (10-c.stress) + c.motivation) * 2.5) : [])} accent />
+        <StatCard label="Sleep" value={avg(sleep7.map(s => s.hours))} sub="hours" />
+        <StatCard label="Energy" value={avg(week.map(c => c.energy))} />
+        <StatCard label="Stress" value={avg(week.map(c => c.stress))} />
+        <StatCard label="Motivation" value={avg(week.map(c => c.motivation))} />
+        <StatCard label="Training load" value={trainingLoad} sub="sessions" />
+      </div>
+
+      <SectionHeader title="Most fatigued" />
+      {sorenessRanked.length === 0 ? (
+        <Card><p className="text-sm text-muted-foreground">No fatigued muscles flagged.</p></Card>
+      ) : (
+        <Card>
+          <div className="space-y-2">
+            {sorenessRanked.map(({ m, lvl }) => (
+              <div key={m} className="flex justify-between items-center">
+                <span className="text-sm capitalize">{m}</span>
+                <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: LEVEL_COLOR[lvl] }}>{lvl}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      <SectionHeader title="Optional health metrics" />
+      <Card>
+        <p className="text-xs text-muted-foreground mb-3">Manual entry — wearable sync coming later.</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>HRV (ms)</Label><Input inputMode="numeric" value={hrv} onChange={e => setHrv(e.target.value)} placeholder="—" /></div>
+          <div><Label>Resting HR</Label><Input inputMode="numeric" value={rhr} onChange={e => setRhr(e.target.value)} placeholder="—" /></div>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-2">Stored as a check-in note.</p>
+        <GhostButton className="w-full mt-3" onClick={() => {
+          if (!hrv && !rhr) return;
+          const note = [hrv && `HRV ${hrv}ms`, rhr && `RHR ${rhr}bpm`].filter(Boolean).join(" • ");
+          set(s => ({ ...s, recoveryCheckIns: [...s.recoveryCheckIns, { id: uid(), energy: 5, soreness: 5, stress: 5, motivation: 5, notes: note, createdAt: Date.now() }] }));
+          setHrv(""); setRhr("");
+        }}>Save metrics</GhostButton>
+      </Card>
+    </div>
+  );
+}
+
+function HistoryTab() {
+  const { state, set } = useStore();
+  const [tab, setTab] = useState<"checkins" | "sleep">("checkins");
+  const [confirmDel, setConfirmDel] = useState<{ type: "checkin" | "sleep"; id: string } | null>(null);
+
+  return (
+    <div className="px-5">
+      <div className="flex gap-2 mb-3">
+        <button onClick={() => setTab("checkins")} className={`px-3 py-1.5 rounded-full text-xs font-semibold ${tab === "checkins" ? "text-white" : "text-muted-foreground border border-border"}`} style={tab === "checkins" ? { background: "var(--section)" } : undefined}>Check-ins</button>
+        <button onClick={() => setTab("sleep")} className={`px-3 py-1.5 rounded-full text-xs font-semibold ${tab === "sleep" ? "text-white" : "text-muted-foreground border border-border"}`} style={tab === "sleep" ? { background: "var(--section)" } : undefined}>Sleep</button>
+      </div>
+
+      {tab === "checkins" ? (
+        state.recoveryCheckIns.length === 0 ? (
+          <EmptyState icon={<Heart size={22} />} title="No check-ins" description="Daily check-ins power your readiness score." />
+        ) : (
+          <div className="space-y-2">
+            {[...state.recoveryCheckIns].reverse().map(c => (
+              <Card key={c.id}>
+                <div className="flex justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{new Date(c.createdAt).toLocaleString()}</p>
+                    <p className="text-xs text-muted-foreground">⚡{c.energy} • 💪{10-c.soreness} • 😌{10-c.stress} • 🔥{c.motivation}{c.notes ? ` • ${c.notes}` : ""}</p>
+                  </div>
+                  <button onClick={() => setConfirmDel({ type: "checkin", id: c.id })} className="text-muted-foreground"><Trash2 size={14} /></button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )
+      ) : (
+        state.sleepEntries.length === 0 ? (
+          <EmptyState icon={<Moon size={22} />} title="No sleep logs" description="Log sleep nightly for better trends." />
+        ) : (
+          <div className="space-y-2">
+            {[...state.sleepEntries].reverse().map(s => (
+              <Card key={s.id}>
+                <div className="flex justify-between">
+                  <div>
+                    <p className="text-sm font-medium tabular-nums">{s.hours}h • {s.quality}/10</p>
+                    <p className="text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleString()}{s.notes ? ` • ${s.notes}` : ""}</p>
+                  </div>
+                  <button onClick={() => setConfirmDel({ type: "sleep", id: s.id })} className="text-muted-foreground"><Trash2 size={14} /></button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        )
+      )}
+
+      <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
+        onConfirm={() => {
+          if (!confirmDel) return;
+          if (confirmDel.type === "checkin") set(s => ({ ...s, recoveryCheckIns: s.recoveryCheckIns.filter(x => x.id !== confirmDel.id) }));
+          else set(s => ({ ...s, sleepEntries: s.sleepEntries.filter(x => x.id !== confirmDel.id) }));
+          setConfirmDel(null);
+        }}
+        title="Delete entry?" message="This can't be undone." confirmLabel="Delete" destructive />
+    </div>
+  );
+}
+
 function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { set } = useStore();
   const [energy, setEnergy] = useState(7);
   const [soreness, setSoreness] = useState(3);
   const [stress, setStress] = useState(3);
   const [motivation, setMotivation] = useState(8);
-  const [notes, setNotes] = useState("");
   const submit = () => {
-    set(s => ({ ...s, recoveryCheckIns: [...s.recoveryCheckIns, { id: uid(), energy, soreness, stress, motivation, notes, createdAt: Date.now() }] }));
+    set(s => ({ ...s, recoveryCheckIns: [...s.recoveryCheckIns, { id: uid(), energy, soreness, stress, motivation, createdAt: Date.now() }] }));
     onClose();
   };
   return (
@@ -127,8 +394,7 @@ function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => void })
         <Slider label="Soreness" value={soreness} onChange={setSoreness} />
         <Slider label="Stress" value={stress} onChange={setStress} />
         <Slider label="Motivation" value={motivation} onChange={setMotivation} />
-        <div><Label>Notes</Label><Textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} /></div>
-        <PrimaryButton className="w-full" onClick={submit}>Save check-in</PrimaryButton>
+        <PrimaryButton className="w-full" onClick={submit}>Save</PrimaryButton>
       </div>
     </BottomSheet>
   );
@@ -145,9 +411,9 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   return (
     <BottomSheet open={open} onClose={onClose} title="Log sleep">
       <div className="space-y-4">
-        <div><Label>Hours slept</Label><Input inputMode="decimal" value={hours} onChange={e => setHours(e.target.value)} /></div>
-        <Slider label="Sleep quality" value={quality} onChange={setQuality} />
-        <PrimaryButton className="w-full" onClick={submit}>Save sleep</PrimaryButton>
+        <div><Label>Hours</Label><Input inputMode="decimal" value={hours} onChange={e => setHours(e.target.value)} /></div>
+        <Slider label="Quality" value={quality} onChange={setQuality} />
+        <PrimaryButton className="w-full" onClick={submit}>Save</PrimaryButton>
       </div>
     </BottomSheet>
   );

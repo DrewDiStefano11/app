@@ -122,3 +122,37 @@ export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement
 export function Label({ children }: { children: ReactNode }) {
   return <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">{children}</label>;
 }
+
+export function SubTabs<T extends string>({ tabs, active, onChange }: { tabs: { id: T; label: string }[]; active: T; onChange: (id: T) => void }) {
+  return (
+    <div className="px-5 pb-2">
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
+        {tabs.map(t => {
+          const isActive = t.id === active;
+          return (
+            <button
+              key={t.id}
+              onClick={() => onChange(t.id)}
+              className={cn(
+                "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-colors",
+                isActive ? "border-transparent text-white" : "border-border text-muted-foreground"
+              )}
+              style={isActive ? { background: "var(--section)" } : undefined}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function SectionHeader({ title, action }: { title: string; action?: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between mt-5 mb-2 px-1">
+      <h3 className="font-semibold">{title}</h3>
+      {action}
+    </div>
+  );
+}

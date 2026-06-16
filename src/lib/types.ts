@@ -49,7 +49,7 @@ export interface RecoveryCheckIn { id: string; energy: number; soreness: number;
 export type FatigueLevel = "fresh" | "moderate" | "fatigued" | "very";
 export type MuscleFatigueMap = Partial<Record<string, FatigueLevel>>;
 export interface PR { id: string; exerciseId: string; type: "1rm" | "weight" | "volume"; value: number; reps?: number; weight?: number; date: number; }
-export interface Goal { id: string; type: "lift" | "weekly_workouts" | "bodyweight" | "cardio" | "habit"; label: string; target: number; current: number; }
+export interface Goal { id: string; type: "lift" | "weekly_workouts" | "bodyweight" | "cardio" | "habit" | "volume" | "sleep" | "readiness" | "macro" | "consistency" | "photo"; label: string; target: number; current: number; section?: SectionId; pinned?: boolean; }
 export interface ProgressPhoto { id: string; dataUrl: string; view: "front" | "side" | "back"; phase: "bulk" | "cut" | "maintenance"; notes?: string; createdAt: number; }
 export interface AiMessage { id: string; role: "user" | "assistant"; content: string; createdAt: number; }
 
