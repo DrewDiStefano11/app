@@ -15,8 +15,27 @@ import type { SectionId } from "@/lib/types";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "FitCore — Personal Fitness Command Center" },
-      { name: "description", content: "Track workouts, nutrition, recovery and progress with an AI coach." },
+      { title: "FitCore — AI Fitness Command Center for Training & Recovery" },
+      { name: "description", content: "Plan workouts, log nutrition, monitor recovery and track progress in one AI-powered fitness dashboard." },
+      { property: "og:title", content: "FitCore — Personal Fitness Command Center" },
+      { property: "og:description", content: "Plan workouts, log nutrition, monitor recovery and track progress with a personal AI coach." },
+      { property: "og:url", content: "/" },
+    ],
+    links: [{ rel: "canonical", href: "/" }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "SoftwareApplication",
+          name: "FitCore",
+          applicationCategory: "HealthApplication",
+          applicationSubCategory: "FitnessApplication",
+          operatingSystem: "Web, iOS, Android",
+          description: "Personal AI fitness command center for training, nutrition, recovery and progress tracking.",
+          offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+        }),
+      },
     ],
   }),
   component: () => (

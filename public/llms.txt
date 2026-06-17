@@ -1,0 +1,9 @@
+# FitCore
+
+> Personal AI fitness command center for training, nutrition, recovery and progress tracking.
+
+FitCore is a mobile-first fitness dashboard that combines workout logging, macro tracking, recovery check-ins, and progress analytics with an integrated AI coach.
+
+## Pages
+
+- [Home](/): Dashboard with training, nutrition, recovery and progress overview.

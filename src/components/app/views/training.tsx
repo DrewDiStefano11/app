@@ -255,7 +255,7 @@ function CardioTab() {
                   <p className="font-semibold">{c.type}</p>
                   <p className="text-xs text-muted-foreground">{new Date(c.createdAt).toLocaleDateString()} • {c.minutes}m{c.distanceMi ? ` • ${c.distanceMi}mi` : ""}{c.calories ? ` • ${c.calories} kcal` : ""}</p>
                 </div>
-                <button onClick={() => setConfirmDel(c.id)} className="text-muted-foreground"><Trash2 size={14} /></button>
+                <button onClick={() => setConfirmDel(c.id)} aria-label="Delete entry" className="text-muted-foreground"><Trash2 size={14} /></button>
               </div>
             </Card>
           ))}
@@ -434,7 +434,7 @@ function ActiveWorkoutView() {
           <p className="text-xs uppercase tracking-wider text-muted-foreground">In progress</p>
           <h2 className="text-lg font-bold flex items-center gap-2"><Timer size={16} style={{ color: "var(--section)" }} />{w.name} • {elapsed}m</h2>
         </div>
-        <button onClick={() => setConfirmCancel(true)} className="p-2 rounded-lg hover:bg-[var(--surface-2)]"><X size={18} /></button>
+        <button onClick={() => setConfirmCancel(true)} aria-label="Cancel workout" className="p-2 rounded-lg hover:bg-[var(--surface-2)]"><X size={18} /></button>
       </div>
 
       <div className="px-5 mt-4 space-y-3">
@@ -450,7 +450,7 @@ function ActiveWorkoutView() {
                   <p className="font-semibold">{ex?.name}</p>
                   <p className="text-xs text-muted-foreground capitalize">{ex?.primary.join(", ")}</p>
                 </div>
-                <button onClick={() => updateActive(w => ({ ...w, exercises: w.exercises.filter(x => x.id !== we.id) }))} className="text-muted-foreground"><Trash2 size={14} /></button>
+                <button onClick={() => updateActive(w => ({ ...w, exercises: w.exercises.filter(x => x.id !== we.id) }))} aria-label="Delete entry" className="text-muted-foreground"><Trash2 size={14} /></button>
               </div>
               <div className="space-y-2">
                 {we.sets.map((st, i) => (

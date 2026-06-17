@@ -361,7 +361,7 @@ function PhotoSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
           <Label>Photo</Label>
           <label className="mt-1 block cursor-pointer">
             <div className="aspect-[3/4] rounded-xl bg-[var(--surface-2)] border border-dashed border-border flex items-center justify-center overflow-hidden">
-              {dataUrl ? <img src={dataUrl} alt="preview" className="w-full h-full object-cover" /> : <div className="text-center text-muted-foreground"><ImageIcon className="mx-auto mb-1" /><span className="text-xs">Tap to choose</span></div>}
+              {dataUrl ? <img src={dataUrl} alt="New progress photo preview" className="w-full h-full object-cover" /> : <div className="text-center text-muted-foreground"><ImageIcon className="mx-auto mb-1" /><span className="text-xs">Tap to choose</span></div>}
             </div>
             <input type="file" accept="image/*" className="hidden" onChange={e => onFile(e.target.files?.[0] ?? null)} />
           </label>

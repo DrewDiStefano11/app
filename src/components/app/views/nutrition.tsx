@@ -79,7 +79,7 @@ function MacrosTab({ onLog, onWeight }: { onLog: () => void; onWeight: () => voi
                   <p className="font-semibold tabular-nums">{Math.round(m.calories)}</p>
                   <p className="text-xs text-muted-foreground tabular-nums">P{Math.round(m.protein)} C{Math.round(m.carbs)} F{Math.round(m.fat)}</p>
                 </div>
-                <button className="ml-3 text-muted-foreground" onClick={() => setConfirmDel(m.id)}><Trash2 size={14} /></button>
+                <button aria-label="Delete meal" className="ml-3 text-muted-foreground" onClick={() => setConfirmDel(m.id)}><Trash2 size={14} /></button>
               </div>
             </Card>
           ))}
@@ -279,7 +279,7 @@ function WeightTab() {
                   <p className="font-semibold tabular-nums">{e.weightLb} lb</p>
                   <p className="text-xs text-muted-foreground">{new Date(e.createdAt).toLocaleDateString()}{e.notes ? ` • ${e.notes}` : ""}</p>
                 </div>
-                <button onClick={() => setConfirmDel(e.id)} className="text-muted-foreground"><Trash2 size={14} /></button>
+                <button onClick={() => setConfirmDel(e.id)} aria-label="Delete entry" className="text-muted-foreground"><Trash2 size={14} /></button>
               </div>
             </Card>
           ))}
@@ -348,7 +348,7 @@ function HistoryTab() {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-sm tabular-nums">{Math.round(m.calories)}</span>
-                          <button onClick={() => setConfirmDel(m.id)} className="text-muted-foreground"><Trash2 size={14} /></button>
+                          <button onClick={() => setConfirmDel(m.id)} aria-label="Delete entry" className="text-muted-foreground"><Trash2 size={14} /></button>
                         </div>
                       </div>
                     </Card>
