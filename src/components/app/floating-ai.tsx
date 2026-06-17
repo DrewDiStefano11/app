@@ -36,6 +36,12 @@ export function FloatingAi({ section, contextSummary }: { section: string; conte
     if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }, [open, state.aiMessages.length]);
 
+  useEffect(() => {
+    const h = () => setOpen(true);
+    window.addEventListener("fitcore:open-ai", h);
+    return () => window.removeEventListener("fitcore:open-ai", h);
+  }, []);
+
   const send = async (text: string) => {
     const content = text.trim();
     if (!content || sending) return;
