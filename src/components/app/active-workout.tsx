@@ -352,16 +352,11 @@ function ExerciseCard({
 
       {isOpen && (
         <div className="px-3 pb-3 border-t border-border/60 pt-3 space-y-3">
-          {/* Previous performance — subtle */}
-          {prevEx && prevSets.length > 0 && (
+          {/* Previous performance summary — subtle */}
+          {prevSets.length > 0 && (
             <div className="text-[11px] text-muted-foreground/70 px-1">
-              <span className="uppercase tracking-wider mr-1">Last:</span>
-              {prevSets.slice(0, 5).map((s, i) => (
-                <span key={s.id} className="tabular-nums">
-                  {i > 0 && ", "}{s.weight ?? "—"}×{s.reps ?? "—"}
-                </span>
-              ))}
-              {prevTop && <span> · best {prevTop.weight}×{prevTop.reps}</span>}
+              <span className="uppercase tracking-wider mr-1">Last{realPrevSets.length === 0 ? " (sample)" : ""}:</span>
+              {prevTop && <span>best {prevTop.weight}×{prevTop.reps}</span>}
               {prevVol > 0 && <span> · vol {Math.round(prevVol)}lb</span>}
             </div>
           )}
@@ -464,8 +459,11 @@ function ExerciseCard({
 
 /* ===================== Set row ===================== */
 
-function SetRow({ index, st, onChange, onDelete }: {
+function SetRow({ index, st, prev, armedTag, onArmedApply, onChange, onDelete }: {
   index: number; st: SetEntry;
+  prev?: SetEntry;
+  armedTag: NonNullable<SetEntry["modifier"]> | null;
+  onArmedApply: () => void;
   onChange: (patch: Partial<SetEntry>) => void;
   onDelete: () => void;
 }) {
@@ -473,31 +471,31 @@ function SetRow({ index, st, onChange, onDelete }: {
   const m = st.modifier && st.modifier !== "normal" ? st.modifier : null;
   const color = m ? MOD_COLORS[m] : undefined;
   const isWarmup = m === "warmup";
+  const done = st.weight != null && st.reps != null;
+  const doneColor = done ? (isWarmup ? "#f59e0b" : "var(--section)") : undefined;
 
   return (
     <div>
       <div className="flex items-center gap-1.5">
-        <button onClick={() => setTagOpen(o => !o)}
-          className="w-7 h-9 rounded-md text-[11px] font-bold tabular-nums flex items-center justify-center"
+        <button
+          onClick={() => { if (armedTag) onArmedApply(); else setTagOpen(o => !o); }}
+          className="w-7 h-9 rounded-md text-[11px] font-bold tabular-nums flex items-center justify-center transition-all"
           style={m
-            ? { background: `${color}22`, color }
-            : { background: "var(--surface-2)", color: "var(--muted-foreground)" }}
+            ? { background: color, color: "white" }
+            : done
+              ? { background: doneColor, color: "white" }
+              : armedTag
+                ? { background: "transparent", color: MOD_COLORS[armedTag], border: `1.5px dashed ${MOD_COLORS[armedTag]}` }
+                : { background: "var(--surface-2)", color: "var(--muted-foreground)" }}
           aria-label="Set tag">
-          {m ? m.slice(0, 1).toUpperCase() : index + 1}
+          {index + 1}
         </button>
-        <input type="number" inputMode="decimal" placeholder="lb"
+        <input type="number" inputMode="decimal" placeholder={prev?.weight != null ? String(prev.weight) : "lb"}
           value={st.weight ?? ""} onChange={e => onChange({ weight: e.target.value ? Number(e.target.value) : undefined })}
           className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-sm tabular-nums" />
-        <input type="number" inputMode="numeric" placeholder="reps"
+        <input type="number" inputMode="numeric" placeholder={prev?.reps != null ? String(prev.reps) : "reps"}
           value={st.reps ?? ""} onChange={e => onChange({ reps: e.target.value ? Number(e.target.value) : undefined })}
           className="w-20 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-sm tabular-nums" />
-        <button onClick={() => onChange({ completed: !st.completed })}
-          className="w-10 h-10 rounded-lg flex items-center justify-center border"
-          style={st.completed
-            ? { background: isWarmup ? "#f59e0b" : "var(--section)", color: "white", borderColor: "transparent" }
-            : { borderColor: "var(--border)", color: "var(--muted-foreground)" }}>
-          <Check size={16} />
-        </button>
       </div>
       {tagOpen && (
         <div className="flex flex-wrap gap-1 mt-1.5 pl-9">
