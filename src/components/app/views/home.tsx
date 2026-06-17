@@ -31,7 +31,7 @@ export function HomeView({ onNavigate, onOpenSettings }: {
   onNavigate: (s: SectionId) => void;
   onOpenSettings: () => void;
 }) {
-  const { view, state, set } = useStore();
+  const { view, state } = useStore();
   const name = (state.profile as { name?: string }).name ?? "ATHLETE";
 
   const score = useMemo(() => fitcoreScore(view), [view]);
