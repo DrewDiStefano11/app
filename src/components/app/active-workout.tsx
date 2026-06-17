@@ -14,7 +14,7 @@ import {
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 
 const MODS: NonNullable<SetEntry["modifier"]>[] = [
-  "warmup", "drop", "failure", "partials", "unilateral", "paused", "tempo",
+  "warmup", "drop", "failure", "partials", "unilateral", "paused",
 ];
 const MOD_COLORS: Record<string, string> = {
   warmup: "#f59e0b",
