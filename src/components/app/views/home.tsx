@@ -142,9 +142,21 @@ export function HomeView({ onNavigate, onOpenSettings }: {
               <p className="text-xs text-white/50 mt-2">Best today: <span className="text-white capitalize font-bold">{bestMuscle}</span></p>
               <p className="text-[10px] text-white/40 uppercase tracking-wider mt-2 font-bold">Tap to expand →</p>
             </div>
-            <div className="w-20 h-32 shrink-0">
-              <BodyHeatmap values={loadMap} mode={heatMode} compact side="front"
-                onSelect={(m) => { setMuscle(m); }} />
+            <div className="flex gap-1 shrink-0">
+              <div className="flex flex-col items-center">
+                <div className="w-16 h-28">
+                  <BodyHeatmap values={loadMap} mode={heatMode} compact side="front"
+                    onSelect={(m) => { setMuscle(m); }} />
+                </div>
+                <span className="text-[8px] text-white/40 uppercase tracking-wider font-bold mt-0.5">Front</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="w-16 h-28">
+                  <BodyHeatmap values={loadMap} mode={heatMode} compact side="back"
+                    onSelect={(m) => { setMuscle(m); }} />
+                </div>
+                <span className="text-[8px] text-white/40 uppercase tracking-wider font-bold mt-0.5">Back</span>
+              </div>
             </div>
           </div>
         </Tile>
