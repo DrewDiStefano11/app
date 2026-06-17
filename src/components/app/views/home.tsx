@@ -22,6 +22,7 @@ import { StartWorkoutSheet } from "@/components/app/popups/start-workout-popup";
 import { MuscleDetailSheet } from "@/components/app/popups/muscle-popup";
 import { FitcoreScoreSheet } from "@/components/app/popups/score-popup";
 import { LogMealSheet, CheckInSheet, WeighInSheet } from "@/components/app/popups/quick-popups";
+import { GoalsPanel } from "@/components/app/goals-panel";
 
 type Popup = null | "volume" | "macros" | "readiness" | "heatmap" | "start" | "score" | "logmeal" | "checkin" | "weighin";
 
@@ -30,7 +31,7 @@ export function HomeView({ onNavigate, onOpenSettings }: {
   onNavigate: (s: SectionId) => void;
   onOpenSettings: () => void;
 }) {
-  const { view, state, set } = useStore();
+  const { view, state } = useStore();
   const name = (state.profile as { name?: string }).name ?? "ATHLETE";
 
   const score = useMemo(() => fitcoreScore(view), [view]);
@@ -201,23 +202,8 @@ export function HomeView({ onNavigate, onOpenSettings }: {
           </Tile>
         </div>
 
-        {/* Recovery + Demo */}
-        <div className="grid grid-cols-2 gap-3">
-          <Tile delay={300} onClick={() => setPopup("readiness")}>
-            <div className="flex items-center gap-3">
-              <RingScore value={recovery} color="rgb(96 165 250)" size={52} />
-              <div>
-                <Eyebrow color="rgb(96 165 250)">Recovery</Eyebrow>
-                <p className="text-xs text-white/60 mt-1">{recovery >= 75 ? "Fully recovered" : recovery >= 50 ? "Moderate" : "Run down"}</p>
-              </div>
-            </div>
-          </Tile>
-          <Tile delay={360} onClick={() => set(s => ({ ...s, demoMode: !s.demoMode }))}>
-            <Eyebrow>Demo Data</Eyebrow>
-            <p className="text-sm font-bold mt-1">{state.demoMode ? "ON" : "OFF"}</p>
-            <p className="text-[10px] text-white/40 mt-1">Tap to {state.demoMode ? "hide" : "preview"} sample data.</p>
-          </Tile>
-        </div>
+        {/* Goals panel */}
+        <GoalsPanel />
 
         {/* AI insight — opens AI sheet */}
         <button onClick={openAi} style={{ animationDelay: "420ms" }} className="animate-tile-in w-full text-left press">
