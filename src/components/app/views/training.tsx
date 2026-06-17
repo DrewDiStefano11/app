@@ -1,23 +1,23 @@
 import { useState } from "react";
-import { Play, Plus, Clock, Flame, ListChecks, Trash2, Check, Timer, X, Activity, Filter } from "lucide-react";
+import { Play, Plus, Clock, Flame, ListChecks, Trash2, Check, Timer, X, Activity, Trophy, BarChart3 } from "lucide-react";
 import { useStore, uid, e1RM, isToday } from "@/lib/store";
 import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
+import { weeklyVolumeSeries, muscleMap, MUSCLES } from "@/lib/analytics";
 import type { Workout, WorkoutExercise, SetEntry, CardioEntry } from "@/lib/types";
 import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SubTabs, SectionHeader } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 
 const SET_MODS: SetEntry["modifier"][] = ["normal","warmup","drop","failure","partials","unilateral","paused","tempo"];
-type Tab = "home" | "templates" | "cardio" | "history";
+type Tab = "today" | "workouts" | "performance";
 const TABS: { id: Tab; label: string }[] = [
-  { id: "home", label: "Home" },
-  { id: "templates", label: "Templates" },
-  { id: "cardio", label: "Cardio" },
-  { id: "history", label: "History" },
+  { id: "today", label: "Today" },
+  { id: "workouts", label: "Workouts" },
+  { id: "performance", label: "Performance" },
 ];
 
 export function TrainingView() {
   const { state } = useStore();
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>("today");
 
   if (state.activeWorkout) return <ActiveWorkoutView />;
 
@@ -25,24 +25,33 @@ export function TrainingView() {
     <div className="pb-24">
       <PageHeader title="Training" subtitle={`${state.profile.split} • ${state.profile.daysPerWeek}d/wk`} />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} />
-      {tab === "home" && <HomeTab onJump={setTab} />}
-      {tab === "templates" && <TemplatesTab />}
-      {tab === "cardio" && <CardioTab />}
-      {tab === "history" && <HistoryTab />}
+      {tab === "today" && <TodayTab onJump={setTab} />}
+      {tab === "workouts" && <WorkoutsTab />}
+      {tab === "performance" && <PerformanceTab />}
     </div>
   );
 }
 
-function HomeTab({ onJump }: { onJump: (t: Tab) => void }) {
+/* ===================== TODAY ===================== */
+
+function TodayTab({ onJump }: { onJump: (t: Tab) => void }) {
   const { state, set } = useStore();
   const todays = state.workouts.filter(w => isToday(w.startedAt));
-  const weekVolume = state.workouts
-    .filter(w => w.startedAt > Date.now() - 7*86400000)
-    .reduce((a, w) => a + w.exercises.reduce((aa, ex) => aa + ex.sets.reduce((s, st) => s + (st.weight ?? 0) * (st.reps ?? 0), 0), 0), 0);
   const lastWorkout = state.workouts[state.workouts.length - 1];
-  const topPR = [...state.prs].sort((a,b) => b.value - a.value)[0];
+  const planExercises = state.workoutTemplates[0]
+    ? WORKOUT_TEMPLATES.find(t => t.id === state.workoutTemplates[0].templateId)
+    : WORKOUT_TEMPLATES[0];
 
   const startBlank = () => set(s => ({ ...s, activeWorkout: { id: uid(), name: "Workout", startedAt: Date.now(), exercises: [] } }));
+  const startPlan = () => {
+    if (!planExercises) return;
+    const t = planExercises;
+    set(s => ({ ...s, activeWorkout: {
+      id: uid(), name: t.name, startedAt: Date.now(), templateId: t.id,
+      exercises: t.exercises.map(te => ({ id: uid(), exerciseId: te.exerciseId, completed: false,
+        sets: Array.from({ length: te.sets }, () => ({ id: uid(), modifier: "normal" as const, completed: false })) })),
+    }}));
+  };
 
   return (
     <div className="px-5">
@@ -51,35 +60,47 @@ function HomeTab({ onJump }: { onJump: (t: Tab) => void }) {
           <div>
             <span className="text-xs uppercase tracking-wider text-muted-foreground">Today</span>
             <h2 className="text-2xl font-bold mt-1">{todays.length ? "Trained ✓" : "Ready to lift"}</h2>
-            <p className="text-sm text-muted-foreground mt-1">{todays.length ? `${todays.length} workout logged` : "Pick a template or go blank"}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {todays.length ? `${todays.length} workout logged` : planExercises ? `Plan: ${planExercises.name}` : "Pick a template"}
+            </p>
           </div>
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "var(--section)" }}>
             <Activity size={22} className="text-white" />
           </div>
         </div>
         <div className="flex gap-2 mt-4">
-          <PrimaryButton onClick={() => onJump("templates")} className="flex-1"><Play size={16} />Start workout</PrimaryButton>
+          <PrimaryButton onClick={planExercises ? startPlan : () => onJump("workouts")} className="flex-1">
+            <Play size={16} />{planExercises ? "Start today's plan" : "Start workout"}
+          </PrimaryButton>
           <GhostButton onClick={startBlank}><Plus size={16} />Blank</GhostButton>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mt-4">
-        <StatCard label="Workouts" value={state.workouts.length} />
-        <StatCard label="This Wk" value={state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000).length} />
-        <StatCard label="Volume" value={`${Math.round(weekVolume/1000)}k`} sub="lb / 7d" />
-      </div>
-
-      <SectionHeader title="Quick actions" />
-      <div className="grid grid-cols-3 gap-3">
-        <QuickAction icon={<ListChecks size={18} />} label="Templates" onClick={() => onJump("templates")} />
-        <QuickAction icon={<Clock size={18} />} label="History" onClick={() => onJump("history")} />
-        <QuickAction icon={<Flame size={18} />} label="Cardio" onClick={() => onJump("cardio")} />
-      </div>
+      {planExercises && !todays.length && (
+        <>
+          <SectionHeader title="Today's assigned workout" />
+          <Card>
+            <p className="font-semibold">{planExercises.name}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{planExercises.exercises.length} exercises • ~{planExercises.durationMin} min</p>
+            <div className="mt-3 space-y-1">
+              {planExercises.exercises.slice(0, 4).map((te, i) => (
+                <div key={i} className="text-xs text-muted-foreground flex justify-between">
+                  <span>{exerciseById(te.exerciseId)?.name}</span>
+                  <span className="tabular-nums">{te.sets}×{te.reps}</span>
+                </div>
+              ))}
+              {planExercises.exercises.length > 4 && (
+                <p className="text-xs text-muted-foreground">+{planExercises.exercises.length - 4} more</p>
+              )}
+            </div>
+          </Card>
+        </>
+      )}
 
       {lastWorkout && (
         <>
           <SectionHeader title="Last workout" />
-          <Card>
+          <Card onClick={() => onJump("workouts")}>
             <div className="flex justify-between items-start">
               <div>
                 <p className="font-semibold">{lastWorkout.name}</p>
@@ -90,28 +111,30 @@ function HomeTab({ onJump }: { onJump: (t: Tab) => void }) {
           </Card>
         </>
       )}
-
-      {topPR && (
-        <>
-          <SectionHeader title="Top PR" />
-          <Card>
-            <div className="flex justify-between">
-              <div>
-                <p className="font-semibold">{exerciseById(topPR.exerciseId)?.name}</p>
-                <p className="text-xs text-muted-foreground">{topPR.weight}lb × {topPR.reps}</p>
-              </div>
-              <p className="text-2xl font-bold tabular-nums" style={{ color: "var(--section)" }}>{topPR.value}</p>
-            </div>
-          </Card>
-        </>
-      )}
-
     </div>
   );
 }
 
-function TemplatesTab() {
-  const { state, set } = useStore();
+/* ===================== WORKOUTS ===================== */
+
+function WorkoutsTab() {
+  const [sub, setSub] = useState<"templates" | "cardio" | "history">("templates");
+  return (
+    <div className="px-5">
+      <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar">
+        <Chip active={sub === "templates"} onClick={() => setSub("templates")}>Templates</Chip>
+        <Chip active={sub === "cardio"} onClick={() => setSub("cardio")}>Cardio</Chip>
+        <Chip active={sub === "history"} onClick={() => setSub("history")}>History</Chip>
+      </div>
+      {sub === "templates" && <TemplatesSection />}
+      {sub === "cardio" && <CardioSection />}
+      {sub === "history" && <HistorySection />}
+    </div>
+  );
+}
+
+function TemplatesSection() {
+  const { set } = useStore();
   const [detail, setDetail] = useState<string | null>(null);
   const startTemplate = (tid: string) => {
     const t = WORKOUT_TEMPLATES.find(x => x.id === tid); if (!t) return;
@@ -123,7 +146,7 @@ function TemplatesTab() {
   };
   const active = detail ? WORKOUT_TEMPLATES.find(t => t.id === detail) : null;
   return (
-    <div className="px-5">
+    <>
       <p className="text-sm text-muted-foreground mb-3">{WORKOUT_TEMPLATES.length} starter templates</p>
       <div className="space-y-2">
         {WORKOUT_TEMPLATES.map(t => (
@@ -155,18 +178,18 @@ function TemplatesTab() {
           </>
         )}
       </BottomSheet>
-    </div>
+    </>
   );
 }
 
-function CardioTab() {
+function CardioSection() {
   const { state, set } = useStore();
   const [open, setOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const week = state.cardioEntries.filter(c => c.createdAt > Date.now() - 7*86400000);
   const weekMin = week.reduce((a, c) => a + c.minutes, 0);
   return (
-    <div className="px-5">
+    <>
       <div className="grid grid-cols-2 gap-3 mb-4">
         <StatCard label="This week" value={`${weekMin}m`} sub={`${week.length} session${week.length === 1 ? "" : "s"}`} accent />
         <StatCard label="All time" value={state.cardioEntries.length} sub="entries" />
@@ -192,11 +215,11 @@ function CardioTab() {
       )}
       <CardioSheet open={open} onClose={() => setOpen(false)} />
       <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)} onConfirm={() => { set(s => ({ ...s, cardioEntries: s.cardioEntries.filter(x => x.id !== confirmDel) })); setConfirmDel(null); }} title="Delete cardio entry?" message="This can't be undone." confirmLabel="Delete" destructive />
-    </div>
+    </>
   );
 }
 
-function HistoryTab() {
+function HistorySection() {
   const { state, set } = useStore();
   const [filter, setFilter] = useState<"all" | "7d" | "30d">("all");
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
@@ -207,8 +230,8 @@ function HistoryTab() {
   );
   const w = detail ? state.workouts.find(x => x.id === detail) : null;
   return (
-    <div className="px-5">
-      <div className="flex gap-2 mb-3"><Filter size={14} className="text-muted-foreground self-center" />
+    <>
+      <div className="flex gap-2 mb-3">
         {(["all","7d","30d"] as const).map(f => <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>{f}</Chip>)}
       </div>
       {filtered.length === 0 ? (
@@ -252,18 +275,102 @@ function HistoryTab() {
       <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
         onConfirm={() => { set(s => ({ ...s, workouts: s.workouts.filter(x => x.id !== confirmDel) })); setConfirmDel(null); setDetail(null); }}
         title="Delete workout?" message="This can't be undone." confirmLabel="Delete" destructive />
+    </>
+  );
+}
+
+/* ===================== PERFORMANCE ===================== */
+
+function PerformanceTab() {
+  const { state } = useStore();
+  const series = weeklyVolumeSeries(state, 14);
+  const total14 = series.reduce((a, s) => a + s.volume, 0);
+  const avg = Math.round(total14 / 14);
+  const allPRs = [...state.prs].sort((a,b) => b.value - a.value);
+  const topPR = allPRs[0];
+  const recent = Date.now() - 14*86400000;
+  const balance = muscleMap(state, "load");
+
+  const max = Math.max(1, ...series.map(s => s.volume));
+
+  return (
+    <div className="px-5">
+      <div className="grid grid-cols-3 gap-3">
+        <StatCard label="14d vol" value={`${Math.round(total14/1000)}k`} sub="lb" accent />
+        <StatCard label="Daily avg" value={`${Math.round(avg/1000)}k`} sub="lb" />
+        <StatCard label="PRs" value={state.prs.length} sub="all time" />
+      </div>
+
+      <SectionHeader title="Volume trend (14d)" />
+      <Card>
+        {total14 === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Complete workouts to see volume trends.</p>
+        ) : (
+          <div className="flex items-end gap-1 h-24">
+            {series.map((s, i) => (
+              <div key={i} className="flex-1 rounded-t" style={{ height: `${(s.volume / max) * 100}%`, background: "var(--section)", minHeight: s.volume ? 4 : 0, opacity: s.volume ? 0.85 : 0.15 }} />
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <SectionHeader title="Muscle balance (7d)" />
+      <Card>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+          {MUSCLES.map(m => (
+            <div key={m}>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="capitalize text-muted-foreground">{m}</span>
+                <span className="tabular-nums">{Math.round((balance[m] ?? 0) * 100)}%</span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
+                <div className="h-full" style={{ width: `${(balance[m] ?? 0) * 100}%`, background: "var(--section)" }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <SectionHeader title="Personal records" />
+      {allPRs.length === 0 ? (
+        <EmptyState icon={<Trophy size={22} />} title="No PRs yet" description="Finish workouts with weight + reps logged. Est 1RM = weight × (1 + reps/30)." />
+      ) : (
+        <>
+          {topPR && (
+            <Card className="mb-2 ring-section">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Top lift</p>
+                  <p className="font-semibold">{exerciseById(topPR.exerciseId)?.name}</p>
+                  <p className="text-xs text-muted-foreground">{topPR.weight}lb × {topPR.reps}</p>
+                </div>
+                <p className="text-3xl font-bold tabular-nums" style={{ color: "var(--section)" }}>{topPR.value}</p>
+              </div>
+            </Card>
+          )}
+          <div className="space-y-2">
+            {allPRs.slice(0, 12).map(p => {
+              const isNew = p.date > recent;
+              return (
+                <Card key={p.id}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-semibold text-sm">{exerciseById(p.exerciseId)?.name}</p>
+                      <p className="text-xs text-muted-foreground">{p.weight}lb × {p.reps} • {new Date(p.date).toLocaleDateString()}{isNew ? " • NEW" : ""}</p>
+                    </div>
+                    <p className="font-bold tabular-nums" style={{ color: "var(--section)" }}>{p.value}</p>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="card-elev p-4 flex items-center gap-3 text-left active:scale-[0.98] transition-transform">
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "var(--section-soft)", color: "var(--section)" }}>{icon}</div>
-      <span className="font-medium">{label}</span>
-    </button>
-  );
-}
+/* ===================== ACTIVE / SHEETS ===================== */
 
 function CardioSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { set } = useStore();

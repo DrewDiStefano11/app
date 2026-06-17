@@ -1,114 +1,193 @@
 import { useState, useMemo } from "react";
-import { Trophy, Camera, Plus, Trash2, Image as ImageIcon, Scale } from "lucide-react";
+import { Camera, Plus, Trash2, Image as ImageIcon, Scale, Target } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
-import { exerciseById } from "@/lib/data";
+import { fitcoreScore, weeklyVolumeSeries, bodyweightDelta } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
-import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Label, Input, Select, SubTabs, SectionHeader } from "@/components/app/ui";
+import { Card, StatCard, PageHeader, PrimaryButton, EmptyState, Label, Input, Select, SubTabs, SectionHeader, Chip, Ring } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 
-type Tab = "strength" | "photos" | "weight";
+type Tab = "overview" | "body" | "analytics";
 const TABS: { id: Tab; label: string }[] = [
-  { id: "strength", label: "Strength" },
-  { id: "photos", label: "Photos" },
-  { id: "weight", label: "Weight" },
+  { id: "overview", label: "Overview" },
+  { id: "body", label: "Body" },
+  { id: "analytics", label: "Analytics" },
 ];
 
 export function ProgressView() {
-  const [tab, setTab] = useState<Tab>("strength");
+  const [tab, setTab] = useState<Tab>("overview");
   return (
     <div className="pb-24">
       <PageHeader title="Progress" subtitle="Your trends and milestones" />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} />
-      {tab === "strength" && <StrengthTab onJump={setTab} />}
-      {tab === "photos" && <PhotosTab />}
-      {tab === "weight" && <WeightTab />}
+      {tab === "overview" && <OverviewTab />}
+      {tab === "body" && <BodyTab />}
+      {tab === "analytics" && <AnalyticsTab />}
     </div>
   );
 }
 
-function StrengthTab({ onJump }: { onJump: (t: Tab) => void }) {
+/* ===================== OVERVIEW ===================== */
+
+function OverviewTab() {
   const { state } = useStore();
+  const score = fitcoreScore(state);
   const sortedBw = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
-  const bwTrend = sortedBw.length >= 2 ? sortedBw[sortedBw.length-1].weightLb - sortedBw[0].weightLb : 0;
-  const weekWorkouts = state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000).length;
-  const topPR = [...state.prs].sort((a,b) => b.value - a.value)[0];
-  const allPRs = [...state.prs].sort((a,b) => b.value - a.value);
-  const recent = Date.now() - 14*86400000;
+  const bw = state.profile.bodyweightLb;
+  const target = state.profile.targetBodyweightLb;
+  const dWeek = bodyweightDelta(state, 7) ?? 0;
+  const dMonth = bodyweightDelta(state, 30) ?? 0;
+  const topGoals = state.goals.filter(g => g.pinned).slice(0, 3);
+  const goalList = topGoals.length ? topGoals : state.goals.slice(0, 3);
+  const lastWorkout = state.workouts[state.workouts.length - 1];
 
   return (
     <div className="px-5">
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Workouts" value={weekWorkouts} sub="this week" accent />
-        <StatCard label="PRs" value={state.prs.length} sub="all time" />
-        <StatCard label="Bodyweight" value={`${state.profile.bodyweightLb}`} sub="lb" />
-        <StatCard label="Trend" value={`${bwTrend >= 0 ? "+" : ""}${bwTrend.toFixed(1)}`} sub="lb total" />
+      <div className="card-elev p-5 section-gradient ring-section">
+        <div className="flex items-center gap-4">
+          <Ring value={score} max={100} size={92} label="score" />
+          <div className="flex-1">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">FitCore score</p>
+            <p className="text-3xl font-bold tabular-nums mt-1">{score}</p>
+            <p className="text-xs text-muted-foreground mt-1">Composite of training, nutrition, recovery, and progress.</p>
+          </div>
+        </div>
       </div>
 
-      {topPR && (
-        <>
-          <SectionHeader title="Best lift" />
-          <Card>
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-semibold">{exerciseById(topPR.exerciseId)?.name}</p>
-                <p className="text-xs text-muted-foreground">{topPR.weight}lb × {topPR.reps} • {new Date(topPR.date).toLocaleDateString()}</p>
-              </div>
-              <p className="text-3xl font-bold tabular-nums" style={{ color: "var(--section)" }}>{topPR.value}</p>
-            </div>
-          </Card>
-        </>
-      )}
-
-      <SectionHeader title="Quick actions" />
-      <div className="grid grid-cols-2 gap-3">
-        <QA icon={<Camera size={16} />} label="Add photo" onClick={() => onJump("photos")} />
-        <QA icon={<Scale size={16} />} label="Bodyweight" onClick={() => onJump("weight")} />
+      <div className="grid grid-cols-3 gap-3 mt-4">
+        <StatCard label="Bodyweight" value={`${bw}`} sub="lb" accent />
+        <StatCard label="Δ 7d" value={`${dWeek >= 0 ? "+" : ""}${dWeek.toFixed(1)}`} sub="lb" />
+        <StatCard label="Δ 30d" value={`${dMonth >= 0 ? "+" : ""}${dMonth.toFixed(1)}`} sub="lb" />
       </div>
 
-      <SectionHeader title="Personal records" />
-      {allPRs.length === 0 ? (
-        <EmptyState icon={<Trophy size={22} />} title="No PRs yet" description="Finish workouts with weight + reps logged. Est 1RM = weight × (1 + reps/30)." />
+      <SectionHeader title="Bodyweight trend" />
+      <Card>
+        {sortedBw.length < 2 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Log at least 2 weigh-ins to see your trend.</p>
+        ) : (
+          <Sparkline points={sortedBw.map(b => b.weightLb)} unit=" lb" />
+        )}
+        <p className="text-xs text-muted-foreground mt-2">Target {target} lb ({(target - bw) >= 0 ? "+" : ""}{(target - bw).toFixed(1)} to go)</p>
+      </Card>
+
+      <SectionHeader title="Current goals" />
+      {goalList.length === 0 ? (
+        <Card><p className="text-sm text-muted-foreground">Pin goals on the home Goals panel to track them here.</p></Card>
       ) : (
         <div className="space-y-2">
-          {allPRs.map(p => {
-            const isNew = p.date > recent;
+          {goalList.map(g => {
+            const pct = Math.min(100, (g.current / Math.max(0.01, g.target)) * 100);
             return (
-              <Card key={p.id} className={isNew ? "ring-section" : ""}>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="font-semibold">{exerciseById(p.exerciseId)?.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.weight}lb × {p.reps} • {new Date(p.date).toLocaleDateString()}{isNew ? " • NEW" : ""}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold tabular-nums" style={{ color: "var(--section)" }}>{p.value}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">est 1RM</p>
-                  </div>
+              <Card key={g.id}>
+                <div className="flex justify-between items-baseline mb-2">
+                  <p className="font-medium text-sm">{g.label}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">{Math.round(g.current)}/{g.target}</p>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
+                  <div className="h-full" style={{ width: `${pct}%`, background: "var(--section)" }} />
                 </div>
               </Card>
             );
           })}
         </div>
       )}
+
+      {lastWorkout && (
+        <>
+          <SectionHeader title="Recent activity" />
+          <Card>
+            <p className="font-semibold text-sm">{lastWorkout.name}</p>
+            <p className="text-xs text-muted-foreground">{new Date(lastWorkout.startedAt).toLocaleDateString()} • {lastWorkout.exercises.length} exercises</p>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
 
-function QA({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+/* ===================== BODY ===================== */
+
+function BodyTab() {
+  const [sub, setSub] = useState<"weight" | "photos">("weight");
   return (
-    <button onClick={onClick} className="card-elev p-4 flex items-center gap-3 text-left active:scale-[0.98]">
-      <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "var(--section-soft)", color: "var(--section)" }}>{icon}</div>
-      <span className="font-medium">{label}</span>
-    </button>
+    <div className="px-5">
+      <div className="flex gap-2 mb-3">
+        <Chip active={sub === "weight"} onClick={() => setSub("weight")}>Weight</Chip>
+        <Chip active={sub === "photos"} onClick={() => setSub("photos")}>Photos</Chip>
+      </div>
+      {sub === "weight" ? <WeightSection /> : <PhotosSection />}
+    </div>
   );
 }
 
-function PhotosTab() {
+function WeightSection() {
+  const { state, set } = useStore();
+  const [w, setW] = useState(String(state.profile.bodyweightLb));
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const sorted = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
+  const last = sorted[sorted.length - 1];
+  const weekAgo = Date.now() - 7*86400000, monthAgo = Date.now() - 30*86400000;
+  const week = sorted.filter(e => e.createdAt > weekAgo);
+  const weekAvg = week.length ? (week.reduce((a, e) => a + e.weightLb, 0) / week.length).toFixed(1) : "—";
+  const lastWeek = sorted.find(e => e.createdAt < weekAgo);
+  const lastMonth = sorted.find(e => e.createdAt < monthAgo);
+  const dWeek = last && lastWeek ? (last.weightLb - lastWeek.weightLb) : 0;
+  const dMonth = last && lastMonth ? (last.weightLb - lastMonth.weightLb) : 0;
+
+  const submit = () => {
+    const wt = Number(w); if (!wt) return;
+    set(s => ({ ...s,
+      bodyweightEntries: [...s.bodyweightEntries, { id: uid(), weightLb: wt, createdAt: Date.now() }],
+      profile: { ...s.profile, bodyweightLb: wt },
+      goals: s.goals.map(g => g.type === "bodyweight" ? { ...g, current: wt } : g),
+    }));
+  };
+
+  return (
+    <>
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <StatCard label="Wk avg" value={weekAvg} sub="lb" accent />
+        <StatCard label="Δ 7d" value={`${dWeek >= 0 ? "+" : ""}${dWeek.toFixed(1)}`} sub="lb" />
+        <StatCard label="Δ 30d" value={`${dMonth >= 0 ? "+" : ""}${dMonth.toFixed(1)}`} sub="lb" />
+      </div>
+
+      <SectionHeader title="Log new" />
+      <div className="flex gap-2">
+        <Input className="flex-1" inputMode="decimal" value={w} onChange={e => setW(e.target.value)} placeholder="Weight in lb" />
+        <PrimaryButton onClick={submit}>Save</PrimaryButton>
+      </div>
+
+      <SectionHeader title="Recent weigh-ins" />
+      {sorted.length === 0 ? (
+        <EmptyState icon={<Scale size={22} />} title="No weigh-ins" description="Track weekly for real trends." />
+      ) : (
+        <div className="space-y-2">
+          {[...sorted].reverse().slice(0, 15).map(e => (
+            <Card key={e.id}>
+              <div className="flex justify-between">
+                <div>
+                  <p className="font-semibold tabular-nums">{e.weightLb} lb</p>
+                  <p className="text-xs text-muted-foreground">{new Date(e.createdAt).toLocaleDateString()}</p>
+                </div>
+                <button onClick={() => setConfirmDel(e.id)} className="text-muted-foreground"><Trash2 size={14} /></button>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+      <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
+        onConfirm={() => { set(s => ({ ...s, bodyweightEntries: s.bodyweightEntries.filter(x => x.id !== confirmDel) })); setConfirmDel(null); }}
+        title="Delete weigh-in?" message="This can't be undone." confirmLabel="Delete" destructive />
+    </>
+  );
+}
+
+function PhotosSection() {
   const { state, set } = useStore();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<ProgressPhoto | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   return (
-    <div className="px-5">
+    <>
       <PrimaryButton className="w-full" onClick={() => setOpen(true)}><Plus size={16} />Add photo</PrimaryButton>
       <SectionHeader title="Timeline" />
       {state.progressPhotos.length === 0 ? (
@@ -144,88 +223,81 @@ function PhotosTab() {
       <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
         onConfirm={() => { set(s => ({ ...s, progressPhotos: s.progressPhotos.filter(x => x.id !== confirmDel) })); setConfirmDel(null); setView(null); }}
         title="Delete photo?" message="This can't be undone." confirmLabel="Delete" destructive />
-    </div>
+    </>
   );
 }
 
-function WeightTab() {
-  const { state, set } = useStore();
-  const [w, setW] = useState(String(state.profile.bodyweightLb));
-  const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const sorted = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
-  const last = sorted[sorted.length - 1];
-  const weekAgo = Date.now() - 7*86400000, monthAgo = Date.now() - 30*86400000;
-  const week = sorted.filter(e => e.createdAt > weekAgo);
-  const weekAvg = week.length ? (week.reduce((a, e) => a + e.weightLb, 0) / week.length).toFixed(1) : "—";
-  const lastWeek = sorted.find(e => e.createdAt < weekAgo);
-  const lastMonth = sorted.find(e => e.createdAt < monthAgo);
-  const dWeek = last && lastWeek ? (last.weightLb - lastWeek.weightLb) : 0;
-  const dMonth = last && lastMonth ? (last.weightLb - lastMonth.weightLb) : 0;
-  const targetGap = state.profile.targetBodyweightLb - state.profile.bodyweightLb;
+/* ===================== ANALYTICS ===================== */
 
-  const submit = () => {
-    const wt = Number(w); if (!wt) return;
-    set(s => ({ ...s,
-      bodyweightEntries: [...s.bodyweightEntries, { id: uid(), weightLb: wt, createdAt: Date.now() }],
-      profile: { ...s.profile, bodyweightLb: wt },
-      goals: s.goals.map(g => g.type === "bodyweight" ? { ...g, current: wt } : g),
-    }));
-  };
+function AnalyticsTab() {
+  const { state } = useStore();
+  const [range, setRange] = useState<"14d" | "30d">("14d");
+  const days = range === "14d" ? 14 : 30;
+  const series = weeklyVolumeSeries(state, days);
+  const total = series.reduce((a, s) => a + s.volume, 0);
+  const max = Math.max(1, ...series.map(s => s.volume));
+  const sortedBw = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
+  const bwInRange = sortedBw.filter(b => b.createdAt > Date.now() - days * 86400000);
 
   return (
     <div className="px-5">
-      <div className="card-elev p-5 section-gradient ring-section">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">Bodyweight</p>
-        <p className="text-4xl font-bold tabular-nums mt-1">{state.profile.bodyweightLb} <span className="text-base text-muted-foreground">lb</span></p>
-        <p className="text-xs text-muted-foreground mt-1">Target {state.profile.targetBodyweightLb} lb ({targetGap >= 0 ? "+" : ""}{targetGap.toFixed(1)} to go)</p>
-        <div className="grid grid-cols-3 gap-2 mt-4">
-          <div><p className="text-[10px] uppercase text-muted-foreground">Wk avg</p><p className="font-semibold tabular-nums">{weekAvg}</p></div>
-          <div><p className="text-[10px] uppercase text-muted-foreground">Δ 7d</p><p className="font-semibold tabular-nums">{dWeek >= 0 ? "+" : ""}{dWeek.toFixed(1)}</p></div>
-          <div><p className="text-[10px] uppercase text-muted-foreground">Δ 30d</p><p className="font-semibold tabular-nums">{dMonth >= 0 ? "+" : ""}{dMonth.toFixed(1)}</p></div>
-        </div>
+      <div className="flex gap-2 mb-3">
+        {(["14d","30d"] as const).map(r => <Chip key={r} active={range === r} onClick={() => setRange(r)}>{r}</Chip>)}
       </div>
 
-      <SectionHeader title="Trend" />
+      <SectionHeader title="Training volume" />
       <Card>
-        {sorted.length < 2 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">Log at least 2 weigh-ins to see your trend.</p>
+        {total === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Complete workouts to see volume trends.</p>
         ) : (
-          <Sparkline points={sorted.map(b => b.weightLb)} />
+          <>
+            <div className="flex items-end gap-1 h-28">
+              {series.map((s, i) => (
+                <div key={i} className="flex-1 rounded-t" style={{ height: `${(s.volume / max) * 100}%`, background: "var(--section)", minHeight: s.volume ? 4 : 0, opacity: s.volume ? 0.85 : 0.15 }} />
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2 tabular-nums">{Math.round(total/1000)}k lb total over {days}d</p>
+          </>
         )}
       </Card>
 
-      <SectionHeader title="Log new" />
-      <div className="space-y-3">
-        <Input inputMode="decimal" value={w} onChange={e => setW(e.target.value)} placeholder="Weight in lb" />
-        <PrimaryButton className="w-full" onClick={submit}>Save weight</PrimaryButton>
-      </div>
+      <SectionHeader title="Bodyweight vs time" />
+      <Card>
+        {bwInRange.length < 2 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">Log more weigh-ins to compare.</p>
+        ) : (
+          <Sparkline points={bwInRange.map(b => b.weightLb)} unit=" lb" />
+        )}
+      </Card>
 
-      <SectionHeader title="Recent" />
-      {sorted.length === 0 ? (
-        <EmptyState icon={<Scale size={22} />} title="No weigh-ins" description="Track weekly for real trends." />
+      <SectionHeader title="Goal progress" />
+      {state.goals.length === 0 ? (
+        <EmptyState icon={<Target size={22} />} title="No goals" description="Add goals on the home Goals panel." />
       ) : (
         <div className="space-y-2">
-          {[...sorted].reverse().slice(0, 15).map(e => (
-            <Card key={e.id}>
-              <div className="flex justify-between">
-                <div>
-                  <p className="font-semibold tabular-nums">{e.weightLb} lb</p>
-                  <p className="text-xs text-muted-foreground">{new Date(e.createdAt).toLocaleDateString()}</p>
+          {state.goals.map(g => {
+            const pct = Math.min(100, (g.current / Math.max(0.01, g.target)) * 100);
+            return (
+              <Card key={g.id}>
+                <div className="flex justify-between items-baseline mb-2">
+                  <p className="font-medium text-sm">{g.label}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">{Math.round(pct)}%</p>
                 </div>
-                <button onClick={() => setConfirmDel(e.id)} className="text-muted-foreground"><Trash2 size={14} /></button>
-              </div>
-            </Card>
-          ))}
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
+                  <div className="h-full" style={{ width: `${pct}%`, background: "var(--section)" }} />
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
-      <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
-        onConfirm={() => { set(s => ({ ...s, bodyweightEntries: s.bodyweightEntries.filter(x => x.id !== confirmDel) })); setConfirmDel(null); }}
-        title="Delete weigh-in?" message="This can't be undone." confirmLabel="Delete" destructive />
     </div>
   );
 }
 
-function Sparkline({ points }: { points: number[] }) {
+/* ===================== SHARED ===================== */
+
+function Sparkline({ points, unit }: { points: number[]; unit: string }) {
   const w = 320, h = 80, pad = 8;
   const min = Math.min(...points), max = Math.max(...points);
   const range = Math.max(0.1, max - min);
@@ -237,7 +309,7 @@ function Sparkline({ points }: { points: number[] }) {
         <path d={path} fill="none" stroke="var(--section)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       <div className="flex justify-between text-xs text-muted-foreground tabular-nums mt-1">
-        <span>{points[0]} lb</span><span>{points[points.length-1]} lb</span>
+        <span>{points[0]}{unit}</span><span>{points[points.length-1]}{unit}</span>
       </div>
     </div>
   );
