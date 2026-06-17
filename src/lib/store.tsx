@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { defaultState, type AppState } from "./types";
+import { buildDemoState } from "./demo-data";
 
 const KEY = "fitcore.v1";
 
@@ -23,6 +24,8 @@ type Updater = (s: AppState) => AppState;
 
 interface Ctx {
   state: AppState;
+  /** Effective state: merges demo data when demoMode is true. Real data is never overwritten. */
+  view: AppState;
   set: (u: Updater) => void;
   reset: () => void;
   exportJson: () => string;
@@ -55,7 +58,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch { return false; }
   }, []);
 
-  const value = useMemo(() => ({ state, set, reset, exportJson, importJson }), [state, set, reset, exportJson, importJson]);
+  const view = useMemo(() => state.demoMode ? buildDemoState(state) : state, [state]);
+
+  const value = useMemo(() => ({ state, view, set, reset, exportJson, importJson }), [state, view, set, reset, exportJson, importJson]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

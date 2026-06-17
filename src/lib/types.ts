@@ -1,4 +1,4 @@
-export type SectionId = "training" | "nutrition" | "recovery" | "progress";
+export type SectionId = "home" | "training" | "nutrition" | "recovery" | "progress";
 
 export interface SetEntry {
   id: string;
@@ -84,6 +84,7 @@ export interface AppState {
   progressPhotos: ProgressPhoto[];
   aiMessages: AiMessage[];
   reminders: { workout: boolean; weighIn: boolean; lunch: boolean };
+  demoMode: boolean;
 }
 
 export const defaultState: AppState = {
@@ -116,4 +117,5 @@ export const defaultState: AppState = {
   progressPhotos: [],
   aiMessages: [],
   reminders: { workout: true, weighIn: true, lunch: false },
+  demoMode: false,
 };
