@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { defaultState, type AppState } from "./types";
+import { defaultState, defaultPersonalization, type AppState, type Personalization } from "./types";
 import { buildDemoState } from "./demo-data";
 
 const KEY = "fitcore.v1";
@@ -9,11 +9,30 @@ function load(): AppState {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return defaultState;
-    const parsed = JSON.parse(raw) as AppState;
-    return { ...defaultState, ...parsed, profile: { ...defaultState.profile, ...parsed.profile } };
+    const parsed = JSON.parse(raw) as Partial<AppState>;
+    return migrate(parsed);
   } catch {
     return defaultState;
   }
+}
+
+/** Merge partial saved state with defaults so nested objects don't get blown away. */
+function migrate(parsed: Partial<AppState>): AppState {
+  const personalization: Personalization = {
+    ...defaultPersonalization,
+    ...(parsed.personalization ?? {}),
+    units: { ...defaultPersonalization.units!, ...(parsed.personalization?.units ?? {}) },
+    reminders: { ...defaultPersonalization.reminders!, ...(parsed.personalization?.reminders ?? {}) },
+    defaultGraphModes: { ...defaultPersonalization.defaultGraphModes!, ...(parsed.personalization?.defaultGraphModes ?? {}) },
+  };
+  return {
+    ...defaultState,
+    ...parsed,
+    profile: { ...defaultState.profile, ...(parsed.profile ?? {}) },
+    nutritionTargets: { ...defaultState.nutritionTargets, ...(parsed.nutritionTargets ?? {}) },
+    personalization,
+    reminders: { ...defaultState.reminders, ...(parsed.reminders ?? {}) },
+  };
 }
 
 function save(state: AppState) {
@@ -52,8 +71,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const exportJson = useCallback(() => JSON.stringify(state, null, 2), [state]);
   const importJson = useCallback((text: string) => {
     try {
-      const parsed = JSON.parse(text) as AppState;
-      setState({ ...defaultState, ...parsed });
+      const parsed = JSON.parse(text) as Partial<AppState>;
+      setState(migrate(parsed));
       return true;
     } catch { return false; }
   }, []);

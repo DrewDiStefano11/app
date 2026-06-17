@@ -53,6 +53,12 @@ export interface Goal { id: string; type: "lift" | "weekly_workouts" | "bodyweig
 export interface ProgressPhoto { id: string; dataUrl: string; view: "front" | "side" | "back"; phase: "bulk" | "cut" | "maintenance"; notes?: string; createdAt: number; }
 export interface AiMessage { id: string; role: "user" | "assistant"; content: string; createdAt: number; }
 
+export type Sex = "male" | "female" | "other";
+export type GymOrHome = "gym" | "home" | "both";
+export type Intensity = "easy" | "moderate" | "hard";
+export type DietStyle = "balanced" | "high_protein" | "low_carb" | "keto" | "vegetarian" | "vegan" | "mediterranean";
+export type MacroStrictness = "loose" | "moderate" | "strict";
+
 export interface Profile {
   goal: "strength" | "hypertrophy" | "lean_bulk" | "cut" | "maintenance";
   experience: "beginner" | "intermediate" | "advanced";
@@ -61,6 +67,56 @@ export interface Profile {
   bodyweightLb: number;
   targetBodyweightLb: number;
   units: "lb" | "kg";
+
+  // basics
+  name?: string;
+  age?: number;
+  sex?: Sex;
+  heightIn?: number;
+  trainingAgeYears?: number;
+
+  // training
+  preferredWorkoutDays?: string[];
+  preferredWorkoutTime?: "morning" | "midday" | "evening" | "anytime";
+  sessionLengthMin?: number;
+  favoriteMuscles?: string[];
+  weakMuscles?: string[];
+  exercisesToAvoid?: string[];
+  equipment?: string[];
+  gymOrHome?: GymOrHome;
+  intensity?: Intensity;
+
+  // nutrition
+  dietStyle?: DietStyle;
+  carbFatPreference?: "high_carb" | "balanced" | "high_fat";
+  mealsPerDay?: number;
+  foodsToAvoid?: string[];
+  allergies?: string[];
+  macroStrictness?: MacroStrictness;
+
+  // recovery
+  sleepGoalH?: number;
+  stepGoal?: number;
+  cardioGoalMin?: number;
+  recoveryPriority?: "low" | "moderate" | "high";
+  injuries?: string[];
+  sorenessSensitivity?: "low" | "normal" | "high";
+}
+
+export interface Personalization {
+  themeAccent?: "auto" | "purple" | "blue" | "green" | "red";
+  defaultDashboardFocus?: "training" | "nutrition" | "recovery" | "progress";
+  defaultGraphModes?: { volume?: string; heatmap?: string };
+  units?: { weight: "lb" | "kg"; distance: "mi" | "km" };
+  reminders?: {
+    workoutEnabled: boolean; workoutTime: string;
+    weighInEnabled: boolean; weighInTime: string;
+    mealLogEnabled: boolean; mealLogTime: string;
+  };
+  aiCoachTone?: "direct" | "supportive" | "detailed" | "simple";
+  aiResponseLength?: "quick" | "detailed";
+  uiComplexity?: "simple" | "advanced";
+  showAdvancedStats?: boolean;
 }
 
 export interface NutritionTargets { calories: number; protein: number; carbs: number; fat: number; }
@@ -69,10 +125,11 @@ export interface AppState {
   version: number;
   onboardingComplete: boolean;
   profile: Profile;
+  personalization: Personalization;
   nutritionTargets: NutritionTargets;
   workouts: Workout[];
   activeWorkout: Workout | null;
-  workoutTemplates: { id: string; name: string; templateId: string }[]; // user pinned
+  workoutTemplates: { id: string; name: string; templateId: string }[];
   cardioEntries: CardioEntry[];
   mealEntries: MealEntry[];
   bodyweightEntries: BodyweightEntry[];
@@ -87,8 +144,24 @@ export interface AppState {
   demoMode: boolean;
 }
 
+export const defaultPersonalization: Personalization = {
+  themeAccent: "auto",
+  defaultDashboardFocus: "training",
+  defaultGraphModes: { volume: "total", heatmap: "load" },
+  units: { weight: "lb", distance: "mi" },
+  reminders: {
+    workoutEnabled: true, workoutTime: "17:00",
+    weighInEnabled: true, weighInTime: "09:00",
+    mealLogEnabled: false, mealLogTime: "12:00",
+  },
+  aiCoachTone: "direct",
+  aiResponseLength: "quick",
+  uiComplexity: "advanced",
+  showAdvancedStats: true,
+};
+
 export const defaultState: AppState = {
-  version: 1,
+  version: 2,
   onboardingComplete: false,
   profile: {
     goal: "hypertrophy",
@@ -98,7 +171,13 @@ export const defaultState: AppState = {
     bodyweightLb: 180,
     targetBodyweightLb: 185,
     units: "lb",
+    sleepGoalH: 8,
+    stepGoal: 8000,
+    cardioGoalMin: 90,
+    mealsPerDay: 4,
+    sessionLengthMin: 60,
   },
+  personalization: defaultPersonalization,
   nutritionTargets: { calories: 3100, protein: 180, carbs: 380, fat: 90 },
   workouts: [],
   activeWorkout: null,
@@ -119,3 +198,24 @@ export const defaultState: AppState = {
   reminders: { workout: true, weighIn: true, lunch: false },
   demoMode: false,
 };
+
+/* ----------------------- Format helpers ----------------------- */
+
+export function lbToKg(lb: number) { return Math.round(lb * 0.453592 * 10) / 10; }
+export function kgToLb(kg: number) { return Math.round(kg * 2.20462 * 10) / 10; }
+export function miToKm(mi: number) { return Math.round(mi * 1.60934 * 10) / 10; }
+
+export function weightUnit(p?: Personalization): "lb" | "kg" {
+  return p?.units?.weight ?? "lb";
+}
+
+export function formatWeight(lb: number, p?: Personalization, opts?: { unit?: boolean }): string {
+  const u = weightUnit(p);
+  const v = u === "kg" ? lbToKg(lb) : lb;
+  const out = Number.isInteger(v) ? v.toString() : v.toFixed(1);
+  return opts?.unit === false ? out : `${out} ${u}`;
+}
+
+export function distanceUnit(p?: Personalization): "mi" | "km" {
+  return p?.units?.distance ?? "mi";
+}
