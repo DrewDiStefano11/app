@@ -180,6 +180,19 @@ html, body { background: var(--background); color: var(--foreground); }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { scrollbar-width: none; }
 
+/* Solid premium dark surface for popups/sheets — readability first */
+.sheet-surface {
+  background:
+    radial-gradient(120% 60% at 50% 0%, color-mix(in oklab, var(--section) 14%, transparent) 0%, transparent 55%),
+    linear-gradient(180deg, #0e0e10 0%, #07070a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  box-shadow:
+    0 -20px 60px -10px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  color: rgb(245 245 248);
+}
+
+
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
 /* Premium motion */
