@@ -234,9 +234,9 @@ export function HomeView({ onNavigate, onOpenSettings }: {
 
         {/* Quick actions */}
         <div className="grid grid-cols-3 gap-2 pt-1">
-          <QuickAction icon={<Plus size={18} />} label="Log Meal" onClick={() => onNavigate("nutrition")} />
-          <QuickAction icon={<Heart size={18} />} label="Check In" onClick={() => onNavigate("recovery")} />
-          <QuickAction icon={<Apple size={18} />} label="Weigh In" onClick={() => onNavigate("progress")} />
+          <QuickAction icon={<Plus size={18} />} label="Log Meal" onClick={() => setPopup("logmeal")} />
+          <QuickAction icon={<Heart size={18} />} label="Check In" onClick={() => setPopup("checkin")} />
+          <QuickAction icon={<Apple size={18} />} label="Weigh In" onClick={() => setPopup("weighin")} />
         </div>
       </div>
 
@@ -246,6 +246,10 @@ export function HomeView({ onNavigate, onOpenSettings }: {
       <ReadinessDetailSheet open={popup === "readiness"} onClose={() => setPopup(null)} />
       <HeatmapDetailSheet open={popup === "heatmap"} onClose={() => setPopup(null)} />
       <StartWorkoutSheet open={popup === "start"} onClose={() => setPopup(null)} onStarted={() => onNavigate("training")} />
+      <FitcoreScoreSheet open={popup === "score"} onClose={() => setPopup(null)} />
+      <LogMealSheet open={popup === "logmeal"} onClose={() => setPopup(null)} />
+      <CheckInSheet open={popup === "checkin"} onClose={() => setPopup(null)} />
+      <WeighInSheet open={popup === "weighin"} onClose={() => setPopup(null)} />
       <MuscleDetailSheet muscle={muscle} onClose={() => setMuscle(null)} />
     </div>
   );
