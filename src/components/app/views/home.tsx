@@ -35,7 +35,8 @@ export function HomeView({ onNavigate, onOpenSettings }: {
   const readiness = useMemo(() => readinessScore(view), [view]);
   const recovery = useMemo(() => recoveryScore(view), [view]);
   const streak = useMemo(() => trainingStreak(view), [view]);
-  const loadMap = useMemo(() => muscleMap(view, "load"), [view]);
+  const [heatMode] = usePersistentState<HeatMode>("heatmap.mode", "load");
+  const loadMap = useMemo(() => muscleMap(view, heatMode), [view, heatMode]);
   const series = useMemo(() => weeklyVolumeSeries(view, 7), [view]);
   const meals = useMemo(() => todayMealTotals(view), [view]);
   const weekVol = useMemo(() => totalVolumeInRange(view, 7), [view]);
