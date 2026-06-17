@@ -362,5 +362,3 @@ function Slider({ label, value, onChange, invert }: { label: string; value: numb
     </div>
   );
 }
-// trash icon used elsewhere; export to silence unused warning if any
-export const _IconHint = Trash2;
