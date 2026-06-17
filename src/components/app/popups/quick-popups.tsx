@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Camera, Loader2, Sparkles, ImagePlus, Check, AlertCircle, Trash2 } from "lucide-react";
+import { Camera, Loader2, Sparkles, ImagePlus, Check, AlertCircle } from "lucide-react";
 import { BottomSheet } from "../sheet";
 import { useStore, uid } from "@/lib/store";
 import { useServerFn } from "@tanstack/react-start";
