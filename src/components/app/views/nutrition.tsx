@@ -1,21 +1,16 @@
-import { useState, useMemo } from "react";
-import { Plus, Trash2, Utensils, Scale, Lightbulb } from "lucide-react";
-import { useStore, uid, isToday, todayStart } from "@/lib/store";
+import { useState } from "react";
+import { Plus, Trash2, Utensils } from "lucide-react";
+import { useStore, uid, isToday } from "@/lib/store";
 import { FOODS, MEAL_TEMPLATES, mealTotals } from "@/lib/data";
 import type { MealEntry } from "@/lib/types";
-import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Ring, SubTabs, SectionHeader } from "@/components/app/ui";
+import { Card, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Ring, SubTabs, SectionHeader } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
-import { GoalsTab } from "@/components/app/goals-tab";
 
 const MEAL_TYPES = ["breakfast","lunch","dinner","snack","pre-workout","post-workout"];
-type Tab = "macros" | "log" | "weight" | "goals" | "history" | "tips";
+type Tab = "macros" | "log";
 const TABS: { id: Tab; label: string }[] = [
   { id: "macros", label: "Macros" },
   { id: "log", label: "Log" },
-  { id: "weight", label: "Weight" },
-  { id: "goals", label: "Goals" },
-  { id: "history", label: "History" },
-  { id: "tips", label: "Tips" },
 ];
 
 export function NutritionView() {
@@ -27,24 +22,19 @@ export function NutritionView() {
     <div className="pb-24">
       <PageHeader title="Nutrition" subtitle={`${remaining} kcal remaining today`} />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} />
-      {tab === "macros" && <MacrosTab onLog={() => setTab("log")} onWeight={() => setTab("weight")} />}
+      {tab === "macros" && <MacrosTab onLog={() => setTab("log")} />}
       {tab === "log" && <LogTab />}
-      {tab === "weight" && <WeightTab />}
-      {tab === "goals" && <GoalsTab section="nutrition" typeOptions={["macro","bodyweight","habit"]} />}
-      {tab === "history" && <HistoryTab />}
-      {tab === "tips" && <TipsTab />}
     </div>
   );
 }
 
-function MacrosTab({ onLog, onWeight }: { onLog: () => void; onWeight: () => void }) {
+function MacrosTab({ onLog }: { onLog: () => void }) {
   const { state, set } = useStore();
   const [editTargets, setEditTargets] = useState(false);
   const today = state.mealEntries.filter(m => isToday(m.createdAt));
   const t = today.reduce((a, m) => ({ c: a.c + m.calories, p: a.p + m.protein, cb: a.cb + m.carbs, f: a.f + m.fat }), { c: 0, p: 0, cb: 0, f: 0 });
   const tg = state.nutritionTargets;
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const lastBw = state.bodyweightEntries[state.bodyweightEntries.length - 1];
 
   return (
     <div className="px-5">
@@ -63,7 +53,7 @@ function MacrosTab({ onLog, onWeight }: { onLog: () => void; onWeight: () => voi
         </div>
       </div>
 
-      <SectionHeader title="Today's meals" action={<button onClick={onWeight} className="text-xs text-muted-foreground">Weight</button>} />
+      <SectionHeader title="Today's meals" />
       {today.length === 0 ? (
         <EmptyState icon={<Utensils size={22} />} title="No meals yet" description="Log your first meal to start tracking macros." action={<PrimaryButton onClick={onLog}><Plus size={16} />Log meal</PrimaryButton>} />
       ) : (
@@ -85,19 +75,6 @@ function MacrosTab({ onLog, onWeight }: { onLog: () => void; onWeight: () => voi
           ))}
         </div>
       )}
-
-      <SectionHeader title="Weight" />
-      <Card>
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Current</p>
-            <p className="text-2xl font-bold tabular-nums">{state.profile.bodyweightLb} lb</p>
-            <p className="text-xs text-muted-foreground">Target {state.profile.targetBodyweightLb} lb</p>
-          </div>
-          <GhostButton onClick={onWeight}>Log</GhostButton>
-        </div>
-        {lastBw && <p className="text-[10px] text-muted-foreground mt-2">Last logged {new Date(lastBw.createdAt).toLocaleDateString()}</p>}
-      </Card>
 
       <TargetsSheet open={editTargets} onClose={() => setEditTargets(false)} />
       <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)} onConfirm={() => { set(s => ({ ...s, mealEntries: s.mealEntries.filter(x => x.id !== confirmDel) })); setConfirmDel(null); }} title="Delete meal?" message="This can't be undone." confirmLabel="Delete" destructive />
