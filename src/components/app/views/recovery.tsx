@@ -1,23 +1,19 @@
-import { useState, useMemo } from "react";
-import { Plus, Moon, Heart, Trash2, Activity, BarChart3 } from "lucide-react";
+import { useState } from "react";
+import { Plus, Moon, Heart, Trash2, Activity } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import type { FatigueLevel } from "@/lib/types";
 import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Input, Label, Ring, Textarea, SubTabs, SectionHeader } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
-import { GoalsTab } from "@/components/app/goals-tab";
 
 const MUSCLES = ["chest","back","shoulders","biceps","triceps","quads","hamstrings","glutes","calves","core"];
 const LEVELS: FatigueLevel[] = ["fresh","moderate","fatigued","very"];
 const LEVEL_COLOR: Record<FatigueLevel,string> = { fresh: "var(--section)", moderate: "oklch(0.7 0.18 90)", fatigued: "oklch(0.65 0.2 40)", very: "oklch(0.6 0.22 25)" };
 
-type Tab = "home" | "sleep" | "readiness" | "stats" | "goals" | "history";
+type Tab = "home" | "sleep" | "readiness";
 const TABS: { id: Tab; label: string }[] = [
   { id: "home", label: "Home" },
   { id: "sleep", label: "Sleep" },
   { id: "readiness", label: "Readiness" },
-  { id: "stats", label: "Stats" },
-  { id: "goals", label: "Goals" },
-  { id: "history", label: "History" },
 ];
 
 function readiness(state: ReturnType<typeof useStore>["state"]) {
@@ -40,9 +36,6 @@ export function RecoveryView() {
       {tab === "home" && <HomeTab onJump={setTab} />}
       {tab === "sleep" && <SleepTab />}
       {tab === "readiness" && <ReadinessTab />}
-      {tab === "stats" && <StatsTab />}
-      {tab === "goals" && <GoalsTab section="recovery" typeOptions={["sleep","readiness","habit"]} />}
-      {tab === "history" && <HistoryTab />}
     </div>
   );
 }
@@ -95,11 +88,10 @@ function HomeTab({ onJump }: { onJump: (t: Tab) => void }) {
       )}
 
       <SectionHeader title="Quick actions" />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <QA icon={<Moon size={16} />} label="Log sleep" onClick={() => onJump("sleep")} />
         <QA icon={<Heart size={16} />} label="Check-in" onClick={() => onJump("readiness")} />
         <QA icon={<Activity size={16} />} label="Fatigue" onClick={() => setFatigueOpen(true)} />
-        <QA icon={<BarChart3 size={16} />} label="Stats" onClick={() => onJump("stats")} />
       </div>
 
       {lastCheck && (
