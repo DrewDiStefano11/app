@@ -5,10 +5,11 @@ import { CountUp } from "@/components/app/count-up";
 import { BodyHeatmap } from "@/components/app/body-heatmap";
 import { AiInsightStrip } from "@/components/app/ai-insight";
 import { useStore } from "@/lib/store";
+import { usePersistentState } from "@/lib/persist";
 import {
   fitcoreScore, readinessScore, recoveryScore, trainingStreak,
   muscleMap, weeklyVolumeSeries, todayMealTotals, totalVolumeInRange,
-  bestMuscleToTrainToday,
+  bestMuscleToTrainToday, type HeatMode,
 } from "@/lib/analytics";
 import type { SectionId } from "@/lib/types";
 import { VolumeDetailSheet } from "@/components/app/popups/volume-popup";
@@ -17,8 +18,11 @@ import { ReadinessDetailSheet } from "@/components/app/popups/readiness-popup";
 import { HeatmapDetailSheet } from "@/components/app/popups/heatmap-popup";
 import { StartWorkoutSheet } from "@/components/app/popups/start-workout-popup";
 import { MuscleDetailSheet } from "@/components/app/popups/muscle-popup";
+import { FitcoreScoreSheet } from "@/components/app/popups/score-popup";
+import { LogMealSheet, CheckInSheet, WeighInSheet } from "@/components/app/popups/quick-popups";
 
-type Popup = null | "volume" | "macros" | "readiness" | "heatmap" | "start" | "fitcore";
+type Popup = null | "volume" | "macros" | "readiness" | "heatmap" | "start" | "score" | "logmeal" | "checkin" | "weighin";
+
 
 export function HomeView({ onNavigate, onOpenSettings }: {
   onNavigate: (s: SectionId) => void;
