@@ -404,7 +404,15 @@ function ExerciseCard({
                 prev={prevSets[i]}
                 armedTag={armedTag}
                 onArmedApply={() => applyTagToSet(st.id)}
-                onChange={(patch) => onChange(e => ({ ...e, sets: e.sets.map(s => s.id === st.id ? { ...s, ...patch } : s) }))}
+                onChange={(patch) => onChange(e => ({
+                  ...e,
+                  sets: e.sets.map(s => {
+                    if (s.id !== st.id) return s;
+                    const next = { ...s, ...patch };
+                    next.completed = next.weight != null && next.reps != null;
+                    return next;
+                  }),
+                }))}
                 onDelete={() => onChange(e => ({ ...e, sets: e.sets.filter(s => s.id !== st.id) }))}
               />
             ))}
