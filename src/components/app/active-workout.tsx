@@ -106,7 +106,7 @@ export function ActiveWorkoutView() {
     if (!ex) return;
     const we: WorkoutExercise = {
       id: uid(), exerciseId, completed: false, exerciseTags: [],
-      sets: Array.from({ length: ex.defaultSets || 3 }, () => ({
+      sets: Array.from({ length: ("defaultSets" in ex ? ex.defaultSets : 3) || 3 }, () => ({
         id: uid(), modifier: "normal", completed: false,
       })),
     };
