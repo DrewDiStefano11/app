@@ -416,4 +416,3 @@ function CardioSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   );
 }
 
-}
