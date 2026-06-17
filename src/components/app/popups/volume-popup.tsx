@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BottomSheet } from "../sheet";
 import { useStore } from "@/lib/store";
+import { usePersistentState } from "@/lib/persist";
 import { volumeSeries, volumeByMuscle, volumeByExercise, compareWindows, type Bucket } from "@/lib/analytics-extra";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
 
@@ -15,10 +16,10 @@ type GroupBy = "total" | "muscle" | "exercise";
 
 export function VolumeDetailSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { view } = useStore();
-  const [rangeId, setRangeId] = useState("30d");
-  const [groupBy, setGroupBy] = useState<GroupBy>("total");
-  const [compare, setCompare] = useState(false);
-  const range = RANGES.find(r => r.id === rangeId)!;
+  const [rangeId, setRangeId] = usePersistentState<string>("volume.range", "30d");
+  const [groupBy, setGroupBy] = usePersistentState<GroupBy>("volume.group", "total");
+  const [compare, setCompare] = usePersistentState<boolean>("volume.compare", false);
+  const range = RANGES.find(r => r.id === rangeId) ?? RANGES[1];
 
   const totalSeries = useMemo(() => volumeSeries(view, range.days, range.bucket), [view, range]);
   const byMuscle = useMemo(() => volumeByMuscle(view, range.days), [view, range.days]);
