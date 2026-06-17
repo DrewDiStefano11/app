@@ -198,6 +198,7 @@ export const defaultState: AppState = {
   workouts: [],
   activeWorkout: null,
   workoutTemplates: [],
+  customExercises: [],
   cardioEntries: [],
   mealEntries: [],
   bodyweightEntries: [],
