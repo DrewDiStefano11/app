@@ -229,7 +229,7 @@ export function ActiveWorkoutView() {
 
 function ExerciseCard({
   we, exercise, isActive, isOpen, canMoveUp, canMoveDown,
-  previousWorkout, onToggle, onMove, onDelete, onComplete, onChange, onOpenPlate,
+  previousWorkout, demoMode, onToggle, onMove, onDelete, onComplete, onChange, onOpenPlate,
 }: {
   we: WorkoutExercise;
   exercise: Exercise | undefined;
@@ -238,6 +238,7 @@ function ExerciseCard({
   canMoveUp: boolean;
   canMoveDown: boolean;
   previousWorkout: Workout | undefined;
+  demoMode: boolean;
   onToggle: () => void;
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
@@ -246,8 +247,9 @@ function ExerciseCard({
   onOpenPlate: () => void;
 }) {
   const tags = we.exerciseTags ?? [];
-  const workingSets = we.sets.filter(s => s.completed && s.modifier !== "warmup");
-  const warmupSets = we.sets.filter(s => s.completed && s.modifier === "warmup");
+  const isDone = (s: SetEntry) => s.weight != null && s.reps != null;
+  const workingSets = we.sets.filter(s => isDone(s) && s.modifier !== "warmup");
+  const warmupSets = we.sets.filter(s => isDone(s) && s.modifier === "warmup");
   const volume = workingSets.reduce((a, s) => a + (s.weight ?? 0) * (s.reps ?? 0), 0);
   const reps = workingSets.reduce((a, s) => a + (s.reps ?? 0), 0);
   const topSet = workingSets.reduce<SetEntry | null>(
@@ -255,13 +257,18 @@ function ExerciseCard({
   );
 
   const prevEx = previousWorkout?.exercises.find(pe => pe.exerciseId === we.exerciseId);
-  const prevSets = prevEx?.sets.filter(s => s.completed && s.modifier !== "warmup") ?? [];
+  const realPrevSets = prevEx?.sets.filter(s => s.weight != null && s.reps != null && s.modifier !== "warmup") ?? [];
+  const prevSets = realPrevSets.length > 0
+    ? realPrevSets
+    : demoMode ? makeDemoPrevSets(we.exerciseId, we.sets.length) : [];
   const prevTop = prevSets.reduce<SetEntry | null>(
     (best, s) => (s.weight && (!best || (s.weight ?? 0) > (best.weight ?? 0)) ? s : best), null,
   );
   const prevVol = prevSets.reduce((a, s) => a + (s.weight ?? 0) * (s.reps ?? 0), 0);
 
   const isBarbell = exercise?.equipment === "barbell";
+  const [armedTag, setArmedTag] = useState<NonNullable<SetEntry["modifier"]> | null>(null);
+  const [notesOpen, setNotesOpen] = useState(false);
 
   const setExerciseTag = (m: NonNullable<SetEntry["modifier"]>) =>
     onChange(e => {
@@ -271,6 +278,16 @@ function ExerciseCard({
         : [...(e.exerciseTags ?? []), m];
       return { ...e, exerciseTags: next };
     });
+
+  const applyTagToSet = (setId: string) => {
+    if (!armedTag) return;
+    onChange(e => ({
+      ...e,
+      sets: e.sets.map(s => s.id === setId
+        ? { ...s, modifier: s.modifier === armedTag ? "normal" : armedTag }
+        : s),
+    }));
+  };
 
   return (
     <div
@@ -334,18 +351,30 @@ function ExerciseCard({
             </div>
           )}
 
-          {/* Whole-exercise tags */}
+          {/* Tags — arm one, then tap a set # to apply, or tap All */}
           <div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 px-1">Apply to whole exercise</div>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5 px-1 flex items-center justify-between">
+              <span>{armedTag ? `Tap a set # to mark as ${armedTag}` : "Tags"}</span>
+              {armedTag && (
+                <button onClick={() => { setExerciseTag(armedTag); setArmedTag(null); }}
+                  className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md"
+                  style={{ background: MOD_COLORS[armedTag], color: "white" }}>
+                  Apply to all
+                </button>
+              )}
+            </div>
+            <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1 pb-0.5">
               {MODS.map(m => {
-                const active = tags.includes(m);
+                const armed = armedTag === m;
+                const onExercise = tags.includes(m);
                 return (
-                  <button key={m} onClick={() => setExerciseTag(m)}
-                    className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-md border transition-colors"
-                    style={active
-                      ? { background: MOD_COLORS[m], borderColor: MOD_COLORS[m], color: "white" }
-                      : { borderColor: "var(--border)", color: "var(--muted-foreground)" }}>
+                  <button key={m} onClick={() => setArmedTag(armed ? null : m)}
+                    className="shrink-0 text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-md border transition-all"
+                    style={armed
+                      ? { background: MOD_COLORS[m], borderColor: MOD_COLORS[m], color: "white", boxShadow: `0 0 0 2px ${MOD_COLORS[m]}55` }
+                      : onExercise
+                        ? { background: `${MOD_COLORS[m]}22`, borderColor: MOD_COLORS[m], color: MOD_COLORS[m] }
+                        : { borderColor: "var(--border)", color: "var(--muted-foreground)" }}>
                     {m}
                   </button>
                 );
@@ -359,10 +388,12 @@ function ExerciseCard({
               <span className="w-7">#</span>
               <span className="flex-1">Weight</span>
               <span className="w-20">Reps</span>
-              <span className="w-10 text-center">✓</span>
             </div>
             {we.sets.map((st, i) => (
               <SetRow key={st.id} index={i} st={st}
+                prev={prevSets[i]}
+                armedTag={armedTag}
+                onArmedApply={() => applyTagToSet(st.id)}
                 onChange={(patch) => onChange(e => ({ ...e, sets: e.sets.map(s => s.id === st.id ? { ...s, ...patch } : s) }))}
                 onDelete={() => onChange(e => ({ ...e, sets: e.sets.filter(s => s.id !== st.id) }))}
               />
@@ -385,10 +416,18 @@ function ExerciseCard({
             </button>
           </div>
 
-          {/* Notes */}
-          <Textarea rows={2} placeholder="Exercise notes…" value={we.notes ?? ""}
-            onChange={e => onChange(x => ({ ...x, notes: e.target.value }))}
-            className="text-sm" />
+          {/* Notes — collapsed by default */}
+          {notesOpen ? (
+            <Textarea rows={3} autoFocus placeholder="Exercise notes…" value={we.notes ?? ""}
+              onChange={e => onChange(x => ({ ...x, notes: e.target.value }))}
+              onBlur={() => { if (!we.notes) setNotesOpen(false); }}
+              className="text-sm" />
+          ) : (
+            <button onClick={() => setNotesOpen(true)}
+              className="w-full text-left text-xs text-muted-foreground px-3 py-2 rounded-lg border border-dashed border-border hover:border-[var(--section)] hover:text-foreground transition-colors truncate">
+              {we.notes ? we.notes : "+ Add note"}
+            </button>
+          )}
 
           {/* Complete toggle */}
           <button onClick={onComplete}
