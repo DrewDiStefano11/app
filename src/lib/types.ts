@@ -16,6 +16,8 @@ export interface WorkoutExercise {
   sets: SetEntry[];
   notes?: string;
   completed: boolean;
+  /** Tags applied to the whole exercise (e.g. unilateral, paused). */
+  exerciseTags?: NonNullable<SetEntry["modifier"]>[];
 }
 
 export interface Workout {
@@ -26,6 +28,19 @@ export interface Workout {
   templateId?: string;
   exercises: WorkoutExercise[];
   notes?: string;
+}
+
+export interface CustomExercise {
+  id: string;
+  name: string;
+  primary: string[];
+  secondary?: string[];
+  equipment: string;
+  category: "compound" | "isolation" | "cardio";
+  tracking?: "weight_reps" | "time" | "distance" | "bodyweight";
+  notes?: string;
+  isCustom: true;
+  createdAt: number;
 }
 
 export interface CardioEntry {
@@ -130,6 +145,7 @@ export interface AppState {
   workouts: Workout[];
   activeWorkout: Workout | null;
   workoutTemplates: { id: string; name: string; templateId: string }[];
+  customExercises: CustomExercise[];
   cardioEntries: CardioEntry[];
   mealEntries: MealEntry[];
   bodyweightEntries: BodyweightEntry[];
@@ -182,6 +198,7 @@ export const defaultState: AppState = {
   workouts: [],
   activeWorkout: null,
   workoutTemplates: [],
+  customExercises: [],
   cardioEntries: [],
   mealEntries: [],
   bodyweightEntries: [],

@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Play, Plus, Clock, Flame, ListChecks, Trash2, Check, Timer, X, Activity, Trophy, BarChart3 } from "lucide-react";
-import { useStore, uid, e1RM, isToday } from "@/lib/store";
-import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
+import { Play, Plus, Clock, Flame, Trash2, Activity, Trophy } from "lucide-react";
+import { useStore, uid, isToday } from "@/lib/store";
+import { WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
 import { weeklyVolumeSeries, muscleMap, MUSCLES } from "@/lib/analytics";
-import type { Workout, WorkoutExercise, SetEntry, CardioEntry } from "@/lib/types";
+import type { CardioEntry } from "@/lib/types";
 import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SubTabs, SectionHeader } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
+import { ActiveWorkoutView } from "@/components/app/active-workout";
 
-const SET_MODS: SetEntry["modifier"][] = ["normal","warmup","drop","failure","partials","unilateral","paused","tempo"];
 type Tab = "today" | "workouts" | "performance";
 const TABS: { id: Tab; label: string }[] = [
   { id: "today", label: "Today" },
@@ -416,134 +416,3 @@ function CardioSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
   );
 }
 
-function ActiveWorkoutView() {
-  const { state, set } = useStore();
-  const w = state.activeWorkout!;
-  const [exercisePicker, setExercisePicker] = useState(false);
-  const [confirmFinish, setConfirmFinish] = useState(false);
-  const [confirmCancel, setConfirmCancel] = useState(false);
-  const [search, setSearch] = useState("");
-  const elapsed = Math.round((Date.now() - w.startedAt) / 60000);
-
-  const updateActive = (fn: (w: Workout) => Workout) =>
-    set(s => ({ ...s, activeWorkout: fn(s.activeWorkout!) }));
-
-  const addExercise = (exerciseId: string) => {
-    const ex = exerciseById(exerciseId); if (!ex) return;
-    const we: WorkoutExercise = { id: uid(), exerciseId, completed: false,
-      sets: Array.from({ length: 3 }, () => ({ id: uid(), modifier: "normal", completed: false })) };
-    updateActive(w => ({ ...w, exercises: [...w.exercises, we] }));
-    setExercisePicker(false); setSearch("");
-  };
-
-  const finish = () => {
-    const newPRs = [...state.prs];
-    w.exercises.forEach(we => {
-      we.sets.forEach(st => {
-        if (st.completed && st.weight && st.reps) {
-          const est = e1RM(st.weight, st.reps);
-          const prev = state.prs.find(p => p.exerciseId === we.exerciseId && p.type === "1rm");
-          if (!prev || est > prev.value) {
-            const idx = newPRs.findIndex(p => p.exerciseId === we.exerciseId && p.type === "1rm");
-            const entry = { id: uid(), exerciseId: we.exerciseId, type: "1rm" as const, value: est, weight: st.weight, reps: st.reps, date: Date.now() };
-            if (idx >= 0) newPRs[idx] = entry; else newPRs.push(entry);
-          }
-        }
-      });
-    });
-    set(s => ({ ...s,
-      workouts: [...s.workouts, { ...w, endedAt: Date.now() }],
-      activeWorkout: null,
-      prs: newPRs,
-      goals: s.goals.map(g => g.type === "weekly_workouts" ? { ...g, current: Math.min(g.target, g.current + 1) } : g),
-    }));
-  };
-
-  const filteredExercises = EXERCISES.filter(e =>
-    !search || e.name.toLowerCase().includes(search.toLowerCase()) || e.primary.some(p => p.includes(search.toLowerCase()))
-  );
-
-  return (
-    <div className="pb-24">
-      <div className="sticky top-0 z-10 glass border-b border-border px-5 py-4 flex items-center justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-wider text-muted-foreground">In progress</p>
-          <h2 className="text-lg font-bold flex items-center gap-2"><Timer size={16} style={{ color: "var(--section)" }} />{w.name} • {elapsed}m</h2>
-        </div>
-        <button onClick={() => setConfirmCancel(true)} aria-label="Cancel workout" className="p-2 rounded-lg hover:bg-[var(--surface-2)]"><X size={18} /></button>
-      </div>
-
-      <div className="px-5 mt-4 space-y-3">
-        {w.exercises.length === 0 && (
-          <EmptyState title="No exercises yet" description="Add your first exercise to start logging sets." action={<PrimaryButton onClick={() => setExercisePicker(true)}><Plus size={16} />Add exercise</PrimaryButton>} />
-        )}
-        {w.exercises.map(we => {
-          const ex = exerciseById(we.exerciseId);
-          return (
-            <Card key={we.id} className={we.completed ? "opacity-60" : ""}>
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <p className="font-semibold">{ex?.name}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{ex?.primary.join(", ")}</p>
-                </div>
-                <button onClick={() => updateActive(w => ({ ...w, exercises: w.exercises.filter(x => x.id !== we.id) }))} aria-label="Delete entry" className="text-muted-foreground"><Trash2 size={14} /></button>
-              </div>
-              <div className="space-y-2">
-                {we.sets.map((st, i) => (
-                  <div key={st.id} className="flex items-center gap-2">
-                    <span className="w-6 text-xs text-muted-foreground tabular-nums">{i+1}</span>
-                    <input type="number" inputMode="decimal" placeholder="lb"
-                      value={st.weight ?? ""} onChange={e => updateActive(w => ({ ...w, exercises: w.exercises.map(x => x.id === we.id ? { ...x, sets: x.sets.map(s => s.id === st.id ? { ...s, weight: e.target.value ? Number(e.target.value) : undefined } : s) } : x) }))}
-                      className="flex-1 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-sm tabular-nums" />
-                    <input type="number" inputMode="numeric" placeholder="reps"
-                      value={st.reps ?? ""} onChange={e => updateActive(w => ({ ...w, exercises: w.exercises.map(x => x.id === we.id ? { ...x, sets: x.sets.map(s => s.id === st.id ? { ...s, reps: e.target.value ? Number(e.target.value) : undefined } : s) } : x) }))}
-                      className="w-20 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-sm tabular-nums" />
-                    <button onClick={() => updateActive(w => ({ ...w, exercises: w.exercises.map(x => x.id === we.id ? { ...x, sets: x.sets.map(s => s.id === st.id ? { ...s, completed: !s.completed } : s) } : x) }))}
-                      className={`w-10 h-10 rounded-lg flex items-center justify-center border ${st.completed ? "border-transparent text-white" : "border-border text-muted-foreground"}`}
-                      style={st.completed ? { background: "var(--section)" } : undefined}>
-                      <Check size={16} />
-                    </button>
-                  </div>
-                ))}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {SET_MODS.slice(0, 4).map(m => (
-                    <button key={m} onClick={() => updateActive(w => ({ ...w, exercises: w.exercises.map(x => x.id === we.id ? { ...x, sets: x.sets.map((s, si) => si === x.sets.length - 1 ? { ...s, modifier: m } : s) } : x) }))}
-                      className="text-[10px] px-2 py-1 rounded-md border border-border text-muted-foreground hover:text-foreground capitalize">{m}</button>
-                  ))}
-                </div>
-                <div className="flex gap-2 mt-2">
-                  <GhostButton className="flex-1 py-2 text-sm" onClick={() => updateActive(w => ({ ...w, exercises: w.exercises.map(x => x.id === we.id ? { ...x, sets: [...x.sets, { id: uid(), modifier: "normal", completed: false }] } : x) }))}><Plus size={14} />Add set</GhostButton>
-                  <GhostButton className="flex-1 py-2 text-sm" onClick={() => updateActive(w => ({ ...w, exercises: w.exercises.map(x => x.id === we.id ? { ...x, completed: !x.completed } : x) }))}>{we.completed ? "Reopen" : "Complete"}</GhostButton>
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-
-        {w.exercises.length > 0 && (
-          <GhostButton className="w-full" onClick={() => setExercisePicker(true)}><Plus size={16} />Add exercise</GhostButton>
-        )}
-
-        <PrimaryButton className="w-full mt-4" onClick={() => setConfirmFinish(true)}>Finish workout</PrimaryButton>
-      </div>
-
-      <BottomSheet open={exercisePicker} onClose={() => setExercisePicker(false)} title="Add exercise" height="tall">
-        <Input placeholder="Search exercise or muscle..." value={search} onChange={e => setSearch(e.target.value)} />
-        <div className="mt-3 space-y-1.5 max-h-[55dvh] overflow-y-auto">
-          {filteredExercises.map(e => (
-            <button key={e.id} onClick={() => addExercise(e.id)} className="w-full text-left p-3 rounded-xl bg-[var(--surface-2)] hover:ring-1 hover:ring-[var(--section)]">
-              <p className="font-medium text-sm">{e.name}</p>
-              <p className="text-xs text-muted-foreground capitalize">{e.primary.join(", ")} • {e.equipment}</p>
-            </button>
-          ))}
-        </div>
-      </BottomSheet>
-
-      <ConfirmDialog open={confirmFinish} onClose={() => setConfirmFinish(false)} onConfirm={finish}
-        title="Finish workout?" message="This will save your workout and update PRs." confirmLabel="Finish" />
-      <ConfirmDialog open={confirmCancel} onClose={() => setConfirmCancel(false)}
-        onConfirm={() => set(s => ({ ...s, activeWorkout: null }))}
-        title="Discard workout?" message="Your current sets will be lost." confirmLabel="Discard" destructive />
-    </div>
-  );
-}

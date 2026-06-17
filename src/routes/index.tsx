@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StoreProvider, useStore } from "@/lib/store";
 import { BottomNav } from "@/components/app/bottom-nav";
 import { FloatingAi } from "@/components/app/floating-ai";
@@ -50,6 +50,25 @@ function FitCoreApp() {
   const [section, setSection] = useState<SectionId>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  const hasActiveWorkout = !!state.activeWorkout;
+
+  // Lock app to Training while a workout is active — protects against losing progress
+  // on refresh/nav. User can still discard via the active workout screen.
+  useEffect(() => {
+    if (hasActiveWorkout) {
+      if (section !== "training") setSection("training");
+      if (settingsOpen) setSettingsOpen(false);
+    }
+  }, [hasActiveWorkout, section, settingsOpen]);
+
+  // Warn on accidental tab close/refresh while a workout is in progress.
+  useEffect(() => {
+    if (!hasActiveWorkout) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [hasActiveWorkout]);
+
   if (!state.onboardingComplete) {
     return (
       <div className="phone-shell" data-section="home">
@@ -82,11 +101,13 @@ function FitCoreApp() {
       </div>
 
       <FloatingAi section={section} contextSummary={contextSummary} />
-      <BottomNav
-        active={section}
-        onChange={(s) => { setSection(s); setSettingsOpen(false); }}
-        onOpenSettings={() => setSettingsOpen(true)}
-      />
+      {!hasActiveWorkout && (
+        <BottomNav
+          active={section}
+          onChange={(s) => { setSection(s); setSettingsOpen(false); }}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+      )}
     </div>
   );
 }
