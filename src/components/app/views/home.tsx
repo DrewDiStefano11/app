@@ -1,0 +1,280 @@
+import { useMemo } from "react";
+import { Settings as SettingsIcon, Play, Apple, Heart, Sparkles, Plus } from "lucide-react";
+import { Tile, Eyebrow } from "@/components/app/tile";
+import { CountUp } from "@/components/app/count-up";
+import { BodyHeatmap } from "@/components/app/body-heatmap";
+import { AiInsightStrip } from "@/components/app/ai-insight";
+import { useStore } from "@/lib/store";
+import {
+  fitcoreScore, readinessScore, recoveryScore, trainingStreak,
+  muscleMap, weeklyVolumeSeries, todayMealTotals, totalVolumeInRange,
+  bestMuscleToTrainToday,
+} from "@/lib/analytics";
+import type { SectionId } from "@/lib/types";
+
+export function HomeView({ onNavigate, onOpenSettings }: {
+  onNavigate: (s: SectionId) => void;
+  onOpenSettings: () => void;
+}) {
+  const { view, state, set } = useStore();
+  const name = (state.profile as { name?: string }).name ?? "ATHLETE";
+
+  const score = useMemo(() => fitcoreScore(view), [view]);
+  const readiness = useMemo(() => readinessScore(view), [view]);
+  const recovery = useMemo(() => recoveryScore(view), [view]);
+  const streak = useMemo(() => trainingStreak(view), [view]);
+  const loadMap = useMemo(() => muscleMap(view, "load"), [view]);
+  const recoveryMap = useMemo(() => muscleMap(view, "recovery"), [view]);
+  const series = useMemo(() => weeklyVolumeSeries(view, 7), [view]);
+  const meals = useMemo(() => todayMealTotals(view), [view]);
+  const weekVol = useMemo(() => totalVolumeInRange(view, 7), [view]);
+  const lastWeekVol = useMemo(() => totalVolumeInRange(view, 14) - weekVol, [view, weekVol]);
+  const volDelta = lastWeekVol > 0 ? Math.round(((weekVol - lastWeekVol) / lastWeekVol) * 100) : 0;
+  const bestMuscle = useMemo(() => bestMuscleToTrainToday(view), [view]);
+
+  const targets = state.nutritionTargets;
+  const kcalPct = targets.calories > 0 ? Math.min(100, Math.round((meals.calories / targets.calories) * 100)) : 0;
+  const proteinPct = targets.protein > 0 ? Math.min(100, Math.round((meals.protein / targets.protein) * 100)) : 0;
+  const carbsPct = targets.carbs > 0 ? Math.min(100, Math.round((meals.carbs / targets.carbs) * 100)) : 0;
+  const fatPct = targets.fat > 0 ? Math.min(100, Math.round((meals.fat / targets.fat) * 100)) : 0;
+
+  const hasAnyData = view.workouts.length > 0 || view.mealEntries.length > 0;
+
+  const insight = !hasAnyData
+    ? "Log your first workout or turn on Demo Data in Settings to see your full dashboard."
+    : readiness >= 80
+      ? `Readiness is ${readiness}. Prime day for a heavy ${bestMuscle} session.`
+      : readiness >= 60
+        ? `Readiness is ${readiness}. Solid day — train ${bestMuscle} at moderate intensity.`
+        : `Readiness is low (${readiness}). Prioritize recovery and skill work today.`;
+
+  return (
+    <div className="pb-2">
+      {/* Header */}
+      <header className="px-6 pt-6 pb-3 flex items-end justify-between">
+        <div>
+          <Eyebrow>Command Center</Eyebrow>
+          <h1 className="font-display text-4xl leading-none mt-1 uppercase">Welcome, {name}</h1>
+        </div>
+        <button
+          onClick={onOpenSettings}
+          className="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center press relative"
+          aria-label="Settings"
+        >
+          <SettingsIcon size={16} className="text-white/70" />
+          <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[var(--section)] shimmer-dot" />
+        </button>
+      </header>
+
+      {/* Streak strip */}
+      <div className="px-6 pb-3 flex items-center gap-2 text-[11px]">
+        <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 font-bold uppercase tracking-wider text-white/60">
+          🔥 {streak}d streak
+        </span>
+        <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 font-bold uppercase tracking-wider text-white/60">
+          Week vol <CountUp value={Math.round(weekVol / 1000)} />k
+        </span>
+        {state.demoMode && (
+          <span className="ml-auto px-2 py-1 rounded-full font-bold uppercase tracking-wider"
+            style={{ background: "var(--section-soft)", color: "var(--section)" }}>
+            Demo
+          </span>
+        )}
+      </div>
+
+      <div className="px-5 space-y-3">
+        {/* Score + Readiness row */}
+        <div className="grid grid-cols-2 gap-3">
+          <Tile hero accent delay={0}>
+            <Eyebrow color="var(--section)">FitCore Score</Eyebrow>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="font-display text-5xl leading-none text-white">
+                <CountUp value={score} />
+              </span>
+              <span className="text-xs text-white/40 font-bold uppercase">{score >= 80 ? "Elite" : score >= 60 ? "Strong" : score >= 40 ? "Building" : "Start"}</span>
+            </div>
+            <div className="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-700"
+                style={{ width: `${score}%`, background: "var(--section)", boxShadow: "0 0 8px var(--section)" }} />
+            </div>
+            <div className="mt-2 text-[10px] text-white/40 font-bold uppercase tracking-wider">
+              {volDelta >= 0 ? `+${volDelta}%` : `${volDelta}%`} vs last week
+            </div>
+          </Tile>
+
+          <Tile delay={60}>
+            <div className="h-full flex flex-col items-center justify-center gap-2">
+              <RingScore value={readiness} color="rgb(59 130 246)" />
+              <Eyebrow color="rgb(96 165 250)">Readiness</Eyebrow>
+            </div>
+          </Tile>
+        </div>
+
+        {/* Body Heat Map preview */}
+        <Tile delay={120} onClick={() => onNavigate("recovery")}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <Eyebrow color="rgb(74 222 128)">Muscle Load · 7d</Eyebrow>
+              <h3 className="font-display text-2xl leading-tight mt-1 uppercase">
+                {topLoaded(loadMap)}<br/>
+                <span className="text-white/50">Most worked</span>
+              </h3>
+              <p className="text-xs text-white/50 mt-2">Best today: <span className="text-white capitalize font-bold">{bestMuscle}</span></p>
+              <p className="text-[10px] text-white/40 uppercase tracking-wider mt-2 font-bold">Tap to explore →</p>
+            </div>
+            <div className="w-20 h-32 shrink-0">
+              <BodyHeatmap values={loadMap} mode="load" compact side="front" />
+            </div>
+          </div>
+        </Tile>
+
+        {/* Macros + Volume row */}
+        <div className="grid grid-cols-2 gap-3">
+          <Tile delay={180} onClick={() => onNavigate("nutrition")}>
+            <Eyebrow color="rgb(248 113 113)">Macros</Eyebrow>
+            <div className="font-display text-2xl mt-1 leading-none">
+              <CountUp value={meals.calories} />
+              <span className="text-xs text-white/40 font-bold uppercase ml-1">/ {targets.calories}</span>
+            </div>
+            <div className="mt-3 space-y-1.5">
+              <MacroBar label="P" value={meals.protein} target={targets.protein} pct={proteinPct} color="rgb(239 68 68)" />
+              <MacroBar label="C" value={meals.carbs} target={targets.carbs} pct={carbsPct} color="rgb(245 158 11)" />
+              <MacroBar label="F" value={meals.fat} target={targets.fat} pct={fatPct} color="rgb(34 197 94)" />
+            </div>
+            <div className="mt-2 text-[10px] text-white/40 font-bold uppercase tracking-wider">{kcalPct}% of goal</div>
+          </Tile>
+
+          <Tile delay={240} onClick={() => onNavigate("progress")}>
+            <Eyebrow color="rgb(74 222 128)">Volume · 7d</Eyebrow>
+            <div className="font-display text-2xl mt-1 leading-none">
+              <CountUp value={Math.round(weekVol / 1000)} />
+              <span className="text-xs text-white/40 font-bold uppercase ml-1">k lb</span>
+            </div>
+            <div className="mt-3 flex items-end gap-1 h-14">
+              {series.map((d, i) => {
+                const max = Math.max(...series.map(s => s.volume), 1);
+                const h = Math.max(6, (d.volume / max) * 100);
+                const isLast = i === series.length - 1;
+                return (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <div
+                      className="w-full rounded-t transition-all"
+                      style={{
+                        height: `${h}%`,
+                        background: isLast ? "rgb(34 197 94)" : "rgba(255,255,255,0.1)",
+                        boxShadow: isLast ? "0 0 12px rgba(34,197,94,0.4)" : undefined,
+                      }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-2 text-[10px] font-bold uppercase tracking-wider"
+              style={{ color: volDelta >= 0 ? "rgb(74 222 128)" : "rgb(248 113 113)" }}>
+              {volDelta >= 0 ? "+" : ""}{volDelta}% trend
+            </div>
+          </Tile>
+        </div>
+
+        {/* Recovery score */}
+        <div className="grid grid-cols-2 gap-3">
+          <Tile delay={300} onClick={() => onNavigate("recovery")}>
+            <div className="flex items-center gap-3">
+              <RingScore value={recovery} color="rgb(96 165 250)" size={52} />
+              <div>
+                <Eyebrow color="rgb(96 165 250)">Recovery</Eyebrow>
+                <p className="text-xs text-white/60 mt-1">{recovery >= 75 ? "Fully recovered" : recovery >= 50 ? "Moderate" : "Run down"}</p>
+              </div>
+            </div>
+          </Tile>
+          <Tile delay={360} onClick={() => set(s => ({ ...s, demoMode: !s.demoMode }))}>
+            <Eyebrow>Demo Data</Eyebrow>
+            <p className="text-sm font-bold mt-1">{state.demoMode ? "ON" : "OFF"}</p>
+            <p className="text-[10px] text-white/40 mt-1">Tap to {state.demoMode ? "hide" : "preview"} sample data.</p>
+          </Tile>
+        </div>
+
+        {/* AI insight */}
+        <div style={{ animationDelay: "420ms" }} className="animate-tile-in">
+          <AiInsightStrip>
+            {insight.split(bestMuscle)[0]}
+            <span className="text-[var(--section)] font-bold capitalize">{insight.includes(bestMuscle) ? bestMuscle : ""}</span>
+            {insight.split(bestMuscle)[1] ?? ""}
+          </AiInsightStrip>
+        </div>
+
+        {/* Start workout CTA */}
+        <button
+          onClick={() => onNavigate("training")}
+          style={{ animationDelay: "480ms" }}
+          className="animate-tile-in w-full h-16 rounded-2xl flex items-center justify-center gap-3 press relative overflow-hidden"
+        >
+          <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, var(--section) 0%, color-mix(in oklab, var(--section) 60%, black) 100%)" }} />
+          <Play size={20} className="relative text-white fill-white" />
+          <span className="relative font-display text-2xl tracking-wide uppercase text-white">Start Workout</span>
+        </button>
+
+        {/* Quick actions */}
+        <div className="grid grid-cols-3 gap-2 pt-1">
+          <QuickAction icon={<Plus size={18} />} label="Log Meal" onClick={() => onNavigate("nutrition")} />
+          <QuickAction icon={<Heart size={18} />} label="Check In" onClick={() => onNavigate("recovery")} />
+          <QuickAction icon={<Apple size={18} />} label="Weigh In" onClick={() => onNavigate("progress")} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RingScore({ value, color, size = 64 }: { value: number; color: string; size?: number }) {
+  const r = size / 2 - 4;
+  const c = 2 * Math.PI * r;
+  const pct = Math.min(1, value / 100);
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size/2} cy={size/2} r={r} stroke="rgba(255,255,255,0.06)" strokeWidth="4" fill="none" />
+        <circle cx={size/2} cy={size/2} r={r} stroke={color} strokeWidth="4" fill="none"
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)} strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 1s ease-out" }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-display text-xl leading-none" style={{ color }}>
+          <CountUp value={value} />
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MacroBar({ label, value, target, pct, color }: { label: string; value: number; target: number; pct: number; color: string }) {
+  return (
+    <div>
+      <div className="flex justify-between text-[10px] font-bold tabular-nums">
+        <span className="text-white/40">{label}</span>
+        <span className="text-white/80">{Math.round(value)}/{target}g</span>
+      </div>
+      <div className="h-1 mt-0.5 bg-white/5 rounded-full overflow-hidden">
+        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
+function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="press h-14 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-0.5 text-white/70">
+      {icon}
+      <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
+    </button>
+  );
+}
+
+function topLoaded(map: Record<string, number>): string {
+  const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+  if (!sorted.length || sorted[0][1] === 0) return "No Data";
+  const top = sorted[0][0];
+  if (["quads","hamstrings","glutes","calves"].includes(top)) return "Lower Body";
+  if (["chest","triceps","shoulders"].includes(top)) return "Push";
+  if (["back","biceps"].includes(top)) return "Pull";
+  return top.charAt(0).toUpperCase() + top.slice(1);
+}

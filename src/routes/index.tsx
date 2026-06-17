@@ -3,6 +3,7 @@ import { useState } from "react";
 import { StoreProvider, useStore } from "@/lib/store";
 import { BottomNav } from "@/components/app/bottom-nav";
 import { FloatingAi } from "@/components/app/floating-ai";
+import { HomeView } from "@/components/app/views/home";
 import { TrainingView } from "@/components/app/views/training";
 import { NutritionView } from "@/components/app/views/nutrition";
 import { RecoveryView } from "@/components/app/views/recovery";
@@ -26,35 +27,47 @@ export const Route = createFileRoute("/")({
 });
 
 function FitCoreApp() {
-  const { state } = useStore();
-  const [section, setSection] = useState<SectionId>("training");
+  const { state, view } = useStore();
+  const [section, setSection] = useState<SectionId>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   if (!state.onboardingComplete) {
     return (
-      <div className="phone-shell" data-section={section}>
+      <div className="phone-shell" data-section="home">
         <Onboarding />
       </div>
     );
   }
 
-  const contextSummary = buildContext(state, section);
+  const contextSummary = buildContext(view, section);
 
   return (
-    <div className="phone-shell" data-section={section}>
-      {settingsOpen ? (
-        <SettingsView onBack={() => setSettingsOpen(false)} />
-      ) : (
-        <>
-          {section === "training" && <TrainingView />}
-          {section === "nutrition" && <NutritionView />}
-          {section === "recovery" && <RecoveryView />}
-          {section === "progress" && <ProgressView />}
-        </>
-      )}
+    <div className="phone-shell" data-section={section} key={section}>
+      <div className="animate-tile-in">
+        {settingsOpen ? (
+          <SettingsView onBack={() => setSettingsOpen(false)} />
+        ) : (
+          <>
+            {section === "home" && (
+              <HomeView
+                onNavigate={(s) => setSection(s)}
+                onOpenSettings={() => setSettingsOpen(true)}
+              />
+            )}
+            {section === "training" && <TrainingView />}
+            {section === "nutrition" && <NutritionView />}
+            {section === "recovery" && <RecoveryView />}
+            {section === "progress" && <ProgressView />}
+          </>
+        )}
+      </div>
 
       <FloatingAi section={section} contextSummary={contextSummary} />
-      <BottomNav active={section} onChange={(s) => { setSection(s); setSettingsOpen(false); }} onOpenSettings={() => setSettingsOpen(true)} />
+      <BottomNav
+        active={section}
+        onChange={(s) => { setSection(s); setSettingsOpen(false); }}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
     </div>
   );
 }

@@ -80,6 +80,21 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
         </section>
 
         <section>
+          <h3 className="font-semibold mb-2">Demo data</h3>
+          <Card className="space-y-2">
+            <label className="flex items-center justify-between py-1">
+              <div>
+                <p className="text-sm font-medium">Show demo data</p>
+                <p className="text-xs text-muted-foreground">Fills charts and dashboards with sample workouts, meals, sleep and PRs. Your real data is preserved.</p>
+              </div>
+              <input type="checkbox" checked={state.demoMode}
+                onChange={e => set(s => ({ ...s, demoMode: e.target.checked }))}
+                className="w-5 h-5 accent-[var(--section)]" />
+            </label>
+          </Card>
+        </section>
+
+        <section>
           <h3 className="font-semibold mb-2">Data</h3>
           <Card className="space-y-2">
             <GhostButton className="w-full justify-center" onClick={downloadBackup}><Download size={16} />Export backup</GhostButton>
