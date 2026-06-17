@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Play, Plus, Clock, Flame, ListChecks, Trash2, Check, Timer, X, Activity, Dumbbell, FileText, Filter } from "lucide-react";
+import { Play, Plus, Clock, Flame, ListChecks, Trash2, Check, Timer, X, Activity, Filter } from "lucide-react";
 import { useStore, uid, e1RM, isToday } from "@/lib/store";
 import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
 import type { Workout, WorkoutExercise, SetEntry, CardioEntry } from "@/lib/types";
