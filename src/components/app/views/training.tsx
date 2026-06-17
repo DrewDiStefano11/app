@@ -1,20 +1,17 @@
 import { useState } from "react";
-import { Play, Plus, Clock, Flame, Trophy, ListChecks, Trash2, Check, Timer, X, Activity, Dumbbell, FileText, Filter } from "lucide-react";
+import { Play, Plus, Clock, Flame, ListChecks, Trash2, Check, Timer, X, Activity, Filter } from "lucide-react";
 import { useStore, uid, e1RM, isToday } from "@/lib/store";
 import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
 import type { Workout, WorkoutExercise, SetEntry, CardioEntry } from "@/lib/types";
 import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SubTabs, SectionHeader } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
-import { GoalsTab } from "@/components/app/goals-tab";
 
 const SET_MODS: SetEntry["modifier"][] = ["normal","warmup","drop","failure","partials","unilateral","paused","tempo"];
-type Tab = "home" | "start" | "templates" | "cardio" | "goals" | "history";
+type Tab = "home" | "templates" | "cardio" | "history";
 const TABS: { id: Tab; label: string }[] = [
   { id: "home", label: "Home" },
-  { id: "start", label: "Start" },
   { id: "templates", label: "Templates" },
   { id: "cardio", label: "Cardio" },
-  { id: "goals", label: "Goals" },
   { id: "history", label: "History" },
 ];
 
@@ -29,10 +26,8 @@ export function TrainingView() {
       <PageHeader title="Training" subtitle={`${state.profile.split} • ${state.profile.daysPerWeek}d/wk`} />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} />
       {tab === "home" && <HomeTab onJump={setTab} />}
-      {tab === "start" && <StartTab />}
       {tab === "templates" && <TemplatesTab />}
       {tab === "cardio" && <CardioTab />}
-      {tab === "goals" && <GoalsTab section="training" typeOptions={["lift","weekly_workouts","cardio","volume","habit"]} />}
       {tab === "history" && <HistoryTab />}
     </div>
   );
@@ -46,7 +41,6 @@ function HomeTab({ onJump }: { onJump: (t: Tab) => void }) {
     .reduce((a, w) => a + w.exercises.reduce((aa, ex) => aa + ex.sets.reduce((s, st) => s + (st.weight ?? 0) * (st.reps ?? 0), 0), 0), 0);
   const lastWorkout = state.workouts[state.workouts.length - 1];
   const topPR = [...state.prs].sort((a,b) => b.value - a.value)[0];
-  const pinned = state.goals.filter(g => g.pinned).slice(0, 2);
 
   const startBlank = () => set(s => ({ ...s, activeWorkout: { id: uid(), name: "Workout", startedAt: Date.now(), exercises: [] } }));
 
@@ -64,7 +58,7 @@ function HomeTab({ onJump }: { onJump: (t: Tab) => void }) {
           </div>
         </div>
         <div className="flex gap-2 mt-4">
-          <PrimaryButton onClick={() => onJump("start")} className="flex-1"><Play size={16} />Start workout</PrimaryButton>
+          <PrimaryButton onClick={() => onJump("templates")} className="flex-1"><Play size={16} />Start workout</PrimaryButton>
           <GhostButton onClick={startBlank}><Plus size={16} />Blank</GhostButton>
         </div>
       </div>
@@ -76,11 +70,10 @@ function HomeTab({ onJump }: { onJump: (t: Tab) => void }) {
       </div>
 
       <SectionHeader title="Quick actions" />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <QuickAction icon={<ListChecks size={18} />} label="Templates" onClick={() => onJump("templates")} />
         <QuickAction icon={<Clock size={18} />} label="History" onClick={() => onJump("history")} />
         <QuickAction icon={<Flame size={18} />} label="Cardio" onClick={() => onJump("cardio")} />
-        <QuickAction icon={<Trophy size={18} />} label="Goals" onClick={() => onJump("goals")} />
       </div>
 
       {lastWorkout && (
@@ -113,70 +106,6 @@ function HomeTab({ onJump }: { onJump: (t: Tab) => void }) {
         </>
       )}
 
-      {pinned.length > 0 && (
-        <>
-          <SectionHeader title="Pinned goals" />
-          <div className="space-y-2">
-            {pinned.map(g => (
-              <Card key={g.id}>
-                <div className="flex justify-between text-sm mb-2"><span className="font-medium">{g.label}</span><span className="text-muted-foreground tabular-nums">{g.current}/{g.target}</span></div>
-                <div className="h-2 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
-                  <div className="h-full" style={{ width: `${Math.min(100, (g.current/g.target)*100)}%`, background: "var(--section)" }} />
-                </div>
-              </Card>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-function StartTab() {
-  const { state, set } = useStore();
-  const splits = ["Push","Pull","Legs","Upper","Lower","Full Body","Custom"];
-  const start = (name: string) => set(s => ({ ...s, activeWorkout: { id: uid(), name: name === "Custom" ? "Workout" : `${name} Day`, startedAt: Date.now(), exercises: [] } }));
-  const startTemplate = (tid: string) => {
-    const t = WORKOUT_TEMPLATES.find(x => x.id === tid); if (!t) return;
-    set(s => ({ ...s, activeWorkout: {
-      id: uid(), name: t.name, startedAt: Date.now(), templateId: t.id,
-      exercises: t.exercises.map(te => ({ id: uid(), exerciseId: te.exerciseId, completed: false,
-        sets: Array.from({ length: te.sets }, () => ({ id: uid(), modifier: "normal" as const, completed: false })) })),
-    }}));
-  };
-  return (
-    <div className="px-5">
-      {state.activeWorkout && (
-        <Card className="mb-4 ring-section">
-          <p className="text-xs uppercase text-muted-foreground">Active</p>
-          <p className="font-semibold">{state.activeWorkout.name} • in progress</p>
-          <PrimaryButton className="w-full mt-3" onClick={() => set(s => ({ ...s }))}>Continue</PrimaryButton>
-        </Card>
-      )}
-      <SectionHeader title="Pick a split" />
-      <div className="grid grid-cols-2 gap-3">
-        {splits.map(sp => (
-          <button key={sp} onClick={() => start(sp)} className="card-elev p-4 text-left active:scale-[0.98]">
-            <Dumbbell size={18} style={{ color: "var(--section)" }} />
-            <p className="font-semibold mt-2">{sp}</p>
-            <p className="text-xs text-muted-foreground">Blank workout</p>
-          </button>
-        ))}
-      </div>
-      <SectionHeader title="From a template" />
-      <div className="space-y-2">
-        {WORKOUT_TEMPLATES.slice(0, 5).map(t => (
-          <Card key={t.id} onClick={() => startTemplate(t.id)}>
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="font-semibold">{t.name}</p>
-                <p className="text-xs text-muted-foreground">{t.goal} • {t.exercises.length} exercises</p>
-              </div>
-              <Play size={18} style={{ color: "var(--section)" }} />
-            </div>
-          </Card>
-        ))}
-      </div>
     </div>
   );
 }

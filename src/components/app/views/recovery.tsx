@@ -1,23 +1,19 @@
-import { useState, useMemo } from "react";
-import { Plus, Moon, Heart, Trash2, Activity, BarChart3 } from "lucide-react";
+import { useState } from "react";
+import { Plus, Moon, Heart, Trash2, Activity } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import type { FatigueLevel } from "@/lib/types";
 import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Input, Label, Ring, Textarea, SubTabs, SectionHeader } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
-import { GoalsTab } from "@/components/app/goals-tab";
 
 const MUSCLES = ["chest","back","shoulders","biceps","triceps","quads","hamstrings","glutes","calves","core"];
 const LEVELS: FatigueLevel[] = ["fresh","moderate","fatigued","very"];
 const LEVEL_COLOR: Record<FatigueLevel,string> = { fresh: "var(--section)", moderate: "oklch(0.7 0.18 90)", fatigued: "oklch(0.65 0.2 40)", very: "oklch(0.6 0.22 25)" };
 
-type Tab = "home" | "sleep" | "readiness" | "stats" | "goals" | "history";
+type Tab = "home" | "sleep" | "readiness";
 const TABS: { id: Tab; label: string }[] = [
   { id: "home", label: "Home" },
   { id: "sleep", label: "Sleep" },
   { id: "readiness", label: "Readiness" },
-  { id: "stats", label: "Stats" },
-  { id: "goals", label: "Goals" },
-  { id: "history", label: "History" },
 ];
 
 function readiness(state: ReturnType<typeof useStore>["state"]) {
@@ -40,9 +36,6 @@ export function RecoveryView() {
       {tab === "home" && <HomeTab onJump={setTab} />}
       {tab === "sleep" && <SleepTab />}
       {tab === "readiness" && <ReadinessTab />}
-      {tab === "stats" && <StatsTab />}
-      {tab === "goals" && <GoalsTab section="recovery" typeOptions={["sleep","readiness","habit"]} />}
-      {tab === "history" && <HistoryTab />}
     </div>
   );
 }
@@ -95,11 +88,10 @@ function HomeTab({ onJump }: { onJump: (t: Tab) => void }) {
       )}
 
       <SectionHeader title="Quick actions" />
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <QA icon={<Moon size={16} />} label="Log sleep" onClick={() => onJump("sleep")} />
         <QA icon={<Heart size={16} />} label="Check-in" onClick={() => onJump("readiness")} />
         <QA icon={<Activity size={16} />} label="Fatigue" onClick={() => setFatigueOpen(true)} />
-        <QA icon={<BarChart3 size={16} />} label="Stats" onClick={() => onJump("stats")} />
       </div>
 
       {lastCheck && (
@@ -250,129 +242,6 @@ function Slider({ label, value, onChange }: { label: string; value: number; onCh
       <div className="flex justify-between mb-1"><Label>{label}</Label><span className="text-sm tabular-nums">{value}/10</span></div>
       <input type="range" min={1} max={10} value={value} onChange={e => onChange(Number(e.target.value))}
         className="w-full accent-[var(--section)]" />
-    </div>
-  );
-}
-
-function StatsTab() {
-  const { state, set } = useStore();
-  const [hrv, setHrv] = useState("");
-  const [rhr, setRhr] = useState("");
-
-  const week = state.recoveryCheckIns.filter(c => c.createdAt > Date.now() - 7*86400000);
-  const sleep7 = state.sleepEntries.filter(s => s.createdAt > Date.now() - 7*86400000);
-  const avg = (arr: number[]) => arr.length ? (arr.reduce((a, n) => a + n, 0) / arr.length).toFixed(1) : "—";
-  const sorenessRanked = MUSCLES
-    .map(m => ({ m, lvl: state.muscleFatigue[m] ?? "fresh" }))
-    .filter(x => x.lvl !== "fresh");
-
-  const trainingLoad = state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000).length;
-
-  return (
-    <div className="px-5">
-      <SectionHeader title="7-day averages" />
-      <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Readiness" value={avg(week.length ? week.map(c => (c.energy + (10-c.soreness) + (10-c.stress) + c.motivation) * 2.5) : [])} accent />
-        <StatCard label="Sleep" value={avg(sleep7.map(s => s.hours))} sub="hours" />
-        <StatCard label="Energy" value={avg(week.map(c => c.energy))} />
-        <StatCard label="Stress" value={avg(week.map(c => c.stress))} />
-        <StatCard label="Motivation" value={avg(week.map(c => c.motivation))} />
-        <StatCard label="Training load" value={trainingLoad} sub="sessions" />
-      </div>
-
-      <SectionHeader title="Most fatigued" />
-      {sorenessRanked.length === 0 ? (
-        <Card><p className="text-sm text-muted-foreground">No fatigued muscles flagged.</p></Card>
-      ) : (
-        <Card>
-          <div className="space-y-2">
-            {sorenessRanked.map(({ m, lvl }) => (
-              <div key={m} className="flex justify-between items-center">
-                <span className="text-sm capitalize">{m}</span>
-                <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full text-white" style={{ background: LEVEL_COLOR[lvl] }}>{lvl}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      <SectionHeader title="Optional health metrics" />
-      <Card>
-        <p className="text-xs text-muted-foreground mb-3">Manual entry — wearable sync coming later.</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label>HRV (ms)</Label><Input inputMode="numeric" value={hrv} onChange={e => setHrv(e.target.value)} placeholder="—" /></div>
-          <div><Label>Resting HR</Label><Input inputMode="numeric" value={rhr} onChange={e => setRhr(e.target.value)} placeholder="—" /></div>
-        </div>
-        <p className="text-[10px] text-muted-foreground mt-2">Stored as a check-in note.</p>
-        <GhostButton className="w-full mt-3" onClick={() => {
-          if (!hrv && !rhr) return;
-          const note = [hrv && `HRV ${hrv}ms`, rhr && `RHR ${rhr}bpm`].filter(Boolean).join(" • ");
-          set(s => ({ ...s, recoveryCheckIns: [...s.recoveryCheckIns, { id: uid(), energy: 5, soreness: 5, stress: 5, motivation: 5, notes: note, createdAt: Date.now() }] }));
-          setHrv(""); setRhr("");
-        }}>Save metrics</GhostButton>
-      </Card>
-    </div>
-  );
-}
-
-function HistoryTab() {
-  const { state, set } = useStore();
-  const [tab, setTab] = useState<"checkins" | "sleep">("checkins");
-  const [confirmDel, setConfirmDel] = useState<{ type: "checkin" | "sleep"; id: string } | null>(null);
-
-  return (
-    <div className="px-5">
-      <div className="flex gap-2 mb-3">
-        <button onClick={() => setTab("checkins")} className={`px-3 py-1.5 rounded-full text-xs font-semibold ${tab === "checkins" ? "text-white" : "text-muted-foreground border border-border"}`} style={tab === "checkins" ? { background: "var(--section)" } : undefined}>Check-ins</button>
-        <button onClick={() => setTab("sleep")} className={`px-3 py-1.5 rounded-full text-xs font-semibold ${tab === "sleep" ? "text-white" : "text-muted-foreground border border-border"}`} style={tab === "sleep" ? { background: "var(--section)" } : undefined}>Sleep</button>
-      </div>
-
-      {tab === "checkins" ? (
-        state.recoveryCheckIns.length === 0 ? (
-          <EmptyState icon={<Heart size={22} />} title="No check-ins" description="Daily check-ins power your readiness score." />
-        ) : (
-          <div className="space-y-2">
-            {[...state.recoveryCheckIns].reverse().map(c => (
-              <Card key={c.id}>
-                <div className="flex justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{new Date(c.createdAt).toLocaleString()}</p>
-                    <p className="text-xs text-muted-foreground">⚡{c.energy} • 💪{10-c.soreness} • 😌{10-c.stress} • 🔥{c.motivation}{c.notes ? ` • ${c.notes}` : ""}</p>
-                  </div>
-                  <button onClick={() => setConfirmDel({ type: "checkin", id: c.id })} className="text-muted-foreground"><Trash2 size={14} /></button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )
-      ) : (
-        state.sleepEntries.length === 0 ? (
-          <EmptyState icon={<Moon size={22} />} title="No sleep logs" description="Log sleep nightly for better trends." />
-        ) : (
-          <div className="space-y-2">
-            {[...state.sleepEntries].reverse().map(s => (
-              <Card key={s.id}>
-                <div className="flex justify-between">
-                  <div>
-                    <p className="text-sm font-medium tabular-nums">{s.hours}h • {s.quality}/10</p>
-                    <p className="text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleString()}{s.notes ? ` • ${s.notes}` : ""}</p>
-                  </div>
-                  <button onClick={() => setConfirmDel({ type: "sleep", id: s.id })} className="text-muted-foreground"><Trash2 size={14} /></button>
-                </div>
-              </Card>
-            ))}
-          </div>
-        )
-      )}
-
-      <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
-        onConfirm={() => {
-          if (!confirmDel) return;
-          if (confirmDel.type === "checkin") set(s => ({ ...s, recoveryCheckIns: s.recoveryCheckIns.filter(x => x.id !== confirmDel.id) }));
-          else set(s => ({ ...s, sleepEntries: s.sleepEntries.filter(x => x.id !== confirmDel.id) }));
-          setConfirmDel(null);
-        }}
-        title="Delete entry?" message="This can't be undone." confirmLabel="Delete" destructive />
     </div>
   );
 }

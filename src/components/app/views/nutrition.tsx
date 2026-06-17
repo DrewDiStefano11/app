@@ -1,21 +1,16 @@
-import { useState, useMemo } from "react";
-import { Plus, Trash2, Utensils, Scale, Lightbulb } from "lucide-react";
-import { useStore, uid, isToday, todayStart } from "@/lib/store";
+import { useState } from "react";
+import { Plus, Trash2, Utensils } from "lucide-react";
+import { useStore, uid, isToday } from "@/lib/store";
 import { FOODS, MEAL_TEMPLATES, mealTotals } from "@/lib/data";
 import type { MealEntry } from "@/lib/types";
-import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Ring, SubTabs, SectionHeader } from "@/components/app/ui";
+import { Card, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Ring, SubTabs, SectionHeader } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
-import { GoalsTab } from "@/components/app/goals-tab";
 
 const MEAL_TYPES = ["breakfast","lunch","dinner","snack","pre-workout","post-workout"];
-type Tab = "macros" | "log" | "weight" | "goals" | "history" | "tips";
+type Tab = "macros" | "log";
 const TABS: { id: Tab; label: string }[] = [
   { id: "macros", label: "Macros" },
   { id: "log", label: "Log" },
-  { id: "weight", label: "Weight" },
-  { id: "goals", label: "Goals" },
-  { id: "history", label: "History" },
-  { id: "tips", label: "Tips" },
 ];
 
 export function NutritionView() {
@@ -27,24 +22,19 @@ export function NutritionView() {
     <div className="pb-24">
       <PageHeader title="Nutrition" subtitle={`${remaining} kcal remaining today`} />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} />
-      {tab === "macros" && <MacrosTab onLog={() => setTab("log")} onWeight={() => setTab("weight")} />}
+      {tab === "macros" && <MacrosTab onLog={() => setTab("log")} />}
       {tab === "log" && <LogTab />}
-      {tab === "weight" && <WeightTab />}
-      {tab === "goals" && <GoalsTab section="nutrition" typeOptions={["macro","bodyweight","habit"]} />}
-      {tab === "history" && <HistoryTab />}
-      {tab === "tips" && <TipsTab />}
     </div>
   );
 }
 
-function MacrosTab({ onLog, onWeight }: { onLog: () => void; onWeight: () => void }) {
+function MacrosTab({ onLog }: { onLog: () => void }) {
   const { state, set } = useStore();
   const [editTargets, setEditTargets] = useState(false);
   const today = state.mealEntries.filter(m => isToday(m.createdAt));
   const t = today.reduce((a, m) => ({ c: a.c + m.calories, p: a.p + m.protein, cb: a.cb + m.carbs, f: a.f + m.fat }), { c: 0, p: 0, cb: 0, f: 0 });
   const tg = state.nutritionTargets;
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const lastBw = state.bodyweightEntries[state.bodyweightEntries.length - 1];
 
   return (
     <div className="px-5">
@@ -63,7 +53,7 @@ function MacrosTab({ onLog, onWeight }: { onLog: () => void; onWeight: () => voi
         </div>
       </div>
 
-      <SectionHeader title="Today's meals" action={<button onClick={onWeight} className="text-xs text-muted-foreground">Weight</button>} />
+      <SectionHeader title="Today's meals" />
       {today.length === 0 ? (
         <EmptyState icon={<Utensils size={22} />} title="No meals yet" description="Log your first meal to start tracking macros." action={<PrimaryButton onClick={onLog}><Plus size={16} />Log meal</PrimaryButton>} />
       ) : (
@@ -85,19 +75,6 @@ function MacrosTab({ onLog, onWeight }: { onLog: () => void; onWeight: () => voi
           ))}
         </div>
       )}
-
-      <SectionHeader title="Weight" />
-      <Card>
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">Current</p>
-            <p className="text-2xl font-bold tabular-nums">{state.profile.bodyweightLb} lb</p>
-            <p className="text-xs text-muted-foreground">Target {state.profile.targetBodyweightLb} lb</p>
-          </div>
-          <GhostButton onClick={onWeight}>Log</GhostButton>
-        </div>
-        {lastBw && <p className="text-[10px] text-muted-foreground mt-2">Last logged {new Date(lastBw.createdAt).toLocaleDateString()}</p>}
-      </Card>
 
       <TargetsSheet open={editTargets} onClose={() => setEditTargets(false)} />
       <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)} onConfirm={() => { set(s => ({ ...s, mealEntries: s.mealEntries.filter(x => x.id !== confirmDel) })); setConfirmDel(null); }} title="Delete meal?" message="This can't be undone." confirmLabel="Delete" destructive />
@@ -220,189 +197,6 @@ function LogTab() {
   );
 }
 
-function WeightTab() {
-  const { state, set } = useStore();
-  const [w, setW] = useState(String(state.profile.bodyweightLb));
-  const [notes, setNotes] = useState("");
-  const [confirmDel, setConfirmDel] = useState<string | null>(null);
-
-  const entries = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
-  const last = entries[entries.length - 1];
-  const weekAgo = Date.now() - 7*86400000;
-  const monthAgo = Date.now() - 30*86400000;
-  const week = entries.filter(e => e.createdAt > weekAgo);
-  const weekAvg = week.length ? (week.reduce((a, e) => a + e.weightLb, 0) / week.length).toFixed(1) : "—";
-  const lastWeek = entries.find(e => e.createdAt < weekAgo);
-  const lastMonth = entries.find(e => e.createdAt < monthAgo);
-  const dWeek = last && lastWeek ? (last.weightLb - lastWeek.weightLb) : 0;
-  const dMonth = last && lastMonth ? (last.weightLb - lastMonth.weightLb) : 0;
-
-  const submit = () => {
-    const wt = Number(w); if (!wt) return;
-    set(s => ({ ...s,
-      bodyweightEntries: [...s.bodyweightEntries, { id: uid(), weightLb: wt, notes: notes || undefined, createdAt: Date.now() }],
-      profile: { ...s.profile, bodyweightLb: wt },
-      goals: s.goals.map(g => g.type === "bodyweight" ? { ...g, current: wt } : g),
-    }));
-    setNotes("");
-  };
-
-  return (
-    <div className="px-5">
-      <div className="card-elev p-5 section-gradient ring-section">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">Current</p>
-        <p className="text-4xl font-bold tabular-nums mt-1">{state.profile.bodyweightLb} <span className="text-base text-muted-foreground">lb</span></p>
-        <p className="text-xs text-muted-foreground mt-1">Target {state.profile.targetBodyweightLb} lb</p>
-        <div className="grid grid-cols-3 gap-2 mt-4">
-          <div><p className="text-[10px] uppercase text-muted-foreground">Wk avg</p><p className="font-semibold tabular-nums">{weekAvg}</p></div>
-          <div><p className="text-[10px] uppercase text-muted-foreground">Δ 7d</p><p className="font-semibold tabular-nums">{dWeek >= 0 ? "+" : ""}{dWeek.toFixed(1)}</p></div>
-          <div><p className="text-[10px] uppercase text-muted-foreground">Δ 30d</p><p className="font-semibold tabular-nums">{dMonth >= 0 ? "+" : ""}{dMonth.toFixed(1)}</p></div>
-        </div>
-      </div>
-
-      <SectionHeader title="Log new" />
-      <div className="space-y-3">
-        <div><Label>Weight (lb)</Label><Input inputMode="decimal" value={w} onChange={e => setW(e.target.value)} /></div>
-        <div><Label>Notes (optional)</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Morning, post-cardio…" /></div>
-        <PrimaryButton className="w-full" onClick={submit}>Save weight</PrimaryButton>
-      </div>
-
-      <SectionHeader title="History" />
-      {entries.length === 0 ? (
-        <EmptyState icon={<Scale size={22} />} title="No weigh-ins yet" description="Log weekly to spot real trends." />
-      ) : (
-        <div className="space-y-2">
-          {[...entries].reverse().slice(0, 20).map(e => (
-            <Card key={e.id}>
-              <div className="flex justify-between">
-                <div>
-                  <p className="font-semibold tabular-nums">{e.weightLb} lb</p>
-                  <p className="text-xs text-muted-foreground">{new Date(e.createdAt).toLocaleDateString()}{e.notes ? ` • ${e.notes}` : ""}</p>
-                </div>
-                <button onClick={() => setConfirmDel(e.id)} aria-label="Delete entry" className="text-muted-foreground"><Trash2 size={14} /></button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-      <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
-        onConfirm={() => { set(s => ({ ...s, bodyweightEntries: s.bodyweightEntries.filter(x => x.id !== confirmDel) })); setConfirmDel(null); }}
-        title="Delete weigh-in?" message="This can't be undone." confirmLabel="Delete" destructive />
-    </div>
-  );
-}
-
-function HistoryTab() {
-  const { state, set } = useStore();
-  const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<string>("all");
-
-  // Group meals by day
-  const byDay = useMemo(() => {
-    const map = new Map<string, MealEntry[]>();
-    state.mealEntries.forEach(m => {
-      const k = new Date(m.createdAt).toDateString();
-      const arr = map.get(k) ?? []; arr.push(m); map.set(k, arr);
-    });
-    return Array.from(map.entries()).sort((a,b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
-  }, [state.mealEntries]);
-
-  const wkMeals = state.mealEntries.filter(m => m.createdAt > Date.now() - 7*86400000);
-  const wkAvgCal = wkMeals.length ? Math.round(wkMeals.reduce((a, m) => a + m.calories, 0) / 7) : 0;
-  const wkAvgP = wkMeals.length ? Math.round(wkMeals.reduce((a, m) => a + m.protein, 0) / 7) : 0;
-  const tg = state.nutritionTargets;
-  const calAdhere = tg.calories ? Math.round(100 - Math.min(100, Math.abs(wkAvgCal - tg.calories) / tg.calories * 100)) : 0;
-  const pAdhere = tg.protein ? Math.round(Math.min(100, wkAvgP / tg.protein * 100)) : 0;
-
-  return (
-    <div className="px-5">
-      <div className="grid grid-cols-2 gap-3 mb-4">
-        <StatCard label="Avg cal /7d" value={wkAvgCal || "—"} sub={`${calAdhere}% adhere`} accent />
-        <StatCard label="Avg P /7d" value={wkAvgP || "—"} sub={`${pAdhere}% target`} />
-      </div>
-      <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar">
-        <Chip active={filterType === "all"} onClick={() => setFilterType("all")}>All</Chip>
-        {MEAL_TYPES.map(t => <Chip key={t} active={filterType === t} onClick={() => setFilterType(t)}>{t}</Chip>)}
-      </div>
-      {byDay.length === 0 ? (
-        <EmptyState icon={<Utensils size={22} />} title="No meals logged" description="Your meal days will appear here." />
-      ) : (
-        <div className="space-y-4">
-          {byDay.map(([day, meals]) => {
-            const filtered = filterType === "all" ? meals : meals.filter(m => m.type === filterType);
-            if (filtered.length === 0) return null;
-            const tot = filtered.reduce((a, m) => ({ c: a.c + m.calories, p: a.p + m.protein }), { c: 0, p: 0 });
-            return (
-              <div key={day}>
-                <div className="flex justify-between mb-2 px-1">
-                  <p className="text-xs uppercase tracking-wider text-muted-foreground">{new Date(day).toLocaleDateString()}</p>
-                  <p className="text-xs text-muted-foreground tabular-nums">{Math.round(tot.c)} kcal • P{Math.round(tot.p)}</p>
-                </div>
-                <div className="space-y-1.5">
-                  {filtered.map(m => (
-                    <Card key={m.id}>
-                      <div className="flex justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{m.name}</p>
-                          <p className="text-[10px] text-muted-foreground capitalize">{m.type}</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-sm tabular-nums">{Math.round(m.calories)}</span>
-                          <button onClick={() => setConfirmDel(m.id)} aria-label="Delete entry" className="text-muted-foreground"><Trash2 size={14} /></button>
-                        </div>
-                      </div>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-      <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
-        onConfirm={() => { set(s => ({ ...s, mealEntries: s.mealEntries.filter(x => x.id !== confirmDel) })); setConfirmDel(null); }}
-        title="Delete meal?" message="This can't be undone." confirmLabel="Delete" destructive />
-    </div>
-  );
-}
-
-function TipsTab() {
-  const { state } = useStore();
-  const today = state.mealEntries.filter(m => m.createdAt >= todayStart());
-  const t = today.reduce((a, m) => ({ c: a.c + m.calories, p: a.p + m.protein, cb: a.cb + m.carbs, f: a.f + m.fat }), { c: 0, p: 0, cb: 0, f: 0 });
-  const tg = state.nutritionTargets;
-  const week = state.mealEntries.filter(m => m.createdAt > Date.now() - 7*86400000);
-  const wkAvgCal = week.length ? week.reduce((a, m) => a + m.calories, 0) / 7 : 0;
-  const wkAvgP = week.length ? week.reduce((a, m) => a + m.protein, 0) / 7 : 0;
-
-  const bw = [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt);
-  const bwTrend = bw.length >= 2 ? bw[bw.length-1].weightLb - bw[0].weightLb : 0;
-
-  const tips: string[] = [];
-  if (wkAvgP < tg.protein * 0.85) tips.push(`Avg protein this week is ${Math.round(wkAvgP)}g vs target ${tg.protein}g. Add a Greek yogurt or whey scoop daily.`);
-  if (wkAvgCal && wkAvgCal < tg.calories * 0.85) tips.push(`You're averaging ${Math.round(wkAvgCal)} kcal — about ${Math.round(tg.calories - wkAvgCal)} short of target. Add carbs at breakfast or post-workout.`);
-  if (wkAvgCal && wkAvgCal > tg.calories * 1.1) tips.push(`Calories are ${Math.round(wkAvgCal - tg.calories)} over target on average. Tighten snacks or shift one meal smaller.`);
-  if (t.cb < tg.carbs * 0.3 && new Date().getHours() > 16) tips.push("Carbs are low today — eat starchy carbs before training to fuel performance.");
-  if (state.profile.goal === "lean_bulk" && bwTrend <= 0 && bw.length >= 2) tips.push("Bodyweight trend is flat or down — for lean bulk, raise calories by ~150 kcal/day.");
-  if (state.profile.goal === "cut" && bwTrend >= 0 && bw.length >= 2) tips.push("Bodyweight isn't trending down — drop ~150 kcal/day or add a cardio session.");
-  if (tips.length === 0) tips.push("You're tracking well. Keep meals consistent, time carbs around training, and weigh in weekly.");
-
-  return (
-    <div className="px-5">
-      <div className="space-y-2">
-        {tips.map((tip, i) => (
-          <Card key={i}>
-            <div className="flex gap-3">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--section-soft)", color: "var(--section)" }}><Lightbulb size={16} /></div>
-              <p className="text-sm">{tip}</p>
-            </div>
-          </Card>
-        ))}
-      </div>
-      <p className="text-[11px] text-muted-foreground text-center mt-4">General fitness suggestions, not medical advice.</p>
-    </div>
-  );
-}
 
 function TargetsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { state, set } = useStore();
