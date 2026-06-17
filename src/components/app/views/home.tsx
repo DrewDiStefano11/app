@@ -102,7 +102,7 @@ export function HomeView({ onNavigate, onOpenSettings }: {
       <div className="px-5 space-y-3">
         {/* Score + Readiness row */}
         <div className="grid grid-cols-2 gap-3">
-          <Tile hero accent delay={0} onClick={() => setPopup("readiness")}>
+          <Tile hero accent delay={0} onClick={() => setPopup("score")}>
             <Eyebrow color="var(--section)">FitCore Score</Eyebrow>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="font-display text-5xl leading-none text-white">
