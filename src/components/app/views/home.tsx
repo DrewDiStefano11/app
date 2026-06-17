@@ -131,16 +131,16 @@ export function HomeView({ onNavigate, onOpenSettings }: {
         <Tile delay={120} onClick={() => setPopup("heatmap")}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <Eyebrow color="rgb(74 222 128)">Muscle Load · 7d</Eyebrow>
+              <Eyebrow color="rgb(74 222 128)">Muscle {heatMode === "load" ? "Load" : heatMode === "strength" ? "Strength" : heatMode === "imbalance" ? "Imbalance" : "Recovery"} · {heatMode === "strength" ? "30d" : heatMode === "recovery" ? "3d" : "7d"}</Eyebrow>
               <h2 className="font-display text-2xl leading-tight mt-1 uppercase">
                 {topLoaded(loadMap)}<br/>
-                <span className="text-white/50">Most worked</span>
+                <span className="text-white/50">{heatMode === "recovery" ? "Most recovered" : heatMode === "imbalance" ? "Biggest gap" : "Most worked"}</span>
               </h2>
               <p className="text-xs text-white/50 mt-2">Best today: <span className="text-white capitalize font-bold">{bestMuscle}</span></p>
               <p className="text-[10px] text-white/40 uppercase tracking-wider mt-2 font-bold">Tap to expand →</p>
             </div>
             <div className="w-20 h-32 shrink-0">
-              <BodyHeatmap values={loadMap} mode="load" compact side="front"
+              <BodyHeatmap values={loadMap} mode={heatMode} compact side="front"
                 onSelect={(m) => { setMuscle(m); }} />
             </div>
           </div>
