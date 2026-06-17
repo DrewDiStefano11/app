@@ -65,7 +65,7 @@ export function HomeView({ onNavigate, onOpenSettings }: {
       <header className="px-6 pt-6 pb-3 flex items-end justify-between">
         <div>
           <Eyebrow>Command Center</Eyebrow>
-          <h1 className="font-display text-4xl leading-none mt-1 uppercase">Welcome, {name}</h1>
+          <h1 className="font-display text-4xl leading-none mt-1 uppercase">FitCore Command Center — {name}</h1>
         </div>
         <button
           onClick={onOpenSettings}
@@ -127,10 +127,10 @@ export function HomeView({ onNavigate, onOpenSettings }: {
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
               <Eyebrow color="rgb(74 222 128)">Muscle Load · 7d</Eyebrow>
-              <h3 className="font-display text-2xl leading-tight mt-1 uppercase">
+              <h2 className="font-display text-2xl leading-tight mt-1 uppercase">
                 {topLoaded(loadMap)}<br/>
                 <span className="text-white/50">Most worked</span>
-              </h3>
+              </h2>
               <p className="text-xs text-white/50 mt-2">Best today: <span className="text-white capitalize font-bold">{bestMuscle}</span></p>
               <p className="text-[10px] text-white/40 uppercase tracking-wider mt-2 font-bold">Tap to expand →</p>
             </div>
