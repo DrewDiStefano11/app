@@ -2,7 +2,8 @@ import { useMemo } from "react";
 import { BottomSheet } from "../sheet";
 import { useStore } from "@/lib/store";
 import { usePersistentState } from "@/lib/persist";
-import { volumeSeries, volumeByMuscle, volumeByExercise, compareWindows, type Bucket } from "@/lib/analytics-extra";
+import { volumeSeries, volumeByMuscle, volumeByExercise, volumeByDayOfWeek, compareWindows, type Bucket } from "@/lib/analytics-extra";
+import { GRAPH_PREFS } from "@/lib/persist";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell } from "recharts";
 
 const RANGES: { id: string; days: number; bucket: Bucket; label: string }[] = [
@@ -12,18 +13,19 @@ const RANGES: { id: string; days: number; bucket: Bucket; label: string }[] = [
   { id: "1y", days: 365, bucket: "month", label: "1Y" },
   { id: "all", days: 9999, bucket: "month", label: "All" },
 ];
-type GroupBy = "total" | "muscle" | "exercise";
+type GroupBy = "total" | "muscle" | "exercise" | "day";
 
 export function VolumeDetailSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { view } = useStore();
-  const [rangeId, setRangeId] = usePersistentState<string>("volume.range", "30d");
-  const [groupBy, setGroupBy] = usePersistentState<GroupBy>("volume.group", "total");
-  const [compare, setCompare] = usePersistentState<boolean>("volume.compare", false);
+  const [rangeId, setRangeId] = usePersistentState<string>(GRAPH_PREFS.volumeRange, "30d");
+  const [groupBy, setGroupBy] = usePersistentState<GroupBy>(GRAPH_PREFS.volumeMode, "total");
+  const [compare, setCompare] = usePersistentState<boolean>(GRAPH_PREFS.volumeCompare, false);
   const range = RANGES.find(r => r.id === rangeId) ?? RANGES[1];
 
   const totalSeries = useMemo(() => volumeSeries(view, range.days, range.bucket), [view, range]);
   const byMuscle = useMemo(() => volumeByMuscle(view, range.days), [view, range.days]);
   const byExercise = useMemo(() => volumeByExercise(view, range.days), [view, range.days]);
+  const byDay = useMemo(() => volumeByDayOfWeek(view, range.days), [view, range.days]);
   const cmp = useMemo(() => compareWindows(view, range.days), [view, range.days]);
 
   const total = totalSeries.reduce((s, d) => s + d.volume, 0);
@@ -58,12 +60,17 @@ export function VolumeDetailSheet({ open, onClose }: { open: boolean; onClose: (
         </div>
 
         {/* Group toggle */}
-        <div className="flex gap-1 p-1 rounded-full bg-white/5 border border-white/10">
-          {(["total", "muscle", "exercise"] as GroupBy[]).map(g => (
-            <button key={g} onClick={() => setGroupBy(g)}
-              className={`flex-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition ${
-                groupBy === g ? "bg-white/15 text-white" : "text-white/50"}`}>
-              {g === "total" ? "Total" : g === "muscle" ? "By Muscle" : "By Exercise"}
+        <div className="flex gap-1 p-1 rounded-full bg-white/5 border border-white/10 overflow-x-auto no-scrollbar">
+          {([
+            { id: "total", label: "Total" },
+            { id: "muscle", label: "By Muscle" },
+            { id: "exercise", label: "By Exercise" },
+            { id: "day", label: "By Day" },
+          ] as { id: GroupBy; label: string }[]).map(g => (
+            <button key={g.id} onClick={() => setGroupBy(g.id)}
+              className={`flex-1 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider rounded-full transition whitespace-nowrap ${
+                groupBy === g.id ? "bg-white/15 text-white" : "text-white/50"}`}>
+              {g.label}
             </button>
           ))}
         </div>
@@ -126,6 +133,19 @@ export function VolumeDetailSheet({ open, onClose }: { open: boolean; onClose: (
                 );
               })}
             </div>
+          )}
+          {groupBy === "day" && (
+            byDay.every(d => d.volume === 0) ? <Empty /> :
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={byDay} margin={{ top: 10, right: 6, left: -16, bottom: 0 }}>
+                <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="label" stroke="rgba(255,255,255,0.4)" fontSize={10} />
+                <YAxis stroke="rgba(255,255,255,0.4)" fontSize={10} tickFormatter={v => `${Math.round(v / 1000)}k`} />
+                <Tooltip contentStyle={{ background: "#0a0a0a", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 12, fontSize: 12 }}
+                  formatter={(v: number) => [`${v.toLocaleString()} lb`, "Volume"]} />
+                <Bar dataKey="volume" fill="var(--section)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           )}
         </div>
       </div>

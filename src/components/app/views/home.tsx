@@ -5,12 +5,14 @@ import { CountUp } from "@/components/app/count-up";
 import { BodyHeatmap } from "@/components/app/body-heatmap";
 import { AiInsightStrip } from "@/components/app/ai-insight";
 import { useStore } from "@/lib/store";
-import { usePersistentState } from "@/lib/persist";
+import { usePersistentState, GRAPH_PREFS } from "@/lib/persist";
 import {
   fitcoreScore, readinessScore, recoveryScore, trainingStreak,
   muscleMap, weeklyVolumeSeries, todayMealTotals, totalVolumeInRange,
   bestMuscleToTrainToday, type HeatMode,
 } from "@/lib/analytics";
+import { volumeByMuscle, volumeByExercise, volumeByDayOfWeek } from "@/lib/analytics-extra";
+import type { AppState } from "@/lib/types";
 import type { SectionId } from "@/lib/types";
 import { VolumeDetailSheet } from "@/components/app/popups/volume-popup";
 import { MacroDetailSheet } from "@/components/app/popups/macro-popup";
@@ -37,6 +39,7 @@ export function HomeView({ onNavigate, onOpenSettings }: {
   const streak = useMemo(() => trainingStreak(view), [view]);
   const [heatMode] = usePersistentState<HeatMode>("heatmap.mode", "load");
   const loadMap = useMemo(() => muscleMap(view, heatMode), [view, heatMode]);
+  const [volumeMode] = usePersistentState<string>(GRAPH_PREFS.volumeMode, "total");
   const series = useMemo(() => weeklyVolumeSeries(view, 7), [view]);
   const meals = useMemo(() => todayMealTotals(view), [view]);
   const weekVol = useMemo(() => totalVolumeInRange(view, 7), [view]);
@@ -163,33 +166,19 @@ export function HomeView({ onNavigate, onOpenSettings }: {
           </Tile>
 
           <Tile delay={240} onClick={() => setPopup("volume")}>
-            <Eyebrow color="rgb(74 222 128)">Volume · 7d</Eyebrow>
+            <Eyebrow color="rgb(74 222 128)">
+              Volume · {volumeMode === "muscle" ? "By Muscle" : volumeMode === "exercise" ? "By Exercise" : volumeMode === "day" ? "By Day" : "7d"}
+            </Eyebrow>
             <div className="font-display text-2xl mt-1 leading-none">
               <CountUp value={Math.round(weekVol / 1000)} />
               <span className="text-xs text-white/40 font-bold uppercase ml-1">k lb</span>
             </div>
-            <div className="mt-3 flex items-end gap-1 h-14">
-              {series.map((d, i) => {
-                const max = Math.max(...series.map(s => s.volume), 1);
-                const h = Math.max(6, (d.volume / max) * 100);
-                const isLast = i === series.length - 1;
-                return (
-                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
-                    <div
-                      className="w-full rounded-t transition-all"
-                      style={{
-                        height: `${h}%`,
-                        background: isLast ? "rgb(34 197 94)" : "rgba(255,255,255,0.1)",
-                        boxShadow: isLast ? "0 0 12px rgba(34,197,94,0.4)" : undefined,
-                      }}
-                    />
-                  </div>
-                );
-              })}
+            <div className="mt-3 h-14">
+              <VolumePreview view={view} mode={volumeMode} />
             </div>
             <div className="mt-2 text-[10px] font-bold uppercase tracking-wider"
               style={{ color: volDelta >= 0 ? "rgb(74 222 128)" : "rgb(248 113 113)" }}>
-              {volDelta >= 0 ? "+" : ""}{volDelta}% trend
+              {volDelta >= 0 ? "+" : ""}{volDelta}% trend · tap to expand
             </div>
           </Tile>
         </div>
@@ -307,4 +296,90 @@ function topLoaded(map: Record<string, number>): string {
   if (["chest","triceps","shoulders"].includes(top)) return "Push";
   if (["back","biceps"].includes(top)) return "Pull";
   return top.charAt(0).toUpperCase() + top.slice(1);
+}
+
+function VolumePreview({ view, mode }: { view: AppState; mode: string }) {
+  if (mode === "muscle") {
+    const top = volumeByMuscle(view, 30).slice(0, 4);
+    if (top.length === 0) return <EmptyMini />;
+    const max = top[0].volume;
+    return (
+      <div className="space-y-1 h-full flex flex-col justify-center">
+        {top.map((d) => (
+          <div key={d.name} className="flex items-center gap-1.5">
+            <span className="text-[9px] text-white/40 font-bold uppercase tracking-wider w-12 truncate">{d.name}</span>
+            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${(d.volume / max) * 100}%`, background: "rgb(34 197 94)" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (mode === "exercise") {
+    const top = volumeByExercise(view, 30).slice(0, 3);
+    if (top.length === 0) return <EmptyMini />;
+    const max = top[0].volume;
+    return (
+      <div className="space-y-1 h-full flex flex-col justify-center">
+        {top.map((d) => (
+          <div key={d.name} className="flex items-center gap-1.5">
+            <span className="text-[9px] text-white/60 font-bold truncate w-20">{d.name}</span>
+            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
+              <div className="h-full rounded-full" style={{ width: `${(d.volume / max) * 100}%`, background: "rgb(34 197 94)" }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (mode === "day") {
+    const days = volumeByDayOfWeek(view, 30);
+    const max = Math.max(...days.map(d => d.volume), 1);
+    return (
+      <div className="flex items-end gap-1 h-full">
+        {days.map((d, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1">
+            <div className="w-full rounded-t" style={{ height: `${Math.max(6, (d.volume / max) * 100)}%`, background: d.volume > 0 ? "rgb(34 197 94)" : "rgba(255,255,255,0.1)" }} />
+            <span className="text-[8px] text-white/30 font-bold">{d.label[0]}</span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  // total / default
+  const series = (function() {
+    const out = [];
+    const DAY = 86400000;
+    const now = Date.now();
+    for (let i = 6; i >= 0; i--) {
+      const start = now - (i + 1) * DAY;
+      const end = now - i * DAY;
+      const vol = view.workouts.filter(w => w.startedAt >= start && w.startedAt < end)
+        .reduce((s, w) => s + w.exercises.reduce((a, ex) => a + ex.sets.reduce((b, st) => b + (st.completed && st.weight && st.reps ? st.weight * st.reps : 0), 0), 0), 0);
+      out.push(vol);
+    }
+    return out;
+  })();
+  const max = Math.max(...series, 1);
+  return (
+    <div className="flex items-end gap-1 h-full">
+      {series.map((v, i) => {
+        const isLast = i === series.length - 1;
+        return (
+          <div key={i} className="flex-1">
+            <div className="w-full rounded-t transition-all" style={{
+              height: `${Math.max(6, (v / max) * 100)}%`,
+              background: isLast ? "rgb(34 197 94)" : "rgba(255,255,255,0.1)",
+              boxShadow: isLast ? "0 0 12px rgba(34,197,94,0.4)" : undefined,
+            }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EmptyMini() {
+  return <div className="h-full flex items-center justify-center text-[10px] text-white/30 font-bold uppercase tracking-wider">No data</div>;
 }

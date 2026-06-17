@@ -92,6 +92,56 @@ export function volumeByExercise(state: AppState, days: number): { name: string;
     .slice(0, 12);
 }
 
+const WEEKDAY = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+export function volumeByDayOfWeek(state: AppState, days: number): { label: string; volume: number; sets: number }[] {
+  const bucket: Record<number, { vol: number; sets: number; count: number }> = {};
+  for (let i = 0; i < 7; i++) bucket[i] = { vol: 0, sets: 0, count: 0 };
+  for (const w of workoutsInRange(state, days)) {
+    const dow = new Date(w.startedAt).getDay();
+    const vol = workoutVolume(w);
+    const sets = w.exercises.reduce((s, e) => s + e.sets.filter(x => x.completed).length, 0);
+    bucket[dow].vol += vol;
+    bucket[dow].sets += sets;
+    bucket[dow].count++;
+  }
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  return order.map(dow => ({
+    label: WEEKDAY[dow],
+    volume: Math.round(bucket[dow].vol),
+    sets: bucket[dow].sets,
+  }));
+}
+
+export function setsSeries(state: AppState, days: number): { label: string; sets: number; reps: number; ts: number }[] {
+  const now = Date.now();
+  const out: { label: string; sets: number; reps: number; ts: number }[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const start = now - (i + 1) * DAY;
+    const end = now - i * DAY;
+    let sets = 0, reps = 0;
+    for (const w of state.workouts) {
+      if (w.startedAt < start || w.startedAt >= end) continue;
+      for (const we of w.exercises) {
+        for (const s of we.sets) {
+          if (s.completed) {
+            sets++;
+            reps += s.reps ?? 0;
+          }
+        }
+      }
+    }
+    const d = new Date(end);
+    out.push({
+      label: days <= 14
+        ? d.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 1)
+        : `${d.getMonth() + 1}/${d.getDate()}`,
+      sets, reps, ts: end,
+    });
+  }
+  return out;
+}
+
 export function muscleStats(state: AppState, muscle: string) {
   const now = Date.now();
   let setsWeek = 0, volWeek = 0, lastTrained = 0;
