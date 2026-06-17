@@ -171,6 +171,7 @@ export function ActiveWorkoutView() {
             canMoveUp={idx > 0}
             canMoveDown={idx < w.exercises.length - 1}
             previousWorkout={state.workouts.slice().reverse().find(pw => pw.exercises.some(pe => pe.exerciseId === we.exerciseId))}
+            demoMode={state.demoMode}
             onToggle={() => toggleOpen(we.id)}
             onMove={dir => moveExercise(we.id, dir)}
             onDelete={() => updateActive(w => ({ ...w, exercises: w.exercises.filter(x => x.id !== we.id) }))}
