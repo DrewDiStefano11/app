@@ -185,7 +185,7 @@ export function HomeView({ onNavigate, onOpenSettings }: {
               <CountUp value={Math.round(weekVol / 1000)} />
               <span className="text-xs text-white/40 font-bold uppercase ml-1">k lb</span>
             </div>
-            <div className="mt-3 h-14">
+            <div className="mt-3 h-16">
               <VolumePreview view={view} mode={volumeMode} />
             </div>
             <div className="mt-2 text-[10px] font-bold uppercase tracking-wider"
