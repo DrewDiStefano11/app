@@ -123,16 +123,14 @@ export function HomeView({ onNavigate, onOpenSettings }: {
           </Tile>
 
           <Tile delay={60} onClick={() => setPopup("readiness")}>
-            <div className="h-full flex flex-col items-center justify-center gap-2">
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col items-center gap-1">
-                  <RingScore value={readiness} color="rgb(59 130 246)" size={56} />
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-[rgb(96_165_250)]">Readiness</span>
-                </div>
-                <div className="flex flex-col items-center gap-1">
-                  <RingScore value={recovery} color="rgb(74 222 128)" size={56} />
-                  <span className="text-[9px] font-bold uppercase tracking-wider text-[rgb(74_222_128)]">Recovery</span>
-                </div>
+            <div className="h-full grid grid-cols-2 gap-2 items-center">
+              <div className="flex flex-col items-center justify-center gap-2">
+                <RingScore value={readiness} color="rgb(59 130 246)" size={76} />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[rgb(96_165_250)]">Readiness</span>
+              </div>
+              <div className="flex flex-col items-center justify-center gap-2">
+                <RingScore value={recovery} color="rgb(74 222 128)" size={76} />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[rgb(74_222_128)]">Recovery</span>
               </div>
             </div>
           </Tile>
