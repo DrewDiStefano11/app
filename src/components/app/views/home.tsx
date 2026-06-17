@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Settings as SettingsIcon, Play, Apple, Heart, Sparkles, Plus } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Settings as SettingsIcon, Play, Apple, Heart, Plus } from "lucide-react";
 import { Tile, Eyebrow } from "@/components/app/tile";
 import { CountUp } from "@/components/app/count-up";
 import { BodyHeatmap } from "@/components/app/body-heatmap";
@@ -11,6 +11,14 @@ import {
   bestMuscleToTrainToday,
 } from "@/lib/analytics";
 import type { SectionId } from "@/lib/types";
+import { VolumeDetailSheet } from "@/components/app/popups/volume-popup";
+import { MacroDetailSheet } from "@/components/app/popups/macro-popup";
+import { ReadinessDetailSheet } from "@/components/app/popups/readiness-popup";
+import { HeatmapDetailSheet } from "@/components/app/popups/heatmap-popup";
+import { StartWorkoutSheet } from "@/components/app/popups/start-workout-popup";
+import { MuscleDetailSheet } from "@/components/app/popups/muscle-popup";
+
+type Popup = null | "volume" | "macros" | "readiness" | "heatmap" | "start" | "fitcore";
 
 export function HomeView({ onNavigate, onOpenSettings }: {
   onNavigate: (s: SectionId) => void;
@@ -24,7 +32,6 @@ export function HomeView({ onNavigate, onOpenSettings }: {
   const recovery = useMemo(() => recoveryScore(view), [view]);
   const streak = useMemo(() => trainingStreak(view), [view]);
   const loadMap = useMemo(() => muscleMap(view, "load"), [view]);
-  const recoveryMap = useMemo(() => muscleMap(view, "recovery"), [view]);
   const series = useMemo(() => weeklyVolumeSeries(view, 7), [view]);
   const meals = useMemo(() => todayMealTotals(view), [view]);
   const weekVol = useMemo(() => totalVolumeInRange(view, 7), [view]);
@@ -39,6 +46,10 @@ export function HomeView({ onNavigate, onOpenSettings }: {
   const fatPct = targets.fat > 0 ? Math.min(100, Math.round((meals.fat / targets.fat) * 100)) : 0;
 
   const hasAnyData = view.workouts.length > 0 || view.mealEntries.length > 0;
+  const [popup, setPopup] = useState<Popup>(null);
+  const [muscle, setMuscle] = useState<string | null>(null);
+
+  const openAi = () => window.dispatchEvent(new CustomEvent("fitcore:open-ai"));
 
   const insight = !hasAnyData
     ? "Log your first workout or turn on Demo Data in Settings to see your full dashboard."
@@ -71,9 +82,10 @@ export function HomeView({ onNavigate, onOpenSettings }: {
         <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 font-bold uppercase tracking-wider text-white/60">
           🔥 {streak}d streak
         </span>
-        <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 font-bold uppercase tracking-wider text-white/60">
+        <button onClick={() => setPopup("volume")}
+          className="px-2 py-1 rounded-full bg-white/5 border border-white/10 font-bold uppercase tracking-wider text-white/60 press">
           Week vol <CountUp value={Math.round(weekVol / 1000)} />k
-        </span>
+        </button>
         {state.demoMode && (
           <span className="ml-auto px-2 py-1 rounded-full font-bold uppercase tracking-wider"
             style={{ background: "var(--section-soft)", color: "var(--section)" }}>
@@ -85,7 +97,7 @@ export function HomeView({ onNavigate, onOpenSettings }: {
       <div className="px-5 space-y-3">
         {/* Score + Readiness row */}
         <div className="grid grid-cols-2 gap-3">
-          <Tile hero accent delay={0}>
+          <Tile hero accent delay={0} onClick={() => setPopup("readiness")}>
             <Eyebrow color="var(--section)">FitCore Score</Eyebrow>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="font-display text-5xl leading-none text-white">
@@ -98,11 +110,11 @@ export function HomeView({ onNavigate, onOpenSettings }: {
                 style={{ width: `${score}%`, background: "var(--section)", boxShadow: "0 0 8px var(--section)" }} />
             </div>
             <div className="mt-2 text-[10px] text-white/40 font-bold uppercase tracking-wider">
-              {volDelta >= 0 ? `+${volDelta}%` : `${volDelta}%`} vs last week
+              {volDelta >= 0 ? `+${volDelta}%` : `${volDelta}%`} vs last week · tap for detail
             </div>
           </Tile>
 
-          <Tile delay={60}>
+          <Tile delay={60} onClick={() => setPopup("readiness")}>
             <div className="h-full flex flex-col items-center justify-center gap-2">
               <RingScore value={readiness} color="rgb(59 130 246)" />
               <Eyebrow color="rgb(96 165 250)">Readiness</Eyebrow>
@@ -111,7 +123,7 @@ export function HomeView({ onNavigate, onOpenSettings }: {
         </div>
 
         {/* Body Heat Map preview */}
-        <Tile delay={120} onClick={() => onNavigate("recovery")}>
+        <Tile delay={120} onClick={() => setPopup("heatmap")}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
               <Eyebrow color="rgb(74 222 128)">Muscle Load · 7d</Eyebrow>
@@ -120,17 +132,18 @@ export function HomeView({ onNavigate, onOpenSettings }: {
                 <span className="text-white/50">Most worked</span>
               </h3>
               <p className="text-xs text-white/50 mt-2">Best today: <span className="text-white capitalize font-bold">{bestMuscle}</span></p>
-              <p className="text-[10px] text-white/40 uppercase tracking-wider mt-2 font-bold">Tap to explore →</p>
+              <p className="text-[10px] text-white/40 uppercase tracking-wider mt-2 font-bold">Tap to expand →</p>
             </div>
             <div className="w-20 h-32 shrink-0">
-              <BodyHeatmap values={loadMap} mode="load" compact side="front" />
+              <BodyHeatmap values={loadMap} mode="load" compact side="front"
+                onSelect={(m) => { setMuscle(m); }} />
             </div>
           </div>
         </Tile>
 
         {/* Macros + Volume row */}
         <div className="grid grid-cols-2 gap-3">
-          <Tile delay={180} onClick={() => onNavigate("nutrition")}>
+          <Tile delay={180} onClick={() => setPopup("macros")}>
             <Eyebrow color="rgb(248 113 113)">Macros</Eyebrow>
             <div className="font-display text-2xl mt-1 leading-none">
               <CountUp value={meals.calories} />
@@ -144,7 +157,7 @@ export function HomeView({ onNavigate, onOpenSettings }: {
             <div className="mt-2 text-[10px] text-white/40 font-bold uppercase tracking-wider">{kcalPct}% of goal</div>
           </Tile>
 
-          <Tile delay={240} onClick={() => onNavigate("progress")}>
+          <Tile delay={240} onClick={() => setPopup("volume")}>
             <Eyebrow color="rgb(74 222 128)">Volume · 7d</Eyebrow>
             <div className="font-display text-2xl mt-1 leading-none">
               <CountUp value={Math.round(weekVol / 1000)} />
@@ -176,9 +189,9 @@ export function HomeView({ onNavigate, onOpenSettings }: {
           </Tile>
         </div>
 
-        {/* Recovery score */}
+        {/* Recovery + Demo */}
         <div className="grid grid-cols-2 gap-3">
-          <Tile delay={300} onClick={() => onNavigate("recovery")}>
+          <Tile delay={300} onClick={() => setPopup("readiness")}>
             <div className="flex items-center gap-3">
               <RingScore value={recovery} color="rgb(96 165 250)" size={52} />
               <div>
@@ -194,18 +207,18 @@ export function HomeView({ onNavigate, onOpenSettings }: {
           </Tile>
         </div>
 
-        {/* AI insight */}
-        <div style={{ animationDelay: "420ms" }} className="animate-tile-in">
+        {/* AI insight — opens AI sheet */}
+        <button onClick={openAi} style={{ animationDelay: "420ms" }} className="animate-tile-in w-full text-left press">
           <AiInsightStrip>
             {insight.split(bestMuscle)[0]}
             <span className="text-[var(--section)] font-bold capitalize">{insight.includes(bestMuscle) ? bestMuscle : ""}</span>
             {insight.split(bestMuscle)[1] ?? ""}
           </AiInsightStrip>
-        </div>
+        </button>
 
-        {/* Start workout CTA */}
+        {/* Start workout CTA — opens popup */}
         <button
-          onClick={() => onNavigate("training")}
+          onClick={() => setPopup("start")}
           style={{ animationDelay: "480ms" }}
           className="animate-tile-in w-full h-16 rounded-2xl flex items-center justify-center gap-3 press relative overflow-hidden"
         >
@@ -221,6 +234,14 @@ export function HomeView({ onNavigate, onOpenSettings }: {
           <QuickAction icon={<Apple size={18} />} label="Weigh In" onClick={() => onNavigate("progress")} />
         </div>
       </div>
+
+      {/* Popups */}
+      <VolumeDetailSheet open={popup === "volume"} onClose={() => setPopup(null)} />
+      <MacroDetailSheet open={popup === "macros"} onClose={() => setPopup(null)} />
+      <ReadinessDetailSheet open={popup === "readiness"} onClose={() => setPopup(null)} />
+      <HeatmapDetailSheet open={popup === "heatmap"} onClose={() => setPopup(null)} />
+      <StartWorkoutSheet open={popup === "start"} onClose={() => setPopup(null)} onStarted={() => onNavigate("training")} />
+      <MuscleDetailSheet muscle={muscle} onClose={() => setMuscle(null)} />
     </div>
   );
 }
