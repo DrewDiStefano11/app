@@ -15,16 +15,16 @@ export function BottomSheet({ open, onClose, title, children, height = "auto" }:
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in" onClick={onClose} />
       <div className={cn(
-        "relative w-full max-w-[480px] mx-auto rounded-t-3xl border-t border-x border-border animate-in slide-in-from-bottom duration-300",
+        "sheet-surface relative w-full max-w-[480px] mx-auto rounded-t-3xl animate-in slide-in-from-bottom duration-300",
         height === "tall" && "max-h-[88dvh]",
         height === "full" && "h-[100dvh] rounded-none",
-      )} style={{ background: "var(--surface)" }}>
+      )}>
         <div className="flex items-center justify-between p-4 pb-2">
-          <div className="absolute left-1/2 top-2 -translate-x-1/2 w-10 h-1 rounded-full bg-border" />
-          <h3 className="font-semibold text-lg">{title}</h3>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-[var(--surface-2)]">
+          <div className="absolute left-1/2 top-2 -translate-x-1/2 w-10 h-1 rounded-full bg-white/20" />
+          <h3 className="font-semibold text-lg text-white">{title}</h3>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 text-white/80">
             <X size={18} />
           </button>
         </div>
@@ -43,12 +43,12 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, message, confir
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm rounded-2xl border border-border p-5" style={{ background: "var(--surface)" }}>
-        <h3 className="font-semibold text-lg">{title}</h3>
-        <p className="text-sm text-muted-foreground mt-2">{message}</p>
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-md" onClick={onClose} />
+      <div className="sheet-surface relative w-full max-w-sm rounded-2xl p-5">
+        <h3 className="font-semibold text-lg text-white">{title}</h3>
+        <p className="text-sm text-white/70 mt-2">{message}</p>
         <div className="flex gap-2 mt-5">
-          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-border font-medium">Cancel</button>
+          <button onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-white/15 bg-white/5 font-medium text-white">Cancel</button>
           <button onClick={() => { onConfirm(); onClose(); }}
             className={cn("flex-1 px-4 py-2.5 rounded-xl font-semibold text-white", destructive ? "bg-destructive" : "")}
             style={!destructive ? { background: "var(--section)" } : undefined}>
