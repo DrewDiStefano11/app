@@ -185,7 +185,7 @@ export function HomeView({ onNavigate, onOpenSettings }: {
               <CountUp value={Math.round(weekVol / 1000)} />
               <span className="text-xs text-white/40 font-bold uppercase ml-1">k lb</span>
             </div>
-            <div className="mt-3 h-14">
+            <div className="mt-3 h-16">
               <VolumePreview view={view} mode={volumeMode} />
             </div>
             <div className="mt-2 text-[10px] font-bold uppercase tracking-wider"
@@ -378,12 +378,17 @@ function VolumePreview({ view, mode }: { view: AppState; mode: string }) {
     <div className="flex items-end gap-1 h-full">
       {series.map((v, i) => {
         const isLast = i === series.length - 1;
+        const hasVol = v > 0;
         return (
-          <div key={i} className="flex-1">
+          <div key={i} className="flex-1 h-full flex items-end">
             <div className="w-full rounded-t transition-all" style={{
-              height: `${Math.max(6, (v / max) * 100)}%`,
-              background: isLast ? "rgb(34 197 94)" : "rgba(255,255,255,0.1)",
-              boxShadow: isLast ? "0 0 12px rgba(34,197,94,0.4)" : undefined,
+              height: `${Math.max(8, (v / max) * 100)}%`,
+              background: hasVol
+                ? (isLast
+                    ? "linear-gradient(180deg, rgb(74 222 128), rgb(34 197 94))"
+                    : "linear-gradient(180deg, rgba(34,197,94,0.7), rgba(34,197,94,0.35))")
+                : "rgba(255,255,255,0.08)",
+              boxShadow: isLast && hasVol ? "0 0 12px rgba(34,197,94,0.5)" : undefined,
             }} />
           </div>
         );
