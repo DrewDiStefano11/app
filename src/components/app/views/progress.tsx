@@ -1,19 +1,15 @@
 import { useState, useMemo } from "react";
-import { Trophy, Camera, Plus, Trash2, Image as ImageIcon, Scale, Dumbbell, Filter } from "lucide-react";
+import { Trophy, Camera, Plus, Trash2, Image as ImageIcon, Scale } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import { exerciseById } from "@/lib/data";
 import type { ProgressPhoto } from "@/lib/types";
-import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Label, Input, Select, SubTabs, SectionHeader, Chip } from "@/components/app/ui";
+import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Label, Input, Select, SubTabs, SectionHeader } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
-import { GoalsTab } from "@/components/app/goals-tab";
 
-type Tab = "strength" | "photos" | "prs" | "goals" | "history" | "weight";
+type Tab = "strength" | "photos" | "weight";
 const TABS: { id: Tab; label: string }[] = [
   { id: "strength", label: "Strength" },
   { id: "photos", label: "Photos" },
-  { id: "prs", label: "PRs" },
-  { id: "goals", label: "Goals" },
-  { id: "history", label: "History" },
   { id: "weight", label: "Weight" },
 ];
 
@@ -25,9 +21,6 @@ export function ProgressView() {
       <SubTabs tabs={TABS} active={tab} onChange={setTab} />
       {tab === "strength" && <StrengthTab onJump={setTab} />}
       {tab === "photos" && <PhotosTab />}
-      {tab === "prs" && <PRsTab />}
-      {tab === "goals" && <GoalsTab section="progress" typeOptions={["lift","bodyweight","consistency","photo","habit"]} />}
-      {tab === "history" && <HistoryTab />}
       {tab === "weight" && <WeightTab />}
     </div>
   );
@@ -39,7 +32,8 @@ function StrengthTab({ onJump }: { onJump: (t: Tab) => void }) {
   const bwTrend = sortedBw.length >= 2 ? sortedBw[sortedBw.length-1].weightLb - sortedBw[0].weightLb : 0;
   const weekWorkouts = state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000).length;
   const topPR = [...state.prs].sort((a,b) => b.value - a.value)[0];
-  const recentPRs = [...state.prs].sort((a,b) => b.date - a.date).slice(0, 3);
+  const allPRs = [...state.prs].sort((a,b) => b.value - a.value);
+  const recent = Date.now() - 14*86400000;
 
   return (
     <div className="px-5">
@@ -65,32 +59,36 @@ function StrengthTab({ onJump }: { onJump: (t: Tab) => void }) {
         </>
       )}
 
-      {recentPRs.length > 0 && (
-        <>
-          <SectionHeader title="Recent PRs" action={<button onClick={() => onJump("prs")} className="text-xs text-muted-foreground">All</button>} />
-          <div className="space-y-2">
-            {recentPRs.map(p => (
-              <Card key={p.id}>
-                <div className="flex justify-between">
-                  <div>
-                    <p className="font-medium text-sm">{exerciseById(p.exerciseId)?.name}</p>
-                    <p className="text-xs text-muted-foreground">{p.weight}lb × {p.reps}</p>
-                  </div>
-                  <p className="font-bold tabular-nums" style={{ color: "var(--section)" }}>{p.value}</p>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </>
-      )}
-
       <SectionHeader title="Quick actions" />
       <div className="grid grid-cols-2 gap-3">
-        <QA icon={<Trophy size={16} />} label="View PRs" onClick={() => onJump("prs")} />
         <QA icon={<Camera size={16} />} label="Add photo" onClick={() => onJump("photos")} />
         <QA icon={<Scale size={16} />} label="Bodyweight" onClick={() => onJump("weight")} />
-        <QA icon={<Dumbbell size={16} />} label="History" onClick={() => onJump("history")} />
       </div>
+
+      <SectionHeader title="Personal records" />
+      {allPRs.length === 0 ? (
+        <EmptyState icon={<Trophy size={22} />} title="No PRs yet" description="Finish workouts with weight + reps logged. Est 1RM = weight × (1 + reps/30)." />
+      ) : (
+        <div className="space-y-2">
+          {allPRs.map(p => {
+            const isNew = p.date > recent;
+            return (
+              <Card key={p.id} className={isNew ? "ring-section" : ""}>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">{exerciseById(p.exerciseId)?.name}</p>
+                    <p className="text-xs text-muted-foreground">{p.weight}lb × {p.reps} • {new Date(p.date).toLocaleDateString()}{isNew ? " • NEW" : ""}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold tabular-nums" style={{ color: "var(--section)" }}>{p.value}</p>
+                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider">est 1RM</p>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
