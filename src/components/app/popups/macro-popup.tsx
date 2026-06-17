@@ -1,14 +1,15 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { BottomSheet } from "../sheet";
 import { useStore } from "@/lib/store";
+import { usePersistentState } from "@/lib/persist";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
 const DAY = 86400000;
 
 export function MacroDetailSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { view, state } = useStore();
-  const [range, setRange] = useState<7 | 30 | 90>(7);
-  const [view2, setView2] = useState<"daily" | "weekly">("daily");
+  const [range, setRange] = usePersistentState<7 | 30 | 90>("macro.range", 7);
+  const [view2, setView2] = usePersistentState<"daily" | "weekly">("macro.view", "daily");
 
   const targets = state.nutritionTargets;
 

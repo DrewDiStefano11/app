@@ -5,10 +5,11 @@ import { CountUp } from "@/components/app/count-up";
 import { BodyHeatmap } from "@/components/app/body-heatmap";
 import { AiInsightStrip } from "@/components/app/ai-insight";
 import { useStore } from "@/lib/store";
+import { usePersistentState } from "@/lib/persist";
 import {
   fitcoreScore, readinessScore, recoveryScore, trainingStreak,
   muscleMap, weeklyVolumeSeries, todayMealTotals, totalVolumeInRange,
-  bestMuscleToTrainToday,
+  bestMuscleToTrainToday, type HeatMode,
 } from "@/lib/analytics";
 import type { SectionId } from "@/lib/types";
 import { VolumeDetailSheet } from "@/components/app/popups/volume-popup";
@@ -17,8 +18,11 @@ import { ReadinessDetailSheet } from "@/components/app/popups/readiness-popup";
 import { HeatmapDetailSheet } from "@/components/app/popups/heatmap-popup";
 import { StartWorkoutSheet } from "@/components/app/popups/start-workout-popup";
 import { MuscleDetailSheet } from "@/components/app/popups/muscle-popup";
+import { FitcoreScoreSheet } from "@/components/app/popups/score-popup";
+import { LogMealSheet, CheckInSheet, WeighInSheet } from "@/components/app/popups/quick-popups";
 
-type Popup = null | "volume" | "macros" | "readiness" | "heatmap" | "start" | "fitcore";
+type Popup = null | "volume" | "macros" | "readiness" | "heatmap" | "start" | "score" | "logmeal" | "checkin" | "weighin";
+
 
 export function HomeView({ onNavigate, onOpenSettings }: {
   onNavigate: (s: SectionId) => void;
@@ -31,7 +35,8 @@ export function HomeView({ onNavigate, onOpenSettings }: {
   const readiness = useMemo(() => readinessScore(view), [view]);
   const recovery = useMemo(() => recoveryScore(view), [view]);
   const streak = useMemo(() => trainingStreak(view), [view]);
-  const loadMap = useMemo(() => muscleMap(view, "load"), [view]);
+  const [heatMode] = usePersistentState<HeatMode>("heatmap.mode", "load");
+  const loadMap = useMemo(() => muscleMap(view, heatMode), [view, heatMode]);
   const series = useMemo(() => weeklyVolumeSeries(view, 7), [view]);
   const meals = useMemo(() => todayMealTotals(view), [view]);
   const weekVol = useMemo(() => totalVolumeInRange(view, 7), [view]);
@@ -97,7 +102,7 @@ export function HomeView({ onNavigate, onOpenSettings }: {
       <div className="px-5 space-y-3">
         {/* Score + Readiness row */}
         <div className="grid grid-cols-2 gap-3">
-          <Tile hero accent delay={0} onClick={() => setPopup("readiness")}>
+          <Tile hero accent delay={0} onClick={() => setPopup("score")}>
             <Eyebrow color="var(--section)">FitCore Score</Eyebrow>
             <div className="flex items-baseline gap-1 mt-1">
               <span className="font-display text-5xl leading-none text-white">
@@ -126,16 +131,16 @@ export function HomeView({ onNavigate, onOpenSettings }: {
         <Tile delay={120} onClick={() => setPopup("heatmap")}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <Eyebrow color="rgb(74 222 128)">Muscle Load · 7d</Eyebrow>
+              <Eyebrow color="rgb(74 222 128)">Muscle {heatMode === "load" ? "Load" : heatMode === "strength" ? "Strength" : heatMode === "imbalance" ? "Imbalance" : "Recovery"} · {heatMode === "strength" ? "30d" : heatMode === "recovery" ? "3d" : "7d"}</Eyebrow>
               <h2 className="font-display text-2xl leading-tight mt-1 uppercase">
                 {topLoaded(loadMap)}<br/>
-                <span className="text-white/50">Most worked</span>
+                <span className="text-white/50">{heatMode === "recovery" ? "Most recovered" : heatMode === "imbalance" ? "Biggest gap" : "Most worked"}</span>
               </h2>
               <p className="text-xs text-white/50 mt-2">Best today: <span className="text-white capitalize font-bold">{bestMuscle}</span></p>
               <p className="text-[10px] text-white/40 uppercase tracking-wider mt-2 font-bold">Tap to expand →</p>
             </div>
             <div className="w-20 h-32 shrink-0">
-              <BodyHeatmap values={loadMap} mode="load" compact side="front"
+              <BodyHeatmap values={loadMap} mode={heatMode} compact side="front"
                 onSelect={(m) => { setMuscle(m); }} />
             </div>
           </div>
@@ -229,9 +234,9 @@ export function HomeView({ onNavigate, onOpenSettings }: {
 
         {/* Quick actions */}
         <div className="grid grid-cols-3 gap-2 pt-1">
-          <QuickAction icon={<Plus size={18} />} label="Log Meal" onClick={() => onNavigate("nutrition")} />
-          <QuickAction icon={<Heart size={18} />} label="Check In" onClick={() => onNavigate("recovery")} />
-          <QuickAction icon={<Apple size={18} />} label="Weigh In" onClick={() => onNavigate("progress")} />
+          <QuickAction icon={<Plus size={18} />} label="Log Meal" onClick={() => setPopup("logmeal")} />
+          <QuickAction icon={<Heart size={18} />} label="Check In" onClick={() => setPopup("checkin")} />
+          <QuickAction icon={<Apple size={18} />} label="Weigh In" onClick={() => setPopup("weighin")} />
         </div>
       </div>
 
@@ -241,6 +246,10 @@ export function HomeView({ onNavigate, onOpenSettings }: {
       <ReadinessDetailSheet open={popup === "readiness"} onClose={() => setPopup(null)} />
       <HeatmapDetailSheet open={popup === "heatmap"} onClose={() => setPopup(null)} />
       <StartWorkoutSheet open={popup === "start"} onClose={() => setPopup(null)} onStarted={() => onNavigate("training")} />
+      <FitcoreScoreSheet open={popup === "score"} onClose={() => setPopup(null)} />
+      <LogMealSheet open={popup === "logmeal"} onClose={() => setPopup(null)} />
+      <CheckInSheet open={popup === "checkin"} onClose={() => setPopup(null)} />
+      <WeighInSheet open={popup === "weighin"} onClose={() => setPopup(null)} />
       <MuscleDetailSheet muscle={muscle} onClose={() => setMuscle(null)} />
     </div>
   );

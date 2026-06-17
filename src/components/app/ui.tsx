@@ -125,8 +125,8 @@ export function Label({ children }: { children: ReactNode }) {
 
 export function SubTabs<T extends string>({ tabs, active, onChange }: { tabs: { id: T; label: string }[]; active: T; onChange: (id: T) => void }) {
   return (
-    <div className="px-5 pb-2">
-      <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mx-1 px-1">
+    <div className="px-5 pb-3">
+      <div className="flex gap-1 p-1 rounded-full bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar backdrop-blur-sm">
         {tabs.map(t => {
           const isActive = t.id === active;
           return (
@@ -134,10 +134,13 @@ export function SubTabs<T extends string>({ tabs, active, onChange }: { tabs: { 
               key={t.id}
               onClick={() => onChange(t.id)}
               className={cn(
-                "px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap border transition-colors",
-                isActive ? "border-transparent text-white" : "border-border text-muted-foreground"
+                "relative px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-300",
+                isActive ? "text-white" : "text-white/45 hover:text-white/70"
               )}
-              style={isActive ? { background: "var(--section)" } : undefined}
+              style={isActive ? {
+                background: "var(--section)",
+                boxShadow: "0 6px 20px -6px color-mix(in oklab, var(--section) 70%, transparent)",
+              } : undefined}
             >
               {t.label}
             </button>

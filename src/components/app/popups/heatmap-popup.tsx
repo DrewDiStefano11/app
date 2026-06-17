@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { BottomSheet } from "../sheet";
 import { BodyHeatmap } from "../body-heatmap";
 import { useStore } from "@/lib/store";
+import { usePersistentState } from "@/lib/persist";
 import { muscleMap, type HeatMode } from "@/lib/analytics";
 import { MuscleDetailSheet } from "./muscle-popup";
 
@@ -14,7 +15,7 @@ const MODES: { id: HeatMode; label: string }[] = [
 
 export function HeatmapDetailSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { view } = useStore();
-  const [mode, setMode] = useState<HeatMode>("load");
+  const [mode, setMode] = usePersistentState<HeatMode>("heatmap.mode", "load");
   const [selected, setSelected] = useState<string | null>(null);
   const values = useMemo(() => muscleMap(view, mode), [view, mode]);
 
