@@ -1,13 +1,13 @@
 import { useState } from "react";
-import { Play, Plus, Clock, Flame, ListChecks, Trash2, Check, Timer, X, Activity, Trophy, BarChart3 } from "lucide-react";
-import { useStore, uid, e1RM, isToday } from "@/lib/store";
-import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
+import { Play, Plus, Clock, Flame, Trash2, Activity, Trophy } from "lucide-react";
+import { useStore, uid, isToday } from "@/lib/store";
+import { WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
 import { weeklyVolumeSeries, muscleMap, MUSCLES } from "@/lib/analytics";
-import type { Workout, WorkoutExercise, SetEntry, CardioEntry } from "@/lib/types";
+import type { CardioEntry } from "@/lib/types";
 import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SubTabs, SectionHeader } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
+import { ActiveWorkoutView } from "@/components/app/active-workout";
 
-const SET_MODS: SetEntry["modifier"][] = ["normal","warmup","drop","failure","partials","unilateral","paused","tempo"];
 type Tab = "today" | "workouts" | "performance";
 const TABS: { id: Tab; label: string }[] = [
   { id: "today", label: "Today" },
