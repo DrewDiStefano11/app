@@ -48,6 +48,21 @@ function useNow(intervalMs = 1000) {
   return now;
 }
 
+/** Deterministic demo previous-set numbers seeded by exercise id. */
+function makeDemoPrevSets(exerciseId: string, count: number): SetEntry[] {
+  let h = 0;
+  for (let i = 0; i < exerciseId.length; i++) h = (h * 31 + exerciseId.charCodeAt(i)) | 0;
+  const base = 45 + (Math.abs(h) % 18) * 10; // 45–225 lb-ish
+  const reps = 8 + (Math.abs(h >> 3) % 5); // 8–12 reps
+  return Array.from({ length: Math.max(1, count) }, (_, i) => ({
+    id: `demo-prev-${exerciseId}-${i}`,
+    modifier: "normal",
+    completed: true,
+    weight: base + i * 5,
+    reps: Math.max(4, reps - i),
+  }));
+}
+
 /* ===================== Main view ===================== */
 
 export function ActiveWorkoutView() {
