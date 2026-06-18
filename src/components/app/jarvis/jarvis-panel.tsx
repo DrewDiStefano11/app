@@ -117,13 +117,15 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         let args: Record<string, unknown> = {};
         try { args = JSON.parse(tc.argsJson); } catch { /* keep empty */ }
         // Mutating tools always go through confirm card unless auto-log toggle says otherwise.
-        const isMutating = !tc.name.startsWith("get") && tc.name !== "undoLastAction" && tc.name !== "getJarvisLearnedPreferences";
+        const isMutating = !tc.name.startsWith("get") && tc.name !== "undoLastAction" && tc.name !== "getJarvisLearnedPreferences" && tc.name !== "suggestNutritionAction";
         const isClearAutoLog =
           (tc.name === "logBodyWeight" && settings.autoLogBodyweight) ||
-          (tc.name === "logSupplement" && settings.autoLogSupplements);
-        if (isMutating && settings.permission >= 2 && !(settings.permission >= 3 && isClearAutoLog)) {
-          // Defer: show confirm card
-          toolResults.push({ tool: tc.name, result: { ok: true, summary: humanizeArgs(tc.name, args), needsConfirmation: true }, pending: { args } });
+          (tc.name === "logSupplement" && settings.autoLogSupplements) ||
+          (tc.name === "logMeal" && settings.autoLogMealEstimates && args.confidence === "high");
+        const needsAsk = tc.name === "logMeal" ? settings.askBeforeMealEstimates : true;
+        if (isMutating && settings.permission >= 2 && needsAsk && !(settings.permission >= 3 && isClearAutoLog)) {
+          // Defer: show confirm card. Include args as `data` so meal cards can render macros.
+          toolResults.push({ tool: tc.name, result: { ok: true, summary: humanizeArgs(tc.name, args), needsConfirmation: true, data: args }, pending: { args } });
         } else {
           const r = runTool(tc.name, args, { state, set, settings });
           toolResults.push({ tool: tc.name, result: r });
