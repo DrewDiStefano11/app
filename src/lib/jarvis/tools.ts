@@ -482,9 +482,46 @@ export function undoAuditEntry(auditId: string, state: AppState, set: Updater): 
       set(s => ({ ...s, bodyweightEntries: s.bodyweightEntries.filter(e => !(entry.entityIds ?? []).includes(e.id)) }));
       break;
     case "supplement":
+      set(s => ({ ...s, supplementLogs: s.supplementLogs.filter(e => !(entry.entityIds ?? []).includes(e.id)) }));
+      break;
     case "checkin":
       set(s => ({ ...s, recoveryCheckIns: s.recoveryCheckIns.filter(e => !(entry.entityIds ?? []).includes(e.id)) }));
       break;
+    case "meal":
+      set(s => ({ ...s, mealEntries: s.mealEntries.filter(e => !(entry.entityIds ?? []).includes(e.id)) }));
+      break;
+    case "mealEdit": {
+      const prev = (entry.patch as { prev?: MealEntry } | undefined)?.prev;
+      if (prev) set(s => ({ ...s, mealEntries: s.mealEntries.map(m => m.id === prev.id ? prev : m) }));
+      break;
+    }
+    case "mealDelete": {
+      const prev = (entry.patch as { prev?: MealEntry } | undefined)?.prev;
+      if (prev) set(s => ({ ...s, mealEntries: [...s.mealEntries, prev] }));
+      break;
+    }
+    case "checkinEdit": {
+      const prev = (entry.patch as { prev?: RecoveryCheckIn } | undefined)?.prev;
+      if (prev) set(s => ({ ...s, recoveryCheckIns: s.recoveryCheckIns.map(c => c.id === prev.id ? prev : c) }));
+      break;
+    }
+    case "usualMeal": {
+      const patch = entry.patch as { slot?: string; prev?: { name?: string; macros?: unknown } } | undefined;
+      const slot = patch?.slot;
+      const slotToField: Record<string, keyof UserGoalsProfile> = {
+        breakfast: "usualBreakfast", lunch: "usualLunch", dinner: "usualDinner", snack: "usualSnack",
+        proteinShake: "usualProteinShake", preWorkout: "usualPreWorkoutMeal", postWorkout: "usualPostWorkoutMeal",
+      };
+      if (slot && slotToField[slot]) {
+        const field = slotToField[slot];
+        set(s => ({
+          ...s,
+          userGoalsProfile: { ...s.userGoalsProfile, [field]: patch?.prev?.name },
+          jarvisLearning: { ...s.jarvisLearning, [`usualMeal_${slot}`]: patch?.prev?.macros },
+        }));
+      }
+      break;
+    }
     case "profile": {
       const prev = (entry.patch as { prev?: Record<string, unknown> } | undefined)?.prev;
       if (prev) set(s => ({ ...s, userGoalsProfile: prev as UserGoalsProfile }));
