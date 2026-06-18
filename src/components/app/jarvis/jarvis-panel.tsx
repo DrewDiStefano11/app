@@ -237,10 +237,16 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
 function humanizeArgs(tool: string, args: Record<string, unknown>): string {
   switch (tool) {
     case "logBodyWeight": return `Log bodyweight: ${args.weightLb} lb`;
-    case "logSupplement": return `Log supplement: ${args.name}`;
+    case "logSupplement": return `Log supplement: ${args.name}${args.dose ? ` (${args.dose})` : ""}`;
     case "logDailyCheckIn": return `Daily check-in — energy ${args.energy}, soreness ${args.soreness}, stress ${args.stress}, motivation ${args.motivation}`;
     case "updateUserGoalsProfile": return `Update profile: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
     case "updateJarvisSettings": return `Update Jarvis settings: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
+    case "logMeal": return `Log ${args.mealType ?? "meal"}: ${args.name ?? "meal"}`;
+    case "logUsualMeal": return `Log usual ${args.slot ?? "meal"}`;
+    case "saveUsualMeal": return `Save usual ${args.slot}: ${args.name}`;
+    case "updateMeal": return `Edit meal`;
+    case "deleteMeal": return `Delete meal`;
+    case "updateDailyCheckIn": return `Update today's check-in: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
     default: return tool;
   }
 }
