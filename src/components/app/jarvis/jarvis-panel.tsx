@@ -20,10 +20,12 @@ interface RenderedMsg {
 }
 
 const SUGGESTED = [
-  "Log 185.4 lb",
+  "I had chicken and rice for lunch",
+  "Log my usual protein shake",
   "Log creatine",
-  "How am I doing today?",
   "Check me in: energy 6 soreness 4 stress 3 motivation 7",
+  "Give me my daily review",
+  "What am I missing today?",
   "Undo that",
 ];
 
@@ -42,18 +44,28 @@ function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section
     3: "Permission: AUTO-LOG SIMPLE. Clear supplements/bodyweight auto-save; uncertain items still confirm.",
     4: "Permission: FULL CONTROL. Auto-apply low-risk; still confirm destructive/recurring/active-workout changes.",
   }[s.permission];
+  const p = state.userGoalsProfile;
+  const usualLine = [
+    p.usualBreakfast && `breakfast: ${p.usualBreakfast}`,
+    p.usualLunch && `lunch: ${p.usualLunch}`,
+    p.usualDinner && `dinner: ${p.usualDinner}`,
+    p.usualProteinShake && `shake: ${p.usualProteinShake}`,
+  ].filter(Boolean).join("; ");
   return [
     "You are Jarvis, the AI control layer for the user's FitCore fitness app.",
     "You ONLY mutate app data via the provided tools — never invent or claim to log things without calling a tool.",
-    "When uncertain, ask one short follow-up question.",
-    "Never diagnose medical conditions. For pain/sickness, log it and suggest seeking medical care when symptoms are red flags.",
-    personaLine,
-    styleLine,
-    permLine,
+    "FOOD: When the user describes food in natural language, call logMeal with your best macro estimate. Set confidence=high only if portions are explicit, otherwise medium or low. Always include assumptions (e.g. \"assumed 5 oz cooked chicken\"). Set source=\"jarvis\".",
+    "USUAL MEALS: If the user says \"my usual X\" / \"same X as yesterday\" / \"normal protein shake\", call logUsualMeal with the matching slot. If the user describes a meal that's clearly a repeat, you may also suggest saveUsualMeal.",
+    "AMBIGUOUS PROTEIN SHAKE: If user says \"I had a protein shake\" without details, ASK \"Was that your usual protein shake?\" before logging.",
+    "SUPPLEMENTS: \"Log creatine\" → logSupplement. Use getSupplementStatus to answer \"did I take X today?\".",
+    "DAILY REVIEW: \"Give me my daily review\" / \"how am I doing\" / \"what am I missing\" → call getDailyReviewSummary or getMissedHabits, then summarize in plain language.",
+    "CHECK-IN: \"Check me in\" without numbers → ask one short question with the four scales. Pain/sickness → still call logDailyCheckIn (or updateDailyCheckIn) with notes describing the issue.",
+    "When uncertain, ask one short follow-up question. Never diagnose. Red-flag symptoms → recommend medical care.",
+    personaLine, styleLine, permLine,
     `Section: ${section}.`,
-    "User context:",
-    contextSummary,
-  ].join("\n");
+    usualLine ? `User's usual meals — ${usualLine}.` : "",
+    "User context:", contextSummary,
+  ].filter(Boolean).join("\n");
 }
 
 export function JarvisPanel({ section, contextSummary }: { section: string; contextSummary: string }) {
