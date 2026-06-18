@@ -379,6 +379,8 @@ export const defaultState: AppState = {
   jarvisAudit: [],
   jarvisLearning: {},
   userGoalsProfile: {},
+  supplementLogs: [],
+  dismissedSuggestions: [],
 };
 
 /* ----------------------- Format helpers ----------------------- */
