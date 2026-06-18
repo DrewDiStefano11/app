@@ -41,6 +41,18 @@ function normalizedKeyMode(mode: ReturnType<typeof useStore>["state"]["jarvisSet
   return mode === "environment" ? "environment" : "local";
 }
 
+function expirePendingConfirmations(messages: RenderedMsg[]): RenderedMsg[] {
+  return messages.map(m => {
+    if (!m.toolResults?.some(tr => tr.pending && tr.result.needsConfirmation)) return m;
+    return {
+      ...m,
+      toolResults: m.toolResults.map(tr => tr.pending && tr.result.needsConfirmation
+        ? { tool: tr.tool, result: { ok: false, summary: "Cancelled", needsConfirmation: false } }
+        : tr),
+    };
+  });
+}
+
 function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section: string, contextSummary: string): string {
   const s = state.jarvisSettings;
   const styleLine = s.responseStyle === "concise" ? "Keep replies under 40 words." : s.responseStyle === "detailed" ? "Be thorough but organized." : "Be clear and brief (under 100 words).";
@@ -118,6 +130,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   }, []);
 
   const settings = state.jarvisSettings;
+  const latestToolMessageId = [...messages].reverse().find(m => m.toolResults?.length)?.id;
 
   const send = useCallback(async (text: string) => {
     const content = text.trim();
@@ -129,7 +142,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
     setInput("");
     setSending(true);
     const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now() };
-    setMessages(m => [...m, userMsg]);
+    setMessages(m => [...expirePendingConfirmations(m), userMsg]);
 
     try {
       const recent = [...messages.slice(-8), userMsg].map(m => ({ role: m.role, content: m.content }));
@@ -236,22 +249,25 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
               <p className="text-sm text-muted-foreground">Tell Jarvis what you logged, ate, or how you feel. Or ask anything.</p>
             </div>
           )}
-          {messages.map(m => (
-            <div key={m.id} className={`flex flex-col gap-2 ${m.role === "user" ? "items-end" : "items-start"}`}>
-              {m.content && (
-                <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${m.role === "user" ? "text-white" : "bg-[var(--surface-2)]"}`}
-                  style={m.role === "user" ? { background: "var(--section)" } : undefined}>
-                  {m.content}
-                </div>
-              )}
-              {m.toolResults?.map((tr, i) => (
-                <ConfirmCard key={i} tool={tr.tool} result={tr.result}
-                  onConfirm={() => applyPending(m.id, i)}
-                  onCancel={() => cancelPending(m.id, i)}
-                  onUndo={tr.result.auditId ? () => undoAction(tr.result.auditId!) : undefined} />
-              ))}
-            </div>
-          ))}
+          {messages.map(m => {
+            const visibleToolResults = m.id === latestToolMessageId ? m.toolResults : undefined;
+            return (
+              <div key={m.id} className={`flex flex-col gap-2 ${m.role === "user" ? "items-end" : "items-start"}`}>
+                {m.content && (
+                  <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${m.role === "user" ? "text-white" : "bg-[var(--surface-2)]"}`}
+                    style={m.role === "user" ? { background: "var(--section)" } : undefined}>
+                    {m.content}
+                  </div>
+                )}
+                {visibleToolResults?.map((tr, i) => (
+                  <ConfirmCard key={i} tool={tr.tool} result={tr.result}
+                    onConfirm={() => applyPending(m.id, i)}
+                    onCancel={() => cancelPending(m.id, i)}
+                    onUndo={tr.result.auditId ? () => undoAction(tr.result.auditId!) : undefined} />
+                ))}
+              </div>
+            );
+          })}
           {sending && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 size={14} className="animate-spin" />Jarvis is thinking...</div>}
         </div>
 
@@ -305,22 +321,26 @@ export { SourceBadge };
 export function JarvisUndoSnackbar() {
   const { state, set } = useStore();
   const [shown, setShown] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const last = state.jarvisAudit[0];
   useEffect(() => {
-    if (!last || last.undone || last.status !== "logged") return;
+    if (!last || last.undone || last.status !== "logged" || dismissed.has(last.id)) return;
     if (last.id === shown) return;
     setShown(last.id);
-    const t = window.setTimeout(() => setShown(null), 5000);
+    const t = window.setTimeout(() => {
+      setDismissed(prev => new Set(prev).add(last.id));
+      setShown(null);
+    }, 5000);
     return () => window.clearTimeout(t);
-  }, [last?.id, last?.status, last?.undone, shown]);
+  }, [last?.id, last?.status, last?.undone, shown, dismissed]);
   if (!shown || !last || last.id !== shown) return null;
   return (
     <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(132px+env(safe-area-inset-bottom))] z-30 px-3 py-2.5 rounded-xl bg-foreground text-background shadow-2xl flex items-center gap-2 text-sm max-w-[92%]">
       <span className="truncate">Saved: {last.summary}</span>
-      <button onClick={() => { undoAuditEntry(last.id, state, set); setShown(null); }} className="font-semibold flex items-center gap-1 underline-offset-2 hover:underline shrink-0" aria-label="Undo last Jarvis action">
+      <button onClick={() => { undoAuditEntry(last.id, state, set); setDismissed(prev => new Set(prev).add(last.id)); setShown(null); }} className="font-semibold flex items-center gap-1 underline-offset-2 hover:underline shrink-0" aria-label="Undo last Jarvis action">
         <Undo2 size={14} /> Undo
       </button>
-      <button onClick={() => setShown(null)} className="p-1 rounded-md hover:bg-background/10 shrink-0" aria-label="Dismiss undo notification">
+      <button onClick={() => { setDismissed(prev => new Set(prev).add(last.id)); setShown(null); }} className="p-1 rounded-md hover:bg-background/10 shrink-0" aria-label="Dismiss undo notification">
         <X size={14} />
       </button>
     </div>
