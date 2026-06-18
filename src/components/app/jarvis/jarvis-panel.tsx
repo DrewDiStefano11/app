@@ -168,19 +168,20 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   }, [sending, settings, messages, chatFn, set, section, contextSummary]);
 
   const applyPending = (msgId: string, idx: number) => {
-    let pending: { args: Record<string, unknown> } | undefined;
-    let tool = "";
+    const msg = messages.find(m => m.id === msgId);
+    const existing = msg?.toolResults?.[idx];
+    if (!existing?.pending || !existing.result.needsConfirmation) return;
+
+    const { tool, pending } = existing;
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId || !m.toolResults) return m;
       const tr = m.toolResults[idx];
       if (!tr?.pending || !tr.result.needsConfirmation) return m;
-      pending = tr.pending;
-      tool = tr.tool;
       const next = [...m.toolResults];
       next[idx] = { tool: tr.tool, result: { ...tr.result, summary: "Saving...", needsConfirmation: false } };
       return { ...m, toolResults: next };
     }));
-    if (!pending || !tool) return;
+
     const r = runTool(tool, pending.args, { state: stateRef.current, set, settings });
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId || !m.toolResults) return m;
