@@ -7,6 +7,7 @@ import { testAiConnection } from "@/lib/ai.functions";
 import { Card, GhostButton, Input, Label, PrimaryButton, Select } from "../ui";
 
 const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
+const WORKING_GEMINI_MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"] as const;
 type ConnectionStatus = "not_configured" | "testing" | "connected" | "failed";
 type ConnectionResult = {
   ok: boolean;
@@ -26,6 +27,10 @@ function normalizedKeyMode(mode: JarvisSettings["geminiKeyMode"]): "local" | "en
   return mode === "environment" ? "environment" : "local";
 }
 
+function selectedGeminiModel(model: unknown): JarvisSettings["geminiModel"] {
+  return WORKING_GEMINI_MODELS.includes(model as JarvisSettings["geminiModel"]) ? model as JarvisSettings["geminiModel"] : "gemini-2.5-flash-lite";
+}
+
 export function JarvisSettingsCard() {
   const { state, set } = useStore();
   const s = state.jarvisSettings;
@@ -36,11 +41,16 @@ export function JarvisSettingsCard() {
   const [statusText, setStatusText] = useState("Not configured");
   const [hasSavedLocalKey, setHasSavedLocalKey] = useState(false);
   const keyMode = normalizedKeyMode(s.geminiKeyMode);
+  const geminiModel = selectedGeminiModel(s.geminiModel);
 
   useEffect(() => {
     const saved = Boolean(readSavedGeminiKey());
     setHasSavedLocalKey(saved);
-    if (saved && !s.geminiUserKeySaved) upd({ geminiUserKeySaved: true, geminiKeyMode: keyMode });
+    const patch: Partial<JarvisSettings> = {};
+    if (saved && !s.geminiUserKeySaved) patch.geminiUserKeySaved = true;
+    if (s.geminiKeyMode === "user") patch.geminiKeyMode = "local";
+    if (s.geminiModel !== geminiModel) patch.geminiModel = geminiModel;
+    if (Object.keys(patch).length > 0) upd(patch);
   }, []);
 
   useEffect(() => {
@@ -107,7 +117,7 @@ export function JarvisSettingsCard() {
       const result = await testConnection({ data: {
         provider: s.aiProvider,
         geminiKeyMode: keyMode,
-        geminiModel: s.geminiModel,
+        geminiModel,
         userGeminiApiKey: localKey || undefined,
       } }) as ConnectionResult;
       if (result.ok) {
@@ -146,11 +156,9 @@ export function JarvisSettingsCard() {
             <div className="rounded-2xl border border-border bg-[var(--surface-2)] p-3 space-y-3">
               <div>
                 <Label>Model</Label>
-                <Select value={s.geminiModel ?? "gemini-3.5-flash"} onChange={e => upd({ geminiModel: e.target.value as JarvisSettings["geminiModel"] })}>
-                  <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
-                  <option value="gemini-3-flash">Gemini 3 Flash</option>
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <Select value={geminiModel} onChange={e => upd({ geminiModel: e.target.value as JarvisSettings["geminiModel"] })}>
                   <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                 </Select>
               </div>
               <div>
