@@ -30,6 +30,12 @@ const SUGGESTED = [
 ];
 
 const NON_MUTATING = new Set(["undoLastAction", "getJarvisLearnedPreferences", "suggestNutritionAction"]);
+const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
+
+function readSavedGeminiKey() {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(GEMINI_KEY_STORAGE) ?? "";
+}
 
 function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section: string, contextSummary: string): string {
   const s = state.jarvisSettings;
@@ -84,6 +90,7 @@ function shouldAutoRun(name: string, args: Record<string, unknown>, settings: Re
   if (name === "logUsualMeal") return settings.autoLogMealEstimates;
   if (name === "logCardio") return !settings.askBeforeWorkouts && args.confidence === "high";
   if (name === "logWorkout") return !settings.askBeforeWorkouts && args.confidence === "high";
+  if (name === "updateActiveWorkout") return settings.autoApplyActiveWorkoutSuggestions && !settings.askBeforeActiveWorkoutEdits;
   return false;
 }
 
@@ -124,7 +131,15 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
       const recent = [...messages.slice(-8), userMsg].map(m => ({ role: m.role, content: m.content }));
       const tools = settings.permission === 1 ? TOOL_SPECS.filter(t => t.name.startsWith("get")) : TOOL_SPECS;
       const sysPrompt = jarvisSystemPrompt(stateRef.current, section, contextSummary);
-      const res = await chatFn({ data: { messages: recent, mode: settings.responseStyle === "detailed" ? "detailed" : "quick", systemOverride: sysPrompt, tools } }) as ChatResp;
+      const res = await chatFn({ data: {
+        messages: recent,
+        mode: settings.responseStyle === "detailed" ? "detailed" : "quick",
+        systemOverride: sysPrompt,
+        tools,
+        provider: settings.aiProvider,
+        geminiKeyMode: settings.geminiKeyMode,
+        userGeminiApiKey: settings.aiProvider === "gemini" && settings.geminiKeyMode === "user" ? readSavedGeminiKey() : undefined,
+      } }) as ChatResp;
 
       if (!res.ok) {
         setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${res.error}`, createdAt: Date.now() }]);
@@ -202,7 +217,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
             <span className={`w-1.5 h-1.5 rounded-full ${sending ? "animate-pulse" : ""}`} style={{ background: sending ? "var(--section)" : "var(--success, #10b981)" }} />
             {sending ? "Thinking..." : "Ready"}
           </span>
-          <span className="ml-auto capitalize">L{settings.permission} / {settings.personality}</span>
+          <span className="ml-auto capitalize">{settings.aiProvider === "gemini" ? "Gemini" : "Legacy"} / L{settings.permission}</span>
         </div>
 
         <div ref={scrollRef} className="space-y-3 max-h-[45dvh] overflow-y-auto pb-2">
