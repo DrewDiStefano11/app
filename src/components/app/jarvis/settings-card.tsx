@@ -1,13 +1,16 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, KeyRound, Loader2, Sparkles, XCircle } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { useStore } from "@/lib/store";
-import type { JarvisSettings } from "@/lib/types";
+import type { GroqModel, JarvisSettings } from "@/lib/types";
 import { testAiConnection } from "@/lib/ai.functions";
 import { Card, GhostButton, Input, Label, PrimaryButton, Select } from "../ui";
 
 const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
+const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
+const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
 const WORKING_GEMINI_MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"] as const;
+const WORKING_GROQ_MODELS = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen/qwen3-32b"] as const;
 type ConnectionStatus = "not_configured" | "testing" | "connected" | "failed";
 type ConnectionResult = {
   ok: boolean;
@@ -17,10 +20,27 @@ type ConnectionResult = {
   model?: string;
   error?: string;
 };
+type AiDiagnostics = {
+  provider?: string;
+  selectedModel?: string;
+  actualModel?: string;
+  routed?: boolean;
+  fallback?: boolean;
+  fallbackReason?: string;
+  callType?: string;
+  status?: number;
+  errorCategory?: string;
+  retryCount?: number;
+  fallbackCount?: number;
+  inputSize?: number;
+  toolsSent?: number;
+  messagesSent?: number;
+  timestamp?: number;
+};
 
-function readSavedGeminiKey() {
+function readSavedKey(storageKey: string) {
   if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(GEMINI_KEY_STORAGE) ?? "";
+  return window.localStorage.getItem(storageKey) ?? "";
 }
 
 function normalizedKeyMode(mode: JarvisSettings["geminiKeyMode"]): "local" | "environment" {
@@ -31,43 +51,100 @@ function selectedGeminiModel(model: unknown): JarvisSettings["geminiModel"] {
   return WORKING_GEMINI_MODELS.includes(model as JarvisSettings["geminiModel"]) ? model as JarvisSettings["geminiModel"] : "gemini-2.5-flash-lite";
 }
 
+function selectedGroqModel(model: unknown): GroqModel {
+  return WORKING_GROQ_MODELS.includes(model as GroqModel) ? model as GroqModel : "llama-3.1-8b-instant";
+}
+
+function readDiagnostics(): AiDiagnostics[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(AI_DIAGNOSTICS_STORAGE);
+    return raw ? (JSON.parse(raw) as { calls?: AiDiagnostics[] }).calls ?? [] : [];
+  } catch {
+    return [];
+  }
+}
+
+function modelLabel(model?: string) {
+  if (model === "llama-3.1-8b-instant") return "Groq Llama 3.1 8B Instant";
+  if (model === "llama-3.3-70b-versatile") return "Groq Llama 3.3 70B Versatile";
+  if (model === "qwen/qwen3-32b") return "Groq Qwen 3 32B";
+  if (model === "gemini-2.5-flash-lite") return "Gemini 2.5 Flash-Lite";
+  if (model === "gemini-2.5-flash") return "Gemini 2.5 Flash";
+  return model ?? "None";
+}
+
 export function JarvisSettingsCard() {
   const { state, set } = useStore();
   const s = state.jarvisSettings;
   const upd = (p: Partial<JarvisSettings>) => set(st => ({ ...st, jarvisSettings: { ...st.jarvisSettings, ...p } }));
   const testConnection = useServerFn(testAiConnection);
-  const [keyDraft, setKeyDraft] = useState("");
-  const [status, setStatus] = useState<ConnectionStatus>("not_configured");
-  const [statusText, setStatusText] = useState("Not configured");
-  const [hasSavedLocalKey, setHasSavedLocalKey] = useState(false);
-  const keyMode = normalizedKeyMode(s.geminiKeyMode);
+  const [groqKeyDraft, setGroqKeyDraft] = useState("");
+  const [geminiKeyDraft, setGeminiKeyDraft] = useState("");
+  const [groqStatus, setGroqStatus] = useState<ConnectionStatus>("not_configured");
+  const [geminiStatus, setGeminiStatus] = useState<ConnectionStatus>("not_configured");
+  const [legacyStatus, setLegacyStatus] = useState<ConnectionStatus>("not_configured");
+  const [groqStatusText, setGroqStatusText] = useState("Not configured");
+  const [geminiStatusText, setGeminiStatusText] = useState("Not configured");
+  const [legacyStatusText, setLegacyStatusText] = useState("Legacy provider uses LOVABLE_API_KEY on the server.");
+  const [hasSavedGroqKey, setHasSavedGroqKey] = useState(false);
+  const [hasSavedGeminiKey, setHasSavedGeminiKey] = useState(false);
+  const [diagnostics, setDiagnostics] = useState<AiDiagnostics[]>([]);
+  const groqKeyMode = normalizedKeyMode(s.groqKeyMode);
+  const geminiKeyMode = normalizedKeyMode(s.geminiKeyMode);
+  const groqModel = selectedGroqModel(s.groqModel);
   const geminiModel = selectedGeminiModel(s.geminiModel);
 
   useEffect(() => {
-    const saved = Boolean(readSavedGeminiKey());
-    setHasSavedLocalKey(saved);
+    const groqSaved = Boolean(readSavedKey(GROQ_KEY_STORAGE));
+    const geminiSaved = Boolean(readSavedKey(GEMINI_KEY_STORAGE));
+    setHasSavedGroqKey(groqSaved);
+    setHasSavedGeminiKey(geminiSaved);
+    setDiagnostics(readDiagnostics());
     const patch: Partial<JarvisSettings> = {};
-    if (saved && !s.geminiUserKeySaved) patch.geminiUserKeySaved = true;
+    if (groqSaved && !s.groqUserKeySaved) patch.groqUserKeySaved = true;
+    if (geminiSaved && !s.geminiUserKeySaved) patch.geminiUserKeySaved = true;
+    if (s.groqKeyMode === "user") patch.groqKeyMode = "local";
     if (s.geminiKeyMode === "user") patch.geminiKeyMode = "local";
+    if (s.groqModel !== groqModel) patch.groqModel = groqModel;
     if (s.geminiModel !== geminiModel) patch.geminiModel = geminiModel;
+    if (!s.groqModel) patch.aiProvider = "groq";
+    if (s.autoModelRouting === undefined) patch.autoModelRouting = true;
+    if (s.autoAiFallback === undefined) patch.autoAiFallback = true;
+    if (s.allowGeminiFallback === undefined) patch.allowGeminiFallback = false;
     if (Object.keys(patch).length > 0) upd(patch);
   }, []);
 
   useEffect(() => {
-    if (status === "connected") return;
-    if (s.aiProvider === "legacy-lovable") {
-      setStatus("not_configured");
-      setStatusText("Legacy provider uses LOVABLE_API_KEY on the server.");
-      return;
+    const h = () => setDiagnostics(readDiagnostics());
+    window.addEventListener("fitcore:jarvis-ai-diagnostics", h);
+    window.addEventListener("storage", h);
+    return () => {
+      window.removeEventListener("fitcore:jarvis-ai-diagnostics", h);
+      window.removeEventListener("storage", h);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (groqStatus !== "connected") {
+      setGroqStatus("not_configured");
+      setGroqStatusText(hasSavedGroqKey || s.groqUserKeySaved ? "Saved Groq key configured. Test connection when ready." : "Jarvis needs a Groq API key. Add one in Jarvis AI Settings.");
     }
-    if (hasSavedLocalKey || s.geminiUserKeySaved) {
-      setStatus("not_configured");
-      setStatusText(keyMode === "environment" ? "Environment key is preferred. Saved local key is available as fallback." : "Saved Gemini key configured. Test connection when ready.");
-      return;
+    if (geminiStatus !== "connected") {
+      setGeminiStatus("not_configured");
+      setGeminiStatusText(hasSavedGeminiKey || s.geminiUserKeySaved ? "Saved Gemini backup key configured. Test connection when ready." : "Gemini backup is not configured.");
     }
-    setStatus("not_configured");
-    setStatusText(keyMode === "environment" ? "Uses GEMINI_API_KEY or GOOGLE_API_KEY from the server environment, with local key fallback if saved." : "Jarvis needs a Gemini API key. Add one in Jarvis AI Settings.");
-  }, [s.aiProvider, s.geminiKeyMode, s.geminiUserKeySaved, hasSavedLocalKey, keyMode, status]);
+  }, [hasSavedGroqKey, hasSavedGeminiKey, s.groqUserKeySaved, s.geminiUserKeySaved]);
+
+  const diagSummary = useMemo(() => {
+    const last = diagnostics[diagnostics.length - 1];
+    const now = Date.now();
+    return {
+      last,
+      total: diagnostics.length,
+      lastMinute: diagnostics.filter(d => d.timestamp && now - d.timestamp < 60_000).length,
+    };
+  }, [diagnostics]);
 
   const Toggle = ({ label, val, onChange, hint, disabled }: { label: string; val: boolean; onChange: (v: boolean) => void; hint?: string; disabled?: boolean }) => (
     <label className={`flex items-start justify-between py-1 gap-3 ${disabled ? "opacity-50" : ""}`}>
@@ -79,62 +156,128 @@ export function JarvisSettingsCard() {
     </label>
   );
 
+  const persistGroqKey = (key: string) => {
+    window.localStorage.setItem(GROQ_KEY_STORAGE, key);
+    setHasSavedGroqKey(true);
+    setGroqKeyDraft("");
+    upd({ aiProvider: "groq", groqKeyMode: "local", groqUserKeySaved: true });
+  };
+
   const persistGeminiKey = (key: string) => {
     window.localStorage.setItem(GEMINI_KEY_STORAGE, key);
-    setHasSavedLocalKey(true);
-    setKeyDraft("");
-    upd({ aiProvider: "gemini", geminiKeyMode: "local", geminiUserKeySaved: true });
+    setHasSavedGeminiKey(true);
+    setGeminiKeyDraft("");
+    upd({ geminiKeyMode: "local", geminiUserKeySaved: true });
+  };
+
+  const saveGroqKey = () => {
+    const key = groqKeyDraft.trim();
+    if (!key) {
+      setGroqStatus("failed");
+      setGroqStatusText("Enter a Groq API key first.");
+      return;
+    }
+    persistGroqKey(key);
+    setGroqStatus("not_configured");
+    setGroqStatusText("Saved Groq key configured. Raw key is hidden after saving.");
   };
 
   const saveGeminiKey = () => {
-    const key = keyDraft.trim();
+    const key = geminiKeyDraft.trim();
     if (!key) {
-      setStatus("failed");
-      setStatusText("Enter a Gemini API key first.");
+      setGeminiStatus("failed");
+      setGeminiStatusText("Enter a Gemini API key first.");
       return;
     }
     persistGeminiKey(key);
-    setStatus("not_configured");
-    setStatusText("Saved Gemini key configured. Raw key is hidden after saving.");
+    setGeminiStatus("not_configured");
+    setGeminiStatusText("Saved Gemini key configured. Raw key is hidden after saving.");
+  };
+
+  const clearGroqKey = () => {
+    window.localStorage.removeItem(GROQ_KEY_STORAGE);
+    setHasSavedGroqKey(false);
+    setGroqKeyDraft("");
+    upd({ groqUserKeySaved: false });
+    setGroqStatus("not_configured");
+    setGroqStatusText("Saved Groq key cleared.");
   };
 
   const clearGeminiKey = () => {
     window.localStorage.removeItem(GEMINI_KEY_STORAGE);
-    setHasSavedLocalKey(false);
-    setKeyDraft("");
+    setHasSavedGeminiKey(false);
+    setGeminiKeyDraft("");
     upd({ geminiUserKeySaved: false });
-    setStatus("not_configured");
-    setStatusText("Saved Gemini key cleared.");
+    setGeminiStatus("not_configured");
+    setGeminiStatusText("Saved Gemini key cleared.");
   };
 
-  const runConnectionTest = async () => {
-    setStatus("testing");
-    setStatusText("Testing connection...");
-    const draftKey = keyDraft.trim();
-    const savedKey = readSavedGeminiKey();
-    const localKey = draftKey || savedKey;
+  const runConnectionTest = async (provider: JarvisSettings["aiProvider"]) => {
+    if (provider === "groq") {
+      setGroqStatus("testing");
+      setGroqStatusText("Testing Groq connection...");
+    } else if (provider === "gemini") {
+      setGeminiStatus("testing");
+      setGeminiStatusText("Testing Gemini connection...");
+    } else {
+      setLegacyStatus("testing");
+      setLegacyStatusText("Testing legacy connection...");
+    }
+    const draftGroqKey = groqKeyDraft.trim();
+    const draftGeminiKey = geminiKeyDraft.trim();
+    const savedGroqKey = readSavedKey(GROQ_KEY_STORAGE);
+    const savedGeminiKey = readSavedKey(GEMINI_KEY_STORAGE);
     try {
       const result = await testConnection({ data: {
-        provider: s.aiProvider,
-        geminiKeyMode: keyMode,
+        provider,
+        groqKeyMode,
+        groqModel,
+        userGroqApiKey: draftGroqKey || savedGroqKey || undefined,
+        geminiKeyMode,
         geminiModel,
-        userGeminiApiKey: localKey || undefined,
+        userGeminiApiKey: draftGeminiKey || savedGeminiKey || undefined,
       } }) as ConnectionResult;
       if (result.ok) {
-        if (s.aiProvider === "gemini" && draftKey) persistGeminiKey(draftKey);
-        setStatus("connected");
-        setStatusText(s.aiProvider === "gemini" ? `Connected via Gemini ${result.keySource ? `(${result.keySource})` : ""}${result.model ? ` using ${result.model}` : ""}.` : "Connected to legacy provider.");
+        if (provider === "groq") {
+          if (draftGroqKey) persistGroqKey(draftGroqKey);
+          setGroqStatus("connected");
+          setGroqStatusText(`Connected via Groq ${result.keySource ? `(${result.keySource})` : ""}${result.model ? ` using ${modelLabel(result.model)}` : ""}.`);
+        } else if (provider === "gemini") {
+          if (draftGeminiKey) persistGeminiKey(draftGeminiKey);
+          setGeminiStatus("connected");
+          setGeminiStatusText(`Connected via Gemini ${result.keySource ? `(${result.keySource})` : ""}${result.model ? ` using ${modelLabel(result.model)}` : ""}.`);
+        } else {
+          setLegacyStatus("connected");
+          setLegacyStatusText("Connected to legacy provider.");
+        }
+      } else if (provider === "groq") {
+        setGroqStatus(result.status === "not_configured" ? "not_configured" : "failed");
+        setGroqStatusText(result.error || "Groq connection failed.");
+      } else if (provider === "gemini") {
+        setGeminiStatus(result.status === "not_configured" ? "not_configured" : "failed");
+        setGeminiStatusText(result.error || "Gemini connection failed.");
       } else {
-        setStatus(result.status === "not_configured" ? "not_configured" : "failed");
-        setStatusText(result.error || "Connection failed.");
+        setLegacyStatus(result.status === "not_configured" ? "not_configured" : "failed");
+        setLegacyStatusText(result.error || "Legacy connection failed.");
       }
     } catch {
-      setStatus("failed");
-      setStatusText("Connection test failed.");
+      if (provider === "groq") {
+        setGroqStatus("failed");
+        setGroqStatusText("Groq connection test failed.");
+      } else if (provider === "gemini") {
+        setGeminiStatus("failed");
+        setGeminiStatusText("Gemini connection test failed.");
+      } else {
+        setLegacyStatus("failed");
+        setLegacyStatusText("Legacy connection test failed.");
+      }
     }
   };
 
-  const StatusIcon = status === "testing" ? Loader2 : status === "connected" ? CheckCircle2 : status === "failed" ? XCircle : KeyRound;
+  const StatusLine = ({ status, text }: { status: ConnectionStatus; text: string }) => {
+    const StatusIcon = status === "testing" ? Loader2 : status === "connected" ? CheckCircle2 : status === "failed" ? XCircle : KeyRound;
+    return <div className="flex items-center gap-2 text-xs text-muted-foreground"><StatusIcon size={14} className={status === "testing" ? "animate-spin" : ""} /><span className="capitalize">{status.replace("_", " ")}</span><span>-</span><span>{text}</span></div>;
+  };
 
   return (
     <section>
@@ -146,63 +289,104 @@ export function JarvisSettingsCard() {
           <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">AI provider</p>
           <div>
             <Label>Provider</Label>
-            <Select value={s.aiProvider} onChange={e => upd({ aiProvider: e.target.value as JarvisSettings["aiProvider"] })}>
-              <option value="gemini">Gemini</option>
+            <Select value={s.aiProvider ?? "groq"} onChange={e => upd({ aiProvider: e.target.value as JarvisSettings["aiProvider"] })}>
+              <option value="groq">Groq - recommended/default</option>
+              <option value="gemini">Gemini - backup</option>
               <option value="legacy-lovable">Legacy/Lovable fallback</option>
             </Select>
           </div>
 
-          {s.aiProvider === "gemini" && (
-            <div className="rounded-2xl border border-border bg-[var(--surface-2)] p-3 space-y-3">
-              <div>
-                <Label>Model</Label>
-                <Select value={geminiModel} onChange={e => upd({ geminiModel: e.target.value as JarvisSettings["geminiModel"] })}>
-                  <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
-                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                </Select>
-              </div>
-              <div>
-                <Label>Gemini key source</Label>
-                <Select value={keyMode} onChange={e => upd({ geminiKeyMode: e.target.value as JarvisSettings["geminiKeyMode"] })}>
-                  <option value="local">Use saved local key first</option>
-                  <option value="environment">Use environment key first</option>
-                </Select>
-              </div>
-              <div>
-                <Label>Gemini API key</Label>
-                <Input
-                  type="password"
-                  autoComplete="off"
-                  value={keyDraft}
-                  onChange={e => setKeyDraft(e.target.value)}
-                  placeholder={(hasSavedLocalKey || s.geminiUserKeySaved) ? "Saved Gemini key configured" : "Paste Gemini API key"}
-                />
-                <p className="text-xs text-muted-foreground mt-1">For personal/local use only. Do not commit API keys.</p>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <PrimaryButton type="button" onClick={saveGeminiKey} disabled={!keyDraft.trim()}>Save key</PrimaryButton>
-                <GhostButton type="button" onClick={clearGeminiKey}>Clear key</GhostButton>
-                <GhostButton type="button" onClick={runConnectionTest} disabled={status === "testing"}>
-                  {status === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}Test
-                </GhostButton>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <StatusIcon size={14} className={status === "testing" ? "animate-spin" : ""} />
-                <span className="capitalize">{status.replace("_", " ")}</span>
-                <span>-</span>
-                <span>{statusText}</span>
-              </div>
+          <div className="rounded-2xl border border-border bg-[var(--surface-2)] p-3 space-y-3">
+            <p className="text-sm font-semibold">Groq main provider</p>
+            <div>
+              <Label>Groq model</Label>
+              <Select value={groqModel} onChange={e => upd({ groqModel: e.target.value as JarvisSettings["groqModel"] })}>
+                <option value="llama-3.1-8b-instant">Groq Llama 3.1 8B Instant - fast/default</option>
+                <option value="llama-3.3-70b-versatile">Groq Llama 3.3 70B Versatile - stronger reasoning</option>
+                <option value="qwen/qwen3-32b">Groq Qwen 3 32B - alternate fallback</option>
+              </Select>
             </div>
-          )}
+            <div>
+              <Label>Groq key source</Label>
+              <Select value={groqKeyMode} onChange={e => upd({ groqKeyMode: e.target.value as JarvisSettings["groqKeyMode"] })}>
+                <option value="local">Use saved local key first</option>
+                <option value="environment">Use GROQ_API_KEY first</option>
+              </Select>
+            </div>
+            <div>
+              <Label>Groq API key</Label>
+              <Input type="password" autoComplete="off" value={groqKeyDraft} onChange={e => setGroqKeyDraft(e.target.value)} placeholder={(hasSavedGroqKey || s.groqUserKeySaved) ? "Saved Groq key configured" : "Paste Groq API key"} />
+              <p className="text-xs text-muted-foreground mt-1">For personal/local use only. Do not commit API keys.</p>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <PrimaryButton type="button" onClick={saveGroqKey} disabled={!groqKeyDraft.trim()}>Save key</PrimaryButton>
+              <GhostButton type="button" onClick={clearGroqKey}>Clear key</GhostButton>
+              <GhostButton type="button" onClick={() => runConnectionTest("groq")} disabled={groqStatus === "testing"}>{groqStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}Test</GhostButton>
+            </div>
+            <StatusLine status={groqStatus} text={groqStatusText} />
+            <Toggle label="Auto model routing" val={s.autoModelRouting !== false} onChange={v => upd({ autoModelRouting: v })} hint="Uses 8B for quick logs and 70B for harder reasoning." />
+            <Toggle label="Auto fallback when model fails" val={s.autoAiFallback !== false} onChange={v => upd({ autoAiFallback: v })} hint="Fallback happens before any app mutation runs." />
+            <Toggle label="Allow Gemini fallback" val={Boolean(s.allowGeminiFallback)} onChange={v => upd({ allowGeminiFallback: v })} hint="Off by default to avoid silently using low Gemini quota." />
+          </div>
+
+          <div className="rounded-2xl border border-border bg-[var(--surface-2)] p-3 space-y-3">
+            <p className="text-sm font-semibold">Gemini backup</p>
+            <p className="text-xs text-muted-foreground">Gemini is kept for backup text, image-food estimation, and future multimodal features. Free quota can be limited.</p>
+            <div>
+              <Label>Gemini model</Label>
+              <Select value={geminiModel} onChange={e => upd({ geminiModel: e.target.value as JarvisSettings["geminiModel"] })}>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite - low free daily quota for this project</option>
+              </Select>
+            </div>
+            <div>
+              <Label>Gemini key source</Label>
+              <Select value={geminiKeyMode} onChange={e => upd({ geminiKeyMode: e.target.value as JarvisSettings["geminiKeyMode"] })}>
+                <option value="local">Use saved local key first</option>
+                <option value="environment">Use GEMINI_API_KEY or GOOGLE_API_KEY first</option>
+              </Select>
+            </div>
+            <div>
+              <Label>Gemini API key</Label>
+              <Input type="password" autoComplete="off" value={geminiKeyDraft} onChange={e => setGeminiKeyDraft(e.target.value)} placeholder={(hasSavedGeminiKey || s.geminiUserKeySaved) ? "Saved Gemini key configured" : "Paste Gemini API key"} />
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <PrimaryButton type="button" onClick={saveGeminiKey} disabled={!geminiKeyDraft.trim()}>Save key</PrimaryButton>
+              <GhostButton type="button" onClick={clearGeminiKey}>Clear key</GhostButton>
+              <GhostButton type="button" onClick={() => runConnectionTest("gemini")} disabled={geminiStatus === "testing"}>{geminiStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}Test</GhostButton>
+            </div>
+            <StatusLine status={geminiStatus} text={geminiStatusText} />
+          </div>
 
           {s.aiProvider === "legacy-lovable" && (
             <div className="rounded-2xl border border-border bg-[var(--surface-2)] p-3 space-y-2">
               <p className="text-sm font-medium">Legacy/Lovable fallback</p>
-              <p className="text-xs text-muted-foreground">Uses server-side LOVABLE_API_KEY only. Gemini remains the main provider for Jarvis.</p>
-              <GhostButton type="button" onClick={runConnectionTest} disabled={status === "testing"}>{status === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}Test legacy connection</GhostButton>
-              <p className="text-xs text-muted-foreground">{statusText}</p>
+              <p className="text-xs text-muted-foreground">Uses server-side LOVABLE_API_KEY only. Keep this as fallback only.</p>
+              <GhostButton type="button" onClick={() => runConnectionTest("legacy-lovable")} disabled={legacyStatus === "testing"}>{legacyStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}Test legacy connection</GhostButton>
+              <StatusLine status={legacyStatus} text={legacyStatusText} />
             </div>
           )}
+        </div>
+
+        <div className="space-y-2 border-t border-border pt-3">
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Model diagnostics</p>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span>Current provider</span><span>{s.aiProvider ?? "groq"}</span>
+            <span>Selected model</span><span>{modelLabel((s.aiProvider ?? "groq") === "gemini" ? geminiModel : groqModel)}</span>
+            <span>Actual last model</span><span>{modelLabel(diagSummary.last?.actualModel)}</span>
+            <span>Auto-routed</span><span>{diagSummary.last?.routed ? "yes" : "no"}</span>
+            <span>Fallback</span><span>{diagSummary.last?.fallback ? "yes" : "no"}</span>
+            <span>Fallback reason</span><span>{diagSummary.last?.fallbackReason ?? "none"}</span>
+            <span>AI calls this session</span><span>{diagSummary.total}</span>
+            <span>AI calls last minute</span><span>{diagSummary.lastMinute}</span>
+            <span>Last call type</span><span>{diagSummary.last?.callType ?? "none"}</span>
+            <span>Last status/error</span><span>{diagSummary.last?.status ?? diagSummary.last?.errorCategory ?? "none"}</span>
+            <span>Last request</span><span>{diagSummary.last?.provider ?? "none"} / {modelLabel(diagSummary.last?.actualModel)}</span>
+            <span>Last input size</span><span>{diagSummary.last?.inputSize ?? 0}</span>
+            <span>Tools/messages sent</span><span>{diagSummary.last?.toolsSent ?? 0} / {diagSummary.last?.messagesSent ?? 0}</span>
+            <span>Retry/fallback count</span><span>{diagSummary.last?.retryCount ?? 0} / {diagSummary.last?.fallbackCount ?? 0}</span>
+            <span>Model cooldowns</span><span>{diagSummary.last?.fallbackReason ? `${diagSummary.last.fallbackReason} on prior model` : "none visible"}</span>
+          </div>
         </div>
 
         <div>
