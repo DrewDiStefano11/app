@@ -9,7 +9,24 @@ import { TOOL_SPECS, runTool, undoAuditEntry, type ToolResult } from "@/lib/jarv
 import { ConfirmCard } from "./confirm-card";
 import { SourceBadge } from "./source-badge";
 
-type ChatResp = { ok: true; content: string; toolCalls?: { id: string; name: string; argsJson: string }[] } | { ok: false; error: string };
+type AiDiagnostics = {
+  provider?: string;
+  selectedModel?: string;
+  actualModel?: string;
+  routed?: boolean;
+  fallback?: boolean;
+  fallbackReason?: string;
+  callType?: string;
+  status?: number;
+  errorCategory?: string;
+  retryCount?: number;
+  fallbackCount?: number;
+  inputSize?: number;
+  toolsSent?: number;
+  messagesSent?: number;
+  timestamp?: number;
+};
+type ChatResp = { ok: true; content: string; toolCalls?: { id: string; name: string; argsJson: string }[]; notice?: string; diagnostics?: AiDiagnostics } | { ok: false; error: string; diagnostics?: AiDiagnostics };
 
 interface RenderedMsg {
   id: string;
@@ -31,14 +48,25 @@ const SUGGESTED = [
 
 const NON_MUTATING = new Set(["undoLastAction", "getJarvisLearnedPreferences", "suggestNutritionAction"]);
 const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
+const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
+const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
 
-function readSavedGeminiKey() {
+function readSavedKey(storageKey: string) {
   if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(GEMINI_KEY_STORAGE) ?? "";
+  return window.localStorage.getItem(storageKey) ?? "";
 }
 
 function normalizedKeyMode(mode: ReturnType<typeof useStore>["state"]["jarvisSettings"]["geminiKeyMode"]): "local" | "environment" {
   return mode === "environment" ? "environment" : "local";
+}
+
+function recordDiagnostics(diag?: AiDiagnostics) {
+  if (!diag || typeof window === "undefined") return;
+  const raw = window.localStorage.getItem(AI_DIAGNOSTICS_STORAGE);
+  const previous = raw ? JSON.parse(raw) as { calls?: AiDiagnostics[] } : {};
+  const calls = [...(previous.calls ?? []), { ...diag, timestamp: diag.timestamp ?? Date.now() }].slice(-50);
+  window.localStorage.setItem(AI_DIAGNOSTICS_STORAGE, JSON.stringify({ calls }));
+  window.dispatchEvent(new CustomEvent("fitcore:jarvis-ai-diagnostics"));
 }
 
 function expirePendingConfirmations(messages: RenderedMsg[]): RenderedMsg[] {
@@ -156,17 +184,25 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
       const recent = [{ role: userMsg.role, content: userMsg.content }];
       const tools = settings.permission === 1 ? TOOL_SPECS.filter(t => t.name.startsWith("get")) : TOOL_SPECS;
       const sysPrompt = jarvisSystemPrompt(stateRef.current, section, contextSummary);
-      const savedGeminiKey = readSavedGeminiKey();
+      const savedGeminiKey = readSavedKey(GEMINI_KEY_STORAGE);
+      const savedGroqKey = readSavedKey(GROQ_KEY_STORAGE);
       const res = await chatFn({ data: {
         messages: recent,
         mode: settings.responseStyle === "detailed" ? "detailed" : "quick",
         systemOverride: sysPrompt,
         tools,
-        provider: settings.aiProvider,
+        provider: settings.aiProvider ?? "groq",
         geminiKeyMode: normalizedKeyMode(settings.geminiKeyMode),
         geminiModel: settings.geminiModel,
-        userGeminiApiKey: settings.aiProvider === "gemini" && savedGeminiKey ? savedGeminiKey : undefined,
+        userGeminiApiKey: savedGeminiKey || undefined,
+        groqKeyMode: normalizedKeyMode(settings.groqKeyMode),
+        groqModel: settings.groqModel ?? "llama-3.1-8b-instant",
+        userGroqApiKey: savedGroqKey || undefined,
+        autoModelRouting: settings.autoModelRouting !== false,
+        autoAiFallback: settings.autoAiFallback !== false,
+        allowGeminiFallback: Boolean(settings.allowGeminiFallback),
       } }) as ChatResp;
+      recordDiagnostics(res.diagnostics);
 
       if (!res.ok) {
         setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${res.error}`, createdAt: Date.now() }]);
@@ -186,7 +222,8 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         }
       }
 
-      setMessages(m => [...m, { id: uid(), role: "assistant", content: res.content || (toolResults.length ? "" : "(no reply)"), toolResults, createdAt: Date.now() }]);
+      const assistantContent = [res.notice, res.content || (toolResults.length ? "" : "(no reply)")].filter(Boolean).join("\n\n");
+      setMessages(m => [...m, { id: uid(), role: "assistant", content: assistantContent, toolResults, createdAt: Date.now() }]);
     } catch (err) {
       setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${err instanceof Error ? err.message : "Jarvis failed"}`, createdAt: Date.now() }]);
     } finally {
@@ -230,6 +267,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
     }));
   };
   const undoAction = (auditId: string) => undoAuditEntry(auditId, stateRef.current, set);
+  const providerName = settings.aiProvider === "gemini" ? "Gemini" : settings.aiProvider === "legacy-lovable" ? "Legacy" : "Groq";
 
   return (
     <>
@@ -246,7 +284,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
             <span className={`w-1.5 h-1.5 rounded-full ${sending ? "animate-pulse" : ""}`} style={{ background: sending ? "var(--section)" : "var(--success, #10b981)" }} />
             {sending ? "Thinking..." : "Ready"}
           </span>
-          <span className="ml-auto capitalize">{settings.aiProvider === "gemini" ? "Gemini" : "Legacy"} / L{settings.permission}</span>
+          <span className="ml-auto capitalize">{providerName} / L{settings.permission}</span>
         </div>
 
         <div ref={scrollRef} className="space-y-3 max-h-[45dvh] overflow-y-auto pb-2">
