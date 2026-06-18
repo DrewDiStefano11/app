@@ -53,6 +53,10 @@ function expirePendingConfirmations(messages: RenderedMsg[]): RenderedMsg[] {
   });
 }
 
+function stripToolCards(messages: RenderedMsg[]): RenderedMsg[] {
+  return expirePendingConfirmations(messages).map(m => m.toolResults ? { ...m, toolResults: undefined } : m);
+}
+
 function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section: string, contextSummary: string): string {
   const s = state.jarvisSettings;
   const styleLine = s.responseStyle === "concise" ? "Keep replies under 40 words." : s.responseStyle === "detailed" ? "Be thorough but organized." : "Be clear and brief (under 100 words).";
@@ -79,6 +83,7 @@ function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section
     "You are Jarvis, the AI control layer for the user's FitCore fitness app.",
     "You ONLY mutate app data via the provided tools. Never claim to log something without a tool call.",
     "Use exactly one save path per user action: auto-log OR confirmation draft, never both.",
+    "Do not repeat, replay, or confirm an older user action from previous turns. Only act on the current user message.",
     "FOOD: For natural-language meals, call logMeal with estimates. Set confidence=high only if portions are explicit; otherwise medium or low. Include assumptions and originalText.",
     "USUAL MEALS: If the user says my usual/normal X, call logUsualMeal with the matching slot. If the usual is missing, ask a short follow-up.",
     "SUPPLEMENTS: 'Log creatine' -> logSupplement. Use getSupplementStatus to answer whether supplements were taken today.",
@@ -117,6 +122,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   const [messages, setMessages] = useState<RenderedMsg[]>([]);
   const { state, set } = useStore();
   const stateRef = useRef(state);
+  const sendingRef = useRef(false);
   const chatFn = useServerFn(aiChat);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -134,18 +140,20 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
 
   const send = useCallback(async (text: string) => {
     const content = text.trim();
-    if (!content || sending) return;
+    if (!content || sendingRef.current) return;
+    sendingRef.current = true;
     if (!settings.enabled) {
       setMessages(m => [...m, { id: uid(), role: "assistant", content: "Jarvis is disabled. Enable it in Settings > Jarvis AI.", createdAt: Date.now() }]);
+      sendingRef.current = false;
       return;
     }
     setInput("");
     setSending(true);
     const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now() };
-    setMessages(m => [...expirePendingConfirmations(m), userMsg]);
+    setMessages(m => [...stripToolCards(m), userMsg]);
 
     try {
-      const recent = [...messages.slice(-8), userMsg].map(m => ({ role: m.role, content: m.content }));
+      const recent = [{ role: userMsg.role, content: userMsg.content }];
       const tools = settings.permission === 1 ? TOOL_SPECS.filter(t => t.name.startsWith("get")) : TOOL_SPECS;
       const sysPrompt = jarvisSystemPrompt(stateRef.current, section, contextSummary);
       const savedGeminiKey = readSavedGeminiKey();
@@ -182,9 +190,10 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
     } catch (err) {
       setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${err instanceof Error ? err.message : "Jarvis failed"}`, createdAt: Date.now() }]);
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
-  }, [sending, settings, messages, chatFn, set, section, contextSummary]);
+  }, [settings, chatFn, set, section, contextSummary]);
 
   const applyPending = (msgId: string, idx: number) => {
     const msg = messages.find(m => m.id === msgId);
