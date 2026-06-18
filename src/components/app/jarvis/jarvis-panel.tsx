@@ -37,6 +37,10 @@ function readSavedGeminiKey() {
   return window.localStorage.getItem(GEMINI_KEY_STORAGE) ?? "";
 }
 
+function normalizedKeyMode(mode: ReturnType<typeof useStore>["state"]["jarvisSettings"]["geminiKeyMode"]): "local" | "environment" {
+  return mode === "environment" ? "environment" : "local";
+}
+
 function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section: string, contextSummary: string): string {
   const s = state.jarvisSettings;
   const styleLine = s.responseStyle === "concise" ? "Keep replies under 40 words." : s.responseStyle === "detailed" ? "Be thorough but organized." : "Be clear and brief (under 100 words).";
@@ -131,14 +135,16 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
       const recent = [...messages.slice(-8), userMsg].map(m => ({ role: m.role, content: m.content }));
       const tools = settings.permission === 1 ? TOOL_SPECS.filter(t => t.name.startsWith("get")) : TOOL_SPECS;
       const sysPrompt = jarvisSystemPrompt(stateRef.current, section, contextSummary);
+      const savedGeminiKey = readSavedGeminiKey();
       const res = await chatFn({ data: {
         messages: recent,
         mode: settings.responseStyle === "detailed" ? "detailed" : "quick",
         systemOverride: sysPrompt,
         tools,
         provider: settings.aiProvider,
-        geminiKeyMode: settings.geminiKeyMode,
-        userGeminiApiKey: settings.aiProvider === "gemini" && settings.geminiKeyMode === "user" ? readSavedGeminiKey() : undefined,
+        geminiKeyMode: normalizedKeyMode(settings.geminiKeyMode),
+        geminiModel: settings.geminiModel,
+        userGeminiApiKey: settings.aiProvider === "gemini" && savedGeminiKey ? savedGeminiKey : undefined,
       } }) as ChatResp;
 
       if (!res.ok) {
