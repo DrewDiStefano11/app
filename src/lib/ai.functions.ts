@@ -162,7 +162,8 @@ function lovableHttpError(status: number): ProviderFailure {
   if (status === 429) return fail("Legacy/Lovable quota or rate limit was reached.", "quota", status);
   if (status >= 500) return fail("Legacy/Lovable is temporarily unavailable.", "overloaded", status);
   return fail(`Legacy/Lovable request failed (${status}).`, "provider_error", status);
-}\n
+}
+
 async function wait(ms: number) {
   await new Promise(resolve => setTimeout(resolve, ms));
 }
