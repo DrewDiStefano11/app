@@ -125,6 +125,11 @@ export interface JarvisSettings {
   askBeforeWorkouts: boolean;
   askBeforeActiveWorkoutEdits: boolean;
   learningEnabled: boolean;
+  // Phase 2
+  autoLogMealEstimates: boolean;
+  nutritionSuggestions: boolean;
+  supplementReminders: boolean;
+  foodEstimateDetail: "simple" | "normal" | "detailed";
   // stubs (UI-only this phase)
   voiceModeEnabled: boolean;
   spokenResponses: boolean;
@@ -149,6 +154,10 @@ export const defaultJarvisSettings: JarvisSettings = {
   askBeforeWorkouts: true,
   askBeforeActiveWorkoutEdits: true,
   learningEnabled: true,
+  autoLogMealEstimates: false,
+  nutritionSuggestions: true,
+  supplementReminders: true,
+  foodEstimateDetail: "normal",
   voiceModeEnabled: false,
   spokenResponses: false,
   useWhoop: false,
