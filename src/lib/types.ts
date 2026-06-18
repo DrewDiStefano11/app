@@ -68,6 +68,125 @@ export interface Goal { id: string; type: "lift" | "weekly_workouts" | "bodyweig
 export interface ProgressPhoto { id: string; dataUrl: string; view: "front" | "side" | "back"; phase: "bulk" | "cut" | "maintenance"; notes?: string; createdAt: number; }
 export interface AiMessage { id: string; role: "user" | "assistant"; content: string; createdAt: number; }
 
+/* --------------------- Jarvis (AI control layer) --------------------- */
+
+export type DataSource = "manual" | "jarvis" | "jarvis-confirmed" | "barcode" | "camera" | "whoop" | "apple-health" | "imported" | "edited";
+export type Confidence = "high" | "medium" | "low";
+
+export interface SourceMeta {
+  source?: DataSource;
+  confidence?: Confidence;
+  originalText?: string;
+  assumptions?: string[];
+  undoId?: string;
+}
+
+export type JarvisPermission = 1 | 2 | 3 | 4;
+export type JarvisResponseStyle = "concise" | "normal" | "detailed";
+export type JarvisPersonality = "friendly" | "coach" | "siri" | "chatgpt";
+export type ProactiveLevel = "off" | "low" | "normal" | "high";
+
+export interface JarvisSettings {
+  enabled: boolean;
+  permission: JarvisPermission;
+  responseStyle: JarvisResponseStyle;
+  personality: JarvisPersonality;
+  proactive: ProactiveLevel;
+  autoLogSupplements: boolean;
+  autoLogBodyweight: boolean;
+  askBeforeMealEstimates: boolean;
+  askBeforeWorkouts: boolean;
+  askBeforeActiveWorkoutEdits: boolean;
+  learningEnabled: boolean;
+  // stubs (UI-only this phase)
+  voiceModeEnabled: boolean;
+  spokenResponses: boolean;
+  useWhoop: boolean;
+  useAppleHealth: boolean;
+  dailyReviewEnabled: boolean;
+  dailyReviewTime: string;
+  weeklyReviewEnabled: boolean;
+  weeklyReviewDay: "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
+  weeklyReviewTime: string;
+}
+
+export const defaultJarvisSettings: JarvisSettings = {
+  enabled: true,
+  permission: 2,
+  responseStyle: "normal",
+  personality: "friendly",
+  proactive: "normal",
+  autoLogSupplements: true,
+  autoLogBodyweight: true,
+  askBeforeMealEstimates: true,
+  askBeforeWorkouts: true,
+  askBeforeActiveWorkoutEdits: true,
+  learningEnabled: true,
+  voiceModeEnabled: false,
+  spokenResponses: false,
+  useWhoop: false,
+  useAppleHealth: false,
+  dailyReviewEnabled: false,
+  dailyReviewTime: "21:00",
+  weeklyReviewEnabled: false,
+  weeklyReviewDay: "sun",
+  weeklyReviewTime: "20:00",
+};
+
+export type JarvisAuditStatus = "logged" | "suggested" | "edited" | "skipped" | "undone";
+
+export interface JarvisAuditEntry {
+  id: string;
+  tool: string;
+  summary: string;
+  status: JarvisAuditStatus;
+  originalText?: string;
+  assumptions?: string[];
+  confidence?: Confidence;
+  entityIds?: string[];     // ids of created records
+  entityKind?: string;      // e.g. "meal", "bodyweight"
+  patch?: Record<string, unknown>;
+  createdAt: number;
+  undone?: boolean;
+}
+
+export type JarvisLearning = Record<string, unknown>;
+
+/* ----------- Goals & Profile (extended subset, Phase 1) ----------- */
+
+export type ExtendedGoal = "bulk" | "cut" | "maintain" | "recomp" | "strength" | "hypertrophy" | "general";
+
+export interface UserGoalsProfile {
+  goal?: ExtendedGoal;
+  targetBodyweightLb?: number;
+  currentBodyweightLb?: number;
+  calorieGoal?: number;
+  proteinGoal?: number;
+  carbGoal?: number;
+  fatGoal?: number;
+  fiberGoal?: number;
+  weeklyWeightChangeLb?: number;
+  workoutSplit?: string;
+  normalWorkoutDays?: string[];
+  normalWorkoutTime?: string;
+  weakPoints?: string[];
+  injuryAreas?: string[];
+  supplementRoutine?: string[];
+  normalWeighInTime?: string;
+  foodPreferences?: string[];
+  dislikedFoods?: string[];
+  usualBreakfast?: string;
+  usualLunch?: string;
+  usualDinner?: string;
+  usualSnack?: string;
+  usualProteinShake?: string;
+  usualPreWorkoutMeal?: string;
+  usualPostWorkoutMeal?: string;
+  commonRestaurantOrders?: string[];
+  preferredCardio?: string[];
+  recoveryPriorities?: string[];
+}
+
 export type Sex = "male" | "female" | "other";
 export type GymOrHome = "gym" | "home" | "both";
 export type Intensity = "easy" | "moderate" | "hard";
@@ -158,6 +277,10 @@ export interface AppState {
   aiMessages: AiMessage[];
   reminders: { workout: boolean; weighIn: boolean; lunch: boolean };
   demoMode: boolean;
+  jarvisSettings: JarvisSettings;
+  jarvisAudit: JarvisAuditEntry[];
+  jarvisLearning: JarvisLearning;
+  userGoalsProfile: UserGoalsProfile;
 }
 
 export const defaultPersonalization: Personalization = {
@@ -214,6 +337,10 @@ export const defaultState: AppState = {
   aiMessages: [],
   reminders: { workout: true, weighIn: true, lunch: false },
   demoMode: false,
+  jarvisSettings: defaultJarvisSettings,
+  jarvisAudit: [],
+  jarvisLearning: {},
+  userGoalsProfile: {},
 };
 
 /* ----------------------- Format helpers ----------------------- */
