@@ -1,4 +1,4 @@
-import type { AppState, JarvisAuditEntry, UserGoalsProfile, JarvisSettings, Confidence } from "../types";
+import type { AppState, JarvisAuditEntry, UserGoalsProfile, JarvisSettings, Confidence, MealEntry, MealItem, SupplementLog, RecoveryCheckIn } from "../types";
 import { uid, todayStart } from "../store";
 
 /** A tool result returned to the model and rendered as a confirm card / text. */
@@ -20,7 +20,12 @@ export type ToolName =
   | "getUserGoalsProfile" | "updateUserGoalsProfile"
   | "getJarvisSettings" | "updateJarvisSettings"
   | "logBodyWeight" | "logSupplement" | "logDailyCheckIn"
-  | "undoLastAction" | "saveJarvisLearning" | "getJarvisLearnedPreferences";
+  | "undoLastAction" | "saveJarvisLearning" | "getJarvisLearnedPreferences"
+  // Phase 2
+  | "logMeal" | "updateMeal" | "deleteMeal" | "getMealHistory"
+  | "getUsualMeals" | "saveUsualMeal" | "logUsualMeal"
+  | "getSupplementStatus" | "getMissedHabits"
+  | "getDailyReviewSummary" | "updateDailyCheckIn" | "suggestNutritionAction";
 
 export interface ToolSpec {
   name: ToolName;
