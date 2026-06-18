@@ -49,13 +49,40 @@ export interface CardioEntry {
   speed?: number; incline?: number; notes?: string; createdAt: number;
 }
 
+export interface MealItem {
+  name: string;
+  qty?: string;
+  calories: number; protein: number; carbs: number; fat: number;
+  source?: DataSource;
+  confidence?: Confidence;
+}
+
 export interface MealEntry {
   id: string;
   name: string;
   type: string;
   calories: number; protein: number; carbs: number; fat: number;
+  fiber?: number;
   notes?: string;
   createdAt: number;
+  /* --- Jarvis Phase 2 fields (optional, backward-compatible) --- */
+  items?: MealItem[];
+  source?: DataSource;
+  confidence?: Confidence;
+  originalText?: string;
+  assumptions?: string[];
+  confirmed?: boolean;
+  auditId?: string;
+}
+
+export interface SupplementLog {
+  id: string;
+  name: string;
+  dose?: string;
+  notes?: string;
+  createdAt: number;
+  source?: DataSource;
+  auditId?: string;
 }
 
 export interface BodyweightEntry { id: string; weightLb: number; notes?: string; createdAt: number; }
@@ -98,6 +125,11 @@ export interface JarvisSettings {
   askBeforeWorkouts: boolean;
   askBeforeActiveWorkoutEdits: boolean;
   learningEnabled: boolean;
+  // Phase 2
+  autoLogMealEstimates: boolean;
+  nutritionSuggestions: boolean;
+  supplementReminders: boolean;
+  foodEstimateDetail: "simple" | "normal" | "detailed";
   // stubs (UI-only this phase)
   voiceModeEnabled: boolean;
   spokenResponses: boolean;
@@ -122,6 +154,10 @@ export const defaultJarvisSettings: JarvisSettings = {
   askBeforeWorkouts: true,
   askBeforeActiveWorkoutEdits: true,
   learningEnabled: true,
+  autoLogMealEstimates: false,
+  nutritionSuggestions: true,
+  supplementReminders: true,
+  foodEstimateDetail: "normal",
   voiceModeEnabled: false,
   spokenResponses: false,
   useWhoop: false,
@@ -281,6 +317,8 @@ export interface AppState {
   jarvisAudit: JarvisAuditEntry[];
   jarvisLearning: JarvisLearning;
   userGoalsProfile: UserGoalsProfile;
+  supplementLogs: SupplementLog[];
+  dismissedSuggestions: string[];
 }
 
 export const defaultPersonalization: Personalization = {
@@ -341,6 +379,8 @@ export const defaultState: AppState = {
   jarvisAudit: [],
   jarvisLearning: {},
   userGoalsProfile: {},
+  supplementLogs: [],
+  dismissedSuggestions: [],
 };
 
 /* ----------------------- Format helpers ----------------------- */

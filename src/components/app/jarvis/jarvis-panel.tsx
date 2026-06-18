@@ -20,10 +20,12 @@ interface RenderedMsg {
 }
 
 const SUGGESTED = [
-  "Log 185.4 lb",
+  "I had chicken and rice for lunch",
+  "Log my usual protein shake",
   "Log creatine",
-  "How am I doing today?",
   "Check me in: energy 6 soreness 4 stress 3 motivation 7",
+  "Give me my daily review",
+  "What am I missing today?",
   "Undo that",
 ];
 
@@ -42,18 +44,28 @@ function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section
     3: "Permission: AUTO-LOG SIMPLE. Clear supplements/bodyweight auto-save; uncertain items still confirm.",
     4: "Permission: FULL CONTROL. Auto-apply low-risk; still confirm destructive/recurring/active-workout changes.",
   }[s.permission];
+  const p = state.userGoalsProfile;
+  const usualLine = [
+    p.usualBreakfast && `breakfast: ${p.usualBreakfast}`,
+    p.usualLunch && `lunch: ${p.usualLunch}`,
+    p.usualDinner && `dinner: ${p.usualDinner}`,
+    p.usualProteinShake && `shake: ${p.usualProteinShake}`,
+  ].filter(Boolean).join("; ");
   return [
     "You are Jarvis, the AI control layer for the user's FitCore fitness app.",
     "You ONLY mutate app data via the provided tools — never invent or claim to log things without calling a tool.",
-    "When uncertain, ask one short follow-up question.",
-    "Never diagnose medical conditions. For pain/sickness, log it and suggest seeking medical care when symptoms are red flags.",
-    personaLine,
-    styleLine,
-    permLine,
+    "FOOD: When the user describes food in natural language, call logMeal with your best macro estimate. Set confidence=high only if portions are explicit, otherwise medium or low. Always include assumptions (e.g. \"assumed 5 oz cooked chicken\"). Set source=\"jarvis\".",
+    "USUAL MEALS: If the user says \"my usual X\" / \"same X as yesterday\" / \"normal protein shake\", call logUsualMeal with the matching slot. If the user describes a meal that's clearly a repeat, you may also suggest saveUsualMeal.",
+    "AMBIGUOUS PROTEIN SHAKE: If user says \"I had a protein shake\" without details, ASK \"Was that your usual protein shake?\" before logging.",
+    "SUPPLEMENTS: \"Log creatine\" → logSupplement. Use getSupplementStatus to answer \"did I take X today?\".",
+    "DAILY REVIEW: \"Give me my daily review\" / \"how am I doing\" / \"what am I missing\" → call getDailyReviewSummary or getMissedHabits, then summarize in plain language.",
+    "CHECK-IN: \"Check me in\" without numbers → ask one short question with the four scales. Pain/sickness → still call logDailyCheckIn (or updateDailyCheckIn) with notes describing the issue.",
+    "When uncertain, ask one short follow-up question. Never diagnose. Red-flag symptoms → recommend medical care.",
+    personaLine, styleLine, permLine,
     `Section: ${section}.`,
-    "User context:",
-    contextSummary,
-  ].join("\n");
+    usualLine ? `User's usual meals — ${usualLine}.` : "",
+    "User context:", contextSummary,
+  ].filter(Boolean).join("\n");
 }
 
 export function JarvisPanel({ section, contextSummary }: { section: string; contextSummary: string }) {
@@ -105,13 +117,15 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         let args: Record<string, unknown> = {};
         try { args = JSON.parse(tc.argsJson); } catch { /* keep empty */ }
         // Mutating tools always go through confirm card unless auto-log toggle says otherwise.
-        const isMutating = !tc.name.startsWith("get") && tc.name !== "undoLastAction" && tc.name !== "getJarvisLearnedPreferences";
+        const isMutating = !tc.name.startsWith("get") && tc.name !== "undoLastAction" && tc.name !== "getJarvisLearnedPreferences" && tc.name !== "suggestNutritionAction";
         const isClearAutoLog =
           (tc.name === "logBodyWeight" && settings.autoLogBodyweight) ||
-          (tc.name === "logSupplement" && settings.autoLogSupplements);
-        if (isMutating && settings.permission >= 2 && !(settings.permission >= 3 && isClearAutoLog)) {
-          // Defer: show confirm card
-          toolResults.push({ tool: tc.name, result: { ok: true, summary: humanizeArgs(tc.name, args), needsConfirmation: true }, pending: { args } });
+          (tc.name === "logSupplement" && settings.autoLogSupplements) ||
+          (tc.name === "logMeal" && settings.autoLogMealEstimates && args.confidence === "high");
+        const needsAsk = tc.name === "logMeal" ? settings.askBeforeMealEstimates : true;
+        if (isMutating && settings.permission >= 2 && needsAsk && !(settings.permission >= 3 && isClearAutoLog)) {
+          // Defer: show confirm card. Include args as `data` so meal cards can render macros.
+          toolResults.push({ tool: tc.name, result: { ok: true, summary: humanizeArgs(tc.name, args), needsConfirmation: true, data: args }, pending: { args } });
         } else {
           const r = runTool(tc.name, args, { state, set, settings });
           toolResults.push({ tool: tc.name, result: r });
@@ -223,10 +237,16 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
 function humanizeArgs(tool: string, args: Record<string, unknown>): string {
   switch (tool) {
     case "logBodyWeight": return `Log bodyweight: ${args.weightLb} lb`;
-    case "logSupplement": return `Log supplement: ${args.name}`;
+    case "logSupplement": return `Log supplement: ${args.name}${args.dose ? ` (${args.dose})` : ""}`;
     case "logDailyCheckIn": return `Daily check-in — energy ${args.energy}, soreness ${args.soreness}, stress ${args.stress}, motivation ${args.motivation}`;
     case "updateUserGoalsProfile": return `Update profile: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
     case "updateJarvisSettings": return `Update Jarvis settings: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
+    case "logMeal": return `Log ${args.mealType ?? "meal"}: ${args.name ?? "meal"}`;
+    case "logUsualMeal": return `Log usual ${args.slot ?? "meal"}`;
+    case "saveUsualMeal": return `Save usual ${args.slot}: ${args.name}`;
+    case "updateMeal": return `Edit meal`;
+    case "deleteMeal": return `Delete meal`;
+    case "updateDailyCheckIn": return `Update today's check-in: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
     default: return tool;
   }
 }

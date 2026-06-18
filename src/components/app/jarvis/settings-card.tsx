@@ -60,8 +60,9 @@ export function JarvisSettingsCard() {
 
         <div className="space-y-1 border-t border-border pt-3">
           <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Auto-log</p>
-          <Toggle label="Auto-log clear supplements" val={s.autoLogSupplements} onChange={v => upd({ autoLogSupplements: v })} />
+          <Toggle label="Auto-log clear supplements" val={s.autoLogSupplements} onChange={v => upd({ autoLogSupplements: v })} hint='"Log creatine" saves immediately.' />
           <Toggle label="Auto-log exact bodyweight" val={s.autoLogBodyweight} onChange={v => upd({ autoLogBodyweight: v })} />
+          <Toggle label="Auto-log high-confidence meal estimates" val={s.autoLogMealEstimates} onChange={v => upd({ autoLogMealEstimates: v })} hint="Only when Jarvis is confident; vague meals still ask." />
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">
@@ -69,6 +70,19 @@ export function JarvisSettingsCard() {
           <Toggle label="Ask before saving meal estimates" val={s.askBeforeMealEstimates} onChange={v => upd({ askBeforeMealEstimates: v })} />
           <Toggle label="Ask before saving workouts" val={s.askBeforeWorkouts} onChange={v => upd({ askBeforeWorkouts: v })} />
           <Toggle label="Ask before editing active workouts" val={s.askBeforeActiveWorkoutEdits} onChange={v => upd({ askBeforeActiveWorkoutEdits: v })} />
+        </div>
+
+        <div className="border-t border-border pt-3">
+          <Label>Food estimate detail</Label>
+          <Select value={s.foodEstimateDetail} onChange={e => upd({ foodEstimateDetail: e.target.value as JarvisSettings["foodEstimateDetail"] })}>
+            <option value="simple">Simple</option><option value="normal">Normal</option><option value="detailed">Detailed assumptions</option>
+          </Select>
+        </div>
+
+        <div className="space-y-1 border-t border-border pt-3">
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Coaching</p>
+          <Toggle label="Nutrition suggestions" val={s.nutritionSuggestions} onChange={v => upd({ nutritionSuggestions: v })} />
+          <Toggle label="Supplement reminders" val={s.supplementReminders} onChange={v => upd({ supplementReminders: v })} />
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">
@@ -79,15 +93,9 @@ export function JarvisSettingsCard() {
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Health data (coming Phase 4)</p>
-          <Toggle disabled label="Use WHOOP data" val={s.useWhoop} onChange={v => upd({ useWhoop: v })} />
-          <Toggle disabled label="Use Apple Health data" val={s.useAppleHealth} onChange={v => upd({ useAppleHealth: v })} />
-        </div>
-
-        <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Reviews (coming Phase 5)</p>
-          <Toggle disabled label="Daily review" val={s.dailyReviewEnabled} onChange={v => upd({ dailyReviewEnabled: v })} />
-          <Toggle disabled label="Weekly review" val={s.weeklyReviewEnabled} onChange={v => upd({ weeklyReviewEnabled: v })} />
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Reviews</p>
+          <Toggle label="Daily review (ask Jarvis any time)" val={s.dailyReviewEnabled} onChange={v => upd({ dailyReviewEnabled: v })} hint="On-demand today. Scheduled push arrives in Phase 5." />
+          <Toggle disabled label="Weekly review (coming Phase 5)" val={s.weeklyReviewEnabled} onChange={v => upd({ weeklyReviewEnabled: v })} />
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">

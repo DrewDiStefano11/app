@@ -96,6 +96,10 @@ function ReadinessTab() {
         </>
       )}
 
+      <SupplementsTodayCard />
+
+
+
       <p className="text-[11px] text-muted-foreground text-center mt-4">General fitness guidance. Not medical advice.</p>
 
       <CheckInSheet open={checkOpen} onClose={() => setCheckOpen(false)} />
@@ -336,5 +340,41 @@ function FatigueSheet({ open, onClose }: { open: boolean; onClose: () => void })
         ))}
       </div>
     </BottomSheet>
+  );
+}
+
+/* ===================== SUPPLEMENTS TODAY ===================== */
+
+function SupplementsTodayCard() {
+  const { state } = useStore();
+  const t = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); }, []);
+  const today = state.supplementLogs.filter(s => s.createdAt >= t);
+  const routine = state.userGoalsProfile.supplementRoutine ?? [];
+  if (today.length === 0 && routine.length === 0) return null;
+  const takenNames = today.map(s => s.name.toLowerCase());
+  const missing = routine.filter(r => !takenNames.some(tn => tn.includes(r.toLowerCase())));
+  return (
+    <>
+      <SectionHeader title="Supplements today" />
+      <Card className="space-y-2">
+        {today.length === 0 ? (
+          <p className="text-sm text-muted-foreground">None logged yet. Tell Jarvis "log creatine".</p>
+        ) : (
+          <ul className="text-sm space-y-1">
+            {today.map(s => (
+              <li key={s.id} className="flex justify-between">
+                <span>✓ {s.name}{s.dose ? ` (${s.dose})` : ""}</span>
+                <span className="text-xs text-muted-foreground">{new Date(s.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {missing.length > 0 && (
+          <p className="text-xs text-muted-foreground border-t border-border pt-2">
+            From routine — still missing: <span className="text-foreground">{missing.join(", ")}</span>
+          </p>
+        )}
+      </Card>
+    </>
   );
 }

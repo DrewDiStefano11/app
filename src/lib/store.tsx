@@ -36,6 +36,8 @@ function migrate(parsed: Partial<AppState>): AppState {
     jarvisAudit: parsed.jarvisAudit ?? [],
     jarvisLearning: parsed.jarvisLearning ?? {},
     userGoalsProfile: parsed.userGoalsProfile ?? {},
+    supplementLogs: parsed.supplementLogs ?? [],
+    dismissedSuggestions: parsed.dismissedSuggestions ?? [],
   };
 }
 
