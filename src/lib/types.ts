@@ -317,6 +317,8 @@ export interface AppState {
   jarvisAudit: JarvisAuditEntry[];
   jarvisLearning: JarvisLearning;
   userGoalsProfile: UserGoalsProfile;
+  supplementLogs: SupplementLog[];
+  dismissedSuggestions: string[];
 }
 
 export const defaultPersonalization: Personalization = {
