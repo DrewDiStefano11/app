@@ -151,9 +151,9 @@ function geminiHttpError(status: number, keySource?: KeySource): ProviderFailure
   if (status === 401) return fail("Gemini rejected the API key. Check the key and try again.", "invalid_key", status, keySource);
   if (status === 403) return fail("Gemini permission was denied for this key or model.", "permission_denied", status, keySource);
   if (status === 404) return fail("The selected Gemini model is unavailable. Switch to 2.5 Flash-Lite or 2.5 Flash in Jarvis AI Settings.", "model_unavailable", status, keySource);
-  if (status === 429) return fail("Gemini quota or rate limit was reached. Try again later or switch models.", "quota", status, keySource);
-  if (status === 503) return fail("Gemini is temporarily overloaded or unavailable. Try again or switch to 2.5 Flash-Lite.", "overloaded", status, keySource);
-  if (status >= 500) return fail("Gemini is temporarily unavailable. Try again or switch to 2.5 Flash-Lite.", "overloaded", status, keySource);
+  if (status === 429) return fail("Gemini rate limit reached. Wait a bit before trying again. This may also happen if the app sent multiple requests too quickly.", "quota", status, keySource);
+  if (status === 503) return fail("Gemini is temporarily overloaded or unavailable. Try again later or switch to Gemini 2.5 Flash-Lite.", "overloaded", status, keySource);
+  if (status >= 500) return fail("Gemini is temporarily unavailable. Try again later or switch to Gemini 2.5 Flash-Lite.", "overloaded", status, keySource);
   return fail(`Gemini request failed (${status}).`, "provider_error", status, keySource);
 }
 
@@ -169,14 +169,14 @@ async function wait(ms: number) {
 }
 
 async function postGemini(model: GeminiModel, key: string, keySource: KeySource, body: Record<string, unknown>, retry503 = true): Promise<Response | ProviderFailure> {
-  for (let attempt = 0; attempt < (retry503 ? 3 : 1); attempt += 1) {
+  for (let attempt = 0; attempt < (retry503 ? 2 : 1); attempt += 1) {
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify(body),
       });
-      if (res.status === 503 && attempt < 2 && retry503) {
+      if (res.status === 503 && attempt < 1 && retry503) {
         await wait(350 * (attempt + 1));
         continue;
       }
@@ -185,7 +185,7 @@ async function postGemini(model: GeminiModel, key: string, keySource: KeySource,
       return fail("Network failure while contacting Gemini. Check your connection and try again.", "network", undefined, keySource);
     }
   }
-  return fail("Gemini is temporarily overloaded or unavailable. Try again or switch to 2.5 Flash-Lite.", "overloaded", 503, keySource);
+  return fail("Gemini is temporarily overloaded or unavailable. Try again later or switch to Gemini 2.5 Flash-Lite.", "overloaded", 503, keySource);
 }
 
 async function callGeminiChat(data: ChatInput): Promise<NormalizedChatResponse | ProviderFailure> {
