@@ -1,7 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 
 type AiProvider = "gemini" | "legacy-lovable";
-type GeminiKeyMode = "environment" | "user";
+type GeminiKeyMode = "local" | "environment" | "user";
+type GeminiModel = "gemini-3.5-flash" | "gemini-3-flash" | "gemini-2.5-flash" | "gemini-2.5-flash-lite";
+type KeySource = "local" | "environment" | "none";
+type ErrorCode = "missing_key" | "invalid_key" | "permission_denied" | "quota" | "model_unavailable" | "overloaded" | "malformed_request" | "network" | "tool_parse" | "provider_error";
 
 interface ToolDescriptor {
   name: string;
@@ -9,39 +12,33 @@ interface ToolDescriptor {
   parameters: Record<string, unknown>;
 }
 
-interface ChatInput {
+interface ProviderOptions {
+  provider?: AiProvider;
+  geminiKeyMode?: GeminiKeyMode;
+  userGeminiApiKey?: string;
+  geminiModel?: GeminiModel;
+}
+
+interface ChatInput extends ProviderOptions {
   messages: { role: "user" | "assistant" | "system"; content: string }[];
   mode?: "quick" | "detailed";
   context?: string;
   tools?: ToolDescriptor[];
   systemOverride?: string;
-  provider?: AiProvider;
-  geminiKeyMode?: GeminiKeyMode;
-  userGeminiApiKey?: string;
 }
 
-interface ConnectionTestInput {
-  provider?: AiProvider;
-  geminiKeyMode?: GeminiKeyMode;
-  userGeminiApiKey?: string;
-}
+interface ConnectionTestInput extends ProviderOptions {}
 
-interface EstimateInput {
+interface EstimateInput extends ProviderOptions {
   imageDataUrl: string;
   hint?: string;
-  provider?: AiProvider;
-  geminiKeyMode?: GeminiKeyMode;
-  userGeminiApiKey?: string;
 }
 
-interface EstimateTextInput {
+interface EstimateTextInput extends ProviderOptions {
   text: string;
   mealType?: string;
   detail?: "simple" | "normal" | "detailed";
   learnedHints?: string;
-  provider?: AiProvider;
-  geminiKeyMode?: GeminiKeyMode;
-  userGeminiApiKey?: string;
 }
 
 interface NormalizedChatResponse {
@@ -50,7 +47,16 @@ interface NormalizedChatResponse {
   toolCalls: { id: string; name: string; argsJson: string }[];
 }
 
-const GEMINI_MODEL = "gemini-3.5-flash";
+interface ProviderFailure {
+  ok: false;
+  error: string;
+  code: ErrorCode;
+  status?: number;
+  keySource?: KeySource;
+}
+
+const DEFAULT_GEMINI_MODEL: GeminiModel = "gemini-3.5-flash";
+const SUPPORTED_GEMINI_MODELS: GeminiModel[] = ["gemini-3.5-flash", "gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
 const LOVABLE_MODEL = "google/gemini-3-flash-preview";
 
 function hasValue(v: unknown): v is string {
@@ -65,12 +71,30 @@ function safeProvider(input?: AiProvider): AiProvider {
   return input === "legacy-lovable" ? "legacy-lovable" : "gemini";
 }
 
-function resolveGeminiKey(input: { geminiKeyMode?: GeminiKeyMode; userGeminiApiKey?: string }) {
+function safeGeminiModel(model?: string): GeminiModel {
+  return SUPPORTED_GEMINI_MODELS.includes(model as GeminiModel) ? model as GeminiModel : DEFAULT_GEMINI_MODEL;
+}
+
+function normalizeKeyMode(mode?: GeminiKeyMode): "local" | "environment" {
+  return mode === "environment" ? "environment" : "local";
+}
+
+function fail(error: string, code: ErrorCode, status?: number, keySource?: KeySource): ProviderFailure {
+  return { ok: false as const, error, code, status, keySource };
+}
+
+function resolveGeminiKey(input: ProviderOptions) {
   const envKey = cleanKey(process.env.GEMINI_API_KEY) || cleanKey(process.env.GOOGLE_API_KEY);
-  const userKey = cleanKey(input.userGeminiApiKey);
-  if (input.geminiKeyMode === "user" && userKey) return { key: userKey, source: "user" as const };
-  if (envKey) return { key: envKey, source: "environment" as const };
-  if (userKey) return { key: userKey, source: "user" as const };
+  const localKey = cleanKey(input.userGeminiApiKey);
+  const mode = normalizeKeyMode(input.geminiKeyMode);
+
+  if (mode === "environment") {
+    if (envKey) return { key: envKey, source: "environment" as const };
+    if (localKey) return { key: localKey, source: "local" as const };
+  } else {
+    if (localKey) return { key: localKey, source: "local" as const };
+    if (envKey) return { key: envKey, source: "environment" as const };
+  }
   return { key: "", source: "none" as const };
 }
 
@@ -102,30 +126,71 @@ function toGeminiContents(messages: ChatInput["messages"]) {
     }));
 }
 
-function parseGeminiResponse(json: unknown): NormalizedChatResponse {
-  const root = json as { candidates?: { content?: { parts?: { text?: string; functionCall?: { id?: string; name?: string; args?: unknown } }[] } }[] };
-  const parts = root.candidates?.[0]?.content?.parts ?? [];
-  const content = parts.map(p => p.text ?? "").filter(Boolean).join("\n");
-  const toolCalls = parts.flatMap((part, index) => {
-    const fc = part.functionCall;
-    if (!fc?.name) return [];
-    return [{
-      id: fc.id || `gemini-call-${index}`,
-      name: fc.name,
-      argsJson: JSON.stringify(fc.args ?? {}),
-    }];
-  });
-  return { ok: true, content, toolCalls };
+function parseGeminiResponse(json: unknown): NormalizedChatResponse | ProviderFailure {
+  try {
+    const root = json as { candidates?: { content?: { parts?: { text?: string; functionCall?: { id?: string; name?: string; args?: unknown } }[] } }[] };
+    const parts = root.candidates?.[0]?.content?.parts ?? [];
+    const content = parts.map(p => p.text ?? "").filter(Boolean).join("\n");
+    const toolCalls = parts.flatMap((part, index) => {
+      const fc = part.functionCall;
+      if (!fc?.name) return [];
+      return [{
+        id: fc.id || `gemini-call-${index}`,
+        name: fc.name,
+        argsJson: JSON.stringify(fc.args ?? {}),
+      }];
+    });
+    return { ok: true, content, toolCalls };
+  } catch {
+    return fail("Gemini returned a tool call Jarvis could not read. Try again.", "tool_parse");
+  }
 }
 
-function sanitizeProviderError(provider: AiProvider, status?: number) {
-  const label = provider === "legacy-lovable" ? "Legacy AI" : "Gemini";
-  return status ? `${label} request failed (${status}). Check the provider key and try again.` : `${label} request failed. Check the provider key and try again.`;
+function geminiHttpError(status: number, keySource?: KeySource): ProviderFailure {
+  if (status === 400) return fail("Gemini rejected the request format. Try a shorter prompt or switch models.", "malformed_request", status, keySource);
+  if (status === 401) return fail("Gemini rejected the API key. Check the key and try again.", "invalid_key", status, keySource);
+  if (status === 403) return fail("Gemini permission was denied for this key or model.", "permission_denied", status, keySource);
+  if (status === 404) return fail("The selected Gemini model is unavailable. Switch models in Jarvis AI Settings.", "model_unavailable", status, keySource);
+  if (status === 429) return fail("Gemini quota or rate limit was reached. Try again later or switch models.", "quota", status, keySource);
+  if (status === 503) return fail("Gemini is temporarily overloaded or unavailable. Try again or switch models.", "overloaded", status, keySource);
+  if (status >= 500) return fail("Gemini is temporarily unavailable. Try again or switch models.", "overloaded", status, keySource);
+  return fail(`Gemini request failed (${status}).`, "provider_error", status, keySource);
 }
 
-async function callGeminiChat(data: ChatInput): Promise<NormalizedChatResponse | { ok: false; error: string }> {
-  const { key } = resolveGeminiKey(data);
-  if (!key) return { ok: false as const, error: "Gemini is not configured. Add GEMINI_API_KEY or GOOGLE_API_KEY, or save a personal Gemini key in Jarvis AI Settings." };
+function lovableHttpError(status: number): ProviderFailure {
+  if (status === 401 || status === 403) return fail("Legacy/Lovable rejected the API key.", "invalid_key", status);
+  if (status === 429) return fail("Legacy/Lovable quota or rate limit was reached.", "quota", status);
+  if (status >= 500) return fail("Legacy/Lovable is temporarily unavailable.", "overloaded", status);
+  return fail(`Legacy/Lovable request failed (${status}).`, "provider_error", status);
+}
+
+async function wait(ms: number) {
+  await new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function postGemini(model: GeminiModel, key: string, keySource: KeySource, body: Record<string, unknown>, retry503 = true): Promise<Response | ProviderFailure> {
+  for (let attempt = 0; attempt < (retry503 ? 3 : 1); attempt += 1) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify(body),
+      });
+      if (res.status === 503 && attempt < 2 && retry503) {
+        await wait(350 * (attempt + 1));
+        continue;
+      }
+      return res;
+    } catch {
+      return fail("Network failure while contacting Gemini. Check your connection and try again.", "network", undefined, keySource);
+    }
+  }
+  return fail("Gemini is temporarily overloaded or unavailable. Try again or switch models.", "overloaded", 503, keySource);
+}
+
+async function callGeminiChat(data: ChatInput): Promise<NormalizedChatResponse | ProviderFailure> {
+  const resolved = resolveGeminiKey(data);
+  if (!resolved.key) return fail("Jarvis needs a Gemini API key. Add one in Jarvis AI Settings.", "missing_key", undefined, "none");
 
   const body: Record<string, unknown> = {
     systemInstruction: { parts: [{ text: defaultSystem(data) }] },
@@ -135,18 +200,15 @@ async function callGeminiChat(data: ChatInput): Promise<NormalizedChatResponse |
     body.tools = [{ functionDeclarations: data.tools.map(t => ({ ...t, parameters: stripUnsupportedSchema(t.parameters) })) }];
   }
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) return { ok: false as const, error: sanitizeProviderError("gemini", res.status) };
+  const res = await postGemini(safeGeminiModel(data.geminiModel), resolved.key, resolved.source, body, true);
+  if (!(res instanceof Response)) return res;
+  if (!res.ok) return geminiHttpError(res.status, resolved.source);
   return parseGeminiResponse(await res.json());
 }
 
-async function callLovableChat(data: ChatInput): Promise<NormalizedChatResponse | { ok: false; error: string }> {
+async function callLovableChat(data: ChatInput): Promise<NormalizedChatResponse | ProviderFailure> {
   const key = cleanKey(process.env.LOVABLE_API_KEY);
-  if (!key) return { ok: false as const, error: "Legacy/Lovable AI is not configured." };
+  if (!key) return fail("Legacy/Lovable AI is not configured.", "missing_key");
 
   const body: Record<string, unknown> = {
     model: LOVABLE_MODEL,
@@ -156,12 +218,17 @@ async function callLovableChat(data: ChatInput): Promise<NormalizedChatResponse 
     body.tools = data.tools.map(t => ({ type: "function", function: t }));
     body.tool_choice = "auto";
   }
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) return { ok: false as const, error: sanitizeProviderError("legacy-lovable", res.status) };
+  let res: Response;
+  try {
+    res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    return fail("Network failure while contacting Legacy/Lovable.", "network");
+  }
+  if (!res.ok) return lovableHttpError(res.status);
   const json = await res.json() as { choices?: { message?: { content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[] };
   const msg = json.choices?.[0]?.message;
   return {
@@ -175,43 +242,45 @@ async function callChatProvider(data: ChatInput) {
   return safeProvider(data.provider) === "legacy-lovable" ? callLovableChat(data) : callGeminiChat(data);
 }
 
-async function geminiJson(system: string, user: unknown, input: { geminiKeyMode?: GeminiKeyMode; userGeminiApiKey?: string }) {
-  const { key } = resolveGeminiKey(input);
-  if (!key) return { ok: false as const, error: "Gemini is not configured." };
+async function geminiJson(system: string, user: unknown, input: ProviderOptions): Promise<{ ok: true; text: string } | ProviderFailure> {
+  const resolved = resolveGeminiKey(input);
+  if (!resolved.key) return fail("Jarvis needs a Gemini API key. Add one in Jarvis AI Settings.", "missing_key", undefined, "none");
   const parts = typeof user === "string" ? [{ text: user }] : user;
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: "user", parts }],
-      generationConfig: { responseMimeType: "application/json" },
-    }),
-  });
-  if (!res.ok) return { ok: false as const, error: sanitizeProviderError("gemini", res.status) };
+  const res = await postGemini(safeGeminiModel(input.geminiModel), resolved.key, resolved.source, {
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: "user", parts }],
+    generationConfig: { responseMimeType: "application/json" },
+  }, true);
+  if (!(res instanceof Response)) return res;
+  if (!res.ok) return geminiHttpError(res.status, resolved.source);
   const json = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
   return { ok: true as const, text: json.candidates?.[0]?.content?.parts?.map(p => p.text ?? "").join("\n") ?? "" };
 }
 
-async function lovableJson(system: string, user: unknown) {
+async function lovableJson(system: string, user: unknown): Promise<{ ok: true; text: string } | ProviderFailure> {
   const key = cleanKey(process.env.LOVABLE_API_KEY);
-  if (!key) return { ok: false as const, error: "Legacy/Lovable AI is not configured." };
+  if (!key) return fail("Legacy/Lovable AI is not configured.", "missing_key");
   const content = Array.isArray(user) ? user : String(user);
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
-    body: JSON.stringify({
-      model: LOVABLE_MODEL,
-      messages: [{ role: "system", content: system }, { role: "user", content }],
-      response_format: { type: "json_object" },
-    }),
-  });
-  if (!res.ok) return { ok: false as const, error: sanitizeProviderError("legacy-lovable", res.status) };
+  let res: Response;
+  try {
+    res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Lovable-API-Key": key },
+      body: JSON.stringify({
+        model: LOVABLE_MODEL,
+        messages: [{ role: "system", content: system }, { role: "user", content }],
+        response_format: { type: "json_object" },
+      }),
+    });
+  } catch {
+    return fail("Network failure while contacting Legacy/Lovable.", "network");
+  }
+  if (!res.ok) return lovableHttpError(res.status);
   const json = await res.json() as { choices?: { message?: { content?: string } }[] };
   return { ok: true as const, text: json.choices?.[0]?.message?.content ?? "" };
 }
 
-async function callJsonProvider(provider: AiProvider | undefined, system: string, user: unknown, input: { geminiKeyMode?: GeminiKeyMode; userGeminiApiKey?: string }) {
+async function callJsonProvider(provider: AiProvider | undefined, system: string, user: unknown, input: ProviderOptions) {
   return safeProvider(provider) === "legacy-lovable" ? lovableJson(system, user) : geminiJson(system, user, input);
 }
 
@@ -225,7 +294,7 @@ export const aiChat = createServerFn({ method: "POST" })
     try {
       return await callChatProvider(data);
     } catch {
-      return { ok: false as const, error: sanitizeProviderError(safeProvider(data.provider)) };
+      return fail(safeProvider(data.provider) === "gemini" ? "Gemini request failed. Try again." : "Legacy AI request failed. Try again.", "provider_error");
     }
   });
 
@@ -236,16 +305,23 @@ export const testAiConnection = createServerFn({ method: "POST" })
       const provider = safeProvider(data.provider);
       if (provider === "legacy-lovable") {
         const key = cleanKey(process.env.LOVABLE_API_KEY);
-        if (!key) return { ok: false as const, status: "not_configured" as const, provider, error: "Legacy provider is not configured." };
-        const result = await callLovableChat({ provider, messages: [{ role: "user", content: "Reply with OK only." }], mode: "quick" });
-        return result.ok ? { ok: true as const, status: "connected" as const, provider } : { ok: false as const, status: "failed" as const, provider, error: result.error };
+        if (!key) return { ok: false as const, status: "not_configured" as const, provider, error: "Legacy provider is not configured.", code: "missing_key" as const };
+        const result = await callLovableChat({ provider, messages: [{ role: "user", content: "Say connected." }], mode: "quick" });
+        return result.ok ? { ok: true as const, status: "connected" as const, provider } : { ok: false as const, status: result.code === "missing_key" ? "not_configured" as const : "failed" as const, provider, error: result.error, code: result.code };
       }
       const resolved = resolveGeminiKey(data);
-      if (!resolved.key) return { ok: false as const, status: "not_configured" as const, provider, keySource: "none" as const, error: "Gemini key not configured." };
-      const result = await callGeminiChat({ provider, geminiKeyMode: data.geminiKeyMode, userGeminiApiKey: data.userGeminiApiKey, messages: [{ role: "user", content: "Reply with OK only." }], mode: "quick" });
-      return result.ok ? { ok: true as const, status: "connected" as const, provider, keySource: resolved.source } : { ok: false as const, status: "failed" as const, provider, keySource: resolved.source, error: result.error };
+      if (!resolved.key) return { ok: false as const, status: "not_configured" as const, provider, keySource: "none" as const, error: "Jarvis needs a Gemini API key. Add one in Jarvis AI Settings.", code: "missing_key" as const };
+      const res = await postGemini(safeGeminiModel(data.geminiModel), resolved.key, resolved.source, {
+        contents: [{ role: "user", parts: [{ text: "Say connected." }] }],
+      }, true);
+      if (!(res instanceof Response)) return { ...res, status: res.code === "missing_key" ? "not_configured" as const : "failed" as const, provider, keySource: resolved.source };
+      if (!res.ok) {
+        const err = geminiHttpError(res.status, resolved.source);
+        return { ...err, status: err.code === "missing_key" ? "not_configured" as const : "failed" as const, provider, keySource: resolved.source };
+      }
+      return { ok: true as const, status: "connected" as const, provider, keySource: resolved.source, model: safeGeminiModel(data.geminiModel) };
     } catch {
-      return { ok: false as const, status: "failed" as const, provider: safeProvider(data.provider), error: "Connection test failed." };
+      return { ok: false as const, status: "failed" as const, provider: safeProvider(data.provider), error: "Connection test failed.", code: "network" as const };
     }
   });
 
@@ -253,7 +329,7 @@ export const testAiConnection = createServerFn({ method: "POST" })
 export const estimateFoodFromText = createServerFn({ method: "POST" })
   .validator((data: EstimateTextInput) => data)
   .handler(async ({ data }) => {
-    if (!data.text?.trim()) return { ok: false as const, error: "No food text provided." };
+    if (!data.text?.trim()) return { ok: false as const, error: "No food text provided.", code: "malformed_request" as const };
     const detail = data.detail ?? "normal";
     const system = `You are a nutrition estimation assistant. Estimate calories and macros from a natural-language meal description.
 Respond ONLY with a compact JSON object (no prose, no markdown, no code fences) with this exact shape:
@@ -291,7 +367,7 @@ ${data.learnedHints ? `\nUser's known portions/preferences:\n${data.learnedHints
         assumptions: Array.isArray(p.assumptions) ? (p.assumptions as unknown[]).map(String) : [],
       } };
     } catch {
-      return { ok: false as const, error: "Couldn't parse AI estimate." };
+      return { ok: false as const, error: "Couldn't parse AI estimate.", code: "tool_parse" as const };
     }
   });
 
@@ -299,7 +375,7 @@ export const estimateMealMacros = createServerFn({ method: "POST" })
   .validator((data: EstimateInput) => data)
   .handler(async ({ data }) => {
     if (!data.imageDataUrl?.startsWith("data:image/")) {
-      return { ok: false as const, error: "Invalid image. Please retake the photo." };
+      return { ok: false as const, error: "Invalid image. Please retake the photo.", code: "malformed_request" as const };
     }
     const system = `You are a nutrition vision assistant. Look at the food photo and return a JSON estimate.
 Respond ONLY with a compact JSON object - no prose, no markdown, no code fences - with keys:
@@ -323,6 +399,6 @@ Numbers are grams and kcal for the full plate visible. Be conservative if portio
         notes: parsed.notes ?? "",
       } };
     } catch {
-      return { ok: false as const, error: "Couldn't parse AI estimate. Try a clearer photo." };
+      return { ok: false as const, error: "Couldn't parse AI estimate. Try a clearer photo.", code: "tool_parse" as const };
     }
   });
