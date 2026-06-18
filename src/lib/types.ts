@@ -49,13 +49,40 @@ export interface CardioEntry {
   speed?: number; incline?: number; notes?: string; createdAt: number;
 }
 
+export interface MealItem {
+  name: string;
+  qty?: string;
+  calories: number; protein: number; carbs: number; fat: number;
+  source?: DataSource;
+  confidence?: Confidence;
+}
+
 export interface MealEntry {
   id: string;
   name: string;
   type: string;
   calories: number; protein: number; carbs: number; fat: number;
+  fiber?: number;
   notes?: string;
   createdAt: number;
+  /* --- Jarvis Phase 2 fields (optional, backward-compatible) --- */
+  items?: MealItem[];
+  source?: DataSource;
+  confidence?: Confidence;
+  originalText?: string;
+  assumptions?: string[];
+  confirmed?: boolean;
+  auditId?: string;
+}
+
+export interface SupplementLog {
+  id: string;
+  name: string;
+  dose?: string;
+  notes?: string;
+  createdAt: number;
+  source?: DataSource;
+  auditId?: string;
 }
 
 export interface BodyweightEntry { id: string; weightLb: number; notes?: string; createdAt: number; }
