@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { defaultState, defaultPersonalization, type AppState, type Personalization } from "./types";
+import { defaultState, defaultPersonalization, defaultJarvisSettings, type AppState, type Personalization } from "./types";
 import { buildDemoState } from "./demo-data";
 
 const KEY = "fitcore.v1";
@@ -32,6 +32,10 @@ function migrate(parsed: Partial<AppState>): AppState {
     nutritionTargets: { ...defaultState.nutritionTargets, ...(parsed.nutritionTargets ?? {}) },
     personalization,
     reminders: { ...defaultState.reminders, ...(parsed.reminders ?? {}) },
+    jarvisSettings: { ...defaultJarvisSettings, ...(parsed.jarvisSettings ?? {}) },
+    jarvisAudit: parsed.jarvisAudit ?? [],
+    jarvisLearning: parsed.jarvisLearning ?? {},
+    userGoalsProfile: parsed.userGoalsProfile ?? {},
   };
 }
 
