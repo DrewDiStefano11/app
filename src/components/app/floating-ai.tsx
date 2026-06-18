@@ -52,7 +52,7 @@ export function FloatingAi({ section, contextSummary }: { section: string; conte
 
     try {
       const recent = [...state.aiMessages.slice(-8), userMsg].map(m => ({ role: m.role, content: m.content }));
-      const res = await chatFn({ data: { messages: recent, mode, context: contextSummary } });
+      const res = await chatFn({ data: { messages: recent, mode, context: contextSummary } }) as { ok: true; content: string } | { ok: false; error: string };
       const reply = res.ok
         ? res.content
         : (LOCAL_FALLBACKS[content.toLowerCase()] ?? `${LOCAL_FALLBACKS.default}\n\n(${res.error})`);
