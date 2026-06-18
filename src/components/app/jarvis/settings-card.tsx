@@ -60,7 +60,7 @@ export function JarvisSettingsCard() {
 
         <div className="space-y-1 border-t border-border pt-3">
           <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Auto-log</p>
-          <Toggle label="Auto-log clear supplements" val={s.autoLogSupplements} onChange={v => upd({ autoLogSupplements: v })} hint="\"Log creatine\" saves immediately." />
+          <Toggle label="Auto-log clear supplements" val={s.autoLogSupplements} onChange={v => upd({ autoLogSupplements: v })} hint='"Log creatine" saves immediately.' />
           <Toggle label="Auto-log exact bodyweight" val={s.autoLogBodyweight} onChange={v => upd({ autoLogBodyweight: v })} />
           <Toggle label="Auto-log high-confidence meal estimates" val={s.autoLogMealEstimates} onChange={v => upd({ autoLogMealEstimates: v })} hint="Only when Jarvis is confident; vague meals still ask." />
         </div>
