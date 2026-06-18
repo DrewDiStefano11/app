@@ -60,6 +60,37 @@ export const TOOL_SPECS: ToolSpec[] = [
   { name: "saveJarvisLearning", description: "Save a learned preference (e.g. usualRicePortion=2 cups).",
     parameters: { type: "object", properties: { key: { type: "string" }, value: {} }, required: ["key", "value"] } },
   { name: "getJarvisLearnedPreferences", description: "Get all learned preferences.", parameters: { type: "object", properties: {} } },
+  /* ---------- Phase 2: nutrition / supplements / review ---------- */
+  { name: "logMeal", description: "Log a meal with totals (and optional items). Use after estimateFoodFromText OR when user provides exact macros. Always shows confirm card unless settings.autoLogMealEstimates is on AND confidence is high.",
+    parameters: { type: "object", properties: {
+      name: { type: "string" }, mealType: { type: "string" },
+      calories: { type: "number" }, protein: { type: "number" }, carbs: { type: "number" }, fat: { type: "number" }, fiber: { type: "number" },
+      items: { type: "array", items: { type: "object" } },
+      confidence: { type: "string", enum: ["high", "medium", "low"] },
+      assumptions: { type: "array", items: { type: "string" } },
+      originalText: { type: "string" },
+      source: { type: "string" },
+    }, required: ["name", "mealType", "calories", "protein", "carbs", "fat"] } },
+  { name: "updateMeal", description: "Update one of the user's recent meals by id.",
+    parameters: { type: "object", properties: { id: { type: "string" }, patch: { type: "object" } }, required: ["id", "patch"] } },
+  { name: "deleteMeal", description: "Delete a meal by id. Always requires confirmation.",
+    parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
+  { name: "getMealHistory", description: "Recent meals (default last 14 days, max 30).",
+    parameters: { type: "object", properties: { days: { type: "number" } } } },
+  { name: "getUsualMeals", description: "Get the user's saved usual meals (breakfast/lunch/dinner/snack/protein shake/pre/post-workout).", parameters: { type: "object", properties: {} } },
+  { name: "saveUsualMeal", description: "Save or update a usual meal slot with macros. slot: breakfast|lunch|dinner|snack|proteinShake|preWorkout|postWorkout.",
+    parameters: { type: "object", properties: {
+      slot: { type: "string", enum: ["breakfast","lunch","dinner","snack","proteinShake","preWorkout","postWorkout"] },
+      name: { type: "string" }, calories: { type: "number" }, protein: { type: "number" }, carbs: { type: "number" }, fat: { type: "number" },
+    }, required: ["slot", "name"] } },
+  { name: "logUsualMeal", description: "Log one of the user's saved usual meals (uses saved macros if available, else the profile name).",
+    parameters: { type: "object", properties: { slot: { type: "string", enum: ["breakfast","lunch","dinner","snack","proteinShake","preWorkout","postWorkout"] } }, required: ["slot"] } },
+  { name: "getSupplementStatus", description: "What supplements were taken today vs the user's routine.", parameters: { type: "object", properties: {} } },
+  { name: "getMissedHabits", description: "Habits the user normally tracks but missed today (creatine, protein target, weigh-in, etc).", parameters: { type: "object", properties: {} } },
+  { name: "getDailyReviewSummary", description: "A full daily review: calories/protein/macros, meals, supplements, check-in, suggestions.", parameters: { type: "object", properties: {} } },
+  { name: "updateDailyCheckIn", description: "Update / patch today's most recent check-in (use to add pain, sickness, sleep quality, appetite, etc).",
+    parameters: { type: "object", properties: { patch: { type: "object" } }, required: ["patch"] } },
+  { name: "suggestNutritionAction", description: "Get a single concrete nutrition suggestion for right now based on goals + today's intake.", parameters: { type: "object", properties: {} } },
 ];
 
 /* --------------------------- Handlers --------------------------- */
