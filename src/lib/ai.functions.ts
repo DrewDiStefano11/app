@@ -1,10 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 
-type AiProvider = "gemini" | "legacy-lovable";
-type GeminiKeyMode = "local" | "environment" | "user";
+type AiProvider = "groq" | "gemini" | "legacy-lovable";
+type AiKeyMode = "local" | "environment" | "user";
+type GeminiKeyMode = AiKeyMode;
+type GroqKeyMode = AiKeyMode;
 type GeminiModel = "gemini-2.5-flash-lite" | "gemini-2.5-flash";
+type GroqModel = "llama-3.1-8b-instant" | "llama-3.3-70b-versatile" | "qwen/qwen3-32b";
 type KeySource = "local" | "environment" | "none";
-type ErrorCode = "missing_key" | "invalid_key" | "permission_denied" | "quota" | "model_unavailable" | "overloaded" | "malformed_request" | "network" | "tool_parse" | "provider_error";
+type ErrorCode = "missing_key" | "invalid_key" | "permission_denied" | "quota" | "model_unavailable" | "overloaded" | "malformed_request" | "network" | "tool_parse" | "provider_error" | "context_length";
 
 interface ToolDescriptor {
   name: string;
@@ -17,6 +20,12 @@ interface ProviderOptions {
   geminiKeyMode?: GeminiKeyMode;
   userGeminiApiKey?: string;
   geminiModel?: GeminiModel;
+  groqKeyMode?: GroqKeyMode;
+  userGroqApiKey?: string;
+  groqModel?: GroqModel;
+  autoModelRouting?: boolean;
+  autoAiFallback?: boolean;
+  allowGeminiFallback?: boolean;
 }
 
 interface ChatInput extends ProviderOptions {
@@ -41,10 +50,30 @@ interface EstimateTextInput extends ProviderOptions {
   learnedHints?: string;
 }
 
+interface AiCallDiagnostics {
+  provider: AiProvider;
+  selectedModel?: string;
+  actualModel?: string;
+  routed: boolean;
+  fallback: boolean;
+  fallbackReason?: string;
+  callType: "jarvisChat" | "testConnection" | "foodEstimate" | "photoEstimate";
+  status?: number;
+  errorCategory?: ErrorCode;
+  retryCount: number;
+  fallbackCount: number;
+  inputSize: number;
+  toolsSent: number;
+  messagesSent: number;
+  timestamp: number;
+}
+
 interface NormalizedChatResponse {
   ok: true;
   content: string;
   toolCalls: { id: string; name: string; argsJson: string }[];
+  notice?: string;
+  diagnostics?: AiCallDiagnostics;
 }
 
 interface ProviderFailure {
@@ -53,11 +82,18 @@ interface ProviderFailure {
   code: ErrorCode;
   status?: number;
   keySource?: KeySource;
+  retryAfterMs?: number;
+  diagnostics?: AiCallDiagnostics;
 }
 
 const DEFAULT_GEMINI_MODEL: GeminiModel = "gemini-2.5-flash-lite";
 const SUPPORTED_GEMINI_MODELS: GeminiModel[] = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
+const DEFAULT_GROQ_MODEL: GroqModel = "llama-3.1-8b-instant";
+const SUPPORTED_GROQ_MODELS: GroqModel[] = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen/qwen3-32b"];
+const STRONG_GROQ_MODEL: GroqModel = "llama-3.3-70b-versatile";
+const FALLBACK_GROQ_MODEL: GroqModel = "qwen/qwen3-32b";
 const LOVABLE_MODEL = "google/gemini-3-flash-preview";
+const modelCooldowns = new Map<string, { until: number; reason: string }>();
 
 function hasValue(v: unknown): v is string {
   return typeof v === "string" && v.trim().length > 0;
@@ -68,25 +104,45 @@ function cleanKey(v: unknown) {
 }
 
 function safeProvider(input?: AiProvider): AiProvider {
-  return input === "legacy-lovable" ? "legacy-lovable" : "gemini";
+  if (input === "gemini" || input === "legacy-lovable") return input;
+  return "groq";
 }
 
 function safeGeminiModel(model?: string): GeminiModel {
   return SUPPORTED_GEMINI_MODELS.includes(model as GeminiModel) ? model as GeminiModel : DEFAULT_GEMINI_MODEL;
 }
 
-function normalizeKeyMode(mode?: GeminiKeyMode): "local" | "environment" {
+function safeGroqModel(model?: string): GroqModel {
+  return SUPPORTED_GROQ_MODELS.includes(model as GroqModel) ? model as GroqModel : DEFAULT_GROQ_MODEL;
+}
+
+function normalizeKeyMode(mode?: AiKeyMode): "local" | "environment" {
   return mode === "environment" ? "environment" : "local";
 }
 
-function fail(error: string, code: ErrorCode, status?: number, keySource?: KeySource): ProviderFailure {
-  return { ok: false as const, error, code, status, keySource };
+function fail(error: string, code: ErrorCode, status?: number, keySource?: KeySource, retryAfterMs?: number): ProviderFailure {
+  return { ok: false as const, error, code, status, keySource, retryAfterMs };
 }
 
 function resolveGeminiKey(input: ProviderOptions) {
   const envKey = cleanKey(process.env.GEMINI_API_KEY) || cleanKey(process.env.GOOGLE_API_KEY);
   const localKey = cleanKey(input.userGeminiApiKey);
   const mode = normalizeKeyMode(input.geminiKeyMode);
+
+  if (mode === "environment") {
+    if (envKey) return { key: envKey, source: "environment" as const };
+    if (localKey) return { key: localKey, source: "local" as const };
+  } else {
+    if (localKey) return { key: localKey, source: "local" as const };
+    if (envKey) return { key: envKey, source: "environment" as const };
+  }
+  return { key: "", source: "none" as const };
+}
+
+function resolveGroqKey(input: ProviderOptions) {
+  const envKey = cleanKey(process.env.GROQ_API_KEY);
+  const localKey = cleanKey(input.userGroqApiKey);
+  const mode = normalizeKeyMode(input.groqKeyMode);
 
   if (mode === "environment") {
     if (envKey) return { key: envKey, source: "environment" as const };
@@ -126,6 +182,31 @@ function toGeminiContents(messages: ChatInput["messages"]) {
     }));
 }
 
+function toOpenAiMessages(data: ChatInput) {
+  return [
+    { role: "system" as const, content: defaultSystem(data) },
+    ...data.messages.filter(m => m.content.trim()).map(m => ({ role: m.role, content: m.content })),
+  ];
+}
+
+function diagnostics(data: ChatInput, provider: AiProvider, selectedModel: string | undefined, actualModel: string | undefined, extra: Partial<AiCallDiagnostics> = {}): AiCallDiagnostics {
+  return {
+    provider,
+    selectedModel,
+    actualModel,
+    routed: false,
+    fallback: false,
+    callType: "jarvisChat",
+    retryCount: 0,
+    fallbackCount: 0,
+    inputSize: data.messages.reduce((n, m) => n + m.content.length, 0) + (data.systemOverride?.length ?? 0),
+    toolsSent: data.tools?.length ?? 0,
+    messagesSent: data.messages.length,
+    timestamp: Date.now(),
+    ...extra,
+  };
+}
+
 function parseGeminiResponse(json: unknown): NormalizedChatResponse | ProviderFailure {
   try {
     const root = json as { candidates?: { content?: { parts?: { text?: string; functionCall?: { id?: string; name?: string; args?: unknown } }[] } }[] };
@@ -146,15 +227,59 @@ function parseGeminiResponse(json: unknown): NormalizedChatResponse | ProviderFa
   }
 }
 
+function parseGroqResponse(json: unknown): NormalizedChatResponse | ProviderFailure {
+  try {
+    const root = json as { choices?: { message?: { content?: string | null; tool_calls?: { id?: string; function?: { name?: string; arguments?: string | Record<string, unknown> } }[] } }[] };
+    const msg = root.choices?.[0]?.message;
+    return {
+      ok: true as const,
+      content: msg?.content ?? "",
+      toolCalls: (msg?.tool_calls ?? []).flatMap((tc, index) => {
+        const name = tc.function?.name;
+        if (!name) return [];
+        const rawArgs = tc.function?.arguments ?? "{}";
+        return [{
+          id: tc.id || `groq-call-${index}`,
+          name,
+          argsJson: typeof rawArgs === "string" ? rawArgs : JSON.stringify(rawArgs),
+        }];
+      }),
+    };
+  } catch {
+    return fail("Groq returned a tool call Jarvis could not read.", "tool_parse");
+  }
+}
+
+function retryAfterMs(res: Response) {
+  const raw = res.headers.get("retry-after") || res.headers.get("x-ratelimit-reset-after");
+  if (!raw) return undefined;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds)) return Math.max(1000, seconds * 1000);
+  const date = Date.parse(raw);
+  return Number.isFinite(date) ? Math.max(1000, date - Date.now()) : undefined;
+}
+
 function geminiHttpError(status: number, keySource?: KeySource): ProviderFailure {
   if (status === 400) return fail("Gemini rejected the request format. Try a shorter prompt or switch to 2.5 Flash-Lite.", "malformed_request", status, keySource);
   if (status === 401) return fail("Gemini rejected the API key. Check the key and try again.", "invalid_key", status, keySource);
   if (status === 403) return fail("Gemini permission was denied for this key or model.", "permission_denied", status, keySource);
   if (status === 404) return fail("The selected Gemini model is unavailable. Switch to 2.5 Flash-Lite or 2.5 Flash in Jarvis AI Settings.", "model_unavailable", status, keySource);
-  if (status === 429) return fail("Gemini rate limit reached. Wait a bit before trying again. This may also happen if the app sent multiple requests too quickly.", "quota", status, keySource);
+  if (status === 429) return fail("Gemini quota reached for this model. Switch to Groq or try again later.", "quota", status, keySource);
   if (status === 503) return fail("Gemini is temporarily overloaded or unavailable. Try again later or switch to Gemini 2.5 Flash-Lite.", "overloaded", status, keySource);
   if (status >= 500) return fail("Gemini is temporarily unavailable. Try again later or switch to Gemini 2.5 Flash-Lite.", "overloaded", status, keySource);
   return fail(`Gemini request failed (${status}).`, "provider_error", status, keySource);
+}
+
+function groqHttpError(status: number, model: GroqModel, keySource?: KeySource, retryAfter?: number): ProviderFailure {
+  if (status === 400) return fail(`Request was too large or malformed for ${model}. Try shortening the request.`, "malformed_request", status, keySource, retryAfter);
+  if (status === 401) return fail("Groq rejected the API key. Check the key and try again.", "invalid_key", status, keySource, retryAfter);
+  if (status === 403) return fail("Groq permission was denied for this key or model.", "permission_denied", status, keySource, retryAfter);
+  if (status === 404) return fail(`Groq model unavailable: ${model}.`, "model_unavailable", status, keySource, retryAfter);
+  if (status === 413) return fail(`Request was too large for ${model}.`, "context_length", status, keySource, retryAfter);
+  if (status === 429) return fail(`Groq rate limit reached for ${model}.`, "quota", status, keySource, retryAfter);
+  if (status === 503) return fail(`Groq model unavailable: ${model}.`, "overloaded", status, keySource, retryAfter);
+  if (status >= 500) return fail("Groq is temporarily unavailable. Try again later.", "overloaded", status, keySource, retryAfter);
+  return fail(`Groq request failed (${status}).`, "provider_error", status, keySource, retryAfter);
 }
 
 function lovableHttpError(status: number): ProviderFailure {
@@ -162,6 +287,26 @@ function lovableHttpError(status: number): ProviderFailure {
   if (status === 429) return fail("Legacy/Lovable quota or rate limit was reached.", "quota", status);
   if (status >= 500) return fail("Legacy/Lovable is temporarily unavailable.", "overloaded", status);
   return fail(`Legacy/Lovable request failed (${status}).`, "provider_error", status);
+}
+
+function shouldFallback(code: ErrorCode) {
+  return ["quota", "context_length", "model_unavailable", "overloaded", "network", "tool_parse", "malformed_request"].includes(code);
+}
+
+function rememberCooldown(provider: AiProvider, model: string, failure: ProviderFailure) {
+  if (!["quota", "context_length", "model_unavailable", "overloaded"].includes(failure.code)) return;
+  const fallbackMs = failure.code === "quota" ? 10 * 60 * 1000 : failure.code === "context_length" ? 3 * 60 * 1000 : 90 * 1000;
+  modelCooldowns.set(`${provider}:${model}`, { until: Date.now() + (failure.retryAfterMs ?? fallbackMs), reason: failure.code });
+}
+
+function isCooling(provider: AiProvider, model: string) {
+  const c = modelCooldowns.get(`${provider}:${model}`);
+  if (!c) return false;
+  if (c.until <= Date.now()) {
+    modelCooldowns.delete(`${provider}:${model}`);
+    return false;
+  }
+  return true;
 }
 
 async function wait(ms: number) {
@@ -188,6 +333,52 @@ async function postGemini(model: GeminiModel, key: string, keySource: KeySource,
   return fail("Gemini is temporarily overloaded or unavailable. Try again later or switch to Gemini 2.5 Flash-Lite.", "overloaded", 503, keySource);
 }
 
+async function postGroq(model: GroqModel, key: string, keySource: KeySource, body: Record<string, unknown>, retry503 = true): Promise<Response | ProviderFailure> {
+  for (let attempt = 0; attempt < (retry503 ? 2 : 1); attempt += 1) {
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ ...body, model }),
+      });
+      if (res.status === 503 && attempt < 1 && retry503) {
+        await wait(350 * (attempt + 1));
+        continue;
+      }
+      return res;
+    } catch {
+      return fail("Network failure while contacting Groq. Check your connection and try again.", "network", undefined, keySource);
+    }
+  }
+  return fail(`Groq model unavailable: ${model}.`, "overloaded", 503, keySource);
+}
+
+function isComplexJarvisTask(data: ChatInput) {
+  const text = data.messages[data.messages.length - 1]?.content.toLowerCase() ?? "";
+  return /should i|what should|hurt|pain|sore|soreness|fatigue|tired|swap|replace|shorten|20 minutes|progress|progression|heavier|lighter|next|same workout|started at|finished at|sets? of|\d+x\d+|bench|squat|deadlift|incline|workout|meal|lunch|dinner|breakfast|granola|peanut|rice|chicken|estimate|calories|macros/.test(text) && !/^\s*(log creatine|log \d+(\.\d+)?\s*lb|log \d+ minutes? treadmill|log \d+ minutes? cardio)\s*$/i.test(text);
+}
+
+function uniqueModels(models: GroqModel[]) {
+  return models.filter((m, i) => models.indexOf(m) === i);
+}
+
+function groqAttemptOrder(data: ChatInput) {
+  const selected = safeGroqModel(data.groqModel);
+  const routed = data.autoModelRouting !== false;
+  if (!routed) return uniqueModels([selected, FALLBACK_GROQ_MODEL, selected === STRONG_GROQ_MODEL ? DEFAULT_GROQ_MODEL : STRONG_GROQ_MODEL]);
+  if (isComplexJarvisTask(data)) return uniqueModels([STRONG_GROQ_MODEL, FALLBACK_GROQ_MODEL, DEFAULT_GROQ_MODEL]);
+  return uniqueModels([DEFAULT_GROQ_MODEL, FALLBACK_GROQ_MODEL, STRONG_GROQ_MODEL]);
+}
+
+function modelLabel(model: string) {
+  if (model === "llama-3.1-8b-instant") return "Groq Llama 3.1 8B";
+  if (model === "llama-3.3-70b-versatile") return "Groq Llama 3.3 70B";
+  if (model === "qwen/qwen3-32b") return "Groq Qwen 3 32B";
+  if (model === "gemini-2.5-flash-lite") return "Gemini 2.5 Flash-Lite";
+  if (model === "gemini-2.5-flash") return "Gemini 2.5 Flash";
+  return model;
+}
+
 async function callGeminiChat(data: ChatInput): Promise<NormalizedChatResponse | ProviderFailure> {
   const resolved = resolveGeminiKey(data);
   if (!resolved.key) return fail("Jarvis needs a Gemini API key. Add one in Jarvis AI Settings.", "missing_key", undefined, "none");
@@ -200,10 +391,111 @@ async function callGeminiChat(data: ChatInput): Promise<NormalizedChatResponse |
     body.tools = [{ functionDeclarations: data.tools.map(t => ({ ...t, parameters: stripUnsupportedSchema(t.parameters) })) }];
   }
 
-  const res = await postGemini(safeGeminiModel(data.geminiModel), resolved.key, resolved.source, body, true);
+  const model = safeGeminiModel(data.geminiModel);
+  const res = await postGemini(model, resolved.key, resolved.source, body, true);
   if (!(res instanceof Response)) return res;
   if (!res.ok) return geminiHttpError(res.status, resolved.source);
-  return parseGeminiResponse(await res.json());
+  const parsed = parseGeminiResponse(await res.json());
+  return parsed.ok ? { ...parsed, diagnostics: diagnostics(data, "gemini", model, model, { status: 200 }) } : parsed;
+}
+
+async function callGroqModel(data: ChatInput, model: GroqModel): Promise<NormalizedChatResponse | ProviderFailure> {
+  const resolved = resolveGroqKey(data);
+  if (!resolved.key) return fail("Jarvis needs a Groq API key. Add one in Jarvis AI Settings.", "missing_key", undefined, "none");
+  const body: Record<string, unknown> = {
+    messages: toOpenAiMessages(data),
+    temperature: 0.2,
+  };
+  if (data.tools?.length) {
+    body.tools = data.tools.map(t => ({ type: "function", function: { ...t, parameters: stripUnsupportedSchema(t.parameters) } }));
+    body.tool_choice = "auto";
+  }
+  const res = await postGroq(model, resolved.key, resolved.source, body, true);
+  if (!(res instanceof Response)) return res;
+  if (!res.ok) return groqHttpError(res.status, model, resolved.source, retryAfterMs(res));
+  return parseGroqResponse(await res.json());
+}
+
+async function callGroqChat(data: ChatInput): Promise<NormalizedChatResponse | ProviderFailure> {
+  const models = groqAttemptOrder(data);
+  const routed = data.autoModelRouting !== false;
+  const selected = safeGroqModel(data.groqModel);
+  const allowFallback = data.autoAiFallback !== false;
+  const maxGroqAttempts = allowFallback ? 3 : 1;
+  const attempted: { model: GroqModel; failure: ProviderFailure }[] = [];
+  let fallbackCount = 0;
+
+  for (const model of models) {
+    if (attempted.length >= maxGroqAttempts) break;
+    if (isCooling("groq", model) && allowFallback) continue;
+    const result = await callGroqModel(data, model);
+    if (result.ok) {
+      const first = attempted[0];
+      const fallback = attempted.length > 0 || (routed && model !== selected);
+      const notice = first
+        ? `${modelLabel(first.model)} hit ${first.failure.code.replace("_", " ")}, so Jarvis switched to ${modelLabel(model)}.`
+        : routed && model !== selected
+          ? `Using ${modelLabel(model)} for ${model === STRONG_GROQ_MODEL ? "stronger reasoning" : "this quick log"}.`
+          : `Using ${modelLabel(model)}.`;
+      return {
+        ...result,
+        notice,
+        diagnostics: diagnostics(data, "groq", selected, model, {
+          routed,
+          fallback,
+          fallbackReason: first?.failure.code,
+          fallbackCount,
+          retryCount: fallbackCount,
+          status: 200,
+        }),
+      };
+    }
+    attempted.push({ model, failure: result });
+    rememberCooldown("groq", model, result);
+    if (!allowFallback || !shouldFallback(result.code)) break;
+    fallbackCount += 1;
+  }
+
+  if (data.allowGeminiFallback) {
+    const gemini = await callGeminiChat(data);
+    if (gemini.ok) {
+      return {
+        ...gemini,
+        notice: "All attempted Groq models failed, so Jarvis switched to Gemini backup.",
+        diagnostics: diagnostics(data, "gemini", safeGroqModel(data.groqModel), gemini.diagnostics?.actualModel ?? safeGeminiModel(data.geminiModel), {
+          routed,
+          fallback: true,
+          fallbackReason: attempted[0]?.failure.code,
+          fallbackCount: fallbackCount + 1,
+          retryCount: fallbackCount + 1,
+          status: 200,
+        }),
+      };
+    }
+  }
+
+  const last = attempted[attempted.length - 1]?.failure ?? fail("All Groq models are currently unavailable. Try again later or switch provider in settings.", "provider_error");
+  const first = attempted[0]?.failure;
+  const message = first?.code === "quota"
+    ? "Groq rate limit reached. Try again later or choose another model."
+    : first?.code === "context_length"
+      ? "Request was too large. Try shortening the request."
+      : first?.code === "missing_key"
+        ? first.error
+        : "All Groq models are currently unavailable. Try again later or switch provider in settings.";
+  return {
+    ...last,
+    error: message,
+    diagnostics: diagnostics(data, "groq", selected, attempted[attempted.length - 1]?.model ?? selected, {
+      routed,
+      fallback: fallbackCount > 0,
+      fallbackReason: first?.code,
+      fallbackCount,
+      retryCount: fallbackCount,
+      status: last.status,
+      errorCategory: last.code,
+    }),
+  };
 }
 
 async function callLovableChat(data: ChatInput): Promise<NormalizedChatResponse | ProviderFailure> {
@@ -235,11 +527,15 @@ async function callLovableChat(data: ChatInput): Promise<NormalizedChatResponse 
     ok: true as const,
     content: msg?.content ?? "",
     toolCalls: (msg?.tool_calls ?? []).map(tc => ({ id: tc.id, name: tc.function.name, argsJson: tc.function.arguments || "{}" })),
+    diagnostics: diagnostics(data, "legacy-lovable", LOVABLE_MODEL, LOVABLE_MODEL, { status: 200 }),
   };
 }
 
 async function callChatProvider(data: ChatInput) {
-  return safeProvider(data.provider) === "legacy-lovable" ? callLovableChat(data) : callGeminiChat(data);
+  const provider = safeProvider(data.provider);
+  if (provider === "legacy-lovable") return callLovableChat(data);
+  if (provider === "gemini") return callGeminiChat(data);
+  return callGroqChat(data);
 }
 
 async function geminiJson(system: string, user: unknown, input: ProviderOptions): Promise<{ ok: true; text: string } | ProviderFailure> {
@@ -255,6 +551,23 @@ async function geminiJson(system: string, user: unknown, input: ProviderOptions)
   if (!res.ok) return geminiHttpError(res.status, resolved.source);
   const json = await res.json() as { candidates?: { content?: { parts?: { text?: string }[] } }[] };
   return { ok: true as const, text: json.candidates?.[0]?.content?.parts?.map(p => p.text ?? "").join("\n") ?? "" };
+}
+
+async function groqJson(system: string, user: unknown, input: ProviderOptions): Promise<{ ok: true; text: string } | ProviderFailure> {
+  if (Array.isArray(user)) return geminiJson(system, user, input);
+  const resolved = resolveGroqKey(input);
+  if (!resolved.key) return fail("Jarvis needs a Groq API key. Add one in Jarvis AI Settings.", "missing_key", undefined, "none");
+  const model = safeGroqModel(input.autoModelRouting === false ? input.groqModel : isComplexJarvisTask({ messages: [{ role: "user", content: String(user) }], systemOverride: system, provider: "groq" }) ? STRONG_GROQ_MODEL : DEFAULT_GROQ_MODEL);
+  const body = {
+    messages: [{ role: "system", content: system }, { role: "user", content: String(user) }],
+    temperature: 0.1,
+    response_format: { type: "json_object" },
+  };
+  const res = await postGroq(model, resolved.key, resolved.source, body, true);
+  if (!(res instanceof Response)) return res;
+  if (!res.ok) return groqHttpError(res.status, model, resolved.source, retryAfterMs(res));
+  const json = await res.json() as { choices?: { message?: { content?: string } }[] };
+  return { ok: true as const, text: json.choices?.[0]?.message?.content ?? "" };
 }
 
 async function lovableJson(system: string, user: unknown): Promise<{ ok: true; text: string } | ProviderFailure> {
@@ -281,7 +594,10 @@ async function lovableJson(system: string, user: unknown): Promise<{ ok: true; t
 }
 
 async function callJsonProvider(provider: AiProvider | undefined, system: string, user: unknown, input: ProviderOptions) {
-  return safeProvider(provider) === "legacy-lovable" ? lovableJson(system, user) : geminiJson(system, user, input);
+  const p = safeProvider(provider);
+  if (p === "legacy-lovable") return lovableJson(system, user);
+  if (p === "gemini") return geminiJson(system, user, input);
+  return groqJson(system, user, input);
 }
 
 function parseJsonText(raw: string) {
@@ -294,7 +610,8 @@ export const aiChat = createServerFn({ method: "POST" })
     try {
       return await callChatProvider(data);
     } catch {
-      return fail(safeProvider(data.provider) === "gemini" ? "Gemini request failed. Try again." : "Legacy AI request failed. Try again.", "provider_error");
+      const p = safeProvider(data.provider);
+      return fail(p === "gemini" ? "Gemini request failed. Try again." : p === "groq" ? "Groq request failed. Try again." : "Legacy AI request failed. Try again.", "provider_error");
     }
   });
 
@@ -308,6 +625,18 @@ export const testAiConnection = createServerFn({ method: "POST" })
         if (!key) return { ok: false as const, status: "not_configured" as const, provider, error: "Legacy provider is not configured.", code: "missing_key" as const };
         const result = await callLovableChat({ provider, messages: [{ role: "user", content: "Say connected." }], mode: "quick" });
         return result.ok ? { ok: true as const, status: "connected" as const, provider } : { ok: false as const, status: result.code === "missing_key" ? "not_configured" as const : "failed" as const, provider, error: result.error, code: result.code };
+      }
+      if (provider === "groq") {
+        const resolved = resolveGroqKey(data);
+        const model = safeGroqModel(data.groqModel);
+        if (!resolved.key) return { ok: false as const, status: "not_configured" as const, provider, keySource: "none" as const, error: "Jarvis needs a Groq API key. Add one in Jarvis AI Settings.", code: "missing_key" as const };
+        const res = await postGroq(model, resolved.key, resolved.source, { messages: [{ role: "user", content: "Say connected." }], temperature: 0 }, false);
+        if (!(res instanceof Response)) return { ...res, status: res.code === "missing_key" ? "not_configured" as const : "failed" as const, provider, keySource: resolved.source };
+        if (!res.ok) {
+          const err = groqHttpError(res.status, model, resolved.source, retryAfterMs(res));
+          return { ...err, status: err.code === "missing_key" ? "not_configured" as const : "failed" as const, provider, keySource: resolved.source, model };
+        }
+        return { ok: true as const, status: "connected" as const, provider, keySource: resolved.source, model };
       }
       const resolved = resolveGeminiKey(data);
       if (!resolved.key) return { ok: false as const, status: "not_configured" as const, provider, keySource: "none" as const, error: "Jarvis needs a Gemini API key. Add one in Jarvis AI Settings.", code: "missing_key" as const };
@@ -386,7 +715,7 @@ Numbers are grams and kcal for the full plate visible. Be conservative if portio
         { text: data.hint ? `Hint: ${data.hint}` : "Estimate macros for this meal." },
         { inlineData: { mimeType: data.imageDataUrl.slice(5, data.imageDataUrl.indexOf(";")) || "image/jpeg", data: data.imageDataUrl.split(",")[1] || "" } },
       ];
-      const result = await callJsonProvider(data.provider, system, user, data);
+      const result = await geminiJson(system, user, data);
       if (!result.ok) return result;
       const parsed = parseJsonText(result.text) as { name?: string; calories?: number; protein?: number; carbs?: number; fat?: number; confidence?: string; notes?: string };
       return { ok: true as const, estimate: {
