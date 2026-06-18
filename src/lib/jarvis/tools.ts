@@ -194,12 +194,13 @@ const handlers: Record<ToolName, ToolHandler> = {
     if (!name) return { ok: false, summary: "missing name", error: "Supplement name required" };
     const id = uid();
     const auditId = uid();
+    const dose = typeof args.dose === "string" ? args.dose : undefined;
     const notes = typeof args.notes === "string" ? args.notes : undefined;
     const originalText = typeof args.originalText === "string" ? args.originalText : undefined;
-    // Stored as a check-in note so it shows in recovery feed (Phase 2 will add a real supplement log).
-    set(s => ({ ...s, recoveryCheckIns: [...s.recoveryCheckIns, { id, energy: 5, soreness: 5, stress: 5, motivation: 5, notes: `Supplement: ${name}${notes ? ` — ${notes}` : ""}`, createdAt: Date.now() }] }));
-    const summary = `Logged ${name}`;
-    pushAudit(set, { id: auditId, tool: "logSupplement", summary, status: "logged", originalText, confidence: "high", entityIds: [id], entityKind: "supplement", patch: { name }, createdAt: Date.now() });
+    const entry: SupplementLog = { id, name, dose, notes, createdAt: Date.now(), source: "jarvis", auditId };
+    set(s => ({ ...s, supplementLogs: [...s.supplementLogs, entry] }));
+    const summary = `Logged ${name}${dose ? ` (${dose})` : ""}`;
+    pushAudit(set, { id: auditId, tool: "logSupplement", summary, status: "logged", originalText, confidence: "high", entityIds: [id], entityKind: "supplement", patch: { name, dose }, createdAt: Date.now() });
     return { ok: true, summary, auditId, needsConfirmation: !settings.autoLogSupplements };
   },
   logDailyCheckIn: (args, { set }) => {
