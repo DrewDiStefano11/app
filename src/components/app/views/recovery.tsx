@@ -96,6 +96,10 @@ function ReadinessTab() {
         </>
       )}
 
+      <SupplementsTodayCard />
+
+
+
       <p className="text-[11px] text-muted-foreground text-center mt-4">General fitness guidance. Not medical advice.</p>
 
       <CheckInSheet open={checkOpen} onClose={() => setCheckOpen(false)} />
