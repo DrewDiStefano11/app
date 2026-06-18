@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 
 type AiProvider = "gemini" | "legacy-lovable";
 type GeminiKeyMode = "local" | "environment" | "user";
-type GeminiModel = "gemini-3.5-flash" | "gemini-3-flash" | "gemini-2.5-flash" | "gemini-2.5-flash-lite";
+type GeminiModel = "gemini-2.5-flash-lite" | "gemini-2.5-flash";
 type KeySource = "local" | "environment" | "none";
 type ErrorCode = "missing_key" | "invalid_key" | "permission_denied" | "quota" | "model_unavailable" | "overloaded" | "malformed_request" | "network" | "tool_parse" | "provider_error";
 
@@ -55,8 +55,8 @@ interface ProviderFailure {
   keySource?: KeySource;
 }
 
-const DEFAULT_GEMINI_MODEL: GeminiModel = "gemini-3.5-flash";
-const SUPPORTED_GEMINI_MODELS: GeminiModel[] = ["gemini-3.5-flash", "gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"];
+const DEFAULT_GEMINI_MODEL: GeminiModel = "gemini-2.5-flash-lite";
+const SUPPORTED_GEMINI_MODELS: GeminiModel[] = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
 const LOVABLE_MODEL = "google/gemini-3-flash-preview";
 
 function hasValue(v: unknown): v is string {
@@ -147,13 +147,13 @@ function parseGeminiResponse(json: unknown): NormalizedChatResponse | ProviderFa
 }
 
 function geminiHttpError(status: number, keySource?: KeySource): ProviderFailure {
-  if (status === 400) return fail("Gemini rejected the request format. Try a shorter prompt or switch models.", "malformed_request", status, keySource);
+  if (status === 400) return fail("Gemini rejected the request format. Try a shorter prompt or switch to 2.5 Flash-Lite.", "malformed_request", status, keySource);
   if (status === 401) return fail("Gemini rejected the API key. Check the key and try again.", "invalid_key", status, keySource);
   if (status === 403) return fail("Gemini permission was denied for this key or model.", "permission_denied", status, keySource);
-  if (status === 404) return fail("The selected Gemini model is unavailable. Switch models in Jarvis AI Settings.", "model_unavailable", status, keySource);
+  if (status === 404) return fail("The selected Gemini model is unavailable. Switch to 2.5 Flash-Lite or 2.5 Flash in Jarvis AI Settings.", "model_unavailable", status, keySource);
   if (status === 429) return fail("Gemini quota or rate limit was reached. Try again later or switch models.", "quota", status, keySource);
-  if (status === 503) return fail("Gemini is temporarily overloaded or unavailable. Try again or switch models.", "overloaded", status, keySource);
-  if (status >= 500) return fail("Gemini is temporarily unavailable. Try again or switch models.", "overloaded", status, keySource);
+  if (status === 503) return fail("Gemini is temporarily overloaded or unavailable. Try again or switch to 2.5 Flash-Lite.", "overloaded", status, keySource);
+  if (status >= 500) return fail("Gemini is temporarily unavailable. Try again or switch to 2.5 Flash-Lite.", "overloaded", status, keySource);
   return fail(`Gemini request failed (${status}).`, "provider_error", status, keySource);
 }
 
@@ -162,8 +162,7 @@ function lovableHttpError(status: number): ProviderFailure {
   if (status === 429) return fail("Legacy/Lovable quota or rate limit was reached.", "quota", status);
   if (status >= 500) return fail("Legacy/Lovable is temporarily unavailable.", "overloaded", status);
   return fail(`Legacy/Lovable request failed (${status}).`, "provider_error", status);
-}
-
+}\n
 async function wait(ms: number) {
   await new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -185,7 +184,7 @@ async function postGemini(model: GeminiModel, key: string, keySource: KeySource,
       return fail("Network failure while contacting Gemini. Check your connection and try again.", "network", undefined, keySource);
     }
   }
-  return fail("Gemini is temporarily overloaded or unavailable. Try again or switch models.", "overloaded", 503, keySource);
+  return fail("Gemini is temporarily overloaded or unavailable. Try again or switch to 2.5 Flash-Lite.", "overloaded", 503, keySource);
 }
 
 async function callGeminiChat(data: ChatInput): Promise<NormalizedChatResponse | ProviderFailure> {
