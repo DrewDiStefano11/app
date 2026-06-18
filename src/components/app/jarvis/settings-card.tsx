@@ -13,12 +13,17 @@ type ConnectionResult = {
   status: ConnectionStatus;
   provider?: string;
   keySource?: string;
+  model?: string;
   error?: string;
 };
 
 function readSavedGeminiKey() {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(GEMINI_KEY_STORAGE) ?? "";
+}
+
+function normalizedKeyMode(mode: JarvisSettings["geminiKeyMode"]): "local" | "environment" {
+  return mode === "environment" ? "environment" : "local";
 }
 
 export function JarvisSettingsCard() {
@@ -29,21 +34,30 @@ export function JarvisSettingsCard() {
   const [keyDraft, setKeyDraft] = useState("");
   const [status, setStatus] = useState<ConnectionStatus>("not_configured");
   const [statusText, setStatusText] = useState("Not configured");
+  const [hasSavedLocalKey, setHasSavedLocalKey] = useState(false);
+  const keyMode = normalizedKeyMode(s.geminiKeyMode);
 
   useEffect(() => {
+    const saved = Boolean(readSavedGeminiKey());
+    setHasSavedLocalKey(saved);
+    if (saved && !s.geminiUserKeySaved) upd({ geminiUserKeySaved: true, geminiKeyMode: keyMode });
+  }, []);
+
+  useEffect(() => {
+    if (status === "connected") return;
     if (s.aiProvider === "legacy-lovable") {
       setStatus("not_configured");
       setStatusText("Legacy provider uses LOVABLE_API_KEY on the server.");
       return;
     }
-    if (s.geminiKeyMode === "user" && s.geminiUserKeySaved) {
+    if (hasSavedLocalKey || s.geminiUserKeySaved) {
       setStatus("not_configured");
-      setStatusText("Saved key available. Test connection when ready.");
+      setStatusText(keyMode === "environment" ? "Environment key is preferred. Saved local key is available as fallback." : "Saved Gemini key configured. Test connection when ready.");
       return;
     }
     setStatus("not_configured");
-    setStatusText(s.geminiKeyMode === "environment" ? "Uses GEMINI_API_KEY or GOOGLE_API_KEY from the server environment." : "No user key saved.");
-  }, [s.aiProvider, s.geminiKeyMode, s.geminiUserKeySaved]);
+    setStatusText(keyMode === "environment" ? "Uses GEMINI_API_KEY or GOOGLE_API_KEY from the server environment, with local key fallback if saved." : "Jarvis needs a Gemini API key. Add one in Jarvis AI Settings.");
+  }, [s.aiProvider, s.geminiKeyMode, s.geminiUserKeySaved, hasSavedLocalKey, keyMode, status]);
 
   const Toggle = ({ label, val, onChange, hint, disabled }: { label: string; val: boolean; onChange: (v: boolean) => void; hint?: string; disabled?: boolean }) => (
     <label className={`flex items-start justify-between py-1 gap-3 ${disabled ? "opacity-50" : ""}`}>
@@ -57,8 +71,9 @@ export function JarvisSettingsCard() {
 
   const persistGeminiKey = (key: string) => {
     window.localStorage.setItem(GEMINI_KEY_STORAGE, key);
+    setHasSavedLocalKey(true);
     setKeyDraft("");
-    upd({ aiProvider: "gemini", geminiKeyMode: "user", geminiUserKeySaved: true });
+    upd({ aiProvider: "gemini", geminiKeyMode: "local", geminiUserKeySaved: true });
   };
 
   const saveGeminiKey = () => {
@@ -70,11 +85,12 @@ export function JarvisSettingsCard() {
     }
     persistGeminiKey(key);
     setStatus("not_configured");
-    setStatusText("Gemini key saved locally. Raw key is hidden after saving.");
+    setStatusText("Saved Gemini key configured. Raw key is hidden after saving.");
   };
 
   const clearGeminiKey = () => {
     window.localStorage.removeItem(GEMINI_KEY_STORAGE);
+    setHasSavedLocalKey(false);
     setKeyDraft("");
     upd({ geminiUserKeySaved: false });
     setStatus("not_configured");
@@ -84,19 +100,20 @@ export function JarvisSettingsCard() {
   const runConnectionTest = async () => {
     setStatus("testing");
     setStatusText("Testing connection...");
-    const savedKey = s.geminiKeyMode === "user" ? readSavedGeminiKey() : "";
     const draftKey = keyDraft.trim();
-    const keyForTest = draftKey || savedKey;
+    const savedKey = readSavedGeminiKey();
+    const localKey = draftKey || savedKey;
     try {
       const result = await testConnection({ data: {
         provider: s.aiProvider,
-        geminiKeyMode: s.geminiKeyMode,
-        userGeminiApiKey: s.geminiKeyMode === "user" ? keyForTest : undefined,
+        geminiKeyMode: keyMode,
+        geminiModel: s.geminiModel,
+        userGeminiApiKey: localKey || undefined,
       } }) as ConnectionResult;
       if (result.ok) {
-        if (s.geminiKeyMode === "user" && draftKey) persistGeminiKey(draftKey);
+        if (s.aiProvider === "gemini" && draftKey) persistGeminiKey(draftKey);
         setStatus("connected");
-        setStatusText(s.aiProvider === "gemini" ? `Connected via Gemini ${result.keySource ? `(${result.keySource})` : ""}.` : "Connected to legacy provider.");
+        setStatusText(s.aiProvider === "gemini" ? `Connected via Gemini ${result.keySource ? `(${result.keySource})` : ""}${result.model ? ` using ${result.model}` : ""}.` : "Connected to legacy provider.");
       } else {
         setStatus(result.status === "not_configured" ? "not_configured" : "failed");
         setStatusText(result.error || "Connection failed.");
@@ -128,10 +145,19 @@ export function JarvisSettingsCard() {
           {s.aiProvider === "gemini" && (
             <div className="rounded-2xl border border-border bg-[var(--surface-2)] p-3 space-y-3">
               <div>
+                <Label>Model</Label>
+                <Select value={s.geminiModel ?? "gemini-3.5-flash"} onChange={e => upd({ geminiModel: e.target.value as JarvisSettings["geminiModel"] })}>
+                  <option value="gemini-3.5-flash">Gemini 3.5 Flash</option>
+                  <option value="gemini-3-flash">Gemini 3 Flash</option>
+                  <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                  <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite</option>
+                </Select>
+              </div>
+              <div>
                 <Label>Gemini key source</Label>
-                <Select value={s.geminiKeyMode} onChange={e => upd({ geminiKeyMode: e.target.value as JarvisSettings["geminiKeyMode"] })}>
-                  <option value="environment">Use environment key if available</option>
-                  <option value="user">Use user-entered key if no environment key is available</option>
+                <Select value={keyMode} onChange={e => upd({ geminiKeyMode: e.target.value as JarvisSettings["geminiKeyMode"] })}>
+                  <option value="local">Use saved local key first</option>
+                  <option value="environment">Use environment key first</option>
                 </Select>
               </div>
               <div>
@@ -141,7 +167,7 @@ export function JarvisSettingsCard() {
                   autoComplete="off"
                   value={keyDraft}
                   onChange={e => setKeyDraft(e.target.value)}
-                  placeholder={s.geminiUserKeySaved ? "Saved key hidden" : "Paste Gemini API key"}
+                  placeholder={(hasSavedLocalKey || s.geminiUserKeySaved) ? "Saved Gemini key configured" : "Paste Gemini API key"}
                 />
                 <p className="text-xs text-muted-foreground mt-1">For personal/local use only. Do not commit API keys.</p>
               </div>
