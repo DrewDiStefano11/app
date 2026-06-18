@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { StoreProvider, useStore } from "@/lib/store";
 import { BottomNav } from "@/components/app/bottom-nav";
-import { FloatingAi } from "@/components/app/floating-ai";
+import { JarvisPanel, JarvisUndoSnackbar } from "@/components/app/jarvis/jarvis-panel";
 import { HomeView } from "@/components/app/views/home";
 import { TrainingView } from "@/components/app/views/training";
 import { NutritionView } from "@/components/app/views/nutrition";
@@ -100,7 +100,8 @@ function FitCoreApp() {
         )}
       </div>
 
-      <FloatingAi section={section} contextSummary={contextSummary} />
+      <JarvisPanel section={section} contextSummary={contextSummary} />
+      <JarvisUndoSnackbar />
       {!hasActiveWorkout && (
         <BottomNav
           active={section}
