@@ -113,7 +113,7 @@ export type JarvisPersonality = "friendly" | "coach" | "siri" | "chatgpt";
 export type ProactiveLevel = "off" | "low" | "normal" | "high";
 export type JarvisAiProvider = "gemini" | "legacy-lovable";
 export type GeminiKeyMode = "local" | "environment" | "user";
-export type GeminiModel = "gemini-3.5-flash" | "gemini-3-flash" | "gemini-2.5-flash" | "gemini-2.5-flash-lite";
+export type GeminiModel = "gemini-2.5-flash-lite" | "gemini-2.5-flash";
 
 export interface JarvisSettings {
   enabled: boolean;
@@ -160,7 +160,7 @@ export const defaultJarvisSettings: JarvisSettings = {
   aiProvider: "gemini",
   geminiKeyMode: "local",
   geminiUserKeySaved: false,
-  geminiModel: "gemini-3.5-flash",
+  geminiModel: "gemini-2.5-flash-lite",
   autoLogSupplements: true,
   autoLogBodyweight: true,
   askBeforeMealEstimates: true,
