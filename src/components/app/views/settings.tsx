@@ -4,6 +4,9 @@ import { useStore } from "@/lib/store";
 import type { Profile } from "@/lib/types";
 import { Card, PageHeader, PrimaryButton, GhostButton, Input, Label, Select } from "@/components/app/ui";
 import { ConfirmDialog } from "@/components/app/sheet";
+import { JarvisSettingsCard } from "@/components/app/jarvis/settings-card";
+import { JarvisActivityCard } from "@/components/app/jarvis/activity-view";
+import { GoalsProfileCard } from "@/components/app/jarvis/goals-profile-card";
 
 export function SettingsView({ onBack }: { onBack: () => void }) {
   const { state, set, reset, exportJson, importJson } = useStore();
@@ -35,6 +38,10 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
       <PageHeader title="Hub" subtitle="Profile, targets, data" action={<button onClick={onBack} className="text-sm text-muted-foreground">Done</button>} />
 
       <div className="px-5 space-y-5">
+        <JarvisSettingsCard />
+        <GoalsProfileCard />
+        <JarvisActivityCard />
+
         <section>
           <h3 className="font-semibold mb-2 flex items-center gap-2"><User size={16} />Profile</h3>
           <Card className="space-y-3">
