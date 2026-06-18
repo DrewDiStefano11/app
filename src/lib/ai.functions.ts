@@ -46,11 +46,11 @@ ${data.context ? `\nUser context:\n${data.context}` : ""}`;
       const json = await res.json() as { choices?: { message?: { content?: string; tool_calls?: { id: string; function: { name: string; arguments: string } }[] } }[] };
       const msg = json.choices?.[0]?.message;
       const content = msg?.content ?? "";
-      const toolCalls = (msg?.tool_calls ?? []).map(tc => {
-        let args: Record<string, unknown> = {};
-        try { args = JSON.parse(tc.function.arguments || "{}"); } catch { /* ignore */ }
-        return { id: tc.id, name: tc.function.name, arguments: args };
-      });
+      const toolCalls = (msg?.tool_calls ?? []).map(tc => ({
+        id: tc.id,
+        name: tc.function.name,
+        argsJson: tc.function.arguments || "{}",
+      }));
       return { ok: true as const, content, toolCalls };
     } catch (err) {
       return { ok: false as const, error: err instanceof Error ? err.message : "AI request failed" };
