@@ -111,9 +111,12 @@ export type JarvisPermission = 1 | 2 | 3 | 4;
 export type JarvisResponseStyle = "concise" | "normal" | "detailed";
 export type JarvisPersonality = "friendly" | "coach" | "siri" | "chatgpt";
 export type ProactiveLevel = "off" | "low" | "normal" | "high";
-export type JarvisAiProvider = "gemini" | "legacy-lovable";
-export type GeminiKeyMode = "local" | "environment" | "user";
+export type JarvisAiProvider = "groq" | "gemini" | "legacy-lovable";
+export type AiKeyMode = "local" | "environment" | "user";
+export type GeminiKeyMode = AiKeyMode;
+export type GroqKeyMode = AiKeyMode;
 export type GeminiModel = "gemini-2.5-flash-lite" | "gemini-2.5-flash";
+export type GroqModel = "llama-3.1-8b-instant" | "llama-3.3-70b-versatile" | "qwen/qwen3-32b";
 
 export interface JarvisSettings {
   enabled: boolean;
@@ -125,6 +128,12 @@ export interface JarvisSettings {
   geminiKeyMode: GeminiKeyMode;
   geminiUserKeySaved: boolean;
   geminiModel: GeminiModel;
+  groqKeyMode: GroqKeyMode;
+  groqUserKeySaved: boolean;
+  groqModel: GroqModel;
+  autoModelRouting: boolean;
+  autoAiFallback: boolean;
+  allowGeminiFallback: boolean;
   autoLogSupplements: boolean;
   autoLogBodyweight: boolean;
   askBeforeMealEstimates: boolean;
@@ -157,10 +166,16 @@ export const defaultJarvisSettings: JarvisSettings = {
   responseStyle: "normal",
   personality: "friendly",
   proactive: "normal",
-  aiProvider: "gemini",
+  aiProvider: "groq",
   geminiKeyMode: "local",
   geminiUserKeySaved: false,
   geminiModel: "gemini-2.5-flash-lite",
+  groqKeyMode: "local",
+  groqUserKeySaved: false,
+  groqModel: "llama-3.1-8b-instant",
+  autoModelRouting: true,
+  autoAiFallback: true,
+  allowGeminiFallback: false,
   autoLogSupplements: true,
   autoLogBodyweight: true,
   askBeforeMealEstimates: true,
