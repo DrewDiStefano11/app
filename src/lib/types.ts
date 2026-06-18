@@ -65,7 +65,6 @@ export interface MealEntry {
   fiber?: number;
   notes?: string;
   createdAt: number;
-  /* --- Jarvis Phase 2 fields (optional, backward-compatible) --- */
   items?: MealItem[];
   source?: DataSource;
   confidence?: Confidence;
@@ -112,6 +111,8 @@ export type JarvisPermission = 1 | 2 | 3 | 4;
 export type JarvisResponseStyle = "concise" | "normal" | "detailed";
 export type JarvisPersonality = "friendly" | "coach" | "siri" | "chatgpt";
 export type ProactiveLevel = "off" | "low" | "normal" | "high";
+export type JarvisAiProvider = "gemini" | "legacy-lovable";
+export type GeminiKeyMode = "environment" | "user";
 
 export interface JarvisSettings {
   enabled: boolean;
@@ -119,18 +120,24 @@ export interface JarvisSettings {
   responseStyle: JarvisResponseStyle;
   personality: JarvisPersonality;
   proactive: ProactiveLevel;
+  aiProvider: JarvisAiProvider;
+  geminiKeyMode: GeminiKeyMode;
+  geminiUserKeySaved: boolean;
   autoLogSupplements: boolean;
   autoLogBodyweight: boolean;
   askBeforeMealEstimates: boolean;
   askBeforeWorkouts: boolean;
   askBeforeActiveWorkoutEdits: boolean;
   learningEnabled: boolean;
-  // Phase 2
   autoLogMealEstimates: boolean;
   nutritionSuggestions: boolean;
   supplementReminders: boolean;
   foodEstimateDetail: "simple" | "normal" | "detailed";
-  // stubs (UI-only this phase)
+  autoApplyActiveWorkoutSuggestions: boolean;
+  workoutSuggestions: boolean;
+  progressionSuggestions: boolean;
+  painBasedWorkoutWarnings: boolean;
+  saveWorkoutTemplateSuggestions: boolean;
   voiceModeEnabled: boolean;
   spokenResponses: boolean;
   useWhoop: boolean;
@@ -148,6 +155,9 @@ export const defaultJarvisSettings: JarvisSettings = {
   responseStyle: "normal",
   personality: "friendly",
   proactive: "normal",
+  aiProvider: "gemini",
+  geminiKeyMode: "environment",
+  geminiUserKeySaved: false,
   autoLogSupplements: true,
   autoLogBodyweight: true,
   askBeforeMealEstimates: true,
@@ -158,6 +168,11 @@ export const defaultJarvisSettings: JarvisSettings = {
   nutritionSuggestions: true,
   supplementReminders: true,
   foodEstimateDetail: "normal",
+  autoApplyActiveWorkoutSuggestions: false,
+  workoutSuggestions: true,
+  progressionSuggestions: true,
+  painBasedWorkoutWarnings: true,
+  saveWorkoutTemplateSuggestions: true,
   voiceModeEnabled: false,
   spokenResponses: false,
   useWhoop: false,
@@ -179,8 +194,8 @@ export interface JarvisAuditEntry {
   originalText?: string;
   assumptions?: string[];
   confidence?: Confidence;
-  entityIds?: string[];     // ids of created records
-  entityKind?: string;      // e.g. "meal", "bodyweight"
+  entityIds?: string[];
+  entityKind?: string;
   patch?: Record<string, unknown>;
   createdAt: number;
   undone?: boolean;
@@ -237,15 +252,11 @@ export interface Profile {
   bodyweightLb: number;
   targetBodyweightLb: number;
   units: "lb" | "kg";
-
-  // basics
   name?: string;
   age?: number;
   sex?: Sex;
   heightIn?: number;
   trainingAgeYears?: number;
-
-  // training
   preferredWorkoutDays?: string[];
   preferredWorkoutTime?: "morning" | "midday" | "evening" | "anytime";
   sessionLengthMin?: number;
@@ -255,16 +266,12 @@ export interface Profile {
   equipment?: string[];
   gymOrHome?: GymOrHome;
   intensity?: Intensity;
-
-  // nutrition
   dietStyle?: DietStyle;
   carbFatPreference?: "high_carb" | "balanced" | "high_fat";
   mealsPerDay?: number;
   foodsToAvoid?: string[];
   allergies?: string[];
   macroStrictness?: MacroStrictness;
-
-  // recovery
   sleepGoalH?: number;
   stepGoal?: number;
   cardioGoalMin?: number;
@@ -278,11 +285,7 @@ export interface Personalization {
   defaultDashboardFocus?: "training" | "nutrition" | "recovery" | "progress";
   defaultGraphModes?: { volume?: string; heatmap?: string };
   units?: { weight: "lb" | "kg"; distance: "mi" | "km" };
-  reminders?: {
-    workoutEnabled: boolean; workoutTime: string;
-    weighInEnabled: boolean; weighInTime: string;
-    mealLogEnabled: boolean; mealLogTime: string;
-  };
+  reminders?: { workoutEnabled: boolean; workoutTime: string; weighInEnabled: boolean; weighInTime: string; mealLogEnabled: boolean; mealLogTime: string; };
   aiCoachTone?: "direct" | "supportive" | "detailed" | "simple";
   aiResponseLength?: "quick" | "detailed";
   uiComplexity?: "simple" | "advanced";
@@ -326,11 +329,7 @@ export const defaultPersonalization: Personalization = {
   defaultDashboardFocus: "training",
   defaultGraphModes: { volume: "total", heatmap: "load" },
   units: { weight: "lb", distance: "mi" },
-  reminders: {
-    workoutEnabled: true, workoutTime: "17:00",
-    weighInEnabled: true, weighInTime: "09:00",
-    mealLogEnabled: false, mealLogTime: "12:00",
-  },
+  reminders: { workoutEnabled: true, workoutTime: "17:00", weighInEnabled: true, weighInTime: "09:00", mealLogEnabled: false, mealLogTime: "12:00" },
   aiCoachTone: "direct",
   aiResponseLength: "quick",
   uiComplexity: "advanced",
@@ -389,9 +388,7 @@ export function lbToKg(lb: number) { return Math.round(lb * 0.453592 * 10) / 10;
 export function kgToLb(kg: number) { return Math.round(kg * 2.20462 * 10) / 10; }
 export function miToKm(mi: number) { return Math.round(mi * 1.60934 * 10) / 10; }
 
-export function weightUnit(p?: Personalization): "lb" | "kg" {
-  return p?.units?.weight ?? "lb";
-}
+export function weightUnit(p?: Personalization): "lb" | "kg" { return p?.units?.weight ?? "lb"; }
 
 export function formatWeight(lb: number, p?: Personalization, opts?: { unit?: boolean }): string {
   const u = weightUnit(p);
@@ -400,6 +397,4 @@ export function formatWeight(lb: number, p?: Personalization, opts?: { unit?: bo
   return opts?.unit === false ? out : `${out} ${u}`;
 }
 
-export function distanceUnit(p?: Personalization): "mi" | "km" {
-  return p?.units?.distance ?? "mi";
-}
+export function distanceUnit(p?: Personalization): "mi" | "km" { return p?.units?.distance ?? "mi"; }
