@@ -8,6 +8,13 @@ import { Card, GhostButton, Input, Label, PrimaryButton, Select } from "../ui";
 
 const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
 type ConnectionStatus = "not_configured" | "testing" | "connected" | "failed";
+type ConnectionResult = {
+  ok: boolean;
+  status: ConnectionStatus;
+  provider?: string;
+  keySource?: string;
+  error?: string;
+};
 
 function readSavedGeminiKey() {
   if (typeof window === "undefined") return "";
@@ -48,6 +55,12 @@ export function JarvisSettingsCard() {
     </label>
   );
 
+  const persistGeminiKey = (key: string) => {
+    window.localStorage.setItem(GEMINI_KEY_STORAGE, key);
+    setKeyDraft("");
+    upd({ aiProvider: "gemini", geminiKeyMode: "user", geminiUserKeySaved: true });
+  };
+
   const saveGeminiKey = () => {
     const key = keyDraft.trim();
     if (!key) {
@@ -55,9 +68,7 @@ export function JarvisSettingsCard() {
       setStatusText("Enter a Gemini API key first.");
       return;
     }
-    window.localStorage.setItem(GEMINI_KEY_STORAGE, key);
-    setKeyDraft("");
-    upd({ aiProvider: "gemini", geminiKeyMode: "user", geminiUserKeySaved: true });
+    persistGeminiKey(key);
     setStatus("not_configured");
     setStatusText("Gemini key saved locally. Raw key is hidden after saving.");
   };
@@ -74,19 +85,25 @@ export function JarvisSettingsCard() {
     setStatus("testing");
     setStatusText("Testing connection...");
     const savedKey = s.geminiKeyMode === "user" ? readSavedGeminiKey() : "";
-    const keyForTest = keyDraft.trim() || savedKey;
-    const result = await testConnection({ data: {
-      provider: s.aiProvider,
-      geminiKeyMode: s.geminiKeyMode,
-      userGeminiApiKey: s.geminiKeyMode === "user" ? keyForTest : undefined,
-    } });
-    if (result.ok) {
-      setStatus("connected");
-      setStatusText(s.aiProvider === "gemini" ? `Connected via Gemini ${"keySource" in result ? `(${result.keySource})` : ""}.` : "Connected to legacy provider.");
-      if (s.geminiKeyMode === "user" && keyDraft.trim()) saveGeminiKey();
-    } else {
-      setStatus(result.status === "not_configured" ? "not_configured" : "failed");
-      setStatusText(result.error || "Connection failed.");
+    const draftKey = keyDraft.trim();
+    const keyForTest = draftKey || savedKey;
+    try {
+      const result = await testConnection({ data: {
+        provider: s.aiProvider,
+        geminiKeyMode: s.geminiKeyMode,
+        userGeminiApiKey: s.geminiKeyMode === "user" ? keyForTest : undefined,
+      } }) as ConnectionResult;
+      if (result.ok) {
+        if (s.geminiKeyMode === "user" && draftKey) persistGeminiKey(draftKey);
+        setStatus("connected");
+        setStatusText(s.aiProvider === "gemini" ? `Connected via Gemini ${result.keySource ? `(${result.keySource})` : ""}.` : "Connected to legacy provider.");
+      } else {
+        setStatus(result.status === "not_configured" ? "not_configured" : "failed");
+        setStatusText(result.error || "Connection failed.");
+      }
+    } catch {
+      setStatus("failed");
+      setStatusText("Connection test failed.");
     }
   };
 
