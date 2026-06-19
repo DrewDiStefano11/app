@@ -205,7 +205,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         geminiModel: settings.geminiModel,
         userGeminiApiKey: savedGeminiKey || undefined,
         groqKeyMode: normalizedKeyMode(settings.groqKeyMode),
-        groqModel: settings.groqModel ?? "llama-3.1-8b-instant",
+        groqModel: settings.groqModel ?? "qwen/qwen3-32b",
         userGroqApiKey: savedGroqKey || undefined,
         autoModelRouting: settings.autoModelRouting !== false,
         autoAiFallback: settings.autoAiFallback !== false,
