@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Send, Loader2, Mic, Undo2, X } from "lucide-react";
+import { Sparkles, Send, Loader2, Mic } from "lucide-react";
 import { BottomSheet } from "../sheet";
 import { Chip, GhostButton } from "../ui";
 import { useStore, uid } from "@/lib/store";
@@ -83,6 +83,15 @@ function expirePendingConfirmations(messages: RenderedMsg[]): RenderedMsg[] {
 
 function stripToolCards(messages: RenderedMsg[]): RenderedMsg[] {
   return expirePendingConfirmations(messages).map(m => m.toolResults ? { ...m, toolResults: undefined } : m);
+}
+
+function friendlyAssistantContent(content: string, toolResults: RenderedMsg["toolResults"]) {
+  const trimmed = content.trim();
+  const normalized = trimmed.replace(/[`"'.,:]/g, "").trim();
+  const leakedToolName = TOOL_SPECS.some(tool => tool.name === normalized);
+  if (trimmed && !leakedToolName) return trimmed;
+  if (toolResults?.some(item => item.result.needsConfirmation)) return "";
+  return (toolResults ?? []).map(item => item.result.summary).filter(Boolean).join("\n");
 }
 
 function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section: string, contextSummary: string): string {
@@ -222,7 +231,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         }
       }
 
-      const assistantContent = [res.notice, res.content || (toolResults.length ? "" : "(no reply)")].filter(Boolean).join("\n\n");
+      const assistantContent = friendlyAssistantContent(res.content, toolResults) || (toolResults.length ? "" : "I couldn't complete that request.");
       setMessages(m => [...m, { id: uid(), role: "assistant", content: assistantContent, toolResults, createdAt: Date.now() }]);
     } catch (err) {
       setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${err instanceof Error ? err.message : "Jarvis failed"}`, createdAt: Date.now() }]);
@@ -359,37 +368,13 @@ function humanizeArgs(tool: string, args: Record<string, unknown>): string {
     case "updateMeal": return "Edit meal";
     case "deleteMeal": return "Delete meal";
     case "updateDailyCheckIn": return `Update today's check-in: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
-    default: return tool;
+    default: return "Review requested action";
   }
 }
 
 export { SourceBadge };
 
+// Kept as a no-op export so existing mounts remain compatible while global undo UI is disabled.
 export function JarvisUndoSnackbar() {
-  const { state, set } = useStore();
-  const [shown, setShown] = useState<string | null>(null);
-  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
-  const last = state.jarvisAudit[0];
-  useEffect(() => {
-    if (!last || last.undone || last.status !== "logged" || dismissed.has(last.id)) return;
-    if (last.id === shown) return;
-    setShown(last.id);
-    const t = window.setTimeout(() => {
-      setDismissed(prev => new Set(prev).add(last.id));
-      setShown(null);
-    }, 5000);
-    return () => window.clearTimeout(t);
-  }, [last?.id, last?.status, last?.undone, shown, dismissed]);
-  if (!shown || !last || last.id !== shown) return null;
-  return (
-    <div className="fixed left-1/2 -translate-x-1/2 bottom-[calc(132px+env(safe-area-inset-bottom))] z-30 px-3 py-2.5 rounded-xl bg-foreground text-background shadow-2xl flex items-center gap-2 text-sm max-w-[92%]">
-      <span className="truncate">Saved: {last.summary}</span>
-      <button onClick={() => { undoAuditEntry(last.id, state, set); setDismissed(prev => new Set(prev).add(last.id)); setShown(null); }} className="font-semibold flex items-center gap-1 underline-offset-2 hover:underline shrink-0" aria-label="Undo last Jarvis action">
-        <Undo2 size={14} /> Undo
-      </button>
-      <button onClick={() => { setDismissed(prev => new Set(prev).add(last.id)); setShown(null); }} className="p-1 rounded-md hover:bg-background/10 shrink-0" aria-label="Dismiss undo notification">
-        <X size={14} />
-      </button>
-    </div>
-  );
+  return null;
 }
