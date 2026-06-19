@@ -156,6 +156,13 @@ export interface JarvisSettings {
   confirmTranscriptBeforeSend: boolean;
   voiceSilenceDelayMs: number;
   voiceOutputMuted: boolean;
+  voiceName: string;
+  voiceRateMode: "slow" | "normal" | "fast";
+  voiceResponseLength: "short" | "normal" | "detailed";
+  saveVoiceTranscripts: boolean;
+  voiceTranscriptRetentionDays: 0 | 7 | 30 | 90;
+  voiceHaptics: boolean;
+  voiceKeepAwake: boolean;
   useWhoop: boolean;
   useAppleHealth: boolean;
   dailyReviewEnabled: boolean;
@@ -203,6 +210,13 @@ export const defaultJarvisSettings: JarvisSettings = {
   confirmTranscriptBeforeSend: false,
   voiceSilenceDelayMs: 1200,
   voiceOutputMuted: false,
+  voiceName: "",
+  voiceRateMode: "normal",
+  voiceResponseLength: "normal",
+  saveVoiceTranscripts: true,
+  voiceTranscriptRetentionDays: 30,
+  voiceHaptics: true,
+  voiceKeepAwake: true,
   useWhoop: false,
   useAppleHealth: false,
   dailyReviewEnabled: false,
