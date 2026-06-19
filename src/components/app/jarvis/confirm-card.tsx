@@ -41,6 +41,24 @@ function isCardioData(d: unknown): d is CardioData {
   return !!d && typeof d === "object" && ("minutes" in d || "distanceMi" in d) && !("exercises" in d);
 }
 
+function toolLabel(tool: string) {
+  const labels: Record<string, string> = {
+    logBodyWeight: "Bodyweight",
+    logSupplement: "Supplement",
+    logDailyCheckIn: "Daily check-in",
+    logMeal: "Meal",
+    logUsualMeal: "Usual meal",
+    saveUsualMeal: "Usual meal",
+    createWorkoutDraft: "Workout",
+    logWorkout: "Workout",
+    logCardio: "Cardio",
+    updateActiveWorkout: "Active workout",
+    finishActiveWorkout: "Workout summary",
+    saveWorkoutTemplate: "Workout template",
+  };
+  return labels[tool] ?? "Jarvis action";
+}
+
 export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
   { tool: string; result: ToolResult; onConfirm: () => void; onCancel: () => void; onUndo?: () => void }) {
   const [submitting, setSubmitting] = useState(false);
@@ -63,7 +81,7 @@ export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
   return (
     <div className="max-w-[85%] w-full rounded-2xl border border-border bg-[var(--surface-2)] p-3 text-sm space-y-2">
       <div className="flex items-center gap-2">
-        <span className="text-[10px] font-semibold tracking-wide uppercase text-muted-foreground">{tool}</span>
+        <span className="text-[10px] font-semibold tracking-wide uppercase text-muted-foreground">{toolLabel(tool)}</span>
         {confidence && (
           <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded" style={{ background: `color-mix(in oklab, ${confColor} 18%, transparent)`, color: confColor }}>
             {confidence}
