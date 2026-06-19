@@ -193,6 +193,8 @@ export function JarvisSettingsCard() {
     if (s.voiceHaptics === undefined) patch.voiceHaptics = true;
     if (s.voiceKeepAwake === undefined) patch.voiceKeepAwake = true;
     if (Object.keys(patch).length > 0) upd(patch);
+    // This is a one-time migration of persisted settings; rerunning it would reset live status.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -235,6 +237,8 @@ export function JarvisSettingsCard() {
           : "Gemini backup is not configured.",
       );
     }
+    // Status values are intentionally excluded so this reset effect does not loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     hasSavedGroqKey,
     hasSavedGeminiKey,
