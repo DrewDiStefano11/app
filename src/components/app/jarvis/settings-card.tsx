@@ -9,6 +9,7 @@ import { Card, GhostButton, Input, Label, PrimaryButton, Select } from "../ui";
 const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
 const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
 const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
+const VOICE_DIAGNOSTICS_STORAGE = "fitcore.jarvis.voiceDiagnostics.v1";
 const WORKING_GEMINI_MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"] as const;
 const WORKING_GROQ_MODELS = ["qwen/qwen3-32b", "llama-3.1-8b-instant", "llama-3.3-70b-versatile"] as const;
 type ConnectionStatus = "not_configured" | "testing" | "connected" | "failed";
@@ -20,6 +21,16 @@ type ConnectionResult = {
   model?: string;
   error?: string;
 };
+type VoiceDiagnostics = {
+  voiceTurnsThisSession?: number;
+  aiCallsThisSession?: number;
+  lastTranscript?: string;
+  lastProviderModel?: string;
+  autoRouting?: boolean;
+  fallback?: boolean;
+  duplicateTranscriptPrevented?: boolean;
+};
+
 type AiDiagnostics = {
   provider?: string;
   selectedModel?: string;
@@ -65,6 +76,12 @@ function readDiagnostics(): AiDiagnostics[] {
   }
 }
 
+function readVoiceDiagnostics(): VoiceDiagnostics {
+  if (typeof window === "undefined") return {};
+  try { return JSON.parse(window.localStorage.getItem(VOICE_DIAGNOSTICS_STORAGE) ?? "{}") as VoiceDiagnostics; }
+  catch { return {}; }
+}
+
 function modelLabel(model?: string) {
   if (model === "llama-3.1-8b-instant") return "Groq Llama 3.1 8B Instant";
   if (model === "llama-3.3-70b-versatile") return "Groq Llama 3.3 70B Versatile";
@@ -90,6 +107,7 @@ export function JarvisSettingsCard() {
   const [hasSavedGroqKey, setHasSavedGroqKey] = useState(false);
   const [hasSavedGeminiKey, setHasSavedGeminiKey] = useState(false);
   const [diagnostics, setDiagnostics] = useState<AiDiagnostics[]>([]);
+  const [voiceDiagnostics, setVoiceDiagnostics] = useState<VoiceDiagnostics>({});
   const groqKeyMode = normalizedKeyMode(s.groqKeyMode);
   const geminiKeyMode = normalizedKeyMode(s.geminiKeyMode);
   const groqModel = selectedGroqModel(s.groqModel);
@@ -101,6 +119,7 @@ export function JarvisSettingsCard() {
     setHasSavedGroqKey(groqSaved);
     setHasSavedGeminiKey(geminiSaved);
     setDiagnostics(readDiagnostics());
+    setVoiceDiagnostics(readVoiceDiagnostics());
     const patch: Partial<JarvisSettings> = {};
     if (groqSaved && !s.groqUserKeySaved) patch.groqUserKeySaved = true;
     if (geminiSaved && !s.geminiUserKeySaved) patch.geminiUserKeySaved = true;
@@ -122,7 +141,10 @@ export function JarvisSettingsCard() {
   }, []);
 
   useEffect(() => {
-    const h = () => setDiagnostics(readDiagnostics());
+    const h = () => {
+      setDiagnostics(readDiagnostics());
+      setVoiceDiagnostics(readVoiceDiagnostics());
+    };
     window.addEventListener("fitcore:jarvis-ai-diagnostics", h);
     window.addEventListener("storage", h);
     return () => {
@@ -392,6 +414,12 @@ export function JarvisSettingsCard() {
             <span>Tools/messages sent</span><span>{diagSummary.last?.toolsSent ?? 0} / {diagSummary.last?.messagesSent ?? 0}</span>
             <span>Retry/fallback count</span><span>{diagSummary.last?.retryCount ?? 0} / {diagSummary.last?.fallbackCount ?? 0}</span>
             <span>Model cooldowns</span><span>{diagSummary.last?.fallbackReason ? `${diagSummary.last.fallbackReason} on prior model` : "none visible"}</span>
+            <span>Voice turns this session</span><span>{voiceDiagnostics.voiceTurnsThisSession ?? 0}</span>
+            <span>Voice AI calls this session</span><span>{voiceDiagnostics.aiCallsThisSession ?? 0}</span>
+            <span>Last voice transcript</span><span className="truncate">{voiceDiagnostics.lastTranscript ?? "none"}</span>
+            <span>Last voice provider/model</span><span>{modelLabel(voiceDiagnostics.lastProviderModel)}</span>
+            <span>Voice auto-routing / fallback</span><span>{voiceDiagnostics.autoRouting ? "yes" : "no"} / {voiceDiagnostics.fallback ? "yes" : "no"}</span>
+            <span>Duplicate voice transcript blocked</span><span>{voiceDiagnostics.duplicateTranscriptPrevented ? "yes" : "no"}</span>
           </div>
         </div>
 
