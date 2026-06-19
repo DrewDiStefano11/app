@@ -1135,6 +1135,7 @@ function VoiceConversation({
   const visualFrameRef = useRef<number | null>(null);
   const volumeRef = useRef(0);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
   const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
   const talkingRef = useRef(false);
   const talkingUpdateRef = useRef(0);
@@ -1142,6 +1143,13 @@ function VoiceConversation({
   useEffect(() => {
     settingsRef.current = settings;
   }, [settings]);
+
+  useEffect(() => {
+    transcriptScrollRef.current?.scrollTo({
+      top: transcriptScrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [entries.length, transcriptVisible]);
 
   const updatePhase = useCallback((next: VoicePhase) => {
     phaseRef.current = next;
@@ -1927,7 +1935,9 @@ function VoiceConversation({
       document.removeEventListener("visibilitychange", handleVisibility);
       cleanupResources();
     };
-  }, [cleanupResources, requestWakeLock, startListening, vibrate]);
+    // Voice mode is mounted by an explicit user tap and owns one lifecycle until exit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleOrbTap = () => {
     if (phase === "listening") {
@@ -2122,7 +2132,10 @@ function VoiceConversation({
               {transcriptExpanded ? "Collapse" : "Expand"}
             </button>
           </div>
-          <div className="max-h-[inherit] space-y-3 overflow-y-auto px-4 py-3">
+          <div
+            ref={transcriptScrollRef}
+            className="max-h-[inherit] space-y-3 overflow-y-auto px-4 py-3"
+          >
             {entries.length === 0 ? (
               <p className="text-xs text-white/35">
                 Conversation will appear here.
