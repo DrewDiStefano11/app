@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Send, Loader2, Mic, MicOff, Volume2, VolumeX, Keyboard, Square, RotateCcw } from "lucide-react";
+import { Sparkles, Send, Loader2, Mic, MicOff, Volume2, VolumeX, Keyboard, RotateCcw, X, Eye, EyeOff, History } from "lucide-react";
 import { BottomSheet } from "../sheet";
 import { Chip, GhostButton } from "../ui";
 import { useStore, uid } from "@/lib/store";
@@ -28,11 +28,27 @@ type AiDiagnostics = {
 };
 type ChatResp = { ok: true; content: string; toolCalls?: { id: string; name: string; argsJson: string }[]; notice?: string; diagnostics?: AiDiagnostics } | { ok: false; error: string; diagnostics?: AiDiagnostics };
 
+interface VoiceTranscriptEntry {
+  id: string;
+  role: "user" | "assistant" | "system";
+  text: string;
+  createdAt: number;
+}
+
+interface VoiceTranscript {
+  id: string;
+  startedAt: number;
+  endedAt: number;
+  providerModel: string;
+  entries: VoiceTranscriptEntry[];
+}
+
 interface RenderedMsg {
   id: string;
   role: "user" | "assistant";
   content: string;
   toolResults?: { tool: string; result: ToolResult; pending?: { draftId: string; args: Record<string, unknown> } }[];
+  voiceTranscript?: VoiceTranscript;
   createdAt: number;
 }
 
@@ -51,6 +67,7 @@ const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
 const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
 const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
 const VOICE_DIAGNOSTICS_STORAGE = "fitcore.jarvis.voiceDiagnostics.v1";
+const VOICE_TRANSCRIPTS_STORAGE = "fitcore.jarvis.voiceTranscripts.v1";
 const CONFIRM_WORDS = /^(yes|confirm|save it|log it|yes[, ]+save it|yes[, ]+log it)[.!]?$/i;
 const CANCEL_WORDS = /^(cancel|no|no cancel|don't save|do not save)[.!]?$/i;
 
@@ -85,6 +102,46 @@ function recordVoiceDiagnostics(patch: Record<string, unknown>) {
   window.dispatchEvent(new CustomEvent("fitcore:jarvis-ai-diagnostics"));
 }
 
+function readStoredVoiceTranscripts(retentionDays: number): VoiceTranscript[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(VOICE_TRANSCRIPTS_STORAGE) ?? "[]") as VoiceTranscript[];
+    if (!retentionDays) return stored.slice(-40);
+    const cutoff = Date.now() - retentionDays * 86_400_000;
+    return stored.filter(item => item.endedAt >= cutoff).slice(-40);
+  } catch {
+    return [];
+  }
+}
+
+function saveVoiceTranscript(
+  transcript: VoiceTranscript,
+  enabled: boolean,
+  retentionDays: number,
+) {
+  if (typeof window === "undefined") return;
+  if (!enabled) {
+    recordVoiceDiagnostics({
+      transcriptStorage: "off",
+      transcriptRetention: retentionDays ? `${retentionDays} days` : "forever",
+    });
+    return;
+  }
+  const compact: VoiceTranscript = {
+    ...transcript,
+    entries: transcript.entries.slice(-250).map(entry => ({
+      ...entry,
+      text: entry.text.slice(0, 4000),
+    })),
+  };
+  const next = [...readStoredVoiceTranscripts(retentionDays), compact].slice(-40);
+  window.localStorage.setItem(VOICE_TRANSCRIPTS_STORAGE, JSON.stringify(next));
+  recordVoiceDiagnostics({
+    transcriptStorage: `on (${next.length} saved)`,
+    transcriptRetention: retentionDays ? `${retentionDays} days` : "forever",
+  });
+}
+
 function readSavedKey(storageKey: string) {
   if (typeof window === "undefined") return "";
   return window.localStorage.getItem(storageKey) ?? "";
@@ -117,6 +174,13 @@ function expirePendingConfirmations(messages: RenderedMsg[]): RenderedMsg[] {
 
 function stripToolCards(messages: RenderedMsg[]): RenderedMsg[] {
   return expirePendingConfirmations(messages).map(m => m.toolResults ? { ...m, toolResults: undefined } : m);
+}
+
+function voiceConfirmationPrompt(toolResults: RenderedMsg["toolResults"]) {
+  const pending = toolResults?.find(item => item.result.needsConfirmation);
+  if (!pending) return "";
+  const summary = pending.result.summary.replace(/[.!?]+$/, "");
+  return `${summary}. Want me to save it?`;
 }
 
 function friendlyAssistantContent(content: string, toolResults: RenderedMsg["toolResults"]) {
@@ -192,6 +256,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<RenderedMsg[]>([]);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [expandedTranscriptId, setExpandedTranscriptId] = useState<string | null>(null);
   const { state, set } = useStore();
   const stateRef = useRef(state);
   const messagesRef = useRef(messages);
@@ -212,7 +277,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   const settings = state.jarvisSettings;
   const latestToolMessageId = [...messages].reverse().find(m => m.toolResults?.length)?.id;
 
-  const send = useCallback(async (text: string) => {
+  const send = useCallback(async (text: string, options?: { voiceResponseLength?: "short" | "normal" | "detailed" }) => {
     const content = text.trim();
     if (!content || sendingRef.current) return;
     sendingRef.current = true;
@@ -261,7 +326,9 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
       const res = await chatFn({ data: {
         messages: recent,
         mode: settings.responseStyle === "detailed" ? "detailed" : "quick",
-        systemOverride: sysPrompt,
+        systemOverride: options?.voiceResponseLength
+          ? `${sysPrompt}\nVOICE RESPONSE LENGTH: ${options.voiceResponseLength}. Keep spoken wording natural and avoid unnecessary preamble.`
+          : sysPrompt,
         tools,
         provider: settings.aiProvider ?? "groq",
         geminiKeyMode: normalizedKeyMode(settings.geminiKeyMode),
@@ -297,7 +364,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
 
       const assistantContent = friendlyAssistantContent(res.content, toolResults) || (toolResults.length ? "" : "I couldn't complete that request.");
       setMessages(m => [...m, { id: uid(), role: "assistant", content: assistantContent, toolResults, createdAt: Date.now() }]);
-      return assistantContent || toolResults.map(item => item.result.summary).filter(Boolean).join(". ");
+      return assistantContent || voiceConfirmationPrompt(toolResults) || toolResults.map(item => item.result.summary).filter(Boolean).join(". ");
     } catch (err) {
       const failure = `Warning: ${err instanceof Error ? err.message : "Jarvis failed"}`;
       setMessages(m => [...m, { id: uid(), role: "assistant", content: failure, createdAt: Date.now() }]);
@@ -397,6 +464,32 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
                     {m.content}
                   </div>
                 )}
+                {m.voiceTranscript && (
+                  <div className="w-full max-w-[85%] rounded-2xl border border-border bg-[var(--surface-2)] p-3">
+                    <button
+                      onClick={() => setExpandedTranscriptId(id => id === m.voiceTranscript?.id ? null : m.voiceTranscript?.id ?? null)}
+                      className="flex w-full items-center gap-2 text-left text-sm font-medium"
+                    >
+                      <History size={16} style={{ color: "var(--section)" }} />
+                      <span>View Full Transcript</span>
+                      <span className="ml-auto text-xs text-muted-foreground">
+                        {m.voiceTranscript.entries.length} lines
+                      </span>
+                    </button>
+                    {expandedTranscriptId === m.voiceTranscript.id && (
+                      <div className="mt-3 max-h-64 space-y-2 overflow-y-auto border-t border-border pt-3">
+                        {m.voiceTranscript.entries.map(entry => (
+                          <div key={entry.id} className="text-xs">
+                            <span className="font-semibold capitalize text-muted-foreground">
+                              {entry.role === "assistant" ? "Jarvis" : entry.role}:
+                            </span>{" "}
+                            <span>{entry.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
                 {visibleToolResults?.map((tr, i) => (
                   <ConfirmCard key={i} tool={tr.tool} result={tr.result}
                     onConfirm={() => applyPending(m.id, i)}
@@ -434,11 +527,64 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
             settings={settings}
             providerModel={providerModel}
             onSend={send}
-            onEnd={() => {
+            activeWorkout={state.activeWorkout ? {
+              name: state.activeWorkout.name,
+              exercise: state.activeWorkout.exercises.find(exercise => !exercise.completed)?.exerciseId,
+              setNumber: (state.activeWorkout.exercises.find(exercise => !exercise.completed)?.sets.length ?? 0) + 1,
+            } : null}
+            onEnd={entries => {
+              const transcript: VoiceTranscript = {
+                id: uid(),
+                startedAt: entries[0]?.createdAt ?? Date.now(),
+                endedAt: Date.now(),
+                providerModel,
+                entries,
+              };
+              saveVoiceTranscript(
+                transcript,
+                settings.saveVoiceTranscripts !== false,
+                settings.voiceTranscriptRetentionDays ?? 30,
+              );
+              if (entries.length) {
+                setMessages(previous => [
+                  ...previous,
+                  {
+                    id: uid(),
+                    role: "assistant",
+                    content: "Voice conversation ended.",
+                    voiceTranscript: transcript,
+                    createdAt: Date.now(),
+                  },
+                ]);
+              }
               setVoiceOpen(false);
               set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: false } }));
             }}
-            onTextFallback={() => {
+            onTextFallback={entries => {
+              if (entries.length) {
+                const transcript: VoiceTranscript = {
+                  id: uid(),
+                  startedAt: entries[0]?.createdAt ?? Date.now(),
+                  endedAt: Date.now(),
+                  providerModel,
+                  entries,
+                };
+                saveVoiceTranscript(
+                  transcript,
+                  settings.saveVoiceTranscripts !== false,
+                  settings.voiceTranscriptRetentionDays ?? 30,
+                );
+                setMessages(previous => [
+                  ...previous,
+                  {
+                    id: uid(),
+                    role: "assistant",
+                    content: "Voice conversation paused. Continue by typing below.",
+                    voiceTranscript: transcript,
+                    createdAt: Date.now(),
+                  },
+                ]);
+              }
               setVoiceOpen(false);
               set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: false } }));
             }}
