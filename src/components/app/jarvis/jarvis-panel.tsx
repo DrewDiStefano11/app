@@ -1,11 +1,30 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Send, Loader2, Mic, MicOff, Volume2, VolumeX, Keyboard, RotateCcw, X, Eye, EyeOff, History } from "lucide-react";
+import {
+  Sparkles,
+  Send,
+  Loader2,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
+  Keyboard,
+  RotateCcw,
+  X,
+  Eye,
+  EyeOff,
+  History,
+} from "lucide-react";
 import { BottomSheet } from "../sheet";
 import { Chip, GhostButton } from "../ui";
 import { useStore, uid } from "@/lib/store";
 import { aiChat } from "@/lib/ai.functions";
 import { useServerFn } from "@tanstack/react-start";
-import { TOOL_SPECS, runTool, undoAuditEntry, type ToolResult } from "@/lib/jarvis/tools";
+import {
+  TOOL_SPECS,
+  runTool,
+  undoAuditEntry,
+  type ToolResult,
+} from "@/lib/jarvis/tools";
 import { ConfirmCard } from "./confirm-card";
 import { SourceBadge } from "./source-badge";
 
@@ -26,7 +45,15 @@ type AiDiagnostics = {
   messagesSent?: number;
   timestamp?: number;
 };
-type ChatResp = { ok: true; content: string; toolCalls?: { id: string; name: string; argsJson: string }[]; notice?: string; diagnostics?: AiDiagnostics } | { ok: false; error: string; diagnostics?: AiDiagnostics };
+type ChatResp =
+  | {
+      ok: true;
+      content: string;
+      toolCalls?: { id: string; name: string; argsJson: string }[];
+      notice?: string;
+      diagnostics?: AiDiagnostics;
+    }
+  | { ok: false; error: string; diagnostics?: AiDiagnostics };
 
 interface VoiceTranscriptEntry {
   id: string;
@@ -47,7 +74,11 @@ interface RenderedMsg {
   id: string;
   role: "user" | "assistant";
   content: string;
-  toolResults?: { tool: string; result: ToolResult; pending?: { draftId: string; args: Record<string, unknown> } }[];
+  toolResults?: {
+    tool: string;
+    result: ToolResult;
+    pending?: { draftId: string; args: Record<string, unknown> };
+  }[];
   voiceTranscript?: VoiceTranscript;
   createdAt: number;
 }
@@ -62,17 +93,25 @@ const SUGGESTED = [
   "Undo that",
 ];
 
-const NON_MUTATING = new Set(["undoLastAction", "getJarvisLearnedPreferences", "suggestNutritionAction"]);
+const NON_MUTATING = new Set([
+  "undoLastAction",
+  "getJarvisLearnedPreferences",
+  "suggestNutritionAction",
+]);
 const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
 const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
 const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
 const VOICE_DIAGNOSTICS_STORAGE = "fitcore.jarvis.voiceDiagnostics.v1";
 const VOICE_TRANSCRIPTS_STORAGE = "fitcore.jarvis.voiceTranscripts.v1";
-const CONFIRM_WORDS = /^(yes|confirm|save it|log it|yes[, ]+save it|yes[, ]+log it)[.!]?$/i;
+const CONFIRM_WORDS =
+  /^(yes|confirm|save it|log it|yes[, ]+save it|yes[, ]+log it)[.!]?$/i;
 const CANCEL_WORDS = /^(cancel|no|no cancel|don't save|do not save)[.!]?$/i;
 
 type VoicePhase = "listening" | "processing" | "speaking" | "paused" | "error";
-type SpeechResultEvent = { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> };
+type SpeechResultEvent = {
+  resultIndex: number;
+  results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }>;
+};
 type SpeechErrorEvent = { error: string };
 type BrowserSpeechRecognition = {
   continuous: boolean;
@@ -88,27 +127,43 @@ type BrowserSpeechRecognition = {
 };
 type SpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
 
-function speechRecognitionConstructor(): SpeechRecognitionConstructor | undefined {
+function speechRecognitionConstructor():
+  | SpeechRecognitionConstructor
+  | undefined {
   if (typeof window === "undefined") return undefined;
-  const w = window as typeof window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
+  const w = window as typeof window & {
+    SpeechRecognition?: SpeechRecognitionConstructor;
+    webkitSpeechRecognition?: SpeechRecognitionConstructor;
+  };
   return w.SpeechRecognition ?? w.webkitSpeechRecognition;
 }
 
 function recordVoiceDiagnostics(patch: Record<string, unknown>) {
   if (typeof window === "undefined") return;
   let previous: Record<string, unknown> = {};
-  try { previous = JSON.parse(window.localStorage.getItem(VOICE_DIAGNOSTICS_STORAGE) ?? "{}"); } catch { /* ignore corrupt local diagnostics */ }
-  window.localStorage.setItem(VOICE_DIAGNOSTICS_STORAGE, JSON.stringify({ ...previous, ...patch, updatedAt: Date.now() }));
+  try {
+    previous = JSON.parse(
+      window.localStorage.getItem(VOICE_DIAGNOSTICS_STORAGE) ?? "{}",
+    );
+  } catch {
+    /* ignore corrupt local diagnostics */
+  }
+  window.localStorage.setItem(
+    VOICE_DIAGNOSTICS_STORAGE,
+    JSON.stringify({ ...previous, ...patch, updatedAt: Date.now() }),
+  );
   window.dispatchEvent(new CustomEvent("fitcore:jarvis-ai-diagnostics"));
 }
 
 function readStoredVoiceTranscripts(retentionDays: number): VoiceTranscript[] {
   if (typeof window === "undefined") return [];
   try {
-    const stored = JSON.parse(window.localStorage.getItem(VOICE_TRANSCRIPTS_STORAGE) ?? "[]") as VoiceTranscript[];
+    const stored = JSON.parse(
+      window.localStorage.getItem(VOICE_TRANSCRIPTS_STORAGE) ?? "[]",
+    ) as VoiceTranscript[];
     if (!retentionDays) return stored.slice(-40);
     const cutoff = Date.now() - retentionDays * 86_400_000;
-    return stored.filter(item => item.endedAt >= cutoff).slice(-40);
+    return stored.filter((item) => item.endedAt >= cutoff).slice(-40);
   } catch {
     return [];
   }
@@ -129,12 +184,14 @@ function saveVoiceTranscript(
   }
   const compact: VoiceTranscript = {
     ...transcript,
-    entries: transcript.entries.slice(-250).map(entry => ({
+    entries: transcript.entries.slice(-250).map((entry) => ({
       ...entry,
       text: entry.text.slice(0, 4000),
     })),
   };
-  const next = [...readStoredVoiceTranscripts(retentionDays), compact].slice(-40);
+  const next = [...readStoredVoiceTranscripts(retentionDays), compact].slice(
+    -40,
+  );
   window.localStorage.setItem(VOICE_TRANSCRIPTS_STORAGE, JSON.stringify(next));
   recordVoiceDiagnostics({
     transcriptStorage: `on (${next.length} saved)`,
@@ -147,60 +204,97 @@ function readSavedKey(storageKey: string) {
   return window.localStorage.getItem(storageKey) ?? "";
 }
 
-function normalizedKeyMode(mode: ReturnType<typeof useStore>["state"]["jarvisSettings"]["geminiKeyMode"]): "local" | "environment" {
+function normalizedKeyMode(
+  mode: ReturnType<typeof useStore>["state"]["jarvisSettings"]["geminiKeyMode"],
+): "local" | "environment" {
   return mode === "environment" ? "environment" : "local";
 }
 
 function recordDiagnostics(diag?: AiDiagnostics) {
   if (!diag || typeof window === "undefined") return;
   const raw = window.localStorage.getItem(AI_DIAGNOSTICS_STORAGE);
-  const previous = raw ? JSON.parse(raw) as { calls?: AiDiagnostics[] } : {};
-  const calls = [...(previous.calls ?? []), { ...diag, timestamp: diag.timestamp ?? Date.now() }].slice(-50);
-  window.localStorage.setItem(AI_DIAGNOSTICS_STORAGE, JSON.stringify({ calls }));
+  const previous = raw ? (JSON.parse(raw) as { calls?: AiDiagnostics[] }) : {};
+  const calls = [
+    ...(previous.calls ?? []),
+    { ...diag, timestamp: diag.timestamp ?? Date.now() },
+  ].slice(-50);
+  window.localStorage.setItem(
+    AI_DIAGNOSTICS_STORAGE,
+    JSON.stringify({ calls }),
+  );
   window.dispatchEvent(new CustomEvent("fitcore:jarvis-ai-diagnostics"));
 }
 
 function expirePendingConfirmations(messages: RenderedMsg[]): RenderedMsg[] {
-  return messages.map(m => {
-    if (!m.toolResults?.some(tr => tr.pending && tr.result.needsConfirmation)) return m;
+  return messages.map((m) => {
+    if (!m.toolResults?.some((tr) => tr.pending && tr.result.needsConfirmation))
+      return m;
     return {
       ...m,
-      toolResults: m.toolResults.map(tr => tr.pending && tr.result.needsConfirmation
-        ? { tool: tr.tool, result: { ok: false, summary: "Cancelled", needsConfirmation: false } }
-        : tr),
+      toolResults: m.toolResults.map((tr) =>
+        tr.pending && tr.result.needsConfirmation
+          ? {
+              tool: tr.tool,
+              result: {
+                ok: false,
+                summary: "Cancelled",
+                needsConfirmation: false,
+              },
+            }
+          : tr,
+      ),
     };
   });
 }
 
 function stripToolCards(messages: RenderedMsg[]): RenderedMsg[] {
-  return expirePendingConfirmations(messages).map(m => m.toolResults ? { ...m, toolResults: undefined } : m);
+  return expirePendingConfirmations(messages).map((m) =>
+    m.toolResults ? { ...m, toolResults: undefined } : m,
+  );
 }
 
 function voiceConfirmationPrompt(toolResults: RenderedMsg["toolResults"]) {
-  const pending = toolResults?.find(item => item.result.needsConfirmation);
+  const pending = toolResults?.find((item) => item.result.needsConfirmation);
   if (!pending) return "";
   const summary = pending.result.summary.replace(/[.!?]+$/, "");
   return `${summary}. Want me to save it?`;
 }
 
-function friendlyAssistantContent(content: string, toolResults: RenderedMsg["toolResults"]) {
+function friendlyAssistantContent(
+  content: string,
+  toolResults: RenderedMsg["toolResults"],
+) {
   const trimmed = content.trim();
   const normalized = trimmed.replace(/[`"'.,:]/g, "").trim();
-  const leakedToolName = TOOL_SPECS.some(tool => tool.name === normalized);
+  const leakedToolName = TOOL_SPECS.some((tool) => tool.name === normalized);
   if (trimmed && !leakedToolName) return trimmed;
-  if (toolResults?.some(item => item.result.needsConfirmation)) return "";
-  return (toolResults ?? []).map(item => item.result.summary).filter(Boolean).join("\n");
+  if (toolResults?.some((item) => item.result.needsConfirmation)) return "";
+  return (toolResults ?? [])
+    .map((item) => item.result.summary)
+    .filter(Boolean)
+    .join("\n");
 }
 
-function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section: string, contextSummary: string): string {
+function jarvisSystemPrompt(
+  state: ReturnType<typeof useStore>["state"],
+  section: string,
+  contextSummary: string,
+): string {
   const s = state.jarvisSettings;
-  const styleLine = s.responseStyle === "concise" ? "Keep replies under 40 words." : s.responseStyle === "detailed" ? "Be thorough but organized." : "Be clear and brief (under 100 words).";
-  const personaLine = ({
-    friendly: "Tone: friendly, direct, encouraging. Not robotic.",
-    coach: "Tone: experienced coach - confident, accountable, practical.",
-    siri: "Tone: short, neutral, assistant-like.",
-    chatgpt: "Tone: thorough, explanatory.",
-  } as const)[s.personality];
+  const styleLine =
+    s.responseStyle === "concise"
+      ? "Keep replies under 40 words."
+      : s.responseStyle === "detailed"
+        ? "Be thorough but organized."
+        : "Be clear and brief (under 100 words).";
+  const personaLine = (
+    {
+      friendly: "Tone: friendly, direct, encouraging. Not robotic.",
+      coach: "Tone: experienced coach - confident, accountable, practical.",
+      siri: "Tone: short, neutral, assistant-like.",
+      chatgpt: "Tone: thorough, explanatory.",
+    } as const
+  )[s.personality];
   const permLine = {
     1: "Permission: SUGGEST ONLY. Do not call any logging tools - only call getter tools and answer.",
     2: "Permission: DRAFT & CONFIRM. You may call logging tools; every action will be shown to the user for confirmation.",
@@ -213,7 +307,9 @@ function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section
     p.usualLunch && `lunch: ${p.usualLunch}`,
     p.usualDinner && `dinner: ${p.usualDinner}`,
     p.usualProteinShake && `shake: ${p.usualProteinShake}`,
-  ].filter(Boolean).join("; ");
+  ]
+    .filter(Boolean)
+    .join("; ");
   return [
     "You are Jarvis, the AI control layer for the user's FitCore fitness app.",
     "You ONLY mutate app data via the provided tools. Never claim to log something without a tool call.",
@@ -227,36 +323,60 @@ function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section
     "ACTIVE WORKOUT: Use getActiveWorkout, logExerciseSet, updateActiveWorkout, suggestActiveWorkoutChange, finishActiveWorkout, and related tools. Ask before editing unless settings allow.",
     "If the user says yes/log that after something already saved, do not call a duplicate logging tool; answer that it is already logged.",
     "When uncertain, ask one short follow-up question. Never diagnose. Red-flag symptoms -> recommend medical care.",
-    personaLine, styleLine, permLine,
+    personaLine,
+    styleLine,
+    permLine,
     `Section: ${section}.`,
     usualLine ? `User's usual meals - ${usualLine}.` : "",
-    "User context:", contextSummary,
-  ].filter(Boolean).join("\n");
+    "User context:",
+    contextSummary,
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 function isMutatingTool(name: string) {
   return !name.startsWith("get") && !NON_MUTATING.has(name);
 }
 
-function shouldAutoRun(name: string, args: Record<string, unknown>, settings: ReturnType<typeof useStore>["state"]["jarvisSettings"]) {
+function shouldAutoRun(
+  name: string,
+  args: Record<string, unknown>,
+  settings: ReturnType<typeof useStore>["state"]["jarvisSettings"],
+) {
   if (settings.permission < 3) return false;
   if (name === "logBodyWeight") return settings.autoLogBodyweight;
   if (name === "logSupplement") return settings.autoLogSupplements;
-  if (name === "logMeal") return settings.autoLogMealEstimates && args.confidence === "high";
+  if (name === "logMeal")
+    return settings.autoLogMealEstimates && args.confidence === "high";
   if (name === "logUsualMeal") return settings.autoLogMealEstimates;
-  if (name === "logCardio") return !settings.askBeforeWorkouts && args.confidence === "high";
-  if (name === "logWorkout") return !settings.askBeforeWorkouts && args.confidence === "high";
-  if (name === "updateActiveWorkout") return settings.autoApplyActiveWorkoutSuggestions && !settings.askBeforeActiveWorkoutEdits;
+  if (name === "logCardio")
+    return !settings.askBeforeWorkouts && args.confidence === "high";
+  if (name === "logWorkout")
+    return !settings.askBeforeWorkouts && args.confidence === "high";
+  if (name === "updateActiveWorkout")
+    return (
+      settings.autoApplyActiveWorkoutSuggestions &&
+      !settings.askBeforeActiveWorkoutEdits
+    );
   return false;
 }
 
-export function JarvisPanel({ section, contextSummary }: { section: string; contextSummary: string }) {
+export function JarvisPanel({
+  section,
+  contextSummary,
+}: {
+  section: string;
+  contextSummary: string;
+}) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<RenderedMsg[]>([]);
   const [voiceOpen, setVoiceOpen] = useState(false);
-  const [expandedTranscriptId, setExpandedTranscriptId] = useState<string | null>(null);
+  const [expandedTranscriptId, setExpandedTranscriptId] = useState<
+    string | null
+  >(null);
   const { state, set } = useStore();
   const stateRef = useRef(state);
   const messagesRef = useRef(messages);
@@ -264,210 +384,456 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   const chatFn = useServerFn(aiChat);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { stateRef.current = state; }, [state]);
-  useEffect(() => { messagesRef.current = messages; }, [messages]);
-  useEffect(() => { if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [open, messages.length]);
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+  useEffect(() => {
+    if (open)
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+  }, [open, messages.length]);
   useEffect(() => {
     const h = () => setOpen(true);
     window.addEventListener("fitcore:open-ai", h);
     window.addEventListener("fitcore:open-jarvis", h);
-    return () => { window.removeEventListener("fitcore:open-ai", h); window.removeEventListener("fitcore:open-jarvis", h); };
+    return () => {
+      window.removeEventListener("fitcore:open-ai", h);
+      window.removeEventListener("fitcore:open-jarvis", h);
+    };
   }, []);
 
   const settings = state.jarvisSettings;
-  const latestToolMessageId = [...messages].reverse().find(m => m.toolResults?.length)?.id;
+  const latestToolMessageId = [...messages]
+    .reverse()
+    .find((m) => m.toolResults?.length)?.id;
 
-  const send = useCallback(async (text: string, options?: { voiceResponseLength?: "short" | "normal" | "detailed" }) => {
-    const content = text.trim();
-    if (!content || sendingRef.current) return;
-    sendingRef.current = true;
-    if (!settings.enabled) {
-      const disabled = "Jarvis is disabled. Enable it in Settings > Jarvis AI.";
-      setMessages(m => [...m, { id: uid(), role: "assistant", content: disabled, createdAt: Date.now() }]);
-      sendingRef.current = false;
-      return disabled;
-    }
-
-    const pendingIntent = CONFIRM_WORDS.test(content) ? "confirm" : CANCEL_WORDS.test(content) ? "cancel" : null;
-    const pendingMessage = [...messagesRef.current].reverse().find(m => m.toolResults?.some(tr => tr.pending && tr.result.needsConfirmation));
-    if (pendingIntent && pendingMessage?.toolResults) {
-      const idx = pendingMessage.toolResults.findIndex(tr => tr.pending && tr.result.needsConfirmation);
-      const current = pendingMessage.toolResults[idx];
-      const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now() };
-      let spoken = "Cancelled.";
-      if (pendingIntent === "confirm" && current?.pending) {
-        const result = runTool(current.tool, current.pending.args, { state: stateRef.current, set, settings });
-        spoken = result.summary;
-        setMessages(prev => [...prev.map(m => m.id === pendingMessage.id && m.toolResults ? {
+  const send = useCallback(
+    async (
+      text: string,
+      options?: { voiceResponseLength?: "short" | "normal" | "detailed" },
+    ) => {
+      const content = text.trim();
+      if (!content || sendingRef.current) return;
+      sendingRef.current = true;
+      if (!settings.enabled) {
+        const disabled =
+          "Jarvis is disabled. Enable it in Settings > Jarvis AI.";
+        setMessages((m) => [
           ...m,
-          toolResults: m.toolResults.map((tr, i) => i === idx ? { tool: tr.tool, result: { ...result, needsConfirmation: false } } : tr),
-        } : m), userMsg, { id: uid(), role: "assistant", content: spoken, createdAt: Date.now() }]);
-      } else {
-        setMessages(prev => [...prev.map(m => m.id === pendingMessage.id && m.toolResults ? {
-          ...m,
-          toolResults: m.toolResults.map((tr, i) => i === idx ? { tool: tr.tool, result: { ok: false, summary: "Cancelled", needsConfirmation: false } } : tr),
-        } : m), userMsg, { id: uid(), role: "assistant", content: spoken, createdAt: Date.now() }]);
-      }
-      sendingRef.current = false;
-      return spoken;
-    }
-
-    setInput("");
-    setSending(true);
-    const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now() };
-    setMessages(m => [...stripToolCards(m), userMsg]);
-
-    try {
-      const recent = [{ role: userMsg.role, content: userMsg.content }];
-      const tools = settings.permission === 1 ? TOOL_SPECS.filter(t => t.name.startsWith("get")) : TOOL_SPECS;
-      const sysPrompt = jarvisSystemPrompt(stateRef.current, section, contextSummary);
-      const savedGeminiKey = readSavedKey(GEMINI_KEY_STORAGE);
-      const savedGroqKey = readSavedKey(GROQ_KEY_STORAGE);
-      const res = await chatFn({ data: {
-        messages: recent,
-        mode: settings.responseStyle === "detailed" ? "detailed" : "quick",
-        systemOverride: options?.voiceResponseLength
-          ? `${sysPrompt}\nVOICE RESPONSE LENGTH: ${options.voiceResponseLength}. Keep spoken wording natural and avoid unnecessary preamble.`
-          : sysPrompt,
-        tools,
-        provider: settings.aiProvider ?? "groq",
-        geminiKeyMode: normalizedKeyMode(settings.geminiKeyMode),
-        geminiModel: settings.geminiModel,
-        userGeminiApiKey: savedGeminiKey || undefined,
-        groqKeyMode: normalizedKeyMode(settings.groqKeyMode),
-        groqModel: settings.groqModel ?? "qwen/qwen3-32b",
-        userGroqApiKey: savedGroqKey || undefined,
-        autoModelRouting: settings.autoModelRouting !== false,
-        autoAiFallback: settings.autoAiFallback !== false,
-        allowGeminiFallback: Boolean(settings.allowGeminiFallback),
-      } }) as ChatResp;
-      recordDiagnostics(res.diagnostics);
-
-      if (!res.ok) {
-        const failure = `Warning: ${res.error}`;
-        setMessages(m => [...m, { id: uid(), role: "assistant", content: failure, createdAt: Date.now() }]);
-        return failure;
+          {
+            id: uid(),
+            role: "assistant",
+            content: disabled,
+            createdAt: Date.now(),
+          },
+        ]);
+        sendingRef.current = false;
+        return disabled;
       }
 
-      const toolResults: RenderedMsg["toolResults"] = [];
-      for (const tc of res.toolCalls ?? []) {
-        let args: Record<string, unknown> = {};
-        try { args = JSON.parse(tc.argsJson); } catch { /* keep empty */ }
-        if (isMutatingTool(tc.name) && settings.permission >= 2 && !shouldAutoRun(tc.name, args, settings)) {
-          const draftId = uid();
-          toolResults.push({ tool: tc.name, result: { ok: true, summary: humanizeArgs(tc.name, args), needsConfirmation: true, data: args }, pending: { draftId, args: { ...args, draftId } } });
+      const pendingIntent = CONFIRM_WORDS.test(content)
+        ? "confirm"
+        : CANCEL_WORDS.test(content)
+          ? "cancel"
+          : null;
+      const pendingMessage = [...messagesRef.current]
+        .reverse()
+        .find((m) =>
+          m.toolResults?.some(
+            (tr) => tr.pending && tr.result.needsConfirmation,
+          ),
+        );
+      if (pendingIntent && pendingMessage?.toolResults) {
+        const idx = pendingMessage.toolResults.findIndex(
+          (tr) => tr.pending && tr.result.needsConfirmation,
+        );
+        const current = pendingMessage.toolResults[idx];
+        const userMsg: RenderedMsg = {
+          id: uid(),
+          role: "user",
+          content,
+          createdAt: Date.now(),
+        };
+        let spoken = "Cancelled.";
+        if (pendingIntent === "confirm" && current?.pending) {
+          const result = runTool(current.tool, current.pending.args, {
+            state: stateRef.current,
+            set,
+            settings,
+          });
+          spoken = result.summary;
+          setMessages((prev) => [
+            ...prev.map((m) =>
+              m.id === pendingMessage.id && m.toolResults
+                ? {
+                    ...m,
+                    toolResults: m.toolResults.map((tr, i) =>
+                      i === idx
+                        ? {
+                            tool: tr.tool,
+                            result: { ...result, needsConfirmation: false },
+                          }
+                        : tr,
+                    ),
+                  }
+                : m,
+            ),
+            userMsg,
+            {
+              id: uid(),
+              role: "assistant",
+              content: spoken,
+              createdAt: Date.now(),
+            },
+          ]);
         } else {
-          const r = runTool(tc.name, args, { state: stateRef.current, set, settings });
-          toolResults.push({ tool: tc.name, result: r });
+          setMessages((prev) => [
+            ...prev.map((m) =>
+              m.id === pendingMessage.id && m.toolResults
+                ? {
+                    ...m,
+                    toolResults: m.toolResults.map((tr, i) =>
+                      i === idx
+                        ? {
+                            tool: tr.tool,
+                            result: {
+                              ok: false,
+                              summary: "Cancelled",
+                              needsConfirmation: false,
+                            },
+                          }
+                        : tr,
+                    ),
+                  }
+                : m,
+            ),
+            userMsg,
+            {
+              id: uid(),
+              role: "assistant",
+              content: spoken,
+              createdAt: Date.now(),
+            },
+          ]);
         }
+        sendingRef.current = false;
+        return spoken;
       }
 
-      const assistantContent = friendlyAssistantContent(res.content, toolResults) || (toolResults.length ? "" : "I couldn't complete that request.");
-      setMessages(m => [...m, { id: uid(), role: "assistant", content: assistantContent, toolResults, createdAt: Date.now() }]);
-      return assistantContent || voiceConfirmationPrompt(toolResults) || toolResults.map(item => item.result.summary).filter(Boolean).join(". ");
-    } catch (err) {
-      const failure = `Warning: ${err instanceof Error ? err.message : "Jarvis failed"}`;
-      setMessages(m => [...m, { id: uid(), role: "assistant", content: failure, createdAt: Date.now() }]);
-      return failure;
-    } finally {
-      sendingRef.current = false;
-      setSending(false);
-    }
-  }, [settings, chatFn, set, section, contextSummary]);
+      setInput("");
+      setSending(true);
+      const userMsg: RenderedMsg = {
+        id: uid(),
+        role: "user",
+        content,
+        createdAt: Date.now(),
+      };
+      setMessages((m) => [...stripToolCards(m), userMsg]);
+
+      try {
+        const recent = [{ role: userMsg.role, content: userMsg.content }];
+        const tools =
+          settings.permission === 1
+            ? TOOL_SPECS.filter((t) => t.name.startsWith("get"))
+            : TOOL_SPECS;
+        const sysPrompt = jarvisSystemPrompt(
+          stateRef.current,
+          section,
+          contextSummary,
+        );
+        const savedGeminiKey = readSavedKey(GEMINI_KEY_STORAGE);
+        const savedGroqKey = readSavedKey(GROQ_KEY_STORAGE);
+        const res = (await chatFn({
+          data: {
+            messages: recent,
+            mode: settings.responseStyle === "detailed" ? "detailed" : "quick",
+            systemOverride: options?.voiceResponseLength
+              ? `${sysPrompt}\nVOICE RESPONSE LENGTH: ${options.voiceResponseLength}. Keep spoken wording natural and avoid unnecessary preamble.`
+              : sysPrompt,
+            tools,
+            provider: settings.aiProvider ?? "groq",
+            geminiKeyMode: normalizedKeyMode(settings.geminiKeyMode),
+            geminiModel: settings.geminiModel,
+            userGeminiApiKey: savedGeminiKey || undefined,
+            groqKeyMode: normalizedKeyMode(settings.groqKeyMode),
+            groqModel: settings.groqModel ?? "qwen/qwen3-32b",
+            userGroqApiKey: savedGroqKey || undefined,
+            autoModelRouting: settings.autoModelRouting !== false,
+            autoAiFallback: settings.autoAiFallback !== false,
+            allowGeminiFallback: Boolean(settings.allowGeminiFallback),
+          },
+        })) as ChatResp;
+        recordDiagnostics(res.diagnostics);
+
+        if (!res.ok) {
+          const failure = `Warning: ${res.error}`;
+          setMessages((m) => [
+            ...m,
+            {
+              id: uid(),
+              role: "assistant",
+              content: failure,
+              createdAt: Date.now(),
+            },
+          ]);
+          return failure;
+        }
+
+        const toolResults: RenderedMsg["toolResults"] = [];
+        for (const tc of res.toolCalls ?? []) {
+          let args: Record<string, unknown> = {};
+          try {
+            args = JSON.parse(tc.argsJson);
+          } catch {
+            /* keep empty */
+          }
+          if (
+            isMutatingTool(tc.name) &&
+            settings.permission >= 2 &&
+            !shouldAutoRun(tc.name, args, settings)
+          ) {
+            const draftId = uid();
+            toolResults.push({
+              tool: tc.name,
+              result: {
+                ok: true,
+                summary: humanizeArgs(tc.name, args),
+                needsConfirmation: true,
+                data: args,
+              },
+              pending: { draftId, args: { ...args, draftId } },
+            });
+          } else {
+            const r = runTool(tc.name, args, {
+              state: stateRef.current,
+              set,
+              settings,
+            });
+            toolResults.push({ tool: tc.name, result: r });
+          }
+        }
+
+        const assistantContent =
+          friendlyAssistantContent(res.content, toolResults) ||
+          (toolResults.length ? "" : "I couldn't complete that request.");
+        setMessages((m) => [
+          ...m,
+          {
+            id: uid(),
+            role: "assistant",
+            content: assistantContent,
+            toolResults,
+            createdAt: Date.now(),
+          },
+        ]);
+        return (
+          assistantContent ||
+          voiceConfirmationPrompt(toolResults) ||
+          toolResults
+            .map((item) => item.result.summary)
+            .filter(Boolean)
+            .join(". ")
+        );
+      } catch (err) {
+        const failure = `Warning: ${err instanceof Error ? err.message : "Jarvis failed"}`;
+        setMessages((m) => [
+          ...m,
+          {
+            id: uid(),
+            role: "assistant",
+            content: failure,
+            createdAt: Date.now(),
+          },
+        ]);
+        return failure;
+      } finally {
+        sendingRef.current = false;
+        setSending(false);
+      }
+    },
+    [settings, chatFn, set, section, contextSummary],
+  );
 
   const applyPending = (msgId: string, idx: number) => {
-    const msg = messages.find(m => m.id === msgId);
+    const msg = messages.find((m) => m.id === msgId);
     const existing = msg?.toolResults?.[idx];
     if (!existing?.pending || !existing.result.needsConfirmation) return;
 
     const { tool, pending } = existing;
-    setMessages(prev => prev.map(m => {
-      if (m.id !== msgId || !m.toolResults) return m;
-      const tr = m.toolResults[idx];
-      if (!tr?.pending || !tr.result.needsConfirmation) return m;
-      const next = [...m.toolResults];
-      next[idx] = { tool: tr.tool, result: { ...tr.result, summary: "Saving...", needsConfirmation: false } };
-      return { ...m, toolResults: next };
-    }));
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== msgId || !m.toolResults) return m;
+        const tr = m.toolResults[idx];
+        if (!tr?.pending || !tr.result.needsConfirmation) return m;
+        const next = [...m.toolResults];
+        next[idx] = {
+          tool: tr.tool,
+          result: {
+            ...tr.result,
+            summary: "Saving...",
+            needsConfirmation: false,
+          },
+        };
+        return { ...m, toolResults: next };
+      }),
+    );
 
-    const r = runTool(tool, pending.args, { state: stateRef.current, set, settings });
-    setMessages(prev => prev.map(m => {
-      if (m.id !== msgId || !m.toolResults) return m;
-      const next = [...m.toolResults];
-      next[idx] = { tool, result: { ...r, needsConfirmation: false } };
-      return { ...m, toolResults: next };
-    }));
+    const r = runTool(tool, pending.args, {
+      state: stateRef.current,
+      set,
+      settings,
+    });
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== msgId || !m.toolResults) return m;
+        const next = [...m.toolResults];
+        next[idx] = { tool, result: { ...r, needsConfirmation: false } };
+        return { ...m, toolResults: next };
+      }),
+    );
   };
 
   const cancelPending = (msgId: string, idx: number) => {
-    setMessages(prev => prev.map(m => {
-      if (m.id !== msgId || !m.toolResults) return m;
-      const tr = m.toolResults[idx];
-      if (!tr.pending || !tr.result.needsConfirmation) return m;
-      const next = [...m.toolResults];
-      next[idx] = { tool: tr.tool, result: { ok: false, summary: "Cancelled", needsConfirmation: false } };
-      return { ...m, toolResults: next };
-    }));
+    setMessages((prev) =>
+      prev.map((m) => {
+        if (m.id !== msgId || !m.toolResults) return m;
+        const tr = m.toolResults[idx];
+        if (!tr.pending || !tr.result.needsConfirmation) return m;
+        const next = [...m.toolResults];
+        next[idx] = {
+          tool: tr.tool,
+          result: { ok: false, summary: "Cancelled", needsConfirmation: false },
+        };
+        return { ...m, toolResults: next };
+      }),
+    );
   };
-  const undoAction = (auditId: string) => undoAuditEntry(auditId, stateRef.current, set);
-  const providerName = settings.aiProvider === "gemini" ? "Gemini" : settings.aiProvider === "legacy-lovable" ? "Legacy" : "Groq";
-  const providerModel = settings.aiProvider === "gemini"
-    ? `Gemini ${settings.geminiModel === "gemini-2.5-flash" ? "2.5 Flash" : "backup"}`
-    : settings.groqModel === "llama-3.1-8b-instant" ? "Groq Llama 3.1 8B" : settings.groqModel === "llama-3.3-70b-versatile" ? "Groq Llama 3.3 70B" : "Groq Qwen 3 32B";
+  const undoAction = (auditId: string) =>
+    undoAuditEntry(auditId, stateRef.current, set);
+  const providerName =
+    settings.aiProvider === "gemini"
+      ? "Gemini"
+      : settings.aiProvider === "legacy-lovable"
+        ? "Legacy"
+        : "Groq";
+  const providerModel =
+    settings.aiProvider === "gemini"
+      ? `Gemini ${settings.geminiModel === "gemini-2.5-flash" ? "2.5 Flash" : "backup"}`
+      : settings.groqModel === "llama-3.1-8b-instant"
+        ? "Groq Llama 3.1 8B"
+        : settings.groqModel === "llama-3.3-70b-versatile"
+          ? "Groq Llama 3.3 70B"
+          : "Groq Qwen 3 32B";
 
   const closePanel = () => {
     setVoiceOpen(false);
     window.speechSynthesis?.cancel();
-    set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: false } }));
+    set((s) => ({
+      ...s,
+      jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: false },
+    }));
     setOpen(false);
   };
 
   const startVoice = () => {
-    set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: true } }));
+    set((s) => ({
+      ...s,
+      jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: true },
+    }));
     setVoiceOpen(true);
   };
 
   return (
     <>
-      <button onClick={() => setOpen(true)}
+      <button
+        onClick={() => setOpen(true)}
         className="fixed z-20 right-4 bottom-[calc(96px+env(safe-area-inset-bottom))] w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl active:scale-95 transition-transform"
-        style={{ background: "var(--section)", boxShadow: "0 10px 40px -5px color-mix(in oklab, var(--section) 60%, transparent)" }}
-        aria-label="Open Jarvis">
+        style={{
+          background: "var(--section)",
+          boxShadow:
+            "0 10px 40px -5px color-mix(in oklab, var(--section) 60%, transparent)",
+        }}
+        aria-label="Open Jarvis"
+      >
         <Sparkles size={22} />
       </button>
 
-      <BottomSheet open={open} onClose={closePanel} title="Jarvis" height="tall">
+      <BottomSheet
+        open={open}
+        onClose={closePanel}
+        title="Jarvis"
+        height="tall"
+      >
         <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--surface-2)]">
-            <span className={`w-1.5 h-1.5 rounded-full ${sending ? "animate-pulse" : ""}`} style={{ background: sending ? "var(--section)" : "var(--success, #10b981)" }} />
+            <span
+              className={`w-1.5 h-1.5 rounded-full ${sending ? "animate-pulse" : ""}`}
+              style={{
+                background: sending
+                  ? "var(--section)"
+                  : "var(--success, #10b981)",
+              }}
+            />
             {sending ? "Thinking..." : "Ready"}
           </span>
-          <span className="ml-auto capitalize">{providerName} / L{settings.permission}</span>
+          <span className="ml-auto capitalize">
+            {providerName} / L{settings.permission}
+          </span>
         </div>
 
-        <div ref={scrollRef} className="space-y-3 max-h-[45dvh] overflow-y-auto pb-2">
+        <div
+          ref={scrollRef}
+          className="space-y-3 max-h-[45dvh] overflow-y-auto pb-2"
+        >
           {messages.length === 0 && (
             <div className="text-center py-6">
-              <div className="inline-flex w-12 h-12 items-center justify-center rounded-2xl mb-3" style={{ background: "var(--section-soft)", color: "var(--section)" }}>
+              <div
+                className="inline-flex w-12 h-12 items-center justify-center rounded-2xl mb-3"
+                style={{
+                  background: "var(--section-soft)",
+                  color: "var(--section)",
+                }}
+              >
                 <Sparkles size={22} />
               </div>
-              <p className="text-sm text-muted-foreground">Tell Jarvis what you logged, ate, or how you feel. Or ask anything.</p>
+              <p className="text-sm text-muted-foreground">
+                Tell Jarvis what you logged, ate, or how you feel. Or ask
+                anything.
+              </p>
             </div>
           )}
-          {messages.map(m => {
-            const visibleToolResults = m.id === latestToolMessageId ? m.toolResults : undefined;
+          {messages.map((m) => {
+            const visibleToolResults =
+              m.id === latestToolMessageId ? m.toolResults : undefined;
             return (
-              <div key={m.id} className={`flex flex-col gap-2 ${m.role === "user" ? "items-end" : "items-start"}`}>
+              <div
+                key={m.id}
+                className={`flex flex-col gap-2 ${m.role === "user" ? "items-end" : "items-start"}`}
+              >
                 {m.content && (
-                  <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${m.role === "user" ? "text-white" : "bg-[var(--surface-2)]"}`}
-                    style={m.role === "user" ? { background: "var(--section)" } : undefined}>
+                  <div
+                    className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${m.role === "user" ? "text-white" : "bg-[var(--surface-2)]"}`}
+                    style={
+                      m.role === "user"
+                        ? { background: "var(--section)" }
+                        : undefined
+                    }
+                  >
                     {m.content}
                   </div>
                 )}
                 {m.voiceTranscript && (
                   <div className="w-full max-w-[85%] rounded-2xl border border-border bg-[var(--surface-2)] p-3">
                     <button
-                      onClick={() => setExpandedTranscriptId(id => id === m.voiceTranscript?.id ? null : m.voiceTranscript?.id ?? null)}
+                      onClick={() =>
+                        setExpandedTranscriptId((id) =>
+                          id === m.voiceTranscript?.id
+                            ? null
+                            : (m.voiceTranscript?.id ?? null),
+                        )
+                      }
                       className="flex w-full items-center gap-2 text-left text-sm font-medium"
                     >
                       <History size={16} style={{ color: "var(--section)" }} />
@@ -478,10 +844,13 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
                     </button>
                     {expandedTranscriptId === m.voiceTranscript.id && (
                       <div className="mt-3 max-h-64 space-y-2 overflow-y-auto border-t border-border pt-3">
-                        {m.voiceTranscript.entries.map(entry => (
+                        {m.voiceTranscript.entries.map((entry) => (
                           <div key={entry.id} className="text-xs">
                             <span className="font-semibold capitalize text-muted-foreground">
-                              {entry.role === "assistant" ? "Jarvis" : entry.role}:
+                              {entry.role === "assistant"
+                                ? "Jarvis"
+                                : entry.role}
+                              :
                             </span>{" "}
                             <span>{entry.text}</span>
                           </div>
@@ -491,48 +860,99 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
                   </div>
                 )}
                 {visibleToolResults?.map((tr, i) => (
-                  <ConfirmCard key={i} tool={tr.tool} result={tr.result}
+                  <ConfirmCard
+                    key={i}
+                    tool={tr.tool}
+                    result={tr.result}
                     onConfirm={() => applyPending(m.id, i)}
                     onCancel={() => cancelPending(m.id, i)}
-                    onUndo={tr.result.auditId ? () => undoAction(tr.result.auditId!) : undefined} />
+                    onUndo={
+                      tr.result.auditId
+                        ? () => undoAction(tr.result.auditId!)
+                        : undefined
+                    }
+                  />
                 ))}
               </div>
             );
           })}
-          {sending && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 size={14} className="animate-spin" />Jarvis is thinking...</div>}
+          {sending && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 size={14} className="animate-spin" />
+              Jarvis is thinking...
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar py-3 -mx-1 px-1">
-          {SUGGESTED.map(s => <Chip key={s} onClick={() => send(s)}>{s}</Chip>)}
+          {SUGGESTED.map((s) => (
+            <Chip key={s} onClick={() => send(s)}>
+              {s}
+            </Chip>
+          ))}
         </div>
 
-        <div className="flex gap-2 sticky bottom-0 pb-2 pt-1" style={{ background: "var(--surface)" }}>
-          <input value={input} onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") send(input); }}
-            placeholder="Talk to Jarvis..." className="flex-1 px-4 py-3 rounded-xl bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)]" />
-          <button onClick={startVoice} disabled={settings.voiceInputEnabled === false} title="Start Jarvis voice conversation" className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--surface-2)] text-muted-foreground disabled:opacity-50" aria-label="Start Jarvis voice conversation">
+        <div
+          className="flex gap-2 sticky bottom-0 pb-2 pt-1"
+          style={{ background: "var(--surface)" }}
+        >
+          <input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") send(input);
+            }}
+            placeholder="Talk to Jarvis..."
+            className="flex-1 px-4 py-3 rounded-xl bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)]"
+          />
+          <button
+            onClick={startVoice}
+            disabled={settings.voiceInputEnabled === false}
+            title="Start Jarvis voice conversation"
+            className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--surface-2)] text-muted-foreground disabled:opacity-50"
+            aria-label="Start Jarvis voice conversation"
+          >
             <Mic size={18} />
           </button>
-          <button onClick={() => send(input)} disabled={sending || !input.trim()}
+          <button
+            onClick={() => send(input)}
+            disabled={sending || !input.trim()}
             className="w-12 h-12 rounded-xl flex items-center justify-center text-white disabled:opacity-50"
-            style={{ background: "var(--section)" }}>
+            style={{ background: "var(--section)" }}
+          >
             <Send size={18} />
           </button>
         </div>
         {messages.length > 0 && (
-          <div className="mt-2"><GhostButton className="w-full text-sm" onClick={() => setMessages([])}>Clear conversation</GhostButton></div>
+          <div className="mt-2">
+            <GhostButton
+              className="w-full text-sm"
+              onClick={() => setMessages([])}
+            >
+              Clear conversation
+            </GhostButton>
+          </div>
         )}
         {voiceOpen && (
           <VoiceConversation
             settings={settings}
             providerModel={providerModel}
             onSend={send}
-            activeWorkout={state.activeWorkout ? {
-              name: state.activeWorkout.name,
-              exercise: state.activeWorkout.exercises.find(exercise => !exercise.completed)?.exerciseId,
-              setNumber: (state.activeWorkout.exercises.find(exercise => !exercise.completed)?.sets.length ?? 0) + 1,
-            } : null}
-            onEnd={entries => {
+            activeWorkout={
+              state.activeWorkout
+                ? {
+                    name: state.activeWorkout.name,
+                    exercise: state.activeWorkout.exercises.find(
+                      (exercise) => !exercise.completed,
+                    )?.exerciseId,
+                    setNumber:
+                      (state.activeWorkout.exercises.find(
+                        (exercise) => !exercise.completed,
+                      )?.sets.length ?? 0) + 1,
+                  }
+                : null
+            }
+            onEnd={(entries) => {
               const transcript: VoiceTranscript = {
                 id: uid(),
                 startedAt: entries[0]?.createdAt ?? Date.now(),
@@ -546,7 +966,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
                 settings.voiceTranscriptRetentionDays ?? 30,
               );
               if (entries.length) {
-                setMessages(previous => [
+                setMessages((previous) => [
                   ...previous,
                   {
                     id: uid(),
@@ -558,9 +978,15 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
                 ]);
               }
               setVoiceOpen(false);
-              set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: false } }));
+              set((s) => ({
+                ...s,
+                jarvisSettings: {
+                  ...s.jarvisSettings,
+                  voiceModeEnabled: false,
+                },
+              }));
             }}
-            onTextFallback={entries => {
+            onTextFallback={(entries) => {
               if (entries.length) {
                 const transcript: VoiceTranscript = {
                   id: uid(),
@@ -574,21 +1000,33 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
                   settings.saveVoiceTranscripts !== false,
                   settings.voiceTranscriptRetentionDays ?? 30,
                 );
-                setMessages(previous => [
+                setMessages((previous) => [
                   ...previous,
                   {
                     id: uid(),
                     role: "assistant",
-                    content: "Voice conversation paused. Continue by typing below.",
+                    content:
+                      "Voice conversation paused. Continue by typing below.",
                     voiceTranscript: transcript,
                     createdAt: Date.now(),
                   },
                 ]);
               }
               setVoiceOpen(false);
-              set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: false } }));
+              set((s) => ({
+                ...s,
+                jarvisSettings: {
+                  ...s.jarvisSettings,
+                  voiceModeEnabled: false,
+                },
+              }));
             }}
-            onSettingsChange={patch => set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, ...patch } }))}
+            onSettingsChange={(patch) =>
+              set((s) => ({
+                ...s,
+                jarvisSettings: { ...s.jarvisSettings, ...patch },
+              }))
+            }
           />
         )}
       </BottomSheet>
@@ -598,21 +1036,35 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
 
 function humanizeArgs(tool: string, args: Record<string, unknown>): string {
   switch (tool) {
-    case "logBodyWeight": return `Log bodyweight: ${args.weightLb} lb`;
-    case "logSupplement": return `Log supplement: ${args.name}${args.dose ? ` (${args.dose})` : ""}`;
-    case "logDailyCheckIn": return `Daily check-in - energy ${args.energy}, soreness ${args.soreness}, stress ${args.stress}, motivation ${args.motivation}`;
-    case "updateUserGoalsProfile": return `Update profile: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
-    case "updateJarvisSettings": return `Update Jarvis settings: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
-    case "logMeal": return `Log ${args.mealType ?? "meal"}: ${args.name ?? "meal"}`;
-    case "logUsualMeal": return `Log usual ${args.slot ?? "meal"}`;
-    case "saveUsualMeal": return `Save usual ${args.slot}: ${args.name}`;
+    case "logBodyWeight":
+      return `Log bodyweight: ${args.weightLb} lb`;
+    case "logSupplement":
+      return `Log supplement: ${args.name}${args.dose ? ` (${args.dose})` : ""}`;
+    case "logDailyCheckIn":
+      return `Daily check-in - energy ${args.energy}, soreness ${args.soreness}, stress ${args.stress}, motivation ${args.motivation}`;
+    case "updateUserGoalsProfile":
+      return `Update profile: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
+    case "updateJarvisSettings":
+      return `Update Jarvis settings: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
+    case "logMeal":
+      return `Log ${args.mealType ?? "meal"}: ${args.name ?? "meal"}`;
+    case "logUsualMeal":
+      return `Log usual ${args.slot ?? "meal"}`;
+    case "saveUsualMeal":
+      return `Save usual ${args.slot}: ${args.name}`;
     case "createWorkoutDraft":
-    case "logWorkout": return `Review workout: ${args.name ?? args.workoutType ?? "Workout"}`;
-    case "logCardio": return `Log cardio: ${args.type ?? "cardio"}${args.minutes ? ` for ${args.minutes} min` : ""}`;
-    case "updateMeal": return "Edit meal";
-    case "deleteMeal": return "Delete meal";
-    case "updateDailyCheckIn": return `Update today's check-in: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
-    default: return "Review requested action";
+    case "logWorkout":
+      return `Review workout: ${args.name ?? args.workoutType ?? "Workout"}`;
+    case "logCardio":
+      return `Log cardio: ${args.type ?? "cardio"}${args.minutes ? ` for ${args.minutes} min` : ""}`;
+    case "updateMeal":
+      return "Edit meal";
+    case "deleteMeal":
+      return "Delete meal";
+    case "updateDailyCheckIn":
+      return `Update today's check-in: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
+    default:
+      return "Review requested action";
   }
 }
 
@@ -622,8 +1074,6 @@ export { SourceBadge };
 export function JarvisUndoSnackbar() {
   return null;
 }
-
-
 
 function VoiceConversation({
   settings,
@@ -716,9 +1166,7 @@ function VoiceConversation({
 
   const updateVoiceSettings = useCallback(
     (
-      patch: Partial<
-        ReturnType<typeof useStore>["state"]["jarvisSettings"]
-      >,
+      patch: Partial<ReturnType<typeof useStore>["state"]["jarvisSettings"]>,
     ) => {
       settingsRef.current = { ...settingsRef.current, ...patch };
       onSettingsChange(patch);
@@ -771,9 +1219,7 @@ function VoiceConversation({
     if (settingsRef.current.voiceKeepAwake === false || document.hidden) return;
     const nav = navigator as Navigator & {
       wakeLock?: {
-        request: (
-          type: "screen",
-        ) => Promise<{ release: () => Promise<void> }>;
+        request: (type: "screen") => Promise<{ release: () => Promise<void> }>;
       };
     };
     if (!nav.wakeLock || wakeLockRef.current) return;
@@ -785,11 +1231,12 @@ function VoiceConversation({
   }, []);
 
   const stopAudioMeter = useCallback(async () => {
-    if (analyserFrameRef.current) cancelAnimationFrame(analyserFrameRef.current);
+    if (analyserFrameRef.current)
+      cancelAnimationFrame(analyserFrameRef.current);
     analyserFrameRef.current = null;
     analyserRef.current?.disconnect();
     analyserRef.current = null;
-    audioStreamRef.current?.getTracks().forEach(track => track.stop());
+    audioStreamRef.current?.getTracks().forEach((track) => track.stop());
     audioStreamRef.current = null;
     const context = audioContextRef.current;
     audioContextRef.current = null;
@@ -811,12 +1258,7 @@ function VoiceConversation({
     visualFrameRef.current = null;
     void stopAudioMeter();
     void releaseWakeLock();
-  }, [
-    clearVoiceTimers,
-    releaseWakeLock,
-    stopAudioMeter,
-    stopRecognition,
-  ]);
+  }, [clearVoiceTimers, releaseWakeLock, stopAudioMeter, stopRecognition]);
 
   const ensureAudioMeter = useCallback(async () => {
     if (audioStreamRef.current) return;
@@ -891,7 +1333,8 @@ function VoiceConversation({
     ) => {
       const clean = text.trim();
       const resumeAfter =
-        options.resumeAfter ?? settingsRef.current.autoListenAfterReply !== false;
+        options.resumeAfter ??
+        settingsRef.current.autoListenAfterReply !== false;
       if (!clean) {
         if (resumeAfter) startListeningRef.current();
         else updatePhase("paused");
@@ -922,7 +1365,7 @@ function VoiceConversation({
       const utterance = new SpeechSynthesisUtterance(clean);
       const voices = synthesis.getVoices();
       const selected = voices.find(
-        voice => voice.name === settingsRef.current.voiceName,
+        (voice) => voice.name === settingsRef.current.voiceName,
       );
       if (selected) utterance.voice = selected;
       utterance.rate =
@@ -994,11 +1437,7 @@ function VoiceConversation({
   const processTranscript = useCallback(
     async (rawText: string) => {
       const text = rawText.trim().replace(/\s+/g, " ");
-      if (
-        !text ||
-        !activeRef.current ||
-        phaseRef.current === "processing"
-      ) {
+      if (!text || !activeRef.current || phaseRef.current === "processing") {
         return;
       }
 
@@ -1037,8 +1476,7 @@ function VoiceConversation({
 
       updatePhase("processing");
       stopRecognition();
-      const responseMode =
-        settingsRef.current.voiceResponseLength ?? "normal";
+      const responseMode = settingsRef.current.voiceResponseLength ?? "normal";
       const response = await onSend(text, {
         voiceResponseLength: responseMode,
       });
@@ -1063,9 +1501,7 @@ function VoiceConversation({
       const shouldShorten =
         responseMode === "short" ||
         (Boolean(activeWorkout) && responseMode !== "detailed");
-      const spokenReply = shouldShorten
-        ? shortenLocally(fullReply)
-        : fullReply;
+      const spokenReply = shouldShorten ? shortenLocally(fullReply) : fullReply;
       if (/want me to (save|log)|confirm/i.test(fullReply)) {
         vibrate([20, 40, 20]);
       }
@@ -1136,7 +1572,7 @@ function VoiceConversation({
         vibrate(12);
         scheduleInactivityPause();
       };
-      recognition.onresult = event => {
+      recognition.onresult = (event) => {
         scheduleInactivityPause();
         let finalChunk = "";
         for (
@@ -1150,27 +1586,28 @@ function VoiceConversation({
           }
         }
         if (!finalChunk.trim()) return;
-        finalTextRef.current =
-          `${finalTextRef.current} ${finalChunk}`.trim();
+        finalTextRef.current = `${finalTextRef.current} ${finalChunk}`.trim();
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
-        silenceTimerRef.current = setTimeout(() => {
-          const completed = finalTextRef.current;
-          finalTextRef.current = "";
-          silenceTimerRef.current = null;
-          try {
-            recognition.stop();
-          } catch {
-            // Recognition may already be stopped.
-          }
-          submitFinal(completed);
-        }, Math.max(500, settingsRef.current.voiceSilenceDelayMs ?? 1200));
+        silenceTimerRef.current = setTimeout(
+          () => {
+            const completed = finalTextRef.current;
+            finalTextRef.current = "";
+            silenceTimerRef.current = null;
+            try {
+              recognition.stop();
+            } catch {
+              // Recognition may already be stopped.
+            }
+            submitFinal(completed);
+          },
+          Math.max(500, settingsRef.current.voiceSilenceDelayMs ?? 1200),
+        );
       };
-      recognition.onerror = event => {
+      recognition.onerror = (event) => {
         if (!activeRef.current || event.error === "aborted") return;
         errorCountRef.current += 1;
         const message =
-          event.error === "not-allowed" ||
-          event.error === "service-not-allowed"
+          event.error === "not-allowed" || event.error === "service-not-allowed"
             ? "Microphone permission is blocked. Enable it in your browser settings."
             : "Voice input stopped unexpectedly. Restart listening.";
         setError(message);
@@ -1197,8 +1634,7 @@ function VoiceConversation({
     } catch (caught) {
       const denied =
         caught instanceof DOMException &&
-        (caught.name === "NotAllowedError" ||
-          caught.name === "SecurityError");
+        (caught.name === "NotAllowedError" || caught.name === "SecurityError");
       const message = denied
         ? "Microphone permission is blocked. Enable it in your browser settings."
         : "Voice input stopped unexpectedly. Restart listening.";
@@ -1409,10 +1845,8 @@ function VoiceConversation({
       const time = performance.now() / 240;
       context.fillStyle = color;
       context.shadowColor = color;
-      context.shadowBlur =
-        phaseRef.current === "paused" ? 4 : 12;
-      context.globalAlpha =
-        phaseRef.current === "paused" ? 0.42 : 0.92;
+      context.shadowBlur = phaseRef.current === "paused" ? 4 : 12;
+      context.globalAlpha = phaseRef.current === "paused" ? 0.42 : 0.92;
 
       for (let index = 0; index < barCount; index += 1) {
         const distance = Math.abs(index - (barCount - 1) / 2);
@@ -1426,13 +1860,9 @@ function VoiceConversation({
             (Math.sin(time + index * 0.58) + 1) * 0.22 +
             (Math.sin(time * 0.63 + index * 0.22) + 1) * 0.09;
         } else if (phaseRef.current === "processing") {
-          energy =
-            0.2 +
-            (Math.sin(time * 1.25 - distance * 0.2) + 1) * 0.2;
+          energy = 0.2 + (Math.sin(time * 1.25 - distance * 0.2) + 1) * 0.2;
         } else if (phaseRef.current === "error") {
-          energy =
-            0.2 +
-            (Math.sin(time * 2.2 + index * 0.8) + 1) * 0.13;
+          energy = 0.2 + (Math.sin(time * 2.2 + index * 0.8) + 1) * 0.13;
         }
         const jitter =
           phaseRef.current === "listening"
@@ -1440,7 +1870,10 @@ function VoiceConversation({
             : 0;
         const barHeight = Math.max(
           4,
-          Math.min(rect.height * 0.9, rect.height * (energy + jitter) * envelope),
+          Math.min(
+            rect.height * 0.9,
+            rect.height * (energy + jitter) * envelope,
+          ),
         );
         const x = index * (barWidth + gap);
         context.beginPath();
@@ -1562,7 +1995,9 @@ function VoiceConversation({
         <button
           onClick={requestClose}
           className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/65 transition-colors hover:bg-white/10 hover:text-white"
-          aria-label={closePending ? "Confirm end voice mode" : "End voice mode"}
+          aria-label={
+            closePending ? "Confirm end voice mode" : "End voice mode"
+          }
         >
           <X size={17} />
         </button>
@@ -1681,7 +2116,7 @@ function VoiceConversation({
               Voice transcript
             </span>
             <button
-              onClick={() => setTranscriptExpanded(value => !value)}
+              onClick={() => setTranscriptExpanded((value) => !value)}
               className="ml-auto text-[11px] text-white/45 hover:text-white/80"
             >
               {transcriptExpanded ? "Collapse" : "Expand"}
@@ -1689,9 +2124,11 @@ function VoiceConversation({
           </div>
           <div className="max-h-[inherit] space-y-3 overflow-y-auto px-4 py-3">
             {entries.length === 0 ? (
-              <p className="text-xs text-white/35">Conversation will appear here.</p>
+              <p className="text-xs text-white/35">
+                Conversation will appear here.
+              </p>
             ) : (
-              entries.map(entry => (
+              entries.map((entry) => (
                 <div key={entry.id} className="text-sm leading-relaxed">
                   <span
                     className="mr-2 text-[10px] font-bold tracking-wider uppercase"
@@ -1733,7 +2170,7 @@ function VoiceConversation({
 
       <div className="flex items-center justify-center gap-2 px-4">
         <button
-          onClick={() => setTranscriptVisible(value => !value)}
+          onClick={() => setTranscriptVisible((value) => !value)}
           className="flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 text-xs text-white/55 hover:bg-white/10 hover:text-white"
           aria-label={transcriptVisible ? "Hide transcript" : "Show transcript"}
         >
