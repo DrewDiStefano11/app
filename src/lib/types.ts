@@ -172,7 +172,7 @@ export const defaultJarvisSettings: JarvisSettings = {
   geminiModel: "gemini-2.5-flash-lite",
   groqKeyMode: "local",
   groqUserKeySaved: false,
-  groqModel: "llama-3.1-8b-instant",
+  groqModel: "qwen/qwen3-32b",
   autoModelRouting: true,
   autoAiFallback: true,
   allowGeminiFallback: false,
