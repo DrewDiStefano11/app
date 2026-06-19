@@ -624,9 +624,11 @@ export function JarvisUndoSnackbar() {
 }
 
 
+
 function VoiceConversation({
   settings,
   providerModel,
+  activeWorkout,
   onSend,
   onEnd,
   onTextFallback,
@@ -634,32 +636,112 @@ function VoiceConversation({
 }: {
   settings: ReturnType<typeof useStore>["state"]["jarvisSettings"];
   providerModel: string;
-  onSend: (text: string) => Promise<string | undefined>;
-  onEnd: () => void;
-  onTextFallback: () => void;
-  onSettingsChange: (patch: Partial<ReturnType<typeof useStore>["state"]["jarvisSettings"]>) => void;
+  activeWorkout: { name: string; exercise?: string; setNumber: number } | null;
+  onSend: (
+    text: string,
+    options?: { voiceResponseLength?: "short" | "normal" | "detailed" },
+  ) => Promise<string | undefined>;
+  onEnd: (entries: VoiceTranscriptEntry[]) => void;
+  onTextFallback: (entries: VoiceTranscriptEntry[]) => void;
+  onSettingsChange: (
+    patch: Partial<ReturnType<typeof useStore>["state"]["jarvisSettings"]>,
+  ) => void;
 }) {
   const [phase, setPhase] = useState<VoicePhase>("paused");
   const [transcript, setTranscript] = useState("");
   const [reply, setReply] = useState("");
   const [error, setError] = useState("");
   const [supportNotice, setSupportNotice] = useState("");
+  const [transcriptVisible, setTranscriptVisible] = useState(false);
+  const [transcriptExpanded, setTranscriptExpanded] = useState(false);
+  const [showWorkout, setShowWorkout] = useState(Boolean(activeWorkout));
+  const [entries, setEntries] = useState<VoiceTranscriptEntry[]>([]);
+  const [userTalking, setUserTalking] = useState(false);
+  const [closePending, setClosePending] = useState(false);
+
+  const settingsRef = useRef(settings);
+  const entriesRef = useRef<VoiceTranscriptEntry[]>([]);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const activeRef = useRef(true);
   const phaseRef = useRef<VoicePhase>("paused");
   const finalTextRef = useRef("");
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recentTranscriptsRef = useRef(new Map<string, number>());
   const errorCountRef = useRef(0);
-  const micPermissionRequestedRef = useRef(false);
   const voiceTurnsRef = useRef(0);
   const aiCallsRef = useRef(0);
+  const lastSpokenRef = useRef("");
+  const lastFullReplyRef = useRef("");
+  const closePendingRef = useRef(false);
   const startListeningRef = useRef<() => void>(() => {});
+  const handleLocalCommandRef = useRef<(text: string) => boolean>(() => false);
+
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const analyserFrameRef = useRef<number | null>(null);
+  const visualFrameRef = useRef<number | null>(null);
+  const volumeRef = useRef(0);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wakeLockRef = useRef<{ release: () => Promise<void> } | null>(null);
+  const talkingRef = useRef(false);
+  const talkingUpdateRef = useRef(0);
+
+  useEffect(() => {
+    settingsRef.current = settings;
+  }, [settings]);
 
   const updatePhase = useCallback((next: VoicePhase) => {
     phaseRef.current = next;
     setPhase(next);
+  }, []);
+
+  const addEntry = useCallback(
+    (role: VoiceTranscriptEntry["role"], text: string) => {
+      const clean = text.trim();
+      if (!clean) return;
+      const entry: VoiceTranscriptEntry = {
+        id: uid(),
+        role,
+        text: clean,
+        createdAt: Date.now(),
+      };
+      entriesRef.current = [...entriesRef.current, entry];
+      setEntries(entriesRef.current);
+    },
+    [],
+  );
+
+  const updateVoiceSettings = useCallback(
+    (
+      patch: Partial<
+        ReturnType<typeof useStore>["state"]["jarvisSettings"]
+      >,
+    ) => {
+      settingsRef.current = { ...settingsRef.current, ...patch };
+      onSettingsChange(patch);
+    },
+    [onSettingsChange],
+  );
+
+  const vibrate = useCallback((pattern: number | number[]) => {
+    if (settingsRef.current.voiceHaptics === false) return;
+    try {
+      navigator.vibrate?.(pattern);
+    } catch {
+      // Haptics are optional.
+    }
+  }, []);
+
+  const clearVoiceTimers = useCallback(() => {
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    silenceTimerRef.current = null;
+    restartTimerRef.current = null;
+    inactivityTimerRef.current = null;
   }, []);
 
   const stopRecognition = useCallback((abort = false) => {
@@ -670,110 +752,377 @@ function VoiceConversation({
     try {
       if (abort) recognitionRef.current?.abort();
       else recognitionRef.current?.stop();
-    } catch { /* recognition may already be stopped */ }
+    } catch {
+      // Recognition may already be stopped.
+    }
   }, []);
 
-  const speak = useCallback((text: string) => {
-    const synthesis = typeof window !== "undefined" ? window.speechSynthesis : undefined;
-    if (!text || settings.spokenResponses === false || settings.voiceOutputMuted) {
-      if (settings.autoListenAfterReply !== false) startListeningRef.current();
-      else updatePhase("paused");
-      return;
-    }
-    if (!synthesis || typeof SpeechSynthesisUtterance === "undefined") {
-      setSupportNotice("Spoken replies are not supported in this browser.");
-      if (settings.autoListenAfterReply !== false) startListeningRef.current();
-      else updatePhase("paused");
-      return;
-    }
-    synthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    utterance.onstart = () => updatePhase("speaking");
-    utterance.onend = () => {
-      if (!activeRef.current) return;
-      if (settings.autoListenAfterReply !== false) startListeningRef.current();
-      else updatePhase("paused");
-    };
-    utterance.onerror = () => {
-      if (!activeRef.current) return;
-      setSupportNotice("Spoken replies are not supported in this browser.");
-      if (settings.autoListenAfterReply !== false) startListeningRef.current();
-      else updatePhase("paused");
-    };
-    synthesis.speak(utterance);
-  }, [settings.autoListenAfterReply, settings.spokenResponses, settings.voiceOutputMuted, updatePhase]);
-
-  const processTranscript = useCallback(async (rawText: string) => {
-    const text = rawText.trim().replace(/\s+/g, " ");
-    if (!text || !activeRef.current || phaseRef.current === "processing") return;
-    const key = text.toLocaleLowerCase();
-    const now = Date.now();
-    for (const [oldKey, timestamp] of recentTranscriptsRef.current) {
-      if (now - timestamp > 4_000) recentTranscriptsRef.current.delete(oldKey);
-    }
-    if (recentTranscriptsRef.current.has(key)) {
-      recordVoiceDiagnostics({ duplicateTranscriptPrevented: true, lastTranscript: text });
-      setError("Duplicate transcript ignored.");
-      restartTimerRef.current = setTimeout(() => startListeningRef.current(), 500);
-      return;
-    }
-    recentTranscriptsRef.current.set(key, now);
-    voiceTurnsRef.current += 1;
-    aiCallsRef.current += CONFIRM_WORDS.test(text) || CANCEL_WORDS.test(text) ? 0 : 1;
-    recordVoiceDiagnostics({
-      voiceTurnsThisSession: voiceTurnsRef.current,
-      aiCallsThisSession: aiCallsRef.current,
-      lastTranscript: text,
-      duplicateTranscriptPrevented: false,
-    });
-    updatePhase("processing");
-    setTranscript(text);
-    setError("");
-    stopRecognition();
-    const response = await onSend(text);
-    if (!activeRef.current) return;
-    const cleanReply = response?.trim() || "Done.";
-    setReply(cleanReply);
-    let lastDiag: AiDiagnostics | undefined;
+  const releaseWakeLock = useCallback(async () => {
+    const wakeLock = wakeLockRef.current;
+    wakeLockRef.current = null;
     try {
-      const stored = JSON.parse(window.localStorage.getItem(AI_DIAGNOSTICS_STORAGE) ?? "{}") as { calls?: AiDiagnostics[] };
-      lastDiag = stored.calls?.at(-1);
-    } catch { /* diagnostics are optional */ }
-    recordVoiceDiagnostics({
-      lastProviderModel: lastDiag?.actualModel ?? providerModel,
-      autoRouting: Boolean(lastDiag?.routed),
-      fallback: Boolean(lastDiag?.fallback),
-    });
-    speak(cleanReply);
-  }, [onSend, providerModel, speak, stopRecognition, updatePhase]);
+      await wakeLock?.release();
+    } catch {
+      // Wake Lock is optional.
+    }
+  }, []);
 
-  const submitFinal = useCallback((text: string) => {
-    if (!text.trim()) return;
-    if (settings.confirmTranscriptBeforeSend) {
-      setTranscript(text.trim());
+  const requestWakeLock = useCallback(async () => {
+    if (settingsRef.current.voiceKeepAwake === false || document.hidden) return;
+    const nav = navigator as Navigator & {
+      wakeLock?: {
+        request: (
+          type: "screen",
+        ) => Promise<{ release: () => Promise<void> }>;
+      };
+    };
+    if (!nav.wakeLock || wakeLockRef.current) return;
+    try {
+      wakeLockRef.current = await nav.wakeLock.request("screen");
+    } catch {
+      // Fail silently on unsupported or denied Wake Lock.
+    }
+  }, []);
+
+  const stopAudioMeter = useCallback(async () => {
+    if (analyserFrameRef.current) cancelAnimationFrame(analyserFrameRef.current);
+    analyserFrameRef.current = null;
+    analyserRef.current?.disconnect();
+    analyserRef.current = null;
+    audioStreamRef.current?.getTracks().forEach(track => track.stop());
+    audioStreamRef.current = null;
+    const context = audioContextRef.current;
+    audioContextRef.current = null;
+    try {
+      await context?.close();
+    } catch {
+      // The context may already be closed.
+    }
+    volumeRef.current = 0;
+    setUserTalking(false);
+  }, []);
+
+  const cleanupResources = useCallback(() => {
+    activeRef.current = false;
+    clearVoiceTimers();
+    stopRecognition(true);
+    window.speechSynthesis?.cancel();
+    if (visualFrameRef.current) cancelAnimationFrame(visualFrameRef.current);
+    visualFrameRef.current = null;
+    void stopAudioMeter();
+    void releaseWakeLock();
+  }, [
+    clearVoiceTimers,
+    releaseWakeLock,
+    stopAudioMeter,
+    stopRecognition,
+  ]);
+
+  const ensureAudioMeter = useCallback(async () => {
+    if (audioStreamRef.current) return;
+    if (!navigator.mediaDevices?.getUserMedia) return;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioStreamRef.current = stream;
+
+    if (typeof AudioContext === "undefined") return;
+    const context = new AudioContext();
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.76;
+    context.createMediaStreamSource(stream).connect(analyser);
+    audioContextRef.current = context;
+    analyserRef.current = analyser;
+    const samples = new Uint8Array(analyser.frequencyBinCount);
+
+    const sampleVolume = () => {
+      if (!activeRef.current || !analyserRef.current) return;
+      analyserRef.current.getByteTimeDomainData(samples);
+      let energy = 0;
+      for (const sample of samples) {
+        const centered = (sample - 128) / 128;
+        energy += centered * centered;
+      }
+      const volume = Math.min(1, Math.sqrt(energy / samples.length) * 5);
+      volumeRef.current = volume;
+      const talking = phaseRef.current === "listening" && volume > 0.07;
+      const now = performance.now();
+      if (
+        talking !== talkingRef.current &&
+        now - talkingUpdateRef.current > 100
+      ) {
+        talkingRef.current = talking;
+        talkingUpdateRef.current = now;
+        setUserTalking(talking);
+      }
+      analyserFrameRef.current = requestAnimationFrame(sampleVolume);
+    };
+    sampleVolume();
+  }, []);
+
+  const scheduleInactivityPause = useCallback(() => {
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    inactivityTimerRef.current = setTimeout(() => {
+      if (!activeRef.current || phaseRef.current !== "listening") return;
+      stopRecognition(true);
       updatePhase("paused");
+      const notice = "I paused voice mode after inactivity.";
+      addEntry("system", notice);
+      setReply(notice);
+      const synthesis = window.speechSynthesis;
+      if (
+        synthesis &&
+        typeof SpeechSynthesisUtterance !== "undefined" &&
+        settingsRef.current.spokenResponses !== false &&
+        !settingsRef.current.voiceOutputMuted
+      ) {
+        synthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(notice);
+        utterance.rate = 1;
+        utterance.onend = () => updatePhase("paused");
+        synthesis.speak(utterance);
+      }
+    }, 120_000);
+  }, [addEntry, stopRecognition, updatePhase]);
+
+  const speak = useCallback(
+    (
+      text: string,
+      options: { resumeAfter?: boolean; remember?: boolean } = {},
+    ) => {
+      const clean = text.trim();
+      const resumeAfter =
+        options.resumeAfter ?? settingsRef.current.autoListenAfterReply !== false;
+      if (!clean) {
+        if (resumeAfter) startListeningRef.current();
+        else updatePhase("paused");
+        return;
+      }
+      if (options.remember !== false) lastSpokenRef.current = clean;
+      const synthesis = window.speechSynthesis;
+      stopRecognition(true);
+
+      if (
+        settingsRef.current.spokenResponses === false ||
+        settingsRef.current.voiceOutputMuted
+      ) {
+        if (resumeAfter) startListeningRef.current();
+        else updatePhase("paused");
+        return;
+      }
+      if (!synthesis || typeof SpeechSynthesisUtterance === "undefined") {
+        const notice = "Spoken replies are not supported in this browser.";
+        setSupportNotice(notice);
+        addEntry("system", notice);
+        if (resumeAfter) startListeningRef.current();
+        else updatePhase("paused");
+        return;
+      }
+
+      synthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(clean);
+      const voices = synthesis.getVoices();
+      const selected = voices.find(
+        voice => voice.name === settingsRef.current.voiceName,
+      );
+      if (selected) utterance.voice = selected;
+      utterance.rate =
+        settingsRef.current.voiceRateMode === "slow"
+          ? 0.85
+          : settingsRef.current.voiceRateMode === "fast"
+            ? 1.15
+            : 1;
+      utterance.onstart = () => {
+        updatePhase("speaking");
+        vibrate(20);
+      };
+      utterance.onend = () => {
+        if (!activeRef.current) return;
+        if (resumeAfter) startListeningRef.current();
+        else updatePhase("paused");
+      };
+      utterance.onerror = () => {
+        if (!activeRef.current) return;
+        const notice = "Spoken replies are not supported in this browser.";
+        setSupportNotice(notice);
+        addEntry("system", notice);
+        if (resumeAfter) startListeningRef.current();
+        else updatePhase("paused");
+      };
+      synthesis.speak(utterance);
+    },
+    [addEntry, stopRecognition, updatePhase, vibrate],
+  );
+
+  const localReply = useCallback(
+    (
+      text: string,
+      options: { resumeAfter?: boolean; remember?: boolean } = {},
+    ) => {
+      setReply(text);
+      addEntry("assistant", text);
+      speak(text, options);
+    },
+    [addEntry, speak],
+  );
+
+  const shortenLocally = useCallback((text: string) => {
+    const firstSentence = text.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim();
+    const compact = firstSentence || text.trim();
+    return compact.length <= 150 ? compact : `${compact.slice(0, 147)}...`;
+  }, []);
+
+  const finishVoice = useCallback(() => {
+    cleanupResources();
+    onEnd(entriesRef.current);
+  }, [cleanupResources, onEnd]);
+
+  const useTextFallback = useCallback(() => {
+    cleanupResources();
+    onTextFallback(entriesRef.current);
+  }, [cleanupResources, onTextFallback]);
+
+  const requestClose = useCallback(() => {
+    if (closePendingRef.current) {
+      finishVoice();
       return;
     }
-    void processTranscript(text);
-  }, [processTranscript, settings.confirmTranscriptBeforeSend, updatePhase]);
+    closePendingRef.current = true;
+    setClosePending(true);
+    localReply("End voice mode?", { resumeAfter: true });
+  }, [finishVoice, localReply]);
+
+  const processTranscript = useCallback(
+    async (rawText: string) => {
+      const text = rawText.trim().replace(/\s+/g, " ");
+      if (
+        !text ||
+        !activeRef.current ||
+        phaseRef.current === "processing"
+      ) {
+        return;
+      }
+
+      const key = text.toLocaleLowerCase();
+      const now = Date.now();
+      for (const [oldKey, timestamp] of recentTranscriptsRef.current) {
+        if (now - timestamp > 4_000) {
+          recentTranscriptsRef.current.delete(oldKey);
+        }
+      }
+      if (recentTranscriptsRef.current.has(key)) {
+        recordVoiceDiagnostics({
+          duplicateTranscriptPrevented: true,
+          lastTranscript: text,
+        });
+        setError("Duplicate transcript ignored.");
+        restartTimerRef.current = setTimeout(
+          () => startListeningRef.current(),
+          500,
+        );
+        return;
+      }
+      recentTranscriptsRef.current.set(key, now);
+      addEntry("user", text);
+      voiceTurnsRef.current += 1;
+      setTranscript(text);
+      setError("");
+      recordVoiceDiagnostics({
+        voiceTurnsThisSession: voiceTurnsRef.current,
+        aiCallsThisSession: aiCallsRef.current,
+        lastTranscript: text,
+        duplicateTranscriptPrevented: false,
+      });
+
+      if (handleLocalCommandRef.current(text)) return;
+
+      updatePhase("processing");
+      stopRecognition();
+      const responseMode =
+        settingsRef.current.voiceResponseLength ?? "normal";
+      const response = await onSend(text, {
+        voiceResponseLength: responseMode,
+      });
+      if (!activeRef.current) return;
+
+      let lastDiag: AiDiagnostics | undefined;
+      try {
+        const stored = JSON.parse(
+          window.localStorage.getItem(AI_DIAGNOSTICS_STORAGE) ?? "{}",
+        ) as { calls?: AiDiagnostics[] };
+        lastDiag = stored.calls?.at(-1);
+      } catch {
+        // Provider diagnostics are optional.
+      }
+      aiCallsRef.current +=
+        1 + (lastDiag?.retryCount ?? 0) + (lastDiag?.fallbackCount ?? 0);
+
+      const fullReply = response?.trim() || "Done.";
+      lastFullReplyRef.current = fullReply;
+      setReply(fullReply);
+      addEntry("assistant", fullReply);
+      const shouldShorten =
+        responseMode === "short" ||
+        (Boolean(activeWorkout) && responseMode !== "detailed");
+      const spokenReply = shouldShorten
+        ? shortenLocally(fullReply)
+        : fullReply;
+      if (/want me to (save|log)|confirm/i.test(fullReply)) {
+        vibrate([20, 40, 20]);
+      }
+      recordVoiceDiagnostics({
+        voiceTurnsThisSession: voiceTurnsRef.current,
+        aiCallsThisSession: aiCallsRef.current,
+        lastProviderModel: lastDiag?.actualModel ?? providerModel,
+        autoRouting: Boolean(lastDiag?.routed),
+        fallback: Boolean(lastDiag?.fallback),
+      });
+      speak(spokenReply);
+    },
+    [
+      activeWorkout,
+      addEntry,
+      onSend,
+      providerModel,
+      shortenLocally,
+      speak,
+      stopRecognition,
+      updatePhase,
+      vibrate,
+    ],
+  );
+
+  const submitFinal = useCallback(
+    (text: string) => {
+      if (!text.trim()) return;
+      if (settingsRef.current.confirmTranscriptBeforeSend) {
+        setTranscript(text.trim());
+        updatePhase("paused");
+        return;
+      }
+      void processTranscript(text);
+    },
+    [processTranscript, updatePhase],
+  );
 
   const startListening = useCallback(async () => {
-    if (!activeRef.current || settings.voiceInputEnabled === false) return;
+    if (!activeRef.current || settingsRef.current.voiceInputEnabled === false) {
+      return;
+    }
     window.speechSynthesis?.cancel();
     stopRecognition(true);
     const Recognition = speechRecognitionConstructor();
     if (!Recognition) {
-      setError("Voice input is not supported in this browser. Type your message instead.");
+      const message =
+        "Voice input is not supported in this browser. Type your message instead.";
+      setError(message);
+      addEntry("system", message);
       updatePhase("error");
+      vibrate([40, 40, 40]);
       return;
     }
+
     try {
-      if (!micPermissionRequestedRef.current && navigator.mediaDevices?.getUserMedia) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        stream.getTracks().forEach(track => track.stop());
-        micPermissionRequestedRef.current = true;
-      }
+      await ensureAudioMeter();
       if (!activeRef.current) return;
       const recognition = new Recognition();
       recognition.continuous = true;
@@ -784,116 +1133,658 @@ function VoiceConversation({
         setTranscript("");
         setError("");
         updatePhase("listening");
+        vibrate(12);
+        scheduleInactivityPause();
       };
       recognition.onresult = event => {
+        scheduleInactivityPause();
         let finalChunk = "";
-        for (let i = event.resultIndex; i < event.results.length; i += 1) {
-          const result = event.results[i];
-          if (result.isFinal) finalChunk += `${result[0]?.transcript ?? ""} `;
+        for (
+          let index = event.resultIndex;
+          index < event.results.length;
+          index += 1
+        ) {
+          const result = event.results[index];
+          if (result.isFinal) {
+            finalChunk += `${result[0]?.transcript ?? ""} `;
+          }
         }
         if (!finalChunk.trim()) return;
-        finalTextRef.current = `${finalTextRef.current} ${finalChunk}`.trim();
-        setTranscript(finalTextRef.current);
+        finalTextRef.current =
+          `${finalTextRef.current} ${finalChunk}`.trim();
         if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
         silenceTimerRef.current = setTimeout(() => {
           const completed = finalTextRef.current;
           finalTextRef.current = "";
-          try { recognition.stop(); } catch { /* already stopped */ }
+          silenceTimerRef.current = null;
+          try {
+            recognition.stop();
+          } catch {
+            // Recognition may already be stopped.
+          }
           submitFinal(completed);
-        }, Math.max(500, settings.voiceSilenceDelayMs ?? 1200));
+        }, Math.max(500, settingsRef.current.voiceSilenceDelayMs ?? 1200));
       };
       recognition.onerror = event => {
         if (!activeRef.current || event.error === "aborted") return;
         errorCountRef.current += 1;
-        const message = event.error === "not-allowed" || event.error === "service-not-allowed"
-          ? "Microphone permission is blocked. Enable it in your browser settings."
-          : "Voice input stopped unexpectedly. Restart listening.";
+        const message =
+          event.error === "not-allowed" ||
+          event.error === "service-not-allowed"
+            ? "Microphone permission is blocked. Enable it in your browser settings."
+            : "Voice input stopped unexpectedly. Restart listening.";
         setError(message);
+        addEntry("system", message);
         updatePhase(errorCountRef.current >= 3 ? "paused" : "error");
+        vibrate([40, 40, 40]);
       };
       recognition.onend = () => {
-        if (!activeRef.current || phaseRef.current !== "listening" || silenceTimerRef.current || finalTextRef.current) return;
-        restartTimerRef.current = setTimeout(() => startListeningRef.current(), 400);
+        if (
+          !activeRef.current ||
+          phaseRef.current !== "listening" ||
+          silenceTimerRef.current ||
+          finalTextRef.current
+        ) {
+          return;
+        }
+        restartTimerRef.current = setTimeout(
+          () => startListeningRef.current(),
+          400,
+        );
       };
       recognitionRef.current = recognition;
       recognition.start();
-    } catch (err) {
-      const denied = err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "SecurityError");
-      setError(denied ? "Microphone permission is blocked. Enable it in your browser settings." : "Voice input stopped unexpectedly. Restart listening.");
+    } catch (caught) {
+      const denied =
+        caught instanceof DOMException &&
+        (caught.name === "NotAllowedError" ||
+          caught.name === "SecurityError");
+      const message = denied
+        ? "Microphone permission is blocked. Enable it in your browser settings."
+        : "Voice input stopped unexpectedly. Restart listening.";
+      setError(message);
+      addEntry("system", message);
       updatePhase("error");
+      vibrate([40, 40, 40]);
     }
-  }, [settings.voiceInputEnabled, settings.voiceSilenceDelayMs, stopRecognition, submitFinal, updatePhase]);
-
-  useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
+  }, [
+    addEntry,
+    ensureAudioMeter,
+    scheduleInactivityPause,
+    stopRecognition,
+    submitFinal,
+    updatePhase,
+    vibrate,
+  ]);
 
   useEffect(() => {
-    activeRef.current = true;
-    recordVoiceDiagnostics({ voiceTurnsThisSession: 0, aiCallsThisSession: 0, duplicateTranscriptPrevented: false });
-    void startListening();
+    startListeningRef.current = () => {
+      void startListening();
+    };
+  }, [startListening]);
+
+  const handleLocalCommand = useCallback(
+    (rawText: string) => {
+      const normalized = rawText
+        .toLocaleLowerCase()
+        .replace(/[.!?]+$/g, "")
+        .trim();
+      const command = normalized.replace(/^jarvis[, ]+/, "");
+
+      if (closePendingRef.current) {
+        if (/^(yes|confirm|end|close|stop)$/.test(command)) {
+          finishVoice();
+          return true;
+        }
+        if (/^(cancel|no|stay|keep listening)$/.test(command)) {
+          closePendingRef.current = false;
+          setClosePending(false);
+          localReply("Okay. Voice mode is still on.");
+          return true;
+        }
+      }
+
+      if (/^(close|end voice|stop voice mode|end voice mode)$/.test(command)) {
+        requestClose();
+        return true;
+      }
+      if (/^(show transcript|view transcript)$/.test(command)) {
+        setTranscriptVisible(true);
+        setTranscriptExpanded(false);
+        localReply("Transcript shown.");
+        return true;
+      }
+      if (/^(view full transcript)$/.test(command)) {
+        setTranscriptVisible(true);
+        setTranscriptExpanded(true);
+        localReply("Full transcript shown.");
+        return true;
+      }
+      if (/^(hide transcript)$/.test(command)) {
+        setTranscriptVisible(false);
+        setTranscriptExpanded(false);
+        localReply("Transcript hidden.");
+        return true;
+      }
+      if (/^(pause|stop listening)$/.test(command)) {
+        stopRecognition(true);
+        updatePhase("paused");
+        localReply("Paused.", { resumeAfter: false });
+        return true;
+      }
+      if (/^(resume|start listening)$/.test(command)) {
+        closePendingRef.current = false;
+        setClosePending(false);
+        startListeningRef.current();
+        return true;
+      }
+      if (command === "mute") {
+        updateVoiceSettings({ voiceOutputMuted: true });
+        setReply("Muted.");
+        addEntry("assistant", "Muted.");
+        startListeningRef.current();
+        return true;
+      }
+      if (command === "unmute") {
+        updateVoiceSettings({ voiceOutputMuted: false });
+        localReply("Unmuted.");
+        return true;
+      }
+      if (command === "speak slower") {
+        updateVoiceSettings({ voiceRateMode: "slow" });
+        localReply("I'll speak slower.");
+        return true;
+      }
+      if (command === "speak faster") {
+        updateVoiceSettings({ voiceRateMode: "fast" });
+        localReply("I'll speak faster.");
+        return true;
+      }
+      if (command === "normal speed") {
+        updateVoiceSettings({ voiceRateMode: "normal" });
+        localReply("Normal speed.");
+        return true;
+      }
+      if (command === "repeat that") {
+        if (lastSpokenRef.current) {
+          speak(lastSpokenRef.current, { remember: false });
+        } else {
+          localReply("There isn't a previous answer to repeat.");
+        }
+        return true;
+      }
+      if (command === "say that shorter") {
+        const shorter = shortenLocally(
+          lastFullReplyRef.current || lastSpokenRef.current,
+        );
+        if (shorter) localReply(shorter);
+        else localReply("There isn't a previous answer to shorten.");
+        return true;
+      }
+      if (
+        /^(give me more detail|longer response|detailed responses)$/.test(
+          command,
+        )
+      ) {
+        updateVoiceSettings({ voiceResponseLength: "detailed" });
+        localReply("Detailed responses on.");
+        return true;
+      }
+      if (/^(short responses|shorter responses)$/.test(command)) {
+        updateVoiceSettings({ voiceResponseLength: "short" });
+        localReply("Short responses on.");
+        return true;
+      }
+      if (/^(normal responses)$/.test(command)) {
+        updateVoiceSettings({ voiceResponseLength: "normal" });
+        localReply("Normal responses on.");
+        return true;
+      }
+      if (command === "show workout") {
+        setShowWorkout(true);
+        localReply(activeWorkout ? "Workout shown." : "No workout is active.");
+        return true;
+      }
+      if (command === "hide workout") {
+        setShowWorkout(false);
+        localReply("Workout hidden.");
+        return true;
+      }
+      return false;
+    },
+    [
+      activeWorkout,
+      addEntry,
+      finishVoice,
+      localReply,
+      requestClose,
+      shortenLocally,
+      speak,
+      stopRecognition,
+      updatePhase,
+      updateVoiceSettings,
+    ],
+  );
+
+  useEffect(() => {
+    handleLocalCommandRef.current = handleLocalCommand;
+  }, [handleLocalCommand]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const draw = () => {
+      if (!activeRef.current) return;
+      const rect = canvas.getBoundingClientRect();
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(1, Math.floor(rect.width * pixelRatio));
+      const height = Math.max(1, Math.floor(rect.height * pixelRatio));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
+      context.clearRect(0, 0, rect.width, rect.height);
+
+      const color =
+        phaseRef.current === "listening"
+          ? "#a855f7"
+          : phaseRef.current === "speaking"
+            ? "#3b82f6"
+            : phaseRef.current === "error"
+              ? "#ef4444"
+              : phaseRef.current === "paused"
+                ? "#cbd5e1"
+                : "#f8fafc";
+      const barCount = 45;
+      const gap = 3;
+      const barWidth = Math.max(
+        2,
+        (rect.width - gap * (barCount - 1)) / barCount,
+      );
+      const center = rect.height / 2;
+      const time = performance.now() / 240;
+      context.fillStyle = color;
+      context.shadowColor = color;
+      context.shadowBlur =
+        phaseRef.current === "paused" ? 4 : 12;
+      context.globalAlpha =
+        phaseRef.current === "paused" ? 0.42 : 0.92;
+
+      for (let index = 0; index < barCount; index += 1) {
+        const distance = Math.abs(index - (barCount - 1) / 2);
+        const envelope = 1 - (distance / (barCount / 2)) * 0.55;
+        let energy = 0.13;
+        if (phaseRef.current === "listening") {
+          energy = 0.12 + volumeRef.current * 1.25;
+        } else if (phaseRef.current === "speaking") {
+          energy =
+            0.34 +
+            (Math.sin(time + index * 0.58) + 1) * 0.22 +
+            (Math.sin(time * 0.63 + index * 0.22) + 1) * 0.09;
+        } else if (phaseRef.current === "processing") {
+          energy =
+            0.2 +
+            (Math.sin(time * 1.25 - distance * 0.2) + 1) * 0.2;
+        } else if (phaseRef.current === "error") {
+          energy =
+            0.2 +
+            (Math.sin(time * 2.2 + index * 0.8) + 1) * 0.13;
+        }
+        const jitter =
+          phaseRef.current === "listening"
+            ? (Math.sin(time * 1.8 + index * 0.7) + 1) * 0.08
+            : 0;
+        const barHeight = Math.max(
+          4,
+          Math.min(rect.height * 0.9, rect.height * (energy + jitter) * envelope),
+        );
+        const x = index * (barWidth + gap);
+        context.beginPath();
+        context.roundRect(
+          x,
+          center - barHeight / 2,
+          barWidth,
+          barHeight,
+          barWidth / 2,
+        );
+        context.fill();
+      }
+      context.globalAlpha = 1;
+      context.shadowBlur = 0;
+      visualFrameRef.current = requestAnimationFrame(draw);
+    };
+    draw();
     return () => {
-      activeRef.current = false;
-      stopRecognition(true);
-      window.speechSynthesis?.cancel();
+      if (visualFrameRef.current) {
+        cancelAnimationFrame(visualFrameRef.current);
+      }
+      visualFrameRef.current = null;
     };
   }, []);
 
-  const interrupt = () => {
-    if (phase !== "speaking") return;
-    window.speechSynthesis?.cancel();
+  useEffect(() => {
+    activeRef.current = true;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    recordVoiceDiagnostics({
+      voiceTurnsThisSession: 0,
+      aiCallsThisSession: 0,
+      duplicateTranscriptPrevented: false,
+      transcriptStorage:
+        settingsRef.current.saveVoiceTranscripts === false ? "off" : "on",
+      transcriptRetention:
+        settingsRef.current.voiceTranscriptRetentionDays === 0
+          ? "forever"
+          : `${settingsRef.current.voiceTranscriptRetentionDays ?? 30} days`,
+    });
+    vibrate(20);
+    void requestWakeLock();
     void startListening();
+
+    const handleVisibility = () => {
+      if (!document.hidden) void requestWakeLock();
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("visibilitychange", handleVisibility);
+      cleanupResources();
+    };
+  }, [cleanupResources, requestWakeLock, startListening, vibrate]);
+
+  const handleOrbTap = () => {
+    if (phase === "listening") {
+      stopRecognition(true);
+      updatePhase("paused");
+      return;
+    }
+    if (phase === "paused" || phase === "error") {
+      void startListening();
+      return;
+    }
+    if (phase === "speaking") {
+      window.speechSynthesis?.cancel();
+      void startListening();
+    }
   };
 
-  const endVoice = () => {
-    activeRef.current = false;
-    stopRecognition(true);
-    window.speechSynthesis?.cancel();
-    onEnd();
-  };
+  const stateLabel =
+    phase === "listening"
+      ? userTalking
+        ? "Listening · You're speaking"
+        : "Listening"
+      : phase === "processing"
+        ? "Processing"
+        : phase === "speaking"
+          ? "Speaking"
+          : phase === "error"
+            ? "Error"
+            : "Paused";
 
-  const stateLabel = phase === "listening" ? "Listening" : phase === "processing" ? "Processing" : phase === "speaking" ? "Speaking" : phase === "error" ? "Error" : "Paused";
+  const stateColor =
+    phase === "listening"
+      ? "#a855f7"
+      : phase === "speaking"
+        ? "#3b82f6"
+        : phase === "error"
+          ? "#ef4444"
+          : phase === "paused"
+            ? "#cbd5e1"
+            : "#f8fafc";
 
   return (
-    <div className="absolute inset-0 z-30 flex min-h-0 flex-col overflow-hidden rounded-t-3xl bg-[var(--surface)] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1">{providerModel}</span>
-        <span className="font-medium">{stateLabel}</span>
+    <div
+      className="fixed inset-0 z-[100] flex min-h-[100dvh] flex-col overflow-hidden bg-[#050508] text-white"
+      style={{
+        paddingTop: "max(1rem, env(safe-area-inset-top))",
+        paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
+        backgroundImage:
+          "radial-gradient(circle at 50% 38%, color-mix(in oklab, var(--section) 18%, transparent) 0%, transparent 38%), radial-gradient(circle at 20% 90%, rgba(59,130,246,.10), transparent 34%), linear-gradient(180deg, #090711 0%, #050508 55%, #040407 100%)",
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Jarvis voice mode"
+    >
+      <div className="flex items-center gap-3 px-4 sm:px-6">
+        <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] text-white/65 backdrop-blur">
+          {providerModel}
+        </span>
+        <span
+          className="ml-auto text-xs font-semibold tracking-[0.18em] uppercase"
+          style={{ color: stateColor }}
+        >
+          {stateLabel}
+        </span>
+        <button
+          onClick={requestClose}
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/65 transition-colors hover:bg-white/10 hover:text-white"
+          aria-label={closePending ? "Confirm end voice mode" : "End voice mode"}
+        >
+          <X size={17} />
+        </button>
       </div>
 
-      <div className="flex flex-1 flex-col items-center justify-center gap-7 py-6">
+      {closePending && (
+        <div className="mx-auto mt-3 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-white/70 backdrop-blur">
+          Say “yes” to end or “cancel” to stay.
+        </div>
+      )}
+
+      <div className="relative flex min-h-0 flex-1 flex-col items-center justify-center px-4">
+        {showWorkout && activeWorkout && (
+          <div className="absolute top-5 left-1/2 w-[min(88vw,28rem)] -translate-x-1/2 rounded-2xl border border-white/10 bg-black/25 px-4 py-3 text-center backdrop-blur-md">
+            <p className="text-[10px] font-semibold tracking-[0.2em] text-white/45 uppercase">
+              Active workout
+            </p>
+            <p className="mt-1 text-sm font-semibold">{activeWorkout.name}</p>
+            {activeWorkout.exercise && (
+              <p className="mt-0.5 text-xs text-white/55">
+                {activeWorkout.exercise} · Set {activeWorkout.setNumber}
+              </p>
+            )}
+          </div>
+        )}
+
         <button
-          onClick={phase === "speaking" ? interrupt : () => void startListening()}
+          onClick={handleOrbTap}
           disabled={phase === "processing"}
-          className="relative flex h-44 w-44 items-center justify-center rounded-full disabled:opacity-80"
-          aria-label={phase === "speaking" ? "Interrupt Jarvis and listen" : "Start listening"}
-          style={{ background: "radial-gradient(circle at 35% 30%, color-mix(in oklab, var(--section) 82%, white), var(--section) 58%, color-mix(in oklab, var(--section) 18%, transparent))", boxShadow: phase === "listening" ? "0 0 0 18px color-mix(in oklab, var(--section) 10%, transparent), 0 0 70px color-mix(in oklab, var(--section) 50%, transparent)" : "0 18px 60px color-mix(in oklab, var(--section) 25%, transparent)" }}
+          className="group relative flex h-52 w-52 items-center justify-center rounded-full outline-none transition-transform active:scale-[0.98] disabled:cursor-wait sm:h-64 sm:w-64"
+          aria-label={
+            phase === "listening"
+              ? "Pause listening"
+              : phase === "speaking"
+                ? "Interrupt Jarvis and listen"
+                : phase === "processing"
+                  ? "Jarvis is processing"
+                  : "Resume listening"
+          }
         >
-          <span className={phase === "listening" || phase === "speaking" ? "animate-pulse" : ""}>
-            {phase === "processing" ? <Loader2 className="animate-spin text-white" size={42} /> : phase === "speaking" ? <Volume2 className="text-white" size={42} /> : phase === "error" ? <MicOff className="text-white" size={42} /> : <Mic className="text-white" size={42} />}
+          <span
+            className="absolute inset-5 rounded-full opacity-25 blur-2xl transition-colors duration-500"
+            style={{ background: stateColor }}
+          />
+          <span
+            className="absolute inset-9 rounded-full border transition-all duration-500"
+            style={{
+              borderColor: `${stateColor}66`,
+              boxShadow: `0 0 60px ${stateColor}33, inset 0 0 36px ${stateColor}1f`,
+              transform:
+                phase === "listening" && userTalking
+                  ? `scale(${1 + volumeRef.current * 0.12})`
+                  : "scale(1)",
+            }}
+          />
+          <span
+            className="relative flex h-28 w-28 items-center justify-center rounded-full border border-white/15 bg-black/35 backdrop-blur-xl transition-colors duration-500 sm:h-32 sm:w-32"
+            style={{
+              boxShadow: `0 0 50px ${stateColor}40, inset 0 0 28px ${stateColor}20`,
+            }}
+          >
+            {phase === "processing" ? (
+              <Loader2 className="animate-spin" color={stateColor} size={38} />
+            ) : phase === "speaking" ? (
+              <Volume2 color={stateColor} size={38} />
+            ) : phase === "error" ? (
+              <MicOff color={stateColor} size={38} />
+            ) : (
+              <Mic color={stateColor} size={38} />
+            )}
           </span>
         </button>
 
-        <div className="w-full max-w-md space-y-3 text-center">
-          <p className="text-lg font-semibold">{stateLabel}</p>
-          {transcript && <div className="rounded-2xl bg-[var(--surface-2)] px-4 py-3 text-sm"><span className="text-muted-foreground">You: </span>{transcript}</div>}
-          {reply && <div className="rounded-2xl border border-border px-4 py-3 text-sm"><span className="text-muted-foreground">Jarvis: </span>{reply}</div>}
-          {error && <p className="text-sm text-destructive">{error}</p>}
-          {supportNotice && <p className="text-sm text-muted-foreground">{supportNotice}</p>}
-          {phase === "paused" && settings.confirmTranscriptBeforeSend && transcript && (
-            <button onClick={() => void processTranscript(transcript)} className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ background: "var(--section)" }}>Send transcript</button>
-          )}
-          {(phase === "error" || phase === "paused") && !(settings.confirmTranscriptBeforeSend && transcript) && (
-            <button onClick={() => void startListening()} className="inline-flex items-center gap-2 rounded-xl bg-[var(--surface-2)] px-4 py-2 text-sm font-medium"><RotateCcw size={15} /> Restart listening</button>
-          )}
+        <canvas
+          ref={canvasRef}
+          className="mt-2 h-28 w-[min(92vw,34rem)]"
+          aria-label="Voice activity waveform"
+        />
+
+        <div className="mt-3 min-h-12 text-center">
+          <p className="text-lg font-semibold tracking-tight">{stateLabel}</p>
+          <p className="mt-1 text-xs text-white/40">
+            {phase === "listening"
+              ? "Speak naturally · tap to pause"
+              : phase === "speaking"
+                ? "Tap to interrupt"
+                : phase === "processing"
+                  ? "Jarvis is working"
+                  : phase === "error"
+                    ? "Tap the orb to retry"
+                    : "Tap the orb to resume"}
+          </p>
         </div>
+
+        {error && (
+          <p className="mt-3 max-w-md text-center text-sm text-red-400">
+            {error}
+          </p>
+        )}
+        {supportNotice && (
+          <p className="mt-2 max-w-md text-center text-xs text-white/45">
+            {supportNotice}
+          </p>
+        )}
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        <button onClick={() => onSettingsChange({ voiceOutputMuted: !settings.voiceOutputMuted })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--surface-2)] px-3 text-sm" aria-label={settings.voiceOutputMuted ? "Unmute spoken replies" : "Mute spoken replies"}>
-          {settings.voiceOutputMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}<span className="hidden sm:inline">{settings.voiceOutputMuted ? "Unmute" : "Mute"}</span>
+      {transcriptVisible && (
+        <div
+          className={`mx-4 mb-3 overflow-hidden rounded-2xl border border-white/10 bg-black/35 backdrop-blur-xl transition-all sm:mx-auto sm:w-[min(92vw,42rem)] ${
+            transcriptExpanded ? "max-h-[58dvh]" : "max-h-[32dvh]"
+          }`}
+        >
+          <div className="flex items-center border-b border-white/10 px-4 py-3">
+            <History size={15} className="text-white/45" />
+            <span className="ml-2 text-xs font-semibold tracking-wide text-white/70">
+              Voice transcript
+            </span>
+            <button
+              onClick={() => setTranscriptExpanded(value => !value)}
+              className="ml-auto text-[11px] text-white/45 hover:text-white/80"
+            >
+              {transcriptExpanded ? "Collapse" : "Expand"}
+            </button>
+          </div>
+          <div className="max-h-[inherit] space-y-3 overflow-y-auto px-4 py-3">
+            {entries.length === 0 ? (
+              <p className="text-xs text-white/35">Conversation will appear here.</p>
+            ) : (
+              entries.map(entry => (
+                <div key={entry.id} className="text-sm leading-relaxed">
+                  <span
+                    className="mr-2 text-[10px] font-bold tracking-wider uppercase"
+                    style={{
+                      color:
+                        entry.role === "user"
+                          ? "#c084fc"
+                          : entry.role === "assistant"
+                            ? "#60a5fa"
+                            : "#f87171",
+                    }}
+                  >
+                    {entry.role === "assistant" ? "Jarvis" : entry.role}
+                  </span>
+                  <span className="text-white/75">{entry.text}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {phase === "paused" &&
+        settingsRef.current.confirmTranscriptBeforeSend &&
+        transcript && (
+          <div className="mx-auto mb-3 flex max-w-lg items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
+            <p className="min-w-0 flex-1 truncate text-sm text-white/70">
+              {transcript}
+            </p>
+            <button
+              onClick={() => void processTranscript(transcript)}
+              className="rounded-full px-4 py-2 text-xs font-semibold text-black"
+              style={{ background: "#f8fafc" }}
+            >
+              Send
+            </button>
+          </div>
+        )}
+
+      <div className="flex items-center justify-center gap-2 px-4">
+        <button
+          onClick={() => setTranscriptVisible(value => !value)}
+          className="flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 text-xs text-white/55 hover:bg-white/10 hover:text-white"
+          aria-label={transcriptVisible ? "Hide transcript" : "Show transcript"}
+        >
+          {transcriptVisible ? <EyeOff size={15} /> : <Eye size={15} />}
+          <span className="hidden min-[360px]:inline">
+            {transcriptVisible ? "Hide" : "Transcript"}
+          </span>
         </button>
-        <button onClick={onTextFallback} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--surface-2)] px-3 text-sm"><Keyboard size={18} /><span className="hidden sm:inline">Type</span></button>
-        <button onClick={endVoice} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-destructive px-3 text-sm font-semibold text-white"><Square size={16} /> End Voice</button>
+        <button
+          onClick={() =>
+            updateVoiceSettings({
+              voiceOutputMuted: !settingsRef.current.voiceOutputMuted,
+            })
+          }
+          className="flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 text-xs text-white/55 hover:bg-white/10 hover:text-white"
+          aria-label={
+            settingsRef.current.voiceOutputMuted
+              ? "Unmute spoken replies"
+              : "Mute spoken replies"
+          }
+        >
+          {settingsRef.current.voiceOutputMuted ? (
+            <VolumeX size={15} />
+          ) : (
+            <Volume2 size={15} />
+          )}
+          <span className="hidden min-[360px]:inline">
+            {settingsRef.current.voiceOutputMuted ? "Unmute" : "Mute"}
+          </span>
+        </button>
+        <button
+          onClick={useTextFallback}
+          className="flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 text-xs text-white/55 hover:bg-white/10 hover:text-white"
+        >
+          <Keyboard size={15} />
+          <span className="hidden min-[360px]:inline">Type</span>
+        </button>
+        {(phase === "error" || phase === "paused") && (
+          <button
+            onClick={() => void startListening()}
+            className="flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 text-xs text-white/55 hover:bg-white/10 hover:text-white"
+          >
+            <RotateCcw size={15} />
+            <span className="hidden min-[360px]:inline">Retry</span>
+          </button>
+        )}
       </div>
+
+      <p className="mt-3 px-4 text-center text-[10px] text-white/25">
+        Voice mode works best in Chrome or Edge.
+      </p>
     </div>
   );
 }
