@@ -29,6 +29,8 @@ type VoiceDiagnostics = {
   autoRouting?: boolean;
   fallback?: boolean;
   duplicateTranscriptPrevented?: boolean;
+  transcriptStorage?: string;
+  transcriptRetention?: string;
 };
 
 type AiDiagnostics = {
@@ -108,6 +110,7 @@ export function JarvisSettingsCard() {
   const [hasSavedGeminiKey, setHasSavedGeminiKey] = useState(false);
   const [diagnostics, setDiagnostics] = useState<AiDiagnostics[]>([]);
   const [voiceDiagnostics, setVoiceDiagnostics] = useState<VoiceDiagnostics>({});
+  const [browserVoices, setBrowserVoices] = useState<SpeechSynthesisVoice[]>([]);
   const groqKeyMode = normalizedKeyMode(s.groqKeyMode);
   const geminiKeyMode = normalizedKeyMode(s.geminiKeyMode);
   const groqModel = selectedGroqModel(s.groqModel);
@@ -137,7 +140,22 @@ export function JarvisSettingsCard() {
     if (s.confirmTranscriptBeforeSend === undefined) patch.confirmTranscriptBeforeSend = false;
     if (s.voiceSilenceDelayMs === undefined) patch.voiceSilenceDelayMs = 1200;
     if (s.voiceOutputMuted === undefined) patch.voiceOutputMuted = false;
+    if (s.voiceName === undefined) patch.voiceName = "";
+    if (s.voiceRateMode === undefined) patch.voiceRateMode = "normal";
+    if (s.voiceResponseLength === undefined) patch.voiceResponseLength = "normal";
+    if (s.saveVoiceTranscripts === undefined) patch.saveVoiceTranscripts = true;
+    if (s.voiceTranscriptRetentionDays === undefined) patch.voiceTranscriptRetentionDays = 30;
+    if (s.voiceHaptics === undefined) patch.voiceHaptics = true;
+    if (s.voiceKeepAwake === undefined) patch.voiceKeepAwake = true;
     if (Object.keys(patch).length > 0) upd(patch);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const loadVoices = () => setBrowserVoices(window.speechSynthesis.getVoices());
+    loadVoices();
+    window.speechSynthesis.addEventListener("voiceschanged", loadVoices);
+    return () => window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
   }, []);
 
   useEffect(() => {
@@ -420,6 +438,8 @@ export function JarvisSettingsCard() {
             <span>Last voice provider/model</span><span>{modelLabel(voiceDiagnostics.lastProviderModel)}</span>
             <span>Voice auto-routing / fallback</span><span>{voiceDiagnostics.autoRouting ? "yes" : "no"} / {voiceDiagnostics.fallback ? "yes" : "no"}</span>
             <span>Duplicate voice transcript blocked</span><span>{voiceDiagnostics.duplicateTranscriptPrevented ? "yes" : "no"}</span>
+            <span>Transcript storage</span><span>{voiceDiagnostics.transcriptStorage ?? (s.saveVoiceTranscripts === false ? "off" : "on")}</span>
+            <span>Transcript retention</span><span>{voiceDiagnostics.transcriptRetention ?? (s.voiceTranscriptRetentionDays === 0 ? "forever" : `${s.voiceTranscriptRetentionDays ?? 30} days`)}</span>
           </div>
         </div>
 
@@ -504,11 +524,52 @@ export function JarvisSettingsCard() {
         <div className="space-y-1 border-t border-border pt-3">
           <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Voice</p>
           <Toggle label="Voice input" val={s.voiceInputEnabled !== false} onChange={v => upd({ voiceInputEnabled: v })} hint="Uses this browser's speech recognition. Raw audio is never sent to Groq or Gemini." />
-          <Toggle label="Voice conversation mode" val={Boolean(s.voiceModeEnabled)} onChange={v => upd({ voiceModeEnabled: v })} hint="This also turns on when you open the voice conversation screen." />
+          <Toggle label="Voice mode enabled" val={s.voiceModeEnabled !== false} onChange={v => upd({ voiceModeEnabled: v })} hint="Voice still requires a tap to start each session." />
           <Toggle label="Speak Jarvis replies" val={s.spokenResponses !== false} onChange={v => upd({ spokenResponses: v })} />
           <Toggle label="Auto-listen after replies" val={s.autoListenAfterReply !== false} onChange={v => upd({ autoListenAfterReply: v })} />
           <Toggle label="Confirm transcript before sending" val={Boolean(s.confirmTranscriptBeforeSend)} onChange={v => upd({ confirmTranscriptBeforeSend: v })} />
           <Toggle label="Voice output muted" val={Boolean(s.voiceOutputMuted)} onChange={v => upd({ voiceOutputMuted: v })} />
+          <Toggle label="Save voice transcripts locally" val={s.saveVoiceTranscripts !== false} onChange={v => upd({ saveVoiceTranscripts: v })} />
+          <Toggle label="Haptics" val={s.voiceHaptics !== false} onChange={v => upd({ voiceHaptics: v })} hint="Subtle vibration when supported." />
+          <Toggle label="Keep screen awake" val={s.voiceKeepAwake !== false} onChange={v => upd({ voiceKeepAwake: v })} hint="Uses Screen Wake Lock when supported." />
+
+          <div className="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
+            <div>
+              <Label>Jarvis voice</Label>
+              <Select value={s.voiceName ?? ""} onChange={e => upd({ voiceName: e.target.value })}>
+                <option value="">Default system voice</option>
+                {browserVoices.map(voice => (
+                  <option key={voice.voiceURI} value={voice.name}>{voice.name} ({voice.lang})</option>
+                ))}
+              </Select>
+            </div>
+            <div>
+              <Label>Speech rate</Label>
+              <Select value={s.voiceRateMode ?? "normal"} onChange={e => upd({ voiceRateMode: e.target.value as JarvisSettings["voiceRateMode"] })}>
+                <option value="slow">Slow</option>
+                <option value="normal">Normal</option>
+                <option value="fast">Fast</option>
+              </Select>
+            </div>
+            <div>
+              <Label>Voice response length</Label>
+              <Select value={s.voiceResponseLength ?? "normal"} onChange={e => upd({ voiceResponseLength: e.target.value as JarvisSettings["voiceResponseLength"] })}>
+                <option value="short">Short</option>
+                <option value="normal">Normal</option>
+                <option value="detailed">Detailed</option>
+              </Select>
+            </div>
+            <div>
+              <Label>Transcript retention</Label>
+              <Select value={String(s.voiceTranscriptRetentionDays ?? 30)} onChange={e => upd({ voiceTranscriptRetentionDays: Number(e.target.value) as JarvisSettings["voiceTranscriptRetentionDays"] })}>
+                <option value="0">Keep forever</option>
+                <option value="7">Delete after 7 days</option>
+                <option value="30">Delete after 30 days</option>
+                <option value="90">Delete after 90 days</option>
+              </Select>
+            </div>
+          </div>
+
           <div className="pt-2">
             <div className="flex items-center justify-between gap-3">
               <Label>Silence delay before sending</Label>
