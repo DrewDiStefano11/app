@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Send, Loader2, Mic } from "lucide-react";
+import { Sparkles, Send, Loader2, Mic, MicOff, Volume2, VolumeX, Keyboard, Square, RotateCcw } from "lucide-react";
 import { BottomSheet } from "../sheet";
 import { Chip, GhostButton } from "../ui";
 import { useStore, uid } from "@/lib/store";
@@ -50,6 +50,40 @@ const NON_MUTATING = new Set(["undoLastAction", "getJarvisLearnedPreferences", "
 const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
 const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
 const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
+const VOICE_DIAGNOSTICS_STORAGE = "fitcore.jarvis.voiceDiagnostics.v1";
+const CONFIRM_WORDS = /^(yes|confirm|save it|log it|yes save it|yes log it)[.!]?$/i;
+const CANCEL_WORDS = /^(cancel|no|no cancel|don't save|do not save)[.!]?$/i;
+
+type VoicePhase = "listening" | "processing" | "speaking" | "paused" | "error";
+type SpeechResultEvent = { results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> };
+type SpeechErrorEvent = { error: string };
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onstart: (() => void) | null;
+  onresult: ((event: SpeechResultEvent) => void) | null;
+  onerror: ((event: SpeechErrorEvent) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+};
+type SpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+function speechRecognitionConstructor(): SpeechRecognitionConstructor | undefined {
+  if (typeof window === "undefined") return undefined;
+  const w = window as typeof window & { SpeechRecognition?: SpeechRecognitionConstructor; webkitSpeechRecognition?: SpeechRecognitionConstructor };
+  return w.SpeechRecognition ?? w.webkitSpeechRecognition;
+}
+
+function recordVoiceDiagnostics(patch: Record<string, unknown>) {
+  if (typeof window === "undefined") return;
+  let previous: Record<string, unknown> = {};
+  try { previous = JSON.parse(window.localStorage.getItem(VOICE_DIAGNOSTICS_STORAGE) ?? "{}"); } catch { /* ignore corrupt local diagnostics */ }
+  window.localStorage.setItem(VOICE_DIAGNOSTICS_STORAGE, JSON.stringify({ ...previous, ...patch, updatedAt: Date.now() }));
+  window.dispatchEvent(new CustomEvent("fitcore:jarvis-ai-diagnostics"));
+}
 
 function readSavedKey(storageKey: string) {
   if (typeof window === "undefined") return "";
@@ -157,13 +191,16 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<RenderedMsg[]>([]);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const { state, set } = useStore();
   const stateRef = useRef(state);
+  const messagesRef = useRef(messages);
   const sendingRef = useRef(false);
   const chatFn = useServerFn(aiChat);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { stateRef.current = state; }, [state]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
   useEffect(() => { if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [open, messages.length]);
   useEffect(() => {
     const h = () => setOpen(true);
@@ -180,10 +217,36 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
     if (!content || sendingRef.current) return;
     sendingRef.current = true;
     if (!settings.enabled) {
-      setMessages(m => [...m, { id: uid(), role: "assistant", content: "Jarvis is disabled. Enable it in Settings > Jarvis AI.", createdAt: Date.now() }]);
+      const disabled = "Jarvis is disabled. Enable it in Settings > Jarvis AI.";
+      setMessages(m => [...m, { id: uid(), role: "assistant", content: disabled, createdAt: Date.now() }]);
       sendingRef.current = false;
-      return;
+      return disabled;
     }
+
+    const pendingIntent = CONFIRM_WORDS.test(content) ? "confirm" : CANCEL_WORDS.test(content) ? "cancel" : null;
+    const pendingMessage = [...messagesRef.current].reverse().find(m => m.toolResults?.some(tr => tr.pending && tr.result.needsConfirmation));
+    if (pendingIntent && pendingMessage?.toolResults) {
+      const idx = pendingMessage.toolResults.findIndex(tr => tr.pending && tr.result.needsConfirmation);
+      const current = pendingMessage.toolResults[idx];
+      const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now() };
+      let spoken = "Cancelled.";
+      if (pendingIntent === "confirm" && current?.pending) {
+        const result = runTool(current.tool, current.pending.args, { state: stateRef.current, set, settings });
+        spoken = result.summary;
+        setMessages(prev => [...prev.map(m => m.id === pendingMessage.id && m.toolResults ? {
+          ...m,
+          toolResults: m.toolResults.map((tr, i) => i === idx ? { tool: tr.tool, result: { ...result, needsConfirmation: false } } : tr),
+        } : m), userMsg, { id: uid(), role: "assistant", content: spoken, createdAt: Date.now() }]);
+      } else {
+        setMessages(prev => [...prev.map(m => m.id === pendingMessage.id && m.toolResults ? {
+          ...m,
+          toolResults: m.toolResults.map((tr, i) => i === idx ? { tool: tr.tool, result: { ok: false, summary: "Cancelled", needsConfirmation: false } } : tr),
+        } : m), userMsg, { id: uid(), role: "assistant", content: spoken, createdAt: Date.now() }]);
+      }
+      sendingRef.current = false;
+      return spoken;
+    }
+
     setInput("");
     setSending(true);
     const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now() };
@@ -214,8 +277,9 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
       recordDiagnostics(res.diagnostics);
 
       if (!res.ok) {
-        setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${res.error}`, createdAt: Date.now() }]);
-        return;
+        const failure = `Warning: ${res.error}`;
+        setMessages(m => [...m, { id: uid(), role: "assistant", content: failure, createdAt: Date.now() }]);
+        return failure;
       }
 
       const toolResults: RenderedMsg["toolResults"] = [];
@@ -233,8 +297,11 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
 
       const assistantContent = friendlyAssistantContent(res.content, toolResults) || (toolResults.length ? "" : "I couldn't complete that request.");
       setMessages(m => [...m, { id: uid(), role: "assistant", content: assistantContent, toolResults, createdAt: Date.now() }]);
+      return assistantContent || toolResults.map(item => item.result.summary).filter(Boolean).join(". ");
     } catch (err) {
-      setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${err instanceof Error ? err.message : "Jarvis failed"}`, createdAt: Date.now() }]);
+      const failure = `Warning: ${err instanceof Error ? err.message : "Jarvis failed"}`;
+      setMessages(m => [...m, { id: uid(), role: "assistant", content: failure, createdAt: Date.now() }]);
+      return failure;
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -277,6 +344,21 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   };
   const undoAction = (auditId: string) => undoAuditEntry(auditId, stateRef.current, set);
   const providerName = settings.aiProvider === "gemini" ? "Gemini" : settings.aiProvider === "legacy-lovable" ? "Legacy" : "Groq";
+  const providerModel = settings.aiProvider === "gemini"
+    ? `Gemini ${settings.geminiModel === "gemini-2.5-flash" ? "2.5 Flash" : "backup"}`
+    : settings.groqModel === "llama-3.1-8b-instant" ? "Groq Llama 3.1 8B" : settings.groqModel === "llama-3.3-70b-versatile" ? "Groq Llama 3.3 70B" : "Groq Qwen 3 32B";
+
+  const closePanel = () => {
+    setVoiceOpen(false);
+    window.speechSynthesis?.cancel();
+    set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: false } }));
+    setOpen(false);
+  };
+
+  const startVoice = () => {
+    set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: true } }));
+    setVoiceOpen(true);
+  };
 
   return (
     <>
@@ -287,7 +369,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         <Sparkles size={22} />
       </button>
 
-      <BottomSheet open={open} onClose={() => setOpen(false)} title="Jarvis" height="tall">
+      <BottomSheet open={open} onClose={closePanel} title="Jarvis" height="tall">
         <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--surface-2)]">
             <span className={`w-1.5 h-1.5 rounded-full ${sending ? "animate-pulse" : ""}`} style={{ background: sending ? "var(--section)" : "var(--success, #10b981)" }} />
@@ -335,7 +417,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
           <input value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") send(input); }}
             placeholder="Talk to Jarvis..." className="flex-1 px-4 py-3 rounded-xl bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)]" />
-          <button disabled title="Voice mode - coming in Phase 6" className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--surface-2)] text-muted-foreground opacity-60">
+          <button onClick={startVoice} disabled={settings.voiceInputEnabled === false} title="Start Jarvis voice conversation" className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--surface-2)] text-muted-foreground disabled:opacity-50" aria-label="Start Jarvis voice conversation">
             <Mic size={18} />
           </button>
           <button onClick={() => send(input)} disabled={sending || !input.trim()}
@@ -346,6 +428,19 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         </div>
         {messages.length > 0 && (
           <div className="mt-2"><GhostButton className="w-full text-sm" onClick={() => setMessages([])}>Clear conversation</GhostButton></div>
+        )}
+        {voiceOpen && (
+          <VoiceConversation
+            settings={settings}
+            providerModel={providerModel}
+            onSend={send}
+            onEnd={() => {
+              setVoiceOpen(false);
+              set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: false } }));
+            }}
+            onTextFallback={() => setVoiceOpen(false)}
+            onSettingsChange={patch => set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, ...patch } }))}
+          />
         )}
       </BottomSheet>
     </>
@@ -377,4 +472,275 @@ export { SourceBadge };
 // Kept as a no-op export so existing mounts remain compatible while global undo UI is disabled.
 export function JarvisUndoSnackbar() {
   return null;
+}
+
+
+function VoiceConversation({
+  settings,
+  providerModel,
+  onSend,
+  onEnd,
+  onTextFallback,
+  onSettingsChange,
+}: {
+  settings: ReturnType<typeof useStore>["state"]["jarvisSettings"];
+  providerModel: string;
+  onSend: (text: string) => Promise<string | undefined>;
+  onEnd: () => void;
+  onTextFallback: () => void;
+  onSettingsChange: (patch: Partial<ReturnType<typeof useStore>["state"]["jarvisSettings"]>) => void;
+}) {
+  const [phase, setPhase] = useState<VoicePhase>("paused");
+  const [transcript, setTranscript] = useState("");
+  const [reply, setReply] = useState("");
+  const [error, setError] = useState("");
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const activeRef = useRef(true);
+  const phaseRef = useRef<VoicePhase>("paused");
+  const finalTextRef = useRef("");
+  const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const recentTranscriptsRef = useRef(new Map<string, number>());
+  const errorCountRef = useRef(0);
+  const voiceTurnsRef = useRef(0);
+  const aiCallsRef = useRef(0);
+  const startListeningRef = useRef<() => void>(() => {});
+
+  const updatePhase = useCallback((next: VoicePhase) => {
+    phaseRef.current = next;
+    setPhase(next);
+  }, []);
+
+  const stopRecognition = useCallback((abort = false) => {
+    if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    silenceTimerRef.current = null;
+    restartTimerRef.current = null;
+    try {
+      if (abort) recognitionRef.current?.abort();
+      else recognitionRef.current?.stop();
+    } catch { /* recognition may already be stopped */ }
+  }, []);
+
+  const speak = useCallback((text: string) => {
+    const synthesis = typeof window !== "undefined" ? window.speechSynthesis : undefined;
+    if (!text || settings.spokenResponses === false || settings.voiceOutputMuted) {
+      if (settings.autoListenAfterReply !== false) startListeningRef.current();
+      else updatePhase("paused");
+      return;
+    }
+    if (!synthesis || typeof SpeechSynthesisUtterance === "undefined") {
+      setError("Spoken replies are not supported in this browser.");
+      if (settings.autoListenAfterReply !== false) startListeningRef.current();
+      else updatePhase("paused");
+      return;
+    }
+    synthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    utterance.onstart = () => updatePhase("speaking");
+    utterance.onend = () => {
+      if (!activeRef.current) return;
+      if (settings.autoListenAfterReply !== false) startListeningRef.current();
+      else updatePhase("paused");
+    };
+    utterance.onerror = () => {
+      if (!activeRef.current) return;
+      setError("Spoken replies are not supported in this browser.");
+      if (settings.autoListenAfterReply !== false) startListeningRef.current();
+      else updatePhase("paused");
+    };
+    synthesis.speak(utterance);
+  }, [settings.autoListenAfterReply, settings.spokenResponses, settings.voiceOutputMuted, updatePhase]);
+
+  const processTranscript = useCallback(async (rawText: string) => {
+    const text = rawText.trim().replace(/\s+/g, " ");
+    if (!text || !activeRef.current || phaseRef.current === "processing") return;
+    const key = text.toLocaleLowerCase();
+    const now = Date.now();
+    for (const [oldKey, timestamp] of recentTranscriptsRef.current) {
+      if (now - timestamp > 30_000) recentTranscriptsRef.current.delete(oldKey);
+    }
+    if (recentTranscriptsRef.current.has(key)) {
+      recordVoiceDiagnostics({ duplicateTranscriptPrevented: true, lastTranscript: text });
+      setError("Duplicate transcript ignored.");
+      restartTimerRef.current = setTimeout(() => startListeningRef.current(), 500);
+      return;
+    }
+    recentTranscriptsRef.current.set(key, now);
+    voiceTurnsRef.current += 1;
+    aiCallsRef.current += CONFIRM_WORDS.test(text) || CANCEL_WORDS.test(text) ? 0 : 1;
+    recordVoiceDiagnostics({
+      voiceTurnsThisSession: voiceTurnsRef.current,
+      aiCallsThisSession: aiCallsRef.current,
+      lastTranscript: text,
+      duplicateTranscriptPrevented: false,
+    });
+    updatePhase("processing");
+    setTranscript(text);
+    setError("");
+    stopRecognition();
+    const response = await onSend(text);
+    if (!activeRef.current) return;
+    const cleanReply = response?.trim() || "Done.";
+    setReply(cleanReply);
+    let lastDiag: AiDiagnostics | undefined;
+    try {
+      const stored = JSON.parse(window.localStorage.getItem(AI_DIAGNOSTICS_STORAGE) ?? "{}") as { calls?: AiDiagnostics[] };
+      lastDiag = stored.calls?.at(-1);
+    } catch { /* diagnostics are optional */ }
+    recordVoiceDiagnostics({
+      lastProviderModel: lastDiag?.actualModel ?? providerModel,
+      autoRouting: Boolean(lastDiag?.routed),
+      fallback: Boolean(lastDiag?.fallback),
+    });
+    speak(cleanReply);
+  }, [onSend, providerModel, speak, stopRecognition, updatePhase]);
+
+  const submitFinal = useCallback((text: string) => {
+    if (!text.trim()) return;
+    if (settings.confirmTranscriptBeforeSend) {
+      setTranscript(text.trim());
+      updatePhase("paused");
+      return;
+    }
+    void processTranscript(text);
+  }, [processTranscript, settings.confirmTranscriptBeforeSend, updatePhase]);
+
+  const startListening = useCallback(async () => {
+    if (!activeRef.current || settings.voiceInputEnabled === false) return;
+    window.speechSynthesis?.cancel();
+    stopRecognition(true);
+    const Recognition = speechRecognitionConstructor();
+    if (!Recognition) {
+      setError("Voice input is not supported in this browser. Type your message instead.");
+      updatePhase("error");
+      return;
+    }
+    try {
+      if (navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+      }
+      if (!activeRef.current) return;
+      const recognition = new Recognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = navigator.language || "en-US";
+      recognition.onstart = () => {
+        finalTextRef.current = "";
+        setTranscript("");
+        setError("");
+        updatePhase("listening");
+      };
+      recognition.onresult = event => {
+        let finalChunk = "";
+        for (let i = 0; i < event.results.length; i += 1) {
+          const result = event.results[i];
+          if (result.isFinal) finalChunk += `${result[0]?.transcript ?? ""} `;
+        }
+        if (!finalChunk.trim()) return;
+        finalTextRef.current = `${finalTextRef.current} ${finalChunk}`.trim();
+        setTranscript(finalTextRef.current);
+        if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current);
+        silenceTimerRef.current = setTimeout(() => {
+          const completed = finalTextRef.current;
+          finalTextRef.current = "";
+          try { recognition.stop(); } catch { /* already stopped */ }
+          submitFinal(completed);
+        }, Math.max(500, settings.voiceSilenceDelayMs ?? 1200));
+      };
+      recognition.onerror = event => {
+        if (!activeRef.current || event.error === "aborted") return;
+        errorCountRef.current += 1;
+        const message = event.error === "not-allowed" || event.error === "service-not-allowed"
+          ? "Microphone permission is blocked. Enable it in your browser settings."
+          : "Voice input stopped unexpectedly. Restart listening.";
+        setError(message);
+        updatePhase(errorCountRef.current >= 3 ? "paused" : "error");
+      };
+      recognition.onend = () => {
+        if (!activeRef.current || phaseRef.current !== "listening" || silenceTimerRef.current || finalTextRef.current) return;
+        restartTimerRef.current = setTimeout(() => startListeningRef.current(), 400);
+      };
+      recognitionRef.current = recognition;
+      recognition.start();
+    } catch (err) {
+      const denied = err instanceof DOMException && (err.name === "NotAllowedError" || err.name === "SecurityError");
+      setError(denied ? "Microphone permission is blocked. Enable it in your browser settings." : "Voice input stopped unexpectedly. Restart listening.");
+      updatePhase("error");
+    }
+  }, [settings.voiceInputEnabled, settings.voiceSilenceDelayMs, stopRecognition, submitFinal, updatePhase]);
+
+  useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
+
+  useEffect(() => {
+    activeRef.current = true;
+    recordVoiceDiagnostics({ voiceTurnsThisSession: 0, aiCallsThisSession: 0, duplicateTranscriptPrevented: false });
+    void startListening();
+    return () => {
+      activeRef.current = false;
+      stopRecognition(true);
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  const interrupt = () => {
+    if (phase !== "speaking") return;
+    window.speechSynthesis?.cancel();
+    void startListening();
+  };
+
+  const endVoice = () => {
+    activeRef.current = false;
+    stopRecognition(true);
+    window.speechSynthesis?.cancel();
+    onEnd();
+  };
+
+  const stateLabel = phase === "listening" ? "Listening" : phase === "processing" ? "Processing" : phase === "speaking" ? "Speaking" : phase === "error" ? "Error" : "Paused";
+
+  return (
+    <div className="absolute inset-0 z-30 flex min-h-0 flex-col overflow-hidden rounded-t-3xl bg-[var(--surface)] px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4">
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1">{providerModel}</span>
+        <span className="font-medium">{stateLabel}</span>
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-7 py-6">
+        <button
+          onClick={phase === "speaking" ? interrupt : () => void startListening()}
+          disabled={phase === "processing"}
+          className="relative flex h-44 w-44 items-center justify-center rounded-full disabled:opacity-80"
+          aria-label={phase === "speaking" ? "Interrupt Jarvis and listen" : "Start listening"}
+          style={{ background: "radial-gradient(circle at 35% 30%, color-mix(in oklab, var(--section) 82%, white), var(--section) 58%, color-mix(in oklab, var(--section) 18%, transparent))", boxShadow: phase === "listening" ? "0 0 0 18px color-mix(in oklab, var(--section) 10%, transparent), 0 0 70px color-mix(in oklab, var(--section) 50%, transparent)" : "0 18px 60px color-mix(in oklab, var(--section) 25%, transparent)" }}
+        >
+          <span className={phase === "listening" || phase === "speaking" ? "animate-pulse" : ""}>
+            {phase === "processing" ? <Loader2 className="animate-spin text-white" size={42} /> : phase === "speaking" ? <Volume2 className="text-white" size={42} /> : phase === "error" ? <MicOff className="text-white" size={42} /> : <Mic className="text-white" size={42} />}
+          </span>
+        </button>
+
+        <div className="w-full max-w-md space-y-3 text-center">
+          <p className="text-lg font-semibold">{stateLabel}</p>
+          {transcript && <div className="rounded-2xl bg-[var(--surface-2)] px-4 py-3 text-sm"><span className="text-muted-foreground">You: </span>{transcript}</div>}
+          {reply && <div className="rounded-2xl border border-border px-4 py-3 text-sm"><span className="text-muted-foreground">Jarvis: </span>{reply}</div>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          {phase === "paused" && settings.confirmTranscriptBeforeSend && transcript && (
+            <button onClick={() => void processTranscript(transcript)} className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ background: "var(--section)" }}>Send transcript</button>
+          )}
+          {(phase === "error" || phase === "paused") && !(settings.confirmTranscriptBeforeSend && transcript) && (
+            <button onClick={() => void startListening()} className="inline-flex items-center gap-2 rounded-xl bg-[var(--surface-2)] px-4 py-2 text-sm font-medium"><RotateCcw size={15} /> Restart listening</button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <button onClick={() => onSettingsChange({ voiceOutputMuted: !settings.voiceOutputMuted })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--surface-2)] px-3 text-sm" aria-label={settings.voiceOutputMuted ? "Unmute spoken replies" : "Mute spoken replies"}>
+          {settings.voiceOutputMuted ? <VolumeX size={18} /> : <Volume2 size={18} />}<span className="hidden sm:inline">{settings.voiceOutputMuted ? "Unmute" : "Mute"}</span>
+        </button>
+        <button onClick={onTextFallback} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--surface-2)] px-3 text-sm"><Keyboard size={18} /><span className="hidden sm:inline">Type</span></button>
+        <button onClick={endVoice} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-destructive px-3 text-sm font-semibold text-white"><Square size={16} /> End Voice</button>
+      </div>
+    </div>
+  );
 }
