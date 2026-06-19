@@ -10,7 +10,7 @@ const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
 const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
 const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
 const WORKING_GEMINI_MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"] as const;
-const WORKING_GROQ_MODELS = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen/qwen3-32b"] as const;
+const WORKING_GROQ_MODELS = ["qwen/qwen3-32b", "llama-3.1-8b-instant", "llama-3.3-70b-versatile"] as const;
 type ConnectionStatus = "not_configured" | "testing" | "connected" | "failed";
 type ConnectionResult = {
   ok: boolean;
@@ -52,7 +52,7 @@ function selectedGeminiModel(model: unknown): JarvisSettings["geminiModel"] {
 }
 
 function selectedGroqModel(model: unknown): GroqModel {
-  return WORKING_GROQ_MODELS.includes(model as GroqModel) ? model as GroqModel : "llama-3.1-8b-instant";
+  return WORKING_GROQ_MODELS.includes(model as GroqModel) ? model as GroqModel : "qwen/qwen3-32b";
 }
 
 function readDiagnostics(): AiDiagnostics[] {
@@ -301,9 +301,9 @@ export function JarvisSettingsCard() {
             <div>
               <Label>Groq model</Label>
               <Select value={groqModel} onChange={e => upd({ groqModel: e.target.value as JarvisSettings["groqModel"] })}>
-                <option value="llama-3.1-8b-instant">Groq Llama 3.1 8B Instant - fast/default</option>
+                <option value="qwen/qwen3-32b">Groq Qwen 3 32B - reliable tool calling/default</option>
+                <option value="llama-3.1-8b-instant">Groq Llama 3.1 8B Instant - fast chat</option>
                 <option value="llama-3.3-70b-versatile">Groq Llama 3.3 70B Versatile - stronger reasoning</option>
-                <option value="qwen/qwen3-32b">Groq Qwen 3 32B - alternate fallback</option>
               </Select>
             </div>
             <div>
@@ -324,7 +324,7 @@ export function JarvisSettingsCard() {
               <GhostButton type="button" onClick={() => runConnectionTest("groq")} disabled={groqStatus === "testing"}>{groqStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}Test</GhostButton>
             </div>
             <StatusLine status={groqStatus} text={groqStatusText} />
-            <Toggle label="Auto model routing" val={s.autoModelRouting !== false} onChange={v => upd({ autoModelRouting: v })} hint="Uses 8B for quick logs and 70B for harder reasoning." />
+            <Toggle label="Auto model routing" val={s.autoModelRouting !== false} onChange={v => upd({ autoModelRouting: v })} hint="Uses Qwen for reliable tool calls, with Llama models available for fallback and reasoning." />
             <Toggle label="Auto fallback when model fails" val={s.autoAiFallback !== false} onChange={v => upd({ autoAiFallback: v })} hint="Fallback happens before any app mutation runs." />
             <Toggle label="Allow Gemini fallback" val={Boolean(s.allowGeminiFallback)} onChange={v => upd({ allowGeminiFallback: v })} hint="Off by default to avoid silently using low Gemini quota." />
           </div>
