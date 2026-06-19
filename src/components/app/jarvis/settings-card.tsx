@@ -112,6 +112,12 @@ export function JarvisSettingsCard() {
     if (s.autoModelRouting === undefined) patch.autoModelRouting = true;
     if (s.autoAiFallback === undefined) patch.autoAiFallback = true;
     if (s.allowGeminiFallback === undefined) patch.allowGeminiFallback = false;
+    if (s.voiceInputEnabled === undefined) patch.voiceInputEnabled = typeof window !== "undefined" && Boolean(("SpeechRecognition" in window) || ("webkitSpeechRecognition" in window));
+    if (s.spokenResponses === undefined) patch.spokenResponses = true;
+    if (s.autoListenAfterReply === undefined) patch.autoListenAfterReply = true;
+    if (s.confirmTranscriptBeforeSend === undefined) patch.confirmTranscriptBeforeSend = false;
+    if (s.voiceSilenceDelayMs === undefined) patch.voiceSilenceDelayMs = 1200;
+    if (s.voiceOutputMuted === undefined) patch.voiceOutputMuted = false;
     if (Object.keys(patch).length > 0) upd(patch);
   }, []);
 
@@ -468,9 +474,28 @@ export function JarvisSettingsCard() {
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Voice (coming Phase 6)</p>
-          <Toggle disabled label="Voice mode" val={s.voiceModeEnabled} onChange={v => upd({ voiceModeEnabled: v })} />
-          <Toggle disabled label="Spoken responses" val={s.spokenResponses} onChange={v => upd({ spokenResponses: v })} />
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Voice</p>
+          <Toggle label="Voice input" val={s.voiceInputEnabled !== false} onChange={v => upd({ voiceInputEnabled: v })} hint="Uses this browser's speech recognition. Raw audio is never sent to Groq or Gemini." />
+          <Toggle label="Voice conversation mode" val={Boolean(s.voiceModeEnabled)} onChange={v => upd({ voiceModeEnabled: v })} hint="This also turns on when you open the voice conversation screen." />
+          <Toggle label="Speak Jarvis replies" val={s.spokenResponses !== false} onChange={v => upd({ spokenResponses: v })} />
+          <Toggle label="Auto-listen after replies" val={s.autoListenAfterReply !== false} onChange={v => upd({ autoListenAfterReply: v })} />
+          <Toggle label="Confirm transcript before sending" val={Boolean(s.confirmTranscriptBeforeSend)} onChange={v => upd({ confirmTranscriptBeforeSend: v })} />
+          <Toggle label="Voice output muted" val={Boolean(s.voiceOutputMuted)} onChange={v => upd({ voiceOutputMuted: v })} />
+          <div className="pt-2">
+            <div className="flex items-center justify-between gap-3">
+              <Label>Silence delay before sending</Label>
+              <span className="text-xs text-muted-foreground">{((s.voiceSilenceDelayMs ?? 1200) / 1000).toFixed(1)}s</span>
+            </div>
+            <input
+              type="range"
+              min={1000}
+              max={1500}
+              step={100}
+              value={s.voiceSilenceDelayMs ?? 1200}
+              onChange={e => upd({ voiceSilenceDelayMs: Number(e.target.value) })}
+              className="w-full accent-[var(--section)]"
+            />
+          </div>
         </div>
       </Card>
     </section>
