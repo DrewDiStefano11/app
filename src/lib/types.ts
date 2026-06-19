@@ -149,8 +149,13 @@ export interface JarvisSettings {
   progressionSuggestions: boolean;
   painBasedWorkoutWarnings: boolean;
   saveWorkoutTemplateSuggestions: boolean;
+  voiceInputEnabled: boolean;
   voiceModeEnabled: boolean;
   spokenResponses: boolean;
+  autoListenAfterReply: boolean;
+  confirmTranscriptBeforeSend: boolean;
+  voiceSilenceDelayMs: number;
+  voiceOutputMuted: boolean;
   useWhoop: boolean;
   useAppleHealth: boolean;
   dailyReviewEnabled: boolean;
@@ -191,8 +196,13 @@ export const defaultJarvisSettings: JarvisSettings = {
   progressionSuggestions: true,
   painBasedWorkoutWarnings: true,
   saveWorkoutTemplateSuggestions: true,
+  voiceInputEnabled: true,
   voiceModeEnabled: false,
-  spokenResponses: false,
+  spokenResponses: true,
+  autoListenAfterReply: true,
+  confirmTranscriptBeforeSend: false,
+  voiceSilenceDelayMs: 1200,
+  voiceOutputMuted: false,
   useWhoop: false,
   useAppleHealth: false,
   dailyReviewEnabled: false,
