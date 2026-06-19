@@ -88,10 +88,11 @@ interface ProviderFailure {
 
 const DEFAULT_GEMINI_MODEL: GeminiModel = "gemini-2.5-flash-lite";
 const SUPPORTED_GEMINI_MODELS: GeminiModel[] = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
-const DEFAULT_GROQ_MODEL: GroqModel = "llama-3.1-8b-instant";
-const SUPPORTED_GROQ_MODELS: GroqModel[] = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen/qwen3-32b"];
+const DEFAULT_GROQ_MODEL: GroqModel = "qwen/qwen3-32b";
+const SUPPORTED_GROQ_MODELS: GroqModel[] = ["qwen/qwen3-32b", "llama-3.1-8b-instant", "llama-3.3-70b-versatile"];
+const FAST_GROQ_MODEL: GroqModel = "llama-3.1-8b-instant";
 const STRONG_GROQ_MODEL: GroqModel = "llama-3.3-70b-versatile";
-const FALLBACK_GROQ_MODEL: GroqModel = "qwen/qwen3-32b";
+const TOOL_GROQ_MODEL: GroqModel = "qwen/qwen3-32b";
 const LOVABLE_MODEL = "google/gemini-3-flash-preview";
 const modelCooldowns = new Map<string, { until: number; reason: string }>();
 
@@ -282,6 +283,22 @@ function groqHttpError(status: number, model: GroqModel, keySource?: KeySource, 
   return fail(`Groq request failed (${status}).`, "provider_error", status, keySource, retryAfter);
 }
 
+async function groqChatHttpError(res: Response, model: GroqModel, keySource?: KeySource): Promise<ProviderFailure> {
+  const retryAfter = retryAfterMs(res);
+  if (res.status === 400) {
+    try {
+      const payload = await res.json() as { error?: { code?: string; type?: string } };
+      const category = `${payload.error?.code ?? ""} ${payload.error?.type ?? ""}`.toLowerCase();
+      if (category.includes("tool_use_failed") || category.includes("tool")) {
+        return fail(`Groq could not produce a valid tool call with ${model}.`, "tool_parse", res.status, keySource, retryAfter);
+      }
+    } catch {
+      // Fall through to the safe status-only error.
+    }
+  }
+  return groqHttpError(res.status, model, keySource, retryAfter);
+}
+
 function lovableHttpError(status: number): ProviderFailure {
   if (status === 401 || status === 403) return fail("Legacy/Lovable rejected the API key.", "invalid_key", status);
   if (status === 429) return fail("Legacy/Lovable quota or rate limit was reached.", "quota", status);
@@ -365,18 +382,11 @@ function uniqueModels(models: GroqModel[]) {
 function groqAttemptOrder(data: ChatInput) {
   const selected = safeGroqModel(data.groqModel);
   const routed = data.autoModelRouting !== false;
-  if (!routed) return uniqueModels([selected, FALLBACK_GROQ_MODEL, selected === STRONG_GROQ_MODEL ? DEFAULT_GROQ_MODEL : STRONG_GROQ_MODEL]);
-  if (isComplexJarvisTask(data)) return uniqueModels([STRONG_GROQ_MODEL, FALLBACK_GROQ_MODEL, DEFAULT_GROQ_MODEL]);
-  return uniqueModels([DEFAULT_GROQ_MODEL, FALLBACK_GROQ_MODEL, STRONG_GROQ_MODEL]);
-}
-
-function modelLabel(model: string) {
-  if (model === "llama-3.1-8b-instant") return "Groq Llama 3.1 8B";
-  if (model === "llama-3.3-70b-versatile") return "Groq Llama 3.3 70B";
-  if (model === "qwen/qwen3-32b") return "Groq Qwen 3 32B";
-  if (model === "gemini-2.5-flash-lite") return "Gemini 2.5 Flash-Lite";
-  if (model === "gemini-2.5-flash") return "Gemini 2.5 Flash";
-  return model;
+  const complex = isComplexJarvisTask(data);
+  if (!routed) return uniqueModels([selected, TOOL_GROQ_MODEL, complex ? STRONG_GROQ_MODEL : FAST_GROQ_MODEL]);
+  if (data.tools?.length) return uniqueModels([TOOL_GROQ_MODEL, complex ? STRONG_GROQ_MODEL : FAST_GROQ_MODEL, complex ? FAST_GROQ_MODEL : STRONG_GROQ_MODEL]);
+  if (complex) return uniqueModels([STRONG_GROQ_MODEL, TOOL_GROQ_MODEL, FAST_GROQ_MODEL]);
+  return uniqueModels([FAST_GROQ_MODEL, TOOL_GROQ_MODEL, STRONG_GROQ_MODEL]);
 }
 
 async function callGeminiChat(data: ChatInput): Promise<NormalizedChatResponse | ProviderFailure> {
@@ -412,7 +422,7 @@ async function callGroqModel(data: ChatInput, model: GroqModel): Promise<Normali
   }
   const res = await postGroq(model, resolved.key, resolved.source, body, true);
   if (!(res instanceof Response)) return res;
-  if (!res.ok) return groqHttpError(res.status, model, resolved.source, retryAfterMs(res));
+  if (!res.ok) return groqChatHttpError(res, model, resolved.source);
   return parseGroqResponse(await res.json());
 }
 
@@ -432,14 +442,8 @@ async function callGroqChat(data: ChatInput): Promise<NormalizedChatResponse | P
     if (result.ok) {
       const first = attempted[0];
       const fallback = attempted.length > 0 || (routed && model !== selected);
-      const notice = first
-        ? `${modelLabel(first.model)} hit ${first.failure.code.replace("_", " ")}, so Jarvis switched to ${modelLabel(model)}.`
-        : routed && model !== selected
-          ? `Using ${modelLabel(model)} for ${model === STRONG_GROQ_MODEL ? "stronger reasoning" : "this quick log"}.`
-          : `Using ${modelLabel(model)}.`;
       return {
         ...result,
-        notice,
         diagnostics: diagnostics(data, "groq", selected, model, {
           routed,
           fallback,
@@ -461,7 +465,6 @@ async function callGroqChat(data: ChatInput): Promise<NormalizedChatResponse | P
     if (gemini.ok) {
       return {
         ...gemini,
-        notice: "All attempted Groq models failed, so Jarvis switched to Gemini backup.",
         diagnostics: diagnostics(data, "gemini", safeGroqModel(data.groqModel), gemini.diagnostics?.actualModel ?? safeGeminiModel(data.geminiModel), {
           routed,
           fallback: true,
