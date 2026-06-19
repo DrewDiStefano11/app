@@ -51,11 +51,11 @@ const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
 const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
 const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
 const VOICE_DIAGNOSTICS_STORAGE = "fitcore.jarvis.voiceDiagnostics.v1";
-const CONFIRM_WORDS = /^(yes|confirm|save it|log it|yes save it|yes log it)[.!]?$/i;
+const CONFIRM_WORDS = /^(yes|confirm|save it|log it|yes[, ]+save it|yes[, ]+log it)[.!]?$/i;
 const CANCEL_WORDS = /^(cancel|no|no cancel|don't save|do not save)[.!]?$/i;
 
 type VoicePhase = "listening" | "processing" | "speaking" | "paused" | "error";
-type SpeechResultEvent = { results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> };
+type SpeechResultEvent = { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> };
 type SpeechErrorEvent = { error: string };
 type BrowserSpeechRecognition = {
   continuous: boolean;
@@ -502,6 +502,7 @@ function VoiceConversation({
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const recentTranscriptsRef = useRef(new Map<string, number>());
   const errorCountRef = useRef(0);
+  const micPermissionRequestedRef = useRef(false);
   const voiceTurnsRef = useRef(0);
   const aiCallsRef = useRef(0);
   const startListeningRef = useRef<() => void>(() => {});
@@ -559,7 +560,7 @@ function VoiceConversation({
     const key = text.toLocaleLowerCase();
     const now = Date.now();
     for (const [oldKey, timestamp] of recentTranscriptsRef.current) {
-      if (now - timestamp > 30_000) recentTranscriptsRef.current.delete(oldKey);
+      if (now - timestamp > 4_000) recentTranscriptsRef.current.delete(oldKey);
     }
     if (recentTranscriptsRef.current.has(key)) {
       recordVoiceDiagnostics({ duplicateTranscriptPrevented: true, lastTranscript: text });
@@ -618,9 +619,10 @@ function VoiceConversation({
       return;
     }
     try {
-      if (navigator.mediaDevices?.getUserMedia) {
+      if (!micPermissionRequestedRef.current && navigator.mediaDevices?.getUserMedia) {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         stream.getTracks().forEach(track => track.stop());
+        micPermissionRequestedRef.current = true;
       }
       if (!activeRef.current) return;
       const recognition = new Recognition();
@@ -635,7 +637,7 @@ function VoiceConversation({
       };
       recognition.onresult = event => {
         let finalChunk = "";
-        for (let i = 0; i < event.results.length; i += 1) {
+        for (let i = event.resultIndex; i < event.results.length; i += 1) {
           const result = event.results[i];
           if (result.isFinal) finalChunk += `${result[0]?.transcript ?? ""} `;
         }
