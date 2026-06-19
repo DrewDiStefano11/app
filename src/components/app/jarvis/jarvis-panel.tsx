@@ -438,7 +438,10 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
               setVoiceOpen(false);
               set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: false } }));
             }}
-            onTextFallback={() => setVoiceOpen(false)}
+            onTextFallback={() => {
+              setVoiceOpen(false);
+              set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, voiceModeEnabled: false } }));
+            }}
             onSettingsChange={patch => set(s => ({ ...s, jarvisSettings: { ...s.jarvisSettings, ...patch } }))}
           />
         )}
@@ -494,6 +497,7 @@ function VoiceConversation({
   const [transcript, setTranscript] = useState("");
   const [reply, setReply] = useState("");
   const [error, setError] = useState("");
+  const [supportNotice, setSupportNotice] = useState("");
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const activeRef = useRef(true);
   const phaseRef = useRef<VoicePhase>("paused");
@@ -531,7 +535,7 @@ function VoiceConversation({
       return;
     }
     if (!synthesis || typeof SpeechSynthesisUtterance === "undefined") {
-      setError("Spoken replies are not supported in this browser.");
+      setSupportNotice("Spoken replies are not supported in this browser.");
       if (settings.autoListenAfterReply !== false) startListeningRef.current();
       else updatePhase("paused");
       return;
@@ -547,7 +551,7 @@ function VoiceConversation({
     };
     utterance.onerror = () => {
       if (!activeRef.current) return;
-      setError("Spoken replies are not supported in this browser.");
+      setSupportNotice("Spoken replies are not supported in this browser.");
       if (settings.autoListenAfterReply !== false) startListeningRef.current();
       else updatePhase("paused");
     };
@@ -727,6 +731,7 @@ function VoiceConversation({
           {transcript && <div className="rounded-2xl bg-[var(--surface-2)] px-4 py-3 text-sm"><span className="text-muted-foreground">You: </span>{transcript}</div>}
           {reply && <div className="rounded-2xl border border-border px-4 py-3 text-sm"><span className="text-muted-foreground">Jarvis: </span>{reply}</div>}
           {error && <p className="text-sm text-destructive">{error}</p>}
+          {supportNotice && <p className="text-sm text-muted-foreground">{supportNotice}</p>}
           {phase === "paused" && settings.confirmTranscriptBeforeSend && transcript && (
             <button onClick={() => void processTranscript(transcript)} className="rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ background: "var(--section)" }}>Send transcript</button>
           )}
