@@ -950,117 +950,69 @@ function parseJsonText(raw: string) {
   ) as Record<string, unknown>;
 }
 
-export const aiChat = createServerFn({ method: "POST" })
-  .validator((data: ChatInput) => data)
-  .handler(async ({ data }) => {
-    try {
-      return await callChatProvider(data);
-    } catch {
-      const p = safeProvider(data.provider);
-      return fail(
-        p === "gemini"
-          ? "Gemini request failed. Try again."
-          : p === "groq"
-            ? "Groq request failed. Try again."
-            : "Legacy AI request failed. Try again.",
-        "provider_error",
-      );
-    }
-  });
+export const aiChat = createServerFn({ method: "POST" }).handler(async ({ data }) => {
+  try {
+    return await callChatProvider(data);
+  } catch {
+    const p = safeProvider(data.provider);
+    return fail(
+      p === "gemini"
+        ? "Gemini request failed. Try again."
+        : p === "groq"
+          ? "Groq request failed. Try again."
+          : "Legacy AI request failed. Try again.",
+      "provider_error",
+    );
+  }
+});
 
-export const testAiConnection = createServerFn({ method: "POST" })
-  .validator((data: ConnectionTestInput) => data)
-  .handler(async ({ data }) => {
-    try {
-      const provider = safeProvider(data.provider);
-      if (provider === "legacy-lovable") {
-        const key = cleanKey(process.env.LOVABLE_API_KEY);
-        if (!key)
-          return {
-            ok: false as const,
-            status: "not_configured" as const,
-            provider,
-            error: "Legacy provider is not configured.",
-            code: "missing_key" as const,
-          };
-        const result = await callLovableChat({
-          provider,
-          messages: [{ role: "user", content: "Say connected." }],
-          mode: "quick",
-        });
-        return result.ok
-          ? { ok: true as const, status: "connected" as const, provider }
-          : {
-              ok: false as const,
-              status:
-                result.code === "missing_key" ? ("not_configured" as const) : ("failed" as const),
-              provider,
-              error: result.error,
-              code: result.code,
-            };
-      }
-      if (provider === "groq") {
-        const resolved = resolveGroqKey(data);
-        const model = safeGroqModel(data.groqModel);
-        if (!resolved.key)
-          return {
-            ok: false as const,
-            status: "not_configured" as const,
-            provider,
-            keySource: "none" as const,
-            error: "Jarvis needs a Groq API key. Add one in Jarvis AI Settings.",
-            code: "missing_key" as const,
-          };
-        const res = await postGroq(
-          model,
-          resolved.key,
-          resolved.source,
-          { messages: [{ role: "user", content: "Say connected." }], temperature: 0 },
-          false,
-        );
-        if (!(res instanceof Response))
-          return {
-            ...res,
-            status: res.code === "missing_key" ? ("not_configured" as const) : ("failed" as const),
-            provider,
-            keySource: resolved.source,
-          };
-        if (!res.ok) {
-          const err = groqHttpError(res.status, model, resolved.source, retryAfterMs(res));
-          return {
-            ...err,
-            status: err.code === "missing_key" ? ("not_configured" as const) : ("failed" as const),
-            provider,
-            keySource: resolved.source,
-            model,
-          };
-        }
+export const testAiConnection = createServerFn({ method: "POST" }).handler(async ({ data }) => {
+  try {
+    const provider = safeProvider(data.provider);
+    if (provider === "legacy-lovable") {
+      const key = cleanKey(process.env.LOVABLE_API_KEY);
+      if (!key)
         return {
-          ok: true as const,
-          status: "connected" as const,
+          ok: false as const,
+          status: "not_configured" as const,
           provider,
-          keySource: resolved.source,
-          model,
+          error: "Legacy provider is not configured.",
+          code: "missing_key" as const,
         };
-      }
-      const resolved = resolveGeminiKey(data);
+      const result = await callLovableChat({
+        provider,
+        messages: [{ role: "user", content: "Say connected." }],
+        mode: "quick",
+      });
+      return result.ok
+        ? { ok: true as const, status: "connected" as const, provider }
+        : {
+            ok: false as const,
+            status:
+              result.code === "missing_key" ? ("not_configured" as const) : ("failed" as const),
+            provider,
+            error: result.error,
+            code: result.code,
+          };
+    }
+    if (provider === "groq") {
+      const resolved = resolveGroqKey(data);
+      const model = safeGroqModel(data.groqModel);
       if (!resolved.key)
         return {
           ok: false as const,
           status: "not_configured" as const,
           provider,
           keySource: "none" as const,
-          error: "Jarvis needs a Gemini API key. Add one in Jarvis AI Settings.",
+          error: "Jarvis needs a Groq API key. Add one in Jarvis AI Settings.",
           code: "missing_key" as const,
         };
-      const res = await postGemini(
-        safeGeminiModel(data.geminiModel),
+      const res = await postGroq(
+        model,
         resolved.key,
         resolved.source,
-        {
-          contents: [{ role: "user", parts: [{ text: "Say connected." }] }],
-        },
-        true,
+        { messages: [{ role: "user", content: "Say connected." }], temperature: 0 },
+        false,
       );
       if (!(res instanceof Response))
         return {
@@ -1070,12 +1022,13 @@ export const testAiConnection = createServerFn({ method: "POST" })
           keySource: resolved.source,
         };
       if (!res.ok) {
-        const err = geminiHttpError(res.status, resolved.source);
+        const err = groqHttpError(res.status, model, resolved.source, retryAfterMs(res));
         return {
           ...err,
           status: err.code === "missing_key" ? ("not_configured" as const) : ("failed" as const),
           provider,
           keySource: resolved.source,
+          model,
         };
       }
       return {
@@ -1083,31 +1036,72 @@ export const testAiConnection = createServerFn({ method: "POST" })
         status: "connected" as const,
         provider,
         keySource: resolved.source,
-        model: safeGeminiModel(data.geminiModel),
-      };
-    } catch {
-      return {
-        ok: false as const,
-        status: "failed" as const,
-        provider: safeProvider(data.provider),
-        error: "Connection test failed.",
-        code: "network" as const,
+        model,
       };
     }
-  });
-
-/** Text-based food macro estimation. Returns structured items + totals. */
-export const estimateFoodFromText = createServerFn({ method: "POST" })
-  .validator((data: EstimateTextInput) => data)
-  .handler(async ({ data }) => {
-    if (!data.text?.trim())
+    const resolved = resolveGeminiKey(data);
+    if (!resolved.key)
       return {
         ok: false as const,
-        error: "No food text provided.",
-        code: "malformed_request" as const,
+        status: "not_configured" as const,
+        provider,
+        keySource: "none" as const,
+        error: "Jarvis needs a Gemini API key. Add one in Jarvis AI Settings.",
+        code: "missing_key" as const,
       };
-    const detail = data.detail ?? "normal";
-    const system = `You are a nutrition estimation assistant. Estimate calories and macros from a natural-language meal description.
+    const res = await postGemini(
+      safeGeminiModel(data.geminiModel),
+      resolved.key,
+      resolved.source,
+      {
+        contents: [{ role: "user", parts: [{ text: "Say connected." }] }],
+      },
+      true,
+    );
+    if (!(res instanceof Response))
+      return {
+        ...res,
+        status: res.code === "missing_key" ? ("not_configured" as const) : ("failed" as const),
+        provider,
+        keySource: resolved.source,
+      };
+    if (!res.ok) {
+      const err = geminiHttpError(res.status, resolved.source);
+      return {
+        ...err,
+        status: err.code === "missing_key" ? ("not_configured" as const) : ("failed" as const),
+        provider,
+        keySource: resolved.source,
+      };
+    }
+    return {
+      ok: true as const,
+      status: "connected" as const,
+      provider,
+      keySource: resolved.source,
+      model: safeGeminiModel(data.geminiModel),
+    };
+  } catch {
+    return {
+      ok: false as const,
+      status: "failed" as const,
+      provider: safeProvider(data.provider),
+      error: "Connection test failed.",
+      code: "network" as const,
+    };
+  }
+});
+
+/** Text-based food macro estimation. Returns structured items + totals. */
+export const estimateFoodFromText = createServerFn({ method: "POST" }).handler(async ({ data }) => {
+  if (!data.text?.trim())
+    return {
+      ok: false as const,
+      error: "No food text provided.",
+      code: "malformed_request" as const,
+    };
+  const detail = data.detail ?? "normal";
+  const system = `You are a nutrition estimation assistant. Estimate calories and macros from a natural-language meal description.
 Respond ONLY with a compact JSON object (no prose, no markdown, no code fences) with this exact shape:
 {"name": string, "mealType": "breakfast"|"lunch"|"dinner"|"snack"|"pre-workout"|"post-workout", "items": [{"name": string, "qty": string, "calories": number, "protein": number, "carbs": number, "fat": number}], "calories": number, "protein": number, "carbs": number, "fat": number, "fiber": number, "confidence": "low"|"medium"|"high", "assumptions": [string]}
 Rules:
@@ -1118,101 +1112,99 @@ Rules:
 - Detail: ${detail}. ${detail === "detailed" ? "Show every assumption." : detail === "simple" ? "One concise assumption per item max." : "List assumptions concisely."}
 ${data.learnedHints ? `\nUser's known portions/preferences:\n${data.learnedHints}` : ""}`;
 
-    try {
-      const result = await callJsonProvider(
-        data.provider,
-        system,
-        data.mealType ? `Meal type: ${data.mealType}\n\n${data.text}` : data.text,
-        data,
-      );
-      if (!result.ok) return result;
-      const p = parseJsonText(result.text);
-      const items = Array.isArray(p.items)
-        ? (p.items as Record<string, unknown>[]).map((it) => ({
-            name: String(it.name ?? "item"),
-            qty: typeof it.qty === "string" ? it.qty : undefined,
-            calories: Math.round(Number(it.calories) || 0),
-            protein: Math.round(Number(it.protein) || 0),
-            carbs: Math.round(Number(it.carbs) || 0),
-            fat: Math.round(Number(it.fat) || 0),
-          }))
-        : [];
-      return {
-        ok: true as const,
-        estimate: {
-          name: String(p.name ?? data.text.slice(0, 40)),
-          mealType: String(p.mealType ?? data.mealType ?? "snack"),
-          items,
-          calories: Math.round(Number(p.calories) || items.reduce((a, i) => a + i.calories, 0)),
-          protein: Math.round(Number(p.protein) || items.reduce((a, i) => a + i.protein, 0)),
-          carbs: Math.round(Number(p.carbs) || items.reduce((a, i) => a + i.carbs, 0)),
-          fat: Math.round(Number(p.fat) || items.reduce((a, i) => a + i.fat, 0)),
-          fiber: Math.round(Number(p.fiber) || 0),
-          confidence: (p.confidence as "low" | "medium" | "high") ?? "medium",
-          assumptions: Array.isArray(p.assumptions) ? (p.assumptions as unknown[]).map(String) : [],
-        },
-      };
-    } catch {
-      return {
-        ok: false as const,
-        error: "Couldn't parse AI estimate.",
-        code: "tool_parse" as const,
-      };
-    }
-  });
+  try {
+    const result = await callJsonProvider(
+      data.provider,
+      system,
+      data.mealType ? `Meal type: ${data.mealType}\n\n${data.text}` : data.text,
+      data,
+    );
+    if (!result.ok) return result;
+    const p = parseJsonText(result.text);
+    const items = Array.isArray(p.items)
+      ? (p.items as Record<string, unknown>[]).map((it) => ({
+          name: String(it.name ?? "item"),
+          qty: typeof it.qty === "string" ? it.qty : undefined,
+          calories: Math.round(Number(it.calories) || 0),
+          protein: Math.round(Number(it.protein) || 0),
+          carbs: Math.round(Number(it.carbs) || 0),
+          fat: Math.round(Number(it.fat) || 0),
+        }))
+      : [];
+    return {
+      ok: true as const,
+      estimate: {
+        name: String(p.name ?? data.text.slice(0, 40)),
+        mealType: String(p.mealType ?? data.mealType ?? "snack"),
+        items,
+        calories: Math.round(Number(p.calories) || items.reduce((a, i) => a + i.calories, 0)),
+        protein: Math.round(Number(p.protein) || items.reduce((a, i) => a + i.protein, 0)),
+        carbs: Math.round(Number(p.carbs) || items.reduce((a, i) => a + i.carbs, 0)),
+        fat: Math.round(Number(p.fat) || items.reduce((a, i) => a + i.fat, 0)),
+        fiber: Math.round(Number(p.fiber) || 0),
+        confidence: (p.confidence as "low" | "medium" | "high") ?? "medium",
+        assumptions: Array.isArray(p.assumptions) ? (p.assumptions as unknown[]).map(String) : [],
+      },
+    };
+  } catch {
+    return {
+      ok: false as const,
+      error: "Couldn't parse AI estimate.",
+      code: "tool_parse" as const,
+    };
+  }
+});
 
-export const estimateMealMacros = createServerFn({ method: "POST" })
-  .validator((data: EstimateInput) => data)
-  .handler(async ({ data }) => {
-    if (!data.imageDataUrl?.startsWith("data:image/")) {
-      return {
-        ok: false as const,
-        error: "Invalid image. Please retake the photo.",
-        code: "malformed_request" as const,
-      };
-    }
-    const system = `You are a nutrition vision assistant. Look at the food photo and return a JSON estimate.
+export const estimateMealMacros = createServerFn({ method: "POST" }).handler(async ({ data }) => {
+  if (!data.imageDataUrl?.startsWith("data:image/")) {
+    return {
+      ok: false as const,
+      error: "Invalid image. Please retake the photo.",
+      code: "malformed_request" as const,
+    };
+  }
+  const system = `You are a nutrition vision assistant. Look at the food photo and return a JSON estimate.
 Respond ONLY with a compact JSON object - no prose, no markdown, no code fences - with keys:
 {"name": string, "calories": number, "protein": number, "carbs": number, "fat": number, "confidence": "low"|"medium"|"high", "notes": string}
 Numbers are grams and kcal for the full plate visible. Be conservative if portion is ambiguous.`;
-    try {
-      const user = [
-        { text: data.hint ? `Hint: ${data.hint}` : "Estimate macros for this meal." },
-        {
-          inlineData: {
-            mimeType: data.imageDataUrl.slice(5, data.imageDataUrl.indexOf(";")) || "image/jpeg",
-            data: data.imageDataUrl.split(",")[1] || "",
-          },
+  try {
+    const user = [
+      { text: data.hint ? `Hint: ${data.hint}` : "Estimate macros for this meal." },
+      {
+        inlineData: {
+          mimeType: data.imageDataUrl.slice(5, data.imageDataUrl.indexOf(";")) || "image/jpeg",
+          data: data.imageDataUrl.split(",")[1] || "",
         },
-      ];
-      const result = await geminiJson(system, user, data);
-      if (!result.ok) return result;
-      const parsed = parseJsonText(result.text) as {
-        name?: string;
-        calories?: number;
-        protein?: number;
-        carbs?: number;
-        fat?: number;
-        confidence?: string;
-        notes?: string;
-      };
-      return {
-        ok: true as const,
-        estimate: {
-          name: parsed.name ?? "Meal",
-          calories: Math.round(parsed.calories ?? 0),
-          protein: Math.round(parsed.protein ?? 0),
-          carbs: Math.round(parsed.carbs ?? 0),
-          fat: Math.round(parsed.fat ?? 0),
-          confidence: (parsed.confidence ?? "medium") as "low" | "medium" | "high",
-          notes: parsed.notes ?? "",
-        },
-      };
-    } catch {
-      return {
-        ok: false as const,
-        error: "Couldn't parse AI estimate. Try a clearer photo.",
-        code: "tool_parse" as const,
-      };
-    }
-  });
+      },
+    ];
+    const result = await geminiJson(system, user, data);
+    if (!result.ok) return result;
+    const parsed = parseJsonText(result.text) as {
+      name?: string;
+      calories?: number;
+      protein?: number;
+      carbs?: number;
+      fat?: number;
+      confidence?: string;
+      notes?: string;
+    };
+    return {
+      ok: true as const,
+      estimate: {
+        name: parsed.name ?? "Meal",
+        calories: Math.round(parsed.calories ?? 0),
+        protein: Math.round(parsed.protein ?? 0),
+        carbs: Math.round(parsed.carbs ?? 0),
+        fat: Math.round(parsed.fat ?? 0),
+        confidence: (parsed.confidence ?? "medium") as "low" | "medium" | "high",
+        notes: parsed.notes ?? "",
+      },
+    };
+  } catch {
+    return {
+      ok: false as const,
+      error: "Couldn't parse AI estimate. Try a clearer photo.",
+      code: "tool_parse" as const,
+    };
+  }
+});
