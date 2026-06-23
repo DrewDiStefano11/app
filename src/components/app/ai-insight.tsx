@@ -1,7 +1,13 @@
 import { Sparkles } from "lucide-react";
 import { type ReactNode } from "react";
 
-export function AiInsightStrip({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
+export function AiInsightStrip({
+  children,
+  onClick,
+}: {
+  children: ReactNode;
+  onClick?: () => void;
+}) {
   return (
     <button
       onClick={onClick}
@@ -11,10 +17,16 @@ export function AiInsightStrip({ children, onClick }: { children: ReactNode; onC
         <Sparkles size={14} className="text-black" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="eyebrow mb-1" style={{ color: "var(--section)" }}>AI COACH</div>
+        <div className="eyebrow mb-1" style={{ color: "var(--section)" }}>
+          AI COACH
+        </div>
         <p className="text-[13px] leading-snug text-white/90">{children}</p>
       </div>
-      <div className="w-1.5 h-1.5 rounded-full shimmer-dot" style={{ background: "var(--section)" }} />
+      <div
+        className="w-1.5 h-1.5 rounded-full shimmer-dot"
+        style={{ background: "var(--section)" }}
+      />
     </button>
   );
 }
+
