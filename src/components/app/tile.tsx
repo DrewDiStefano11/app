@@ -2,10 +2,21 @@ import { type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export function Tile({
-  children, className, hero, onClick, accent, style, delay = 0,
+  children,
+  className,
+  hero,
+  onClick,
+  accent,
+  style,
+  delay = 0,
 }: {
-  children: ReactNode; className?: string; hero?: boolean; onClick?: () => void; accent?: boolean;
-  style?: React.CSSProperties; delay?: number;
+  children: ReactNode;
+  className?: string;
+  hero?: boolean;
+  onClick?: () => void;
+  accent?: boolean;
+  style?: React.CSSProperties;
+  delay?: number;
 }) {
   return (
     <div
@@ -25,5 +36,9 @@ export function Tile({
 }
 
 export function Eyebrow({ children, color }: { children: ReactNode; color?: string }) {
-  return <span className="eyebrow" style={color ? { color } : undefined}>{children}</span>;
+  return (
+    <span className="eyebrow" style={color ? { color } : undefined}>
+      {children}
+    </span>
+  );
 }

@@ -1,5 +1,19 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { defaultState, defaultPersonalization, defaultJarvisSettings, type AppState, type Personalization } from "./types";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  defaultState,
+  defaultPersonalization,
+  defaultJarvisSettings,
+  type AppState,
+  type Personalization,
+} from "./types";
 import { buildDemoState } from "./demo-data";
 
 const KEY = "fitcore.v1";
@@ -22,8 +36,14 @@ function migrate(parsed: Partial<AppState>): AppState {
     ...defaultPersonalization,
     ...(parsed.personalization ?? {}),
     units: { ...defaultPersonalization.units!, ...(parsed.personalization?.units ?? {}) },
-    reminders: { ...defaultPersonalization.reminders!, ...(parsed.personalization?.reminders ?? {}) },
-    defaultGraphModes: { ...defaultPersonalization.defaultGraphModes!, ...(parsed.personalization?.defaultGraphModes ?? {}) },
+    reminders: {
+      ...defaultPersonalization.reminders!,
+      ...(parsed.personalization?.reminders ?? {}),
+    },
+    defaultGraphModes: {
+      ...defaultPersonalization.defaultGraphModes!,
+      ...(parsed.personalization?.defaultGraphModes ?? {}),
+    },
   };
   return {
     ...defaultState,
@@ -42,7 +62,11 @@ function migrate(parsed: Partial<AppState>): AppState {
 }
 
 function save(state: AppState) {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* quota */ }
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+  } catch {
+    /* quota */
+  }
 }
 
 type Updater = (s: AppState) => AppState;
@@ -72,7 +96,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (hydrated) save(state);
   }, [state, hydrated]);
 
-  const set = useCallback((u: Updater) => setState(s => u(s)), []);
+  const set = useCallback((u: Updater) => setState((s) => u(s)), []);
   const reset = useCallback(() => setState(defaultState), []);
   const exportJson = useCallback(() => JSON.stringify(state, null, 2), [state]);
   const importJson = useCallback((text: string) => {
@@ -80,12 +104,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const parsed = JSON.parse(text) as Partial<AppState>;
       setState(migrate(parsed));
       return true;
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   }, []);
 
-  const view = useMemo(() => state.demoMode ? buildDemoState(state) : state, [state]);
+  const view = useMemo(() => (state.demoMode ? buildDemoState(state) : state), [state]);
 
-  const value = useMemo(() => ({ state, view, set, reset, exportJson, importJson }), [state, view, set, reset, exportJson, importJson]);
+  const value = useMemo(
+    () => ({ state, view, set, reset, exportJson, importJson }),
+    [state, view, set, reset, exportJson, importJson],
+  );
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
@@ -100,7 +129,9 @@ export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().to
 export const e1RM = (weight: number, reps: number) => Math.round(weight * (1 + reps / 30));
 
 export function todayStart() {
-  const d = new Date(); d.setHours(0,0,0,0); return d.getTime();
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
 }
 
 export function isToday(ts: number) {

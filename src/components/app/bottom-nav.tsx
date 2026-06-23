@@ -10,8 +10,13 @@ const items: { id: SectionId; label: string; Icon: typeof Dumbbell }[] = [
   { id: "progress", label: "Stats", Icon: TrendingUp },
 ];
 
-export function BottomNav({ active, onChange }: {
-  active: SectionId; onChange: (s: SectionId) => void; onOpenSettings: () => void;
+export function BottomNav({
+  active,
+  onChange,
+}: {
+  active: SectionId;
+  onChange: (s: SectionId) => void;
+  onOpenSettings: () => void;
 }) {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none">
@@ -29,12 +34,17 @@ export function BottomNav({ active, onChange }: {
                 )}
                 aria-label={label}
               >
-                <Icon size={20} strokeWidth={isActive ? 2.4 : 1.8}
-                  style={isActive ? { color: "var(--section)" } : undefined} />
+                <Icon
+                  size={20}
+                  strokeWidth={isActive ? 2.4 : 1.8}
+                  style={isActive ? { color: "var(--section)" } : undefined}
+                />
                 <span
                   className="text-[9px] font-bold uppercase tracking-wider"
                   style={isActive ? { color: "var(--section)" } : undefined}
-                >{label}</span>
+                >
+                  {label}
+                </span>
               </button>
             );
           })}

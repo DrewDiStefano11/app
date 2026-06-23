@@ -7,9 +7,16 @@ import { AiInsightStrip } from "@/components/app/ai-insight";
 import { useStore } from "@/lib/store";
 import { usePersistentState, GRAPH_PREFS } from "@/lib/persist";
 import {
-  fitcoreScore, readinessScore, recoveryScore, trainingStreak,
-  muscleMap, weeklyVolumeSeries, todayMealTotals, totalVolumeInRange,
-  bestMuscleToTrainToday, type HeatMode,
+  fitcoreScore,
+  readinessScore,
+  recoveryScore,
+  trainingStreak,
+  muscleMap,
+  weeklyVolumeSeries,
+  todayMealTotals,
+  totalVolumeInRange,
+  bestMuscleToTrainToday,
+  type HeatMode,
 } from "@/lib/analytics";
 import { volumeByMuscle, volumeByExercise, volumeByDayOfWeek } from "@/lib/analytics-extra";
 import type { AppState } from "@/lib/types";
@@ -24,10 +31,22 @@ import { FitcoreScoreSheet } from "@/components/app/popups/score-popup";
 import { LogMealSheet, CheckInSheet, WeighInSheet } from "@/components/app/popups/quick-popups";
 import { GoalsPanel } from "@/components/app/goals-panel";
 
-type Popup = null | "volume" | "macros" | "readiness" | "heatmap" | "start" | "score" | "logmeal" | "checkin" | "weighin";
+type Popup =
+  | null
+  | "volume"
+  | "macros"
+  | "readiness"
+  | "heatmap"
+  | "start"
+  | "score"
+  | "logmeal"
+  | "checkin"
+  | "weighin";
 
-
-export function HomeView({ onNavigate, onOpenSettings }: {
+export function HomeView({
+  onNavigate,
+  onOpenSettings,
+}: {
   onNavigate: (s: SectionId) => void;
   onOpenSettings: () => void;
 }) {
@@ -49,9 +68,12 @@ export function HomeView({ onNavigate, onOpenSettings }: {
   const bestMuscle = useMemo(() => bestMuscleToTrainToday(view), [view]);
 
   const targets = state.nutritionTargets;
-  const kcalPct = targets.calories > 0 ? Math.min(100, Math.round((meals.calories / targets.calories) * 100)) : 0;
-  const proteinPct = targets.protein > 0 ? Math.min(100, Math.round((meals.protein / targets.protein) * 100)) : 0;
-  const carbsPct = targets.carbs > 0 ? Math.min(100, Math.round((meals.carbs / targets.carbs) * 100)) : 0;
+  const kcalPct =
+    targets.calories > 0 ? Math.min(100, Math.round((meals.calories / targets.calories) * 100)) : 0;
+  const proteinPct =
+    targets.protein > 0 ? Math.min(100, Math.round((meals.protein / targets.protein) * 100)) : 0;
+  const carbsPct =
+    targets.carbs > 0 ? Math.min(100, Math.round((meals.carbs / targets.carbs) * 100)) : 0;
   const fatPct = targets.fat > 0 ? Math.min(100, Math.round((meals.fat / targets.fat) * 100)) : 0;
 
   const hasAnyData = view.workouts.length > 0 || view.mealEntries.length > 0;
@@ -74,7 +96,9 @@ export function HomeView({ onNavigate, onOpenSettings }: {
       <header className="px-6 pt-6 pb-3 flex items-end justify-between">
         <div>
           <Eyebrow>Command Center</Eyebrow>
-          <h1 className="font-display text-4xl leading-none mt-1 uppercase">FitCore Command Center — {name}</h1>
+          <h1 className="font-display text-4xl leading-none mt-1 uppercase">
+            FitCore Command Center — {name}
+          </h1>
         </div>
         <button
           onClick={onOpenSettings}
@@ -91,13 +115,17 @@ export function HomeView({ onNavigate, onOpenSettings }: {
         <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 font-bold uppercase tracking-wider text-white/60">
           🔥 {streak}d streak
         </span>
-        <button onClick={() => setPopup("volume")}
-          className="px-2 py-1 rounded-full bg-white/5 border border-white/10 font-bold uppercase tracking-wider text-white/60 press">
+        <button
+          onClick={() => setPopup("volume")}
+          className="px-2 py-1 rounded-full bg-white/5 border border-white/10 font-bold uppercase tracking-wider text-white/60 press"
+        >
           Week vol <CountUp value={Math.round(weekVol / 1000)} />k
         </button>
         {state.demoMode && (
-          <span className="ml-auto px-2 py-1 rounded-full font-bold uppercase tracking-wider"
-            style={{ background: "var(--section-soft)", color: "var(--section)" }}>
+          <span
+            className="ml-auto px-2 py-1 rounded-full font-bold uppercase tracking-wider"
+            style={{ background: "var(--section-soft)", color: "var(--section)" }}
+          >
             Demo
           </span>
         )}
@@ -112,11 +140,25 @@ export function HomeView({ onNavigate, onOpenSettings }: {
               <span className="font-display text-5xl leading-none text-white">
                 <CountUp value={score} />
               </span>
-              <span className="text-xs text-white/40 font-bold uppercase">{score >= 80 ? "Elite" : score >= 60 ? "Strong" : score >= 40 ? "Building" : "Start"}</span>
+              <span className="text-xs text-white/40 font-bold uppercase">
+                {score >= 80
+                  ? "Elite"
+                  : score >= 60
+                    ? "Strong"
+                    : score >= 40
+                      ? "Building"
+                      : "Start"}
+              </span>
             </div>
             <div className="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700"
-                style={{ width: `${score}%`, background: "var(--section)", boxShadow: "0 0 8px var(--section)" }} />
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${score}%`,
+                  background: "var(--section)",
+                  boxShadow: "0 0 8px var(--section)",
+                }}
+              />
             </div>
             <div className="mt-2 text-[10px] text-white/40 font-bold uppercase tracking-wider">
               {volDelta >= 0 ? `+${volDelta}%` : `${volDelta}%`} vs last week · tap for detail
@@ -127,11 +169,15 @@ export function HomeView({ onNavigate, onOpenSettings }: {
             <div className="h-full grid grid-cols-2 gap-2 items-center">
               <div className="flex flex-col items-center justify-center gap-2">
                 <RingScore value={readiness} color="rgb(59 130 246)" size={76} />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[rgb(96_165_250)]">Readiness</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[rgb(96_165_250)]">
+                  Readiness
+                </span>
               </div>
               <div className="flex flex-col items-center justify-center gap-2">
                 <RingScore value={recovery} color="rgb(74 222 128)" size={76} />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[rgb(74_222_128)]">Recovery</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[rgb(74_222_128)]">
+                  Recovery
+                </span>
               </div>
             </div>
           </Tile>
@@ -141,28 +187,67 @@ export function HomeView({ onNavigate, onOpenSettings }: {
         <Tile delay={120} onClick={() => setPopup("heatmap")}>
           <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <Eyebrow color="rgb(74 222 128)">Muscle {heatMode === "load" ? "Load" : heatMode === "strength" ? "Strength" : heatMode === "imbalance" ? "Imbalance" : "Recovery"} · {heatMode === "strength" ? "30d" : heatMode === "recovery" ? "3d" : "7d"}</Eyebrow>
+              <Eyebrow color="rgb(74 222 128)">
+                Muscle{" "}
+                {heatMode === "load"
+                  ? "Load"
+                  : heatMode === "strength"
+                    ? "Strength"
+                    : heatMode === "imbalance"
+                      ? "Imbalance"
+                      : "Recovery"}{" "}
+                · {heatMode === "strength" ? "30d" : heatMode === "recovery" ? "3d" : "7d"}
+              </Eyebrow>
               <h2 className="font-display text-2xl leading-tight mt-1 uppercase">
-                {topLoaded(loadMap)}<br/>
-                <span className="text-white/50">{heatMode === "recovery" ? "Most recovered" : heatMode === "imbalance" ? "Biggest gap" : "Most worked"}</span>
+                {topLoaded(loadMap)}
+                <br />
+                <span className="text-white/50">
+                  {heatMode === "recovery"
+                    ? "Most recovered"
+                    : heatMode === "imbalance"
+                      ? "Biggest gap"
+                      : "Most worked"}
+                </span>
               </h2>
-              <p className="text-xs text-white/50 mt-2">Best today: <span className="text-white capitalize font-bold">{bestMuscle}</span></p>
-              <p className="text-[10px] text-white/40 uppercase tracking-wider mt-2 font-bold">Tap to expand →</p>
+              <p className="text-xs text-white/50 mt-2">
+                Best today: <span className="text-white capitalize font-bold">{bestMuscle}</span>
+              </p>
+              <p className="text-[10px] text-white/40 uppercase tracking-wider mt-2 font-bold">
+                Tap to expand →
+              </p>
             </div>
             <div className="flex gap-1 shrink-0">
               <div className="flex flex-col items-center">
                 <div className="w-16 h-28">
-                  <BodyHeatmap values={loadMap} mode={heatMode} compact side="front"
-                    onSelect={(m) => { setMuscle(m); }} />
+                  <BodyHeatmap
+                    values={loadMap}
+                    mode={heatMode}
+                    compact
+                    side="front"
+                    onSelect={(m) => {
+                      setMuscle(m);
+                    }}
+                  />
                 </div>
-                <span className="text-[8px] text-white/40 uppercase tracking-wider font-bold mt-0.5">Front</span>
+                <span className="text-[8px] text-white/40 uppercase tracking-wider font-bold mt-0.5">
+                  Front
+                </span>
               </div>
               <div className="flex flex-col items-center">
                 <div className="w-16 h-28">
-                  <BodyHeatmap values={loadMap} mode={heatMode} compact side="back"
-                    onSelect={(m) => { setMuscle(m); }} />
+                  <BodyHeatmap
+                    values={loadMap}
+                    mode={heatMode}
+                    compact
+                    side="back"
+                    onSelect={(m) => {
+                      setMuscle(m);
+                    }}
+                  />
                 </div>
-                <span className="text-[8px] text-white/40 uppercase tracking-wider font-bold mt-0.5">Back</span>
+                <span className="text-[8px] text-white/40 uppercase tracking-wider font-bold mt-0.5">
+                  Back
+                </span>
               </div>
             </div>
           </div>
@@ -174,19 +259,48 @@ export function HomeView({ onNavigate, onOpenSettings }: {
             <Eyebrow color="rgb(248 113 113)">Macros</Eyebrow>
             <div className="font-display text-2xl mt-1 leading-none">
               <CountUp value={meals.calories} />
-              <span className="text-xs text-white/40 font-bold uppercase ml-1">/ {targets.calories}</span>
+              <span className="text-xs text-white/40 font-bold uppercase ml-1">
+                / {targets.calories}
+              </span>
             </div>
             <div className="mt-3 space-y-1.5">
-              <MacroBar label="P" value={meals.protein} target={targets.protein} pct={proteinPct} color="rgb(239 68 68)" />
-              <MacroBar label="C" value={meals.carbs} target={targets.carbs} pct={carbsPct} color="rgb(245 158 11)" />
-              <MacroBar label="F" value={meals.fat} target={targets.fat} pct={fatPct} color="rgb(34 197 94)" />
+              <MacroBar
+                label="P"
+                value={meals.protein}
+                target={targets.protein}
+                pct={proteinPct}
+                color="rgb(239 68 68)"
+              />
+              <MacroBar
+                label="C"
+                value={meals.carbs}
+                target={targets.carbs}
+                pct={carbsPct}
+                color="rgb(245 158 11)"
+              />
+              <MacroBar
+                label="F"
+                value={meals.fat}
+                target={targets.fat}
+                pct={fatPct}
+                color="rgb(34 197 94)"
+              />
             </div>
-            <div className="mt-2 text-[10px] text-white/40 font-bold uppercase tracking-wider">{kcalPct}% of goal</div>
+            <div className="mt-2 text-[10px] text-white/40 font-bold uppercase tracking-wider">
+              {kcalPct}% of goal
+            </div>
           </Tile>
 
           <Tile delay={240} onClick={() => setPopup("volume")}>
             <Eyebrow color="rgb(74 222 128)">
-              Volume · {volumeMode === "muscle" ? "By Muscle" : volumeMode === "exercise" ? "By Exercise" : volumeMode === "day" ? "By Day" : "7d"}
+              Volume ·{" "}
+              {volumeMode === "muscle"
+                ? "By Muscle"
+                : volumeMode === "exercise"
+                  ? "By Exercise"
+                  : volumeMode === "day"
+                    ? "By Day"
+                    : "7d"}
             </Eyebrow>
             <div className="font-display text-2xl mt-1 leading-none">
               <CountUp value={Math.round(weekVol / 1000)} />
@@ -195,9 +309,12 @@ export function HomeView({ onNavigate, onOpenSettings }: {
             <div className="mt-3 h-16">
               <VolumePreview view={view} mode={volumeMode} />
             </div>
-            <div className="mt-2 text-[10px] font-bold uppercase tracking-wider"
-              style={{ color: volDelta >= 0 ? "rgb(74 222 128)" : "rgb(248 113 113)" }}>
-              {volDelta >= 0 ? "+" : ""}{volDelta}% trend · tap to expand
+            <div
+              className="mt-2 text-[10px] font-bold uppercase tracking-wider"
+              style={{ color: volDelta >= 0 ? "rgb(74 222 128)" : "rgb(248 113 113)" }}
+            >
+              {volDelta >= 0 ? "+" : ""}
+              {volDelta}% trend · tap to expand
             </div>
           </Tile>
         </div>
@@ -206,10 +323,16 @@ export function HomeView({ onNavigate, onOpenSettings }: {
         <GoalsPanel />
 
         {/* AI insight — opens AI sheet */}
-        <button onClick={openAi} style={{ animationDelay: "420ms" }} className="animate-tile-in w-full text-left press">
+        <button
+          onClick={openAi}
+          style={{ animationDelay: "420ms" }}
+          className="animate-tile-in w-full text-left press"
+        >
           <AiInsightStrip>
             {insight.split(bestMuscle)[0]}
-            <span className="text-[var(--section)] font-bold capitalize">{insight.includes(bestMuscle) ? bestMuscle : ""}</span>
+            <span className="text-[var(--section)] font-bold capitalize">
+              {insight.includes(bestMuscle) ? bestMuscle : ""}
+            </span>
             {insight.split(bestMuscle)[1] ?? ""}
           </AiInsightStrip>
         </button>
@@ -220,16 +343,36 @@ export function HomeView({ onNavigate, onOpenSettings }: {
           style={{ animationDelay: "480ms" }}
           className="animate-tile-in w-full h-16 rounded-2xl flex items-center justify-center gap-3 press relative overflow-hidden"
         >
-          <div className="absolute inset-0" style={{ background: "linear-gradient(135deg, var(--section) 0%, color-mix(in oklab, var(--section) 60%, black) 100%)" }} />
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "linear-gradient(135deg, var(--section) 0%, color-mix(in oklab, var(--section) 60%, black) 100%)",
+            }}
+          />
           <Play size={20} className="relative text-white fill-white" />
-          <span className="relative font-display text-2xl tracking-wide uppercase text-white">Start Workout</span>
+          <span className="relative font-display text-2xl tracking-wide uppercase text-white">
+            Start Workout
+          </span>
         </button>
 
         {/* Quick actions */}
         <div className="grid grid-cols-3 gap-2 pt-1">
-          <QuickAction icon={<Plus size={18} />} label="Log Meal" onClick={() => setPopup("logmeal")} />
-          <QuickAction icon={<Heart size={18} />} label="Check In" onClick={() => setPopup("checkin")} />
-          <QuickAction icon={<Apple size={18} />} label="Weigh In" onClick={() => setPopup("weighin")} />
+          <QuickAction
+            icon={<Plus size={18} />}
+            label="Log Meal"
+            onClick={() => setPopup("logmeal")}
+          />
+          <QuickAction
+            icon={<Heart size={18} />}
+            label="Check In"
+            onClick={() => setPopup("checkin")}
+          />
+          <QuickAction
+            icon={<Apple size={18} />}
+            label="Weigh In"
+            onClick={() => setPopup("weighin")}
+          />
         </div>
       </div>
 
@@ -238,7 +381,11 @@ export function HomeView({ onNavigate, onOpenSettings }: {
       <MacroDetailSheet open={popup === "macros"} onClose={() => setPopup(null)} />
       <ReadinessDetailSheet open={popup === "readiness"} onClose={() => setPopup(null)} />
       <HeatmapDetailSheet open={popup === "heatmap"} onClose={() => setPopup(null)} />
-      <StartWorkoutSheet open={popup === "start"} onClose={() => setPopup(null)} onStarted={() => onNavigate("training")} />
+      <StartWorkoutSheet
+        open={popup === "start"}
+        onClose={() => setPopup(null)}
+        onStarted={() => onNavigate("training")}
+      />
       <FitcoreScoreSheet open={popup === "score"} onClose={() => setPopup(null)} />
       <LogMealSheet open={popup === "logmeal"} onClose={() => setPopup(null)} />
       <CheckInSheet open={popup === "checkin"} onClose={() => setPopup(null)} />
@@ -253,12 +400,31 @@ function RingScore({ value, color, size = 64 }: { value: number; color: string; 
   const c = 2 * Math.PI * r;
   const pct = Math.min(1, value / 100);
   return (
-    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+    <div
+      className="relative flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
       <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size/2} cy={size/2} r={r} stroke="rgba(255,255,255,0.06)" strokeWidth="4" fill="none" />
-        <circle cx={size/2} cy={size/2} r={r} stroke={color} strokeWidth="4" fill="none"
-          strokeDasharray={c} strokeDashoffset={c * (1 - pct)} strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 1s ease-out" }} />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke="rgba(255,255,255,0.06)"
+          strokeWidth="4"
+          fill="none"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={color}
+          strokeWidth="4"
+          fill="none"
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - pct)}
+          strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 1s ease-out" }}
+        />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="font-display text-xl leading-none" style={{ color }}>
@@ -269,23 +435,51 @@ function RingScore({ value, color, size = 64 }: { value: number; color: string; 
   );
 }
 
-function MacroBar({ label, value, target, pct, color }: { label: string; value: number; target: number; pct: number; color: string }) {
+function MacroBar({
+  label,
+  value,
+  target,
+  pct,
+  color,
+}: {
+  label: string;
+  value: number;
+  target: number;
+  pct: number;
+  color: string;
+}) {
   return (
     <div>
       <div className="flex justify-between text-[10px] font-bold tabular-nums">
         <span className="text-white/40">{label}</span>
-        <span className="text-white/80">{Math.round(value)}/{target}g</span>
+        <span className="text-white/80">
+          {Math.round(value)}/{target}g
+        </span>
       </div>
       <div className="h-1 mt-0.5 bg-white/5 rounded-full overflow-hidden">
-        <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, background: color }} />
+        <div
+          className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${pct}%`, background: color }}
+        />
       </div>
     </div>
   );
 }
 
-function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+function QuickAction({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
   return (
-    <button onClick={onClick} className="press h-14 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-0.5 text-white/70">
+    <button
+      onClick={onClick}
+      className="press h-14 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-0.5 text-white/70"
+    >
       {icon}
       <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
     </button>
@@ -296,9 +490,9 @@ function topLoaded(map: Record<string, number>): string {
   const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
   if (!sorted.length || sorted[0][1] === 0) return "No Data";
   const top = sorted[0][0];
-  if (["quads","hamstrings","glutes","calves"].includes(top)) return "Lower Body";
-  if (["chest","triceps","shoulders"].includes(top)) return "Push";
-  if (["back","biceps"].includes(top)) return "Pull";
+  if (["quads", "hamstrings", "glutes", "calves"].includes(top)) return "Lower Body";
+  if (["chest", "triceps", "shoulders"].includes(top)) return "Push";
+  if (["back", "biceps"].includes(top)) return "Pull";
   return top.charAt(0).toUpperCase() + top.slice(1);
 }
 
@@ -311,9 +505,14 @@ function VolumePreview({ view, mode }: { view: AppState; mode: string }) {
       <div className="space-y-1 h-full flex flex-col justify-center">
         {top.map((d) => (
           <div key={d.name} className="flex items-center gap-1.5">
-            <span className="text-[9px] text-white/40 font-bold uppercase tracking-wider w-12 truncate">{d.name}</span>
+            <span className="text-[9px] text-white/40 font-bold uppercase tracking-wider w-12 truncate">
+              {d.name}
+            </span>
             <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${(d.volume / max) * 100}%`, background: "rgb(34 197 94)" }} />
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${(d.volume / max) * 100}%`, background: "rgb(34 197 94)" }}
+              />
             </div>
           </div>
         ))}
@@ -330,7 +529,10 @@ function VolumePreview({ view, mode }: { view: AppState; mode: string }) {
           <div key={d.name} className="flex items-center gap-1.5">
             <span className="text-[9px] text-white/60 font-bold truncate w-20">{d.name}</span>
             <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${(d.volume / max) * 100}%`, background: "rgb(34 197 94)" }} />
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${(d.volume / max) * 100}%`, background: "rgb(34 197 94)" }}
+              />
             </div>
           </div>
         ))}
@@ -339,12 +541,18 @@ function VolumePreview({ view, mode }: { view: AppState; mode: string }) {
   }
   if (mode === "day") {
     const days = volumeByDayOfWeek(view, 30);
-    const max = Math.max(...days.map(d => d.volume), 1);
+    const max = Math.max(...days.map((d) => d.volume), 1);
     return (
       <div className="flex items-end gap-1 h-full">
         {days.map((d, i) => (
           <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full rounded-t" style={{ height: `${Math.max(6, (d.volume / max) * 100)}%`, background: d.volume > 0 ? "rgb(34 197 94)" : "rgba(255,255,255,0.1)" }} />
+            <div
+              className="w-full rounded-t"
+              style={{
+                height: `${Math.max(6, (d.volume / max) * 100)}%`,
+                background: d.volume > 0 ? "rgb(34 197 94)" : "rgba(255,255,255,0.1)",
+              }}
+            />
             <span className="text-[8px] text-white/30 font-bold">{d.label[0]}</span>
           </div>
         ))}
@@ -352,15 +560,29 @@ function VolumePreview({ view, mode }: { view: AppState; mode: string }) {
     );
   }
   // total / default
-  const series = (function() {
+  const series = (function () {
     const out = [];
     const DAY = 86400000;
     const now = Date.now();
     for (let i = 6; i >= 0; i--) {
       const start = now - (i + 1) * DAY;
       const end = now - i * DAY;
-      const vol = view.workouts.filter(w => w.startedAt >= start && w.startedAt < end)
-        .reduce((s, w) => s + w.exercises.reduce((a, ex) => a + ex.sets.reduce((b, st) => b + (st.completed && st.weight && st.reps ? st.weight * st.reps : 0), 0), 0), 0);
+      const vol = view.workouts
+        .filter((w) => w.startedAt >= start && w.startedAt < end)
+        .reduce(
+          (s, w) =>
+            s +
+            w.exercises.reduce(
+              (a, ex) =>
+                a +
+                ex.sets.reduce(
+                  (b, st) => b + (st.completed && st.weight && st.reps ? st.weight * st.reps : 0),
+                  0,
+                ),
+              0,
+            ),
+          0,
+        );
       out.push(vol);
     }
     return out;
@@ -373,15 +595,18 @@ function VolumePreview({ view, mode }: { view: AppState; mode: string }) {
         const hasVol = v > 0;
         return (
           <div key={i} className="flex-1 h-full flex items-end">
-            <div className="w-full rounded-t transition-all" style={{
-              height: `${Math.max(8, (v / max) * 100)}%`,
-              background: hasVol
-                ? (isLast
+            <div
+              className="w-full rounded-t transition-all"
+              style={{
+                height: `${Math.max(8, (v / max) * 100)}%`,
+                background: hasVol
+                  ? isLast
                     ? "linear-gradient(180deg, rgb(74 222 128), rgb(34 197 94))"
-                    : "linear-gradient(180deg, rgba(34,197,94,0.7), rgba(34,197,94,0.35))")
-                : "rgba(255,255,255,0.08)",
-              boxShadow: isLast && hasVol ? "0 0 12px rgba(34,197,94,0.5)" : undefined,
-            }} />
+                    : "linear-gradient(180deg, rgba(34,197,94,0.7), rgba(34,197,94,0.35))"
+                  : "rgba(255,255,255,0.08)",
+                boxShadow: isLast && hasVol ? "0 0 12px rgba(34,197,94,0.5)" : undefined,
+              }}
+            />
           </div>
         );
       })}
@@ -390,5 +615,9 @@ function VolumePreview({ view, mode }: { view: AppState; mode: string }) {
 }
 
 function EmptyMini() {
-  return <div className="h-full flex items-center justify-center text-[10px] text-white/30 font-bold uppercase tracking-wider">No data</div>;
+  return (
+    <div className="h-full flex items-center justify-center text-[10px] text-white/30 font-bold uppercase tracking-wider">
+      No data
+    </div>
+  );
 }
