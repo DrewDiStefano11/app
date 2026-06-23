@@ -12,10 +12,10 @@ export function Tile({
       onClick={onClick}
       style={{ animationDelay: `${delay}ms`, ...style }}
       className={cn(
-        "tile p-4 animate-tile-in",
+        "tile p-4 sm:p-[1.125rem] animate-tile-in",
         hero && "tile-hero",
         accent && "glow-section",
-        onClick && "press cursor-pointer",
+        onClick && "press cursor-pointer transition-[transform,border-color,background-color]",
         className,
       )}
     >
