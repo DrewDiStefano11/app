@@ -29,7 +29,7 @@ export function BottomNav({
                 key={id}
                 onClick={() => onChange(id)}
                 className={cn(
-                  "relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 rounded-[0.9rem] py-1.5 transition-[color,background-color] press",
+                  "btn-control relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 rounded-[0.9rem] py-1.5 transition-[color,background-color] press",
                   isActive
                     ? "nav-item-active text-white"
                     : "text-white/40 hover:text-white/65",
@@ -55,4 +55,3 @@ export function BottomNav({
     </nav>
   );
 }
-
