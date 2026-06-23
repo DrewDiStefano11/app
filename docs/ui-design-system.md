@@ -102,4 +102,3 @@ Fields use consistent height, radius, border, label spacing, placeholder color, 
 7. Do not add one-off gradients, shadows, typography scales, or storage behavior.
 
 This system should prevent FitCore from becoming clunky again: shared primitives own appearance, view components own composition, and analytics/store modules continue to own data and behavior.
-
