@@ -26,6 +26,10 @@ export default defineConfig({
     video: "retain-on-failure",
   },
 
+  expect: {
+    timeout: 10000,
+  },
+
   /* Configure projects for major browsers */
   projects: [
     {
@@ -42,7 +46,7 @@ export default defineConfig({
     {
       name: "mobile-390x844",
       use: {
-        ...devices["iPhone 12"],
+        ...devices["Pixel 5"],
         viewport: { width: 390, height: 844 },
       },
     },

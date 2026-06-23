@@ -12,10 +12,10 @@ test.describe("FitCore Mobile Responsiveness", () => {
         }),
       );
     });
-    await page.goto("/");
   });
 
   test("No horizontal overflow on mobile viewports", async ({ page }) => {
+    await page.goto("/");
     const viewports = [
       { width: 360, height: 800 },
       { width: 390, height: 844 },

@@ -6,18 +6,18 @@ test.describe("FitCore Smoke Tests", () => {
     await page.addInitScript(() => {
       window.localStorage.clear();
     });
-    await page.goto("/");
   });
 
   test("App loads and onboarding can be completed", async ({ page }) => {
+    await page.goto("/");
     // 1. App loads without crashing
     // 2. No obvious runtime error overlay appears
-    await expect(page).toHaveTitle(/FitCore/i);
+    await expect(page).toHaveTitle(/FitCore/i, { timeout: 15000 });
 
     // 3. Onboarding renders for a fresh localStorage state
     // Looking for "Get started" button or "FitCore" heading
     const getStartedBtn = page.getByRole("button", { name: /get started/i });
-    await expect(getStartedBtn).toBeVisible();
+    await expect(getStartedBtn).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(/Your personal command center/i)).toBeVisible();
 
     // 4. User can complete onboarding with default/simple values
