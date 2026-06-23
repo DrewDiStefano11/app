@@ -1,0 +1,65 @@
+name: Bug Report
+description: Report a bug or issue in FitCore
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the details below.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What broke?
+      placeholder: Describe the issue clearly
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to '...'
+        2. Click on '....'
+        3. Scroll down to '....'
+        4. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: What actually happened?
+    validations:
+      required: true
+  - type: input
+    id: screen
+    attributes:
+      label: Screen/section affected
+      placeholder: e.g. Home, Active Workout, Settings
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Device/browser
+      placeholder: e.g. iPhone 13 / Safari, Chrome on macOS
+  - type: input
+    id: screenshots
+    attributes:
+      label: Screenshot/video
+      placeholder: Link or drag-and-drop images here
+  - type: checkboxes
+    id: context
+    attributes:
+      label: Context
+      options:
+        - label: Demo mode was on
+        - label: An active workout was running
+        - label: Data export/import/reset was involved
