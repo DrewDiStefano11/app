@@ -43,7 +43,7 @@ export function BottomSheet({
           <h3 className="font-semibold text-lg text-white">{title}</h3>
           <button
             onClick={onClose}
-            className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white press"
+            className="btn-control grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white press"
           >
             <X size={18} />
           </button>
@@ -89,7 +89,7 @@ export function ConfirmDialog({
         <div className="mt-5 flex gap-2 border-t border-white/[0.06] pt-4">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 rounded-xl border border-white/15 bg-white/5 font-medium text-white"
+            className="btn-control flex-1 px-4 py-2.5 rounded-xl border border-white/15 bg-white/5 font-medium text-white"
           >
             Cancel
           </button>
@@ -99,7 +99,7 @@ export function ConfirmDialog({
               onClose();
             }}
             className={cn(
-              "flex-1 px-4 py-2.5 rounded-xl font-semibold text-white",
+              "btn-control flex-1 px-4 py-2.5 rounded-xl font-semibold text-white",
               destructive ? "bg-destructive" : "",
             )}
             style={!destructive ? { background: "var(--section)" } : undefined}
@@ -111,4 +111,3 @@ export function ConfirmDialog({
     </div>
   );
 }
-
