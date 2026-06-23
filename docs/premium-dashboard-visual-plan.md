@@ -105,4 +105,3 @@ The following improvements require rendering, state, persistence, or data-flow w
 - rearranging current screen state flow
 
 These are documented rather than forced into this visual-only PR.
-
