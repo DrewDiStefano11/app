@@ -11,7 +11,7 @@ export function AiInsightStrip({
   return (
     <button
       onClick={onClick}
-      className="insight-shell w-full px-4 py-3.5 flex items-center gap-3 text-left press transition-[transform,border-color]"
+      className="btn-control insight-shell w-full px-4 py-3.5 flex items-center gap-3 text-left press transition-[transform,border-color]"
     >
       <div className="shrink-0 grid w-9 h-9 place-items-center rounded-xl border border-white/10 bg-white text-black shadow-sm">
         <Sparkles size={14} className="text-black" />
@@ -29,4 +29,3 @@ export function AiInsightStrip({
     </button>
   );
 }
-
