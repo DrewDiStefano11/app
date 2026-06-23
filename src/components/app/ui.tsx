@@ -1,3 +1,4 @@
+
 import { type ButtonHTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -497,7 +498,7 @@ export function ErrorState({
   action?: ReactNode;
 }) {
   return (
-    <div className="warning-shell border-[color:color-mix(in_oklab,var(--danger)_28%,transparent)] p-5 text-center">
+    <div className="warning-shell border-red-500/25 p-5 text-center">
       <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-red-500/10 text-red-300">
         !
       </div>
