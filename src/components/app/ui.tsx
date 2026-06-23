@@ -1,4 +1,3 @@
-
 import { type ButtonHTMLAttributes, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
@@ -192,7 +191,7 @@ export function Chip({
     <button
       onClick={onClick}
       className={cn(
-        "min-h-9 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition-[color,background-color,border-color,transform] press",
+        "btn-control min-h-9 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition-[color,background-color,border-color,transform] press",
         active
           ? "border-transparent text-white"
           : "border-border text-muted-foreground hover:text-foreground",
@@ -245,7 +244,7 @@ export function PrimaryButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "inline-flex min-h-12 items-center justify-center gap-2 px-5 py-3 rounded-[var(--radius-small)] font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed press transition-[transform,filter,box-shadow] hover:brightness-105",
+        "btn-control inline-flex min-h-12 items-center justify-center gap-2 px-5 py-3 rounded-[var(--radius-small)] font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed press transition-[transform,filter,box-shadow] hover:brightness-105",
         className,
       )}
       style={{
@@ -273,7 +272,7 @@ export function GhostButton({
       type={type}
       {...props}
       className={cn(
-        "inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2.5 rounded-[var(--radius-small)] font-semibold border border-[var(--border-strong)] bg-white/[0.045] hover:bg-white/[0.075] transition-colors disabled:opacity-50 disabled:cursor-not-allowed press",
+        "btn-control inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2.5 rounded-[var(--radius-small)] font-semibold border border-[var(--border-strong)] bg-white/[0.045] hover:bg-white/[0.075] transition-colors disabled:opacity-50 disabled:cursor-not-allowed press",
         className,
       )}
     >
@@ -287,7 +286,7 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
     <input
       {...props}
       className={cn(
-        "w-full px-4 py-3 rounded-[var(--radius-small)] bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] transition-[border-color,box-shadow] text-base",
+        "field-control w-full px-4 py-3 rounded-[var(--radius-small)] bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] transition-[border-color,box-shadow] text-base",
         props.className,
       )}
     />
@@ -299,7 +298,7 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
     <select
       {...props}
       className={cn(
-        "w-full px-4 py-3 rounded-[var(--radius-small)] bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-base",
+        "field-control w-full px-4 py-3 rounded-[var(--radius-small)] bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-base",
         props.className,
       )}
     />
@@ -313,7 +312,7 @@ export function Textarea(
     <textarea
       {...props}
       className={cn(
-        "w-full px-4 py-3 rounded-[var(--radius-small)] bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-base resize-none",
+        "field-control w-full px-4 py-3 rounded-[var(--radius-small)] bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-base resize-none",
         props.className,
       )}
     />
@@ -339,7 +338,7 @@ export function SubTabs<T extends string>({
 }) {
   return (
     <div className="px-5 pb-3">
-      <div className="flex gap-1 p-1 rounded-full bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar backdrop-blur-sm">
+      <div className="segmented-control flex gap-1 p-1 rounded-full bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar backdrop-blur-sm">
         {tabs.map((t) => {
           const isActive = t.id === active;
           return (
@@ -347,7 +346,7 @@ export function SubTabs<T extends string>({
               key={t.id}
               onClick={() => onChange(t.id)}
               className={cn(
-                "relative px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-300",
+                "btn-control relative px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-300",
                 isActive ? "text-white" : "text-white/45 hover:text-white/70",
               )}
               style={
@@ -510,4 +509,3 @@ export function ErrorState({
     </div>
   );
 }
-
