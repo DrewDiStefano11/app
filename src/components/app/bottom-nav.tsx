@@ -10,8 +10,13 @@ const items: { id: SectionId; label: string; Icon: typeof Dumbbell }[] = [
   { id: "progress", label: "Stats", Icon: TrendingUp },
 ];
 
-export function BottomNav({ active, onChange }: {
-  active: SectionId; onChange: (s: SectionId) => void; onOpenSettings: () => void;
+export function BottomNav({
+  active,
+  onChange,
+}: {
+  active: SectionId;
+  onChange: (s: SectionId) => void;
+  onOpenSettings: () => void;
 }) {
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none">
@@ -25,16 +30,23 @@ export function BottomNav({ active, onChange }: {
                 onClick={() => onChange(id)}
                 className={cn(
                   "relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 rounded-[0.9rem] py-1.5 transition-[color,background-color] press",
-                  isActive ? "nav-item-active text-white" : "text-white/40 hover:text-white/65",
+                  isActive
+                    ? "nav-item-active text-white"
+                    : "text-white/40 hover:text-white/65",
                 )}
                 aria-label={label}
               >
-                <Icon size={20} strokeWidth={isActive ? 2.4 : 1.8}
-                  style={isActive ? { color: "var(--section)" } : undefined} />
+                <Icon
+                  size={20}
+                  strokeWidth={isActive ? 2.4 : 1.8}
+                  style={isActive ? { color: "var(--section)" } : undefined}
+                />
                 <span
                   className="text-[9px] font-bold uppercase tracking-[0.09em]"
                   style={isActive ? { color: "var(--section)" } : undefined}
-                >{label}</span>
+                >
+                  {label}
+                </span>
               </button>
             );
           })}
@@ -43,3 +55,4 @@ export function BottomNav({ active, onChange }: {
     </nav>
   );
 }
+
