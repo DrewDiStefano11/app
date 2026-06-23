@@ -1,4 +1,3 @@
-
 /**
  * Presentation contract for FitCore dashboard customization.
  *
@@ -530,4 +529,3 @@ export const defaultDashboardPresets: readonly DashboardPreset[] = [
     ],
   },
 ];
-
