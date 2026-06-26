@@ -19,8 +19,8 @@ export function BottomNav({
   onOpenSettings: () => void;
 }) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none">
-      <div className="pointer-events-auto w-full max-w-[480px] px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2">
+    <nav className="app-bottom-nav fixed bottom-0 left-0 right-0 z-30 flex justify-center pointer-events-none">
+      <div className="app-bottom-nav__inner pointer-events-auto w-full max-w-[480px] px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2">
         <div className="nav-shell flex items-stretch justify-between rounded-[1.35rem] px-2 py-2">
           {items.map(({ id, label, Icon }) => {
             const isActive = id === active;
