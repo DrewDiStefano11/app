@@ -14,7 +14,7 @@ export function Card({
     <div
       onClick={onClick}
       className={cn(
-        "card-elev p-4 sm:p-[1.125rem]",
+        "premium-card card-elev p-4 sm:p-[1.125rem]",
         onClick &&
           "cursor-pointer press transition-[transform,border-color,background-color]",
         className,
@@ -35,7 +35,7 @@ export function SectionCard({
   return (
     <div
       className={cn(
-        "section-gradient border border-border rounded-[var(--radius-card)] p-5 shadow-[var(--shadow-card)]",
+        "premium-card section-gradient border border-border rounded-[var(--radius-card)] p-5 shadow-[var(--shadow-card)]",
         className,
       )}
     >
@@ -58,15 +58,21 @@ export function StatCard({
   return (
     <Card
       className={cn(
-        "metric-shell flex flex-col gap-1.5 p-4",
+        "metric-shell stat-card flex flex-col gap-1.5 p-4",
         accent && "ring-section",
       )}
     >
-      <span className="text-xs uppercase tracking-wider text-muted-foreground">
+      <span className="stat-card__label text-xs uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
-      <span className="text-2xl font-bold tabular-nums">{value}</span>
-      {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
+      <span className="stat-card__value text-2xl font-bold tabular-nums">
+        {value}
+      </span>
+      {sub && (
+        <span className="stat-card__helper text-xs text-muted-foreground">
+          {sub}
+        </span>
+      )}
     </Card>
   );
 }
@@ -191,9 +197,9 @@ export function Chip({
     <button
       onClick={onClick}
       className={cn(
-        "btn-control min-h-9 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition-[color,background-color,border-color,transform] press",
+        "btn-control chip-control min-h-9 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition-[color,background-color,border-color,transform] press",
         active
-          ? "border-transparent text-white"
+          ? "chip-control--active border-transparent text-white"
           : "border-border text-muted-foreground hover:text-foreground",
       )}
       style={active ? { background: color ?? "var(--section)" } : undefined}
@@ -213,11 +219,15 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="px-5 pt-6 pb-4 flex items-end justify-between gap-3">
+    <header className="page-header px-5 pt-6 pb-4 flex items-end justify-between gap-3">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+        <h1 className="page-header__title text-3xl font-bold tracking-tight">
+          {title}
+        </h1>
         {subtitle && (
-          <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+          <p className="page-header__subtitle text-sm text-muted-foreground mt-1">
+            {subtitle}
+          </p>
         )}
       </div>
       {action}
@@ -244,7 +254,7 @@ export function PrimaryButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "btn-control inline-flex min-h-12 items-center justify-center gap-2 px-5 py-3 rounded-[var(--radius-small)] font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed press transition-[transform,filter,box-shadow] hover:brightness-105",
+        "btn-control btn-primary inline-flex min-h-12 items-center justify-center gap-2 px-5 py-3 rounded-[var(--radius-small)] font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed press transition-[transform,filter,box-shadow] hover:brightness-105",
         className,
       )}
       style={{
@@ -272,7 +282,7 @@ export function GhostButton({
       type={type}
       {...props}
       className={cn(
-        "btn-control inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2.5 rounded-[var(--radius-small)] font-semibold border border-[var(--border-strong)] bg-white/[0.045] hover:bg-white/[0.075] transition-colors disabled:opacity-50 disabled:cursor-not-allowed press",
+        "btn-control btn-secondary inline-flex min-h-11 items-center justify-center gap-2 px-4 py-2.5 rounded-[var(--radius-small)] font-semibold border border-[var(--border-strong)] bg-white/[0.045] hover:bg-white/[0.075] transition-colors disabled:opacity-50 disabled:cursor-not-allowed press",
         className,
       )}
     >
@@ -376,8 +386,8 @@ export function SectionHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between mt-5 mb-2 px-1">
-      <h3 className="font-semibold">{title}</h3>
+    <div className="section-header flex items-center justify-between mt-5 mb-2 px-1">
+      <h3 className="section-header__title font-semibold">{title}</h3>
       {action}
     </div>
   );
