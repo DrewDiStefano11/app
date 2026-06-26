@@ -26,9 +26,9 @@ export function BottomSheet({
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center">
+    <div className="sheet-root fixed inset-0 z-50 flex items-end justify-center">
       <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in"
+        className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in"
         onClick={onClose}
       />
       <div
@@ -38,9 +38,11 @@ export function BottomSheet({
           height === "full" && "h-[100dvh] rounded-none",
         )}
       >
-        <div className="flex min-h-16 items-center justify-between border-b border-white/[0.06] px-5 pb-3 pt-5">
-          <div className="absolute left-1/2 top-2 -translate-x-1/2 h-1 w-10 rounded-full bg-white/25" />
-          <h3 className="font-semibold text-lg text-white">{title}</h3>
+        <div className="sheet-header flex min-h-16 items-center justify-between border-b border-white/[0.06] px-5 pb-3 pt-5">
+          <div className="sheet-grabber absolute left-1/2 top-2 -translate-x-1/2 h-1 w-10 rounded-full bg-white/25" />
+          <h3 className="sheet-title font-semibold text-lg text-white">
+            {title}
+          </h3>
           <button
             onClick={onClose}
             className="btn-control grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white press"
@@ -78,9 +80,9 @@ export function ConfirmDialog({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
+    <div className="sheet-root fixed inset-0 z-50 flex items-center justify-center p-6">
       <div
-        className="absolute inset-0 bg-black/80 backdrop-blur-md"
+        className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md"
         onClick={onClose}
       />
       <div className="sheet-surface relative w-full max-w-sm rounded-[var(--radius-modal)] p-5">
