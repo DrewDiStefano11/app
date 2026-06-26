@@ -23,7 +23,7 @@ export function Tile({
       onClick={onClick}
       style={{ animationDelay: `${delay}ms`, ...style }}
       className={cn(
-        "tile p-4 sm:p-[1.125rem] animate-tile-in",
+        "premium-card tile p-4 sm:p-[1.125rem] animate-tile-in",
         hero && "tile-hero",
         accent && "glow-section",
         onClick &&
