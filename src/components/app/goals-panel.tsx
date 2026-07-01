@@ -6,14 +6,7 @@ import { useStore } from "@/lib/store";
 import { usePersistentState } from "@/lib/persist";
 import { workoutsInRange, todayMealTotals, totalVolumeInRange } from "@/lib/analytics";
 
-type GoalKey =
-  | "weekly_workouts"
-  | "protein"
-  | "calories"
-  | "weight"
-  | "steps"
-  | "sleep"
-  | "volume";
+type GoalKey = "weekly_workouts" | "protein" | "calories" | "weight" | "steps" | "sleep" | "volume";
 
 interface GoalRow {
   key: GoalKey;
@@ -55,56 +48,90 @@ export function GoalsPanel() {
     const t = state.nutritionTargets;
     const weekWorkouts = workoutsInRange(view, 7).length;
     const weekVol = totalVolumeInRange(view, 7);
-    const latestBw = [...view.bodyweightEntries].sort((a, b) => b.createdAt - a.createdAt)[0]?.weightLb
-      ?? state.profile.bodyweightLb;
+    const latestBw =
+      [...view.bodyweightEntries].sort((a, b) => b.createdAt - a.createdAt)[0]?.weightLb ??
+      state.profile.bodyweightLb;
     const targetBw = state.profile.targetBodyweightLb;
-    const latestSleep = [...view.sleepEntries].sort((a, b) => b.createdAt - a.createdAt)[0]?.hours ?? 0;
+    const latestSleep =
+      [...view.sleepEntries].sort((a, b) => b.createdAt - a.createdAt)[0]?.hours ?? 0;
     const sleepGoal = state.profile.sleepGoalH ?? 8;
     const stepGoal = state.profile.stepGoal ?? 10000;
 
     const map: Record<GoalKey, GoalRow> = {
       weekly_workouts: {
-        key: "weekly_workouts", label: "Weekly Workouts",
-        current: weekWorkouts, target: state.profile.daysPerWeek || 5,
-        unit: "workouts", color: "rgb(167 139 250)", fmt: fmtInt,
+        key: "weekly_workouts",
+        label: "Weekly Workouts",
+        current: weekWorkouts,
+        target: state.profile.daysPerWeek || 5,
+        unit: "workouts",
+        color: "rgb(167 139 250)",
+        fmt: fmtInt,
       },
       protein: {
-        key: "protein", label: "Protein",
-        current: meals.protein, target: t.protein, unit: "g",
-        color: "rgb(239 68 68)", fmt: fmtInt,
+        key: "protein",
+        label: "Protein",
+        current: meals.protein,
+        target: t.protein,
+        unit: "g",
+        color: "rgb(239 68 68)",
+        fmt: fmtInt,
       },
       calories: {
-        key: "calories", label: "Calories",
-        current: meals.calories, target: t.calories, unit: "kcal",
-        color: "rgb(245 158 11)", fmt: fmtInt,
+        key: "calories",
+        label: "Calories",
+        current: meals.calories,
+        target: t.calories,
+        unit: "kcal",
+        color: "rgb(245 158 11)",
+        fmt: fmtInt,
       },
       weight: {
-        key: "weight", label: "Bodyweight",
-        current: latestBw, target: targetBw, unit: state.profile.units ?? "lb",
-        color: "rgb(96 165 250)", fmt: fmt1, inverse: targetBw < latestBw,
+        key: "weight",
+        label: "Bodyweight",
+        current: latestBw,
+        target: targetBw,
+        unit: state.profile.units ?? "lb",
+        color: "rgb(96 165 250)",
+        fmt: fmt1,
+        inverse: targetBw < latestBw,
       },
       steps: {
-        key: "steps", label: "Steps",
-        current: 0, target: stepGoal, unit: "steps",
-        color: "rgb(34 197 94)", fmt: fmtInt,
+        key: "steps",
+        label: "Steps",
+        current: 0,
+        target: stepGoal,
+        unit: "steps",
+        color: "rgb(34 197 94)",
+        fmt: fmtInt,
       },
       sleep: {
-        key: "sleep", label: "Sleep",
-        current: latestSleep, target: sleepGoal, unit: "h",
-        color: "rgb(125 211 252)", fmt: fmt1,
+        key: "sleep",
+        label: "Sleep",
+        current: latestSleep,
+        target: sleepGoal,
+        unit: "h",
+        color: "rgb(125 211 252)",
+        fmt: fmt1,
       },
       volume: {
-        key: "volume", label: "Training Volume",
-        current: weekVol, target: 25000, unit: "lb",
-        color: "rgb(74 222 128)", fmt: fmtInt,
+        key: "volume",
+        label: "Training Volume",
+        current: weekVol,
+        target: 25000,
+        unit: "lb",
+        color: "rgb(74 222 128)",
+        fmt: fmtInt,
       },
     };
-    return selected.slice(0, MAX_GOALS).map(k => map[k]).filter(Boolean);
+    return selected
+      .slice(0, MAX_GOALS)
+      .map((k) => map[k])
+      .filter(Boolean);
   }, [view, state, selected]);
 
   const toggle = (k: GoalKey) => {
-    setSelected(prev => {
-      if (prev.includes(k)) return prev.filter(x => x !== k);
+    setSelected((prev) => {
+      if (prev.includes(k)) return prev.filter((x) => x !== k);
       if (prev.length >= MAX_GOALS) return prev;
       return [...prev, k];
     });
@@ -138,7 +165,9 @@ export function GoalsPanel() {
           </div>
         ) : (
           <div className="space-y-2.5">
-            {rows.map(r => <GoalRowItem key={r.key} row={r} />)}
+            {rows.map((r) => (
+              <GoalRowItem key={r.key} row={r} />
+            ))}
           </div>
         )}
       </Tile>
@@ -162,9 +191,15 @@ function GoalRowItem({ row }: { row: GoalRow }) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-white/70 truncate">{label}</span>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-white/70 truncate">
+          {label}
+        </span>
         <span className="text-[11px] font-bold tabular-nums text-white/90">
-          {fmt(current)}<span className="text-white/40"> / {fmt(target)} {unit}</span>
+          {fmt(current)}
+          <span className="text-white/40">
+            {" "}
+            / {fmt(target)} {unit}
+          </span>
         </span>
       </div>
       <div className="h-1.5 mt-1 bg-white/5 rounded-full overflow-hidden">
@@ -173,7 +208,10 @@ function GoalRowItem({ row }: { row: GoalRow }) {
           style={{ width: `${pct}%`, background: color, boxShadow: `0 0 6px ${color}` }}
         />
       </div>
-      <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ color: status.color }}>
+      <div
+        className="mt-0.5 text-[9px] font-bold uppercase tracking-wider"
+        style={{ color: status.color }}
+      >
         {status.label}
       </div>
     </div>
@@ -189,9 +227,16 @@ function statusFor(pct: number, inverse?: boolean): { label: string; color: stri
   return { label: "Not started", color: "rgb(148 163 184)" };
 }
 
-function CustomizeGoalsSheet({ open, onClose, selected, onToggle }: {
-  open: boolean; onClose: () => void;
-  selected: GoalKey[]; onToggle: (k: GoalKey) => void;
+function CustomizeGoalsSheet({
+  open,
+  onClose,
+  selected,
+  onToggle,
+}: {
+  open: boolean;
+  onClose: () => void;
+  selected: GoalKey[];
+  onToggle: (k: GoalKey) => void;
 }) {
   return (
     <BottomSheet open={open} onClose={onClose} title="Customize Goals">
@@ -199,7 +244,7 @@ function CustomizeGoalsSheet({ open, onClose, selected, onToggle }: {
         Pick up to {MAX_GOALS} goals to show on your home screen. ({selected.length}/{MAX_GOALS})
       </p>
       <div className="space-y-2 pb-2">
-        {ALL_GOALS.map(g => {
+        {ALL_GOALS.map((g) => {
           const isOn = selected.includes(g.key);
           const disabled = !isOn && selected.length >= MAX_GOALS;
           return (
@@ -217,9 +262,11 @@ function CustomizeGoalsSheet({ open, onClose, selected, onToggle }: {
                 <div className="text-sm font-bold text-white">{g.label}</div>
                 <div className="text-[11px] text-white/50">{g.description}</div>
               </div>
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center border ${
-                isOn ? "bg-[var(--section)] border-[var(--section)]" : "border-white/20"
-              }`}>
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center border ${
+                  isOn ? "bg-[var(--section)] border-[var(--section)]" : "border-white/20"
+                }`}
+              >
                 {isOn && <Check size={14} className="text-black" />}
               </div>
             </button>

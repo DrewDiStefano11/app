@@ -16,9 +16,17 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "FitCore — AI Fitness Command Center for Training & Recovery" },
-      { name: "description", content: "Plan workouts, log nutrition, monitor recovery and track progress in one AI-powered fitness dashboard." },
+      {
+        name: "description",
+        content:
+          "Plan workouts, log nutrition, monitor recovery and track progress in one AI-powered fitness dashboard.",
+      },
       { property: "og:title", content: "FitCore — Personal Fitness Command Center" },
-      { property: "og:description", content: "Plan workouts, log nutrition, monitor recovery and track progress with a personal AI coach." },
+      {
+        property: "og:description",
+        content:
+          "Plan workouts, log nutrition, monitor recovery and track progress with a personal AI coach.",
+      },
       { property: "og:url", content: "/" },
     ],
     links: [{ rel: "canonical", href: "/" }],
@@ -32,7 +40,8 @@ export const Route = createFileRoute("/")({
           applicationCategory: "HealthApplication",
           applicationSubCategory: "FitnessApplication",
           operatingSystem: "Web, iOS, Android",
-          description: "Personal AI fitness command center for training, nutrition, recovery and progress tracking.",
+          description:
+            "Personal AI fitness command center for training, nutrition, recovery and progress tracking.",
           offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
         }),
       },
@@ -64,7 +73,10 @@ function FitCoreApp() {
   // Warn on accidental tab close/refresh while a workout is in progress.
   useEffect(() => {
     if (!hasActiveWorkout) return;
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [hasActiveWorkout]);
@@ -105,7 +117,10 @@ function FitCoreApp() {
       {!hasActiveWorkout && (
         <BottomNav
           active={section}
-          onChange={(s) => { setSection(s); setSettingsOpen(false); }}
+          onChange={(s) => {
+            setSection(s);
+            setSettingsOpen(false);
+          }}
           onOpenSettings={() => setSettingsOpen(true)}
         />
       )}
@@ -116,11 +131,21 @@ function FitCoreApp() {
 function buildContext(state: ReturnType<typeof useStore>["state"], section: SectionId): string {
   const lines: string[] = [];
   lines.push(`Section: ${section}`);
-  lines.push(`Goal: ${state.profile.goal}, ${state.profile.experience}, ${state.profile.daysPerWeek}d/wk, ${state.profile.split}`);
-  lines.push(`Bodyweight: ${state.profile.bodyweightLb}lb (target ${state.profile.targetBodyweightLb}lb)`);
-  lines.push(`Macros: ${state.nutritionTargets.calories} kcal / P${state.nutritionTargets.protein} C${state.nutritionTargets.carbs} F${state.nutritionTargets.fat}`);
-  lines.push(`Workouts last 7d: ${state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000).length}`);
-  lines.push(`Meals today: ${state.mealEntries.filter(m => m.createdAt > Date.now() - 86400000).length}`);
+  lines.push(
+    `Goal: ${state.profile.goal}, ${state.profile.experience}, ${state.profile.daysPerWeek}d/wk, ${state.profile.split}`,
+  );
+  lines.push(
+    `Bodyweight: ${state.profile.bodyweightLb}lb (target ${state.profile.targetBodyweightLb}lb)`,
+  );
+  lines.push(
+    `Macros: ${state.nutritionTargets.calories} kcal / P${state.nutritionTargets.protein} C${state.nutritionTargets.carbs} F${state.nutritionTargets.fat}`,
+  );
+  lines.push(
+    `Workouts last 7d: ${state.workouts.filter((w) => w.startedAt > Date.now() - 7 * 86400000).length}`,
+  );
+  lines.push(
+    `Meals today: ${state.mealEntries.filter((m) => m.createdAt > Date.now() - 86400000).length}`,
+  );
   if (state.recoveryCheckIns.length) {
     const c = state.recoveryCheckIns[state.recoveryCheckIns.length - 1];
     lines.push(`Last check-in: energy ${c.energy}, soreness ${c.soreness}, stress ${c.stress}`);

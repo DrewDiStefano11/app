@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 
 const EVENT = "fitcore.persist.change";
-interface ChangeDetail { key: string; value: unknown }
+interface ChangeDetail {
+  key: string;
+  value: unknown;
+}
 
 /**
  * useState backed by localStorage, synced across component instances in the
@@ -9,7 +12,10 @@ interface ChangeDetail { key: string; value: unknown }
  * Use this for UI/graph preferences (mode toggles, range filters) that need
  * to stay in sync between a card preview and its popup.
  */
-export function usePersistentState<T>(key: string, initial: T): [T, (v: T | ((p: T) => T)) => void] {
+export function usePersistentState<T>(
+  key: string,
+  initial: T,
+): [T, (v: T | ((p: T) => T)) => void] {
   const [val, setVal] = useState<T>(initial);
 
   // hydrate from localStorage on mount
@@ -17,7 +23,9 @@ export function usePersistentState<T>(key: string, initial: T): [T, (v: T | ((p:
     try {
       const raw = localStorage.getItem(`fitcore.ui.${key}`);
       if (raw !== null) setVal(JSON.parse(raw) as T);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [key]);
 
   // subscribe to in-tab broadcasts and cross-tab storage events
@@ -28,7 +36,11 @@ export function usePersistentState<T>(key: string, initial: T): [T, (v: T | ((p:
     };
     const onStorage = (e: StorageEvent) => {
       if (e.key === `fitcore.ui.${key}` && e.newValue) {
-        try { setVal(JSON.parse(e.newValue) as T); } catch { /* ignore */ }
+        try {
+          setVal(JSON.parse(e.newValue) as T);
+        } catch {
+          /* ignore */
+        }
       }
     };
     window.addEventListener(EVENT, onChange as EventListener);
@@ -40,10 +52,18 @@ export function usePersistentState<T>(key: string, initial: T): [T, (v: T | ((p:
   }, [key]);
 
   const update = (next: T | ((p: T) => T)) => {
-    setVal(prev => {
+    setVal((prev) => {
       const value = typeof next === "function" ? (next as (p: T) => T)(prev) : next;
-      try { localStorage.setItem(`fitcore.ui.${key}`, JSON.stringify(value)); } catch { /* quota */ }
-      try { window.dispatchEvent(new CustomEvent<ChangeDetail>(EVENT, { detail: { key, value } })); } catch { /* SSR */ }
+      try {
+        localStorage.setItem(`fitcore.ui.${key}`, JSON.stringify(value));
+      } catch {
+        /* quota */
+      }
+      try {
+        window.dispatchEvent(new CustomEvent<ChangeDetail>(EVENT, { detail: { key, value } }));
+      } catch {
+        /* SSR */
+      }
       return value;
     });
   };

@@ -24,12 +24,14 @@ FitCore is a local-first AI fitness command center built with TanStack Start, Re
 ### Scripts
 
 **Preferred (Bun):**
+
 - `bun run dev`: Start development server
 - `bun run build`: Build for production
 - `bun run lint`: Run ESLint checks
 - `bun run format`: Run Prettier formatting
 
 **Optional Fallback (npm):**
+
 - `npm run dev`
 - `npm run build`
 - `npm run lint`
@@ -62,6 +64,7 @@ FitCore is a local-first AI fitness command center built with TanStack Start, Re
 ### Active PR Safety Boundaries
 
 To avoid conflicts with active work (e.g., AI PR #2 and Premium UI Codex PR), do not modify the following unless explicitly requested:
+
 - `src/components/app/jarvis/jarvis-panel.tsx`
 - `src/components/app/jarvis/settings-card.tsx`
 - `src/lib/types.ts`
@@ -74,6 +77,7 @@ To avoid conflicts with active work (e.g., AI PR #2 and Premium UI Codex PR), do
 ## Future Work
 
 Future work is tracked via GitHub Issues. Please use the following labels:
+
 - `bug`: Bug reports
 - `feature`: New feature requests
 - `ui-polish`: Visual or UX improvements

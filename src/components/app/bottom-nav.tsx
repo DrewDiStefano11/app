@@ -30,9 +30,7 @@ export function BottomNav({
                 onClick={() => onChange(id)}
                 className={cn(
                   "btn-control relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 rounded-[0.9rem] py-1.5 transition-[color,background-color] press",
-                  isActive
-                    ? "nav-item-active text-white"
-                    : "text-white/40 hover:text-white/65",
+                  isActive ? "nav-item-active text-white" : "text-white/40 hover:text-white/65",
                 )}
                 aria-label={label}
               >

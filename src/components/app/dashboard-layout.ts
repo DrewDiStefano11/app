@@ -7,21 +7,9 @@
  */
 
 export type DashboardScreenId =
-  | "home"
-  | "training"
-  | "nutrition"
-  | "recovery"
-  | "progress"
-  | "body"
-  | "settings";
+  "home" | "training" | "nutrition" | "recovery" | "progress" | "body" | "settings";
 
-export type WidgetCategory =
-  | "training"
-  | "nutrition"
-  | "recovery"
-  | "body"
-  | "ai"
-  | "general";
+export type WidgetCategory = "training" | "nutrition" | "recovery" | "body" | "ai" | "general";
 
 export type WidgetSize = "small" | "medium" | "large" | "full";
 export type DashboardDensity = "compact" | "standard" | "detailed";
@@ -108,8 +96,7 @@ export const widgetRegistry: readonly WidgetDefinition[] = [
     description: "Today’s recommended focus and next action.",
     supportedSizes: ["large", "full"],
     defaultSize: "large",
-    emptyStateLabel:
-      "Your daily plan will appear when enough context is available.",
+    emptyStateLabel: "Your daily plan will appear when enough context is available.",
   },
   {
     id: "ai-insight",
@@ -379,8 +366,7 @@ export const widgetRegistry: readonly WidgetDefinition[] = [
     description: "Last-session context for current training.",
     supportedSizes: ["medium", "large"],
     defaultSize: "medium",
-    emptyStateLabel:
-      "Previous performance appears after repeating an exercise.",
+    emptyStateLabel: "Previous performance appears after repeating an exercise.",
   },
   {
     id: "meal-quality",
@@ -416,8 +402,7 @@ export const widgetRegistry: readonly WidgetDefinition[] = [
     description: "Useful recovery actions for today.",
     supportedSizes: ["medium", "large", "full"],
     defaultSize: "large",
-    emptyStateLabel:
-      "Recovery actions appear when enough context is available.",
+    emptyStateLabel: "Recovery actions appear when enough context is available.",
   },
   {
     id: "measurements",

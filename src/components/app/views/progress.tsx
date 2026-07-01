@@ -3,8 +3,23 @@ import { Camera, Plus, Trash2, Image as ImageIcon, Scale, Target } from "lucide-
 import { useStore, uid } from "@/lib/store";
 import { fitcoreScore, weeklyVolumeSeries, bodyweightDelta } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
-import { Card, StatCard, PageHeader, PrimaryButton, EmptyState, Label, Input, Select, SubTabs, SectionHeader, Chip, Ring } from "@/components/app/ui";
+import {
+  Card,
+  StatCard,
+  PageHeader,
+  PrimaryButton,
+  EmptyState,
+  Label,
+  Input,
+  Select,
+  SubTabs,
+  SectionHeader,
+  Chip,
+  Ring,
+} from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
+import { FitcoreScoreSheet } from "@/components/app/popups/score-popup";
+import { WeighInSheet } from "@/components/app/popups/quick-popups";
 
 type Tab = "overview" | "body" | "analytics";
 const TABS: { id: Tab; label: string }[] = [
@@ -30,25 +45,34 @@ export function ProgressView() {
 
 function OverviewTab() {
   const { state } = useStore();
+  const [scoreOpen, setScoreOpen] = useState(false);
   const score = fitcoreScore(state);
-  const sortedBw = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
+  const sortedBw = useMemo(
+    () => [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt),
+    [state.bodyweightEntries],
+  );
   const bw = state.profile.bodyweightLb;
   const target = state.profile.targetBodyweightLb;
   const dWeek = bodyweightDelta(state, 7) ?? 0;
   const dMonth = bodyweightDelta(state, 30) ?? 0;
-  const topGoals = state.goals.filter(g => g.pinned).slice(0, 3);
+  const topGoals = state.goals.filter((g) => g.pinned).slice(0, 3);
   const goalList = topGoals.length ? topGoals : state.goals.slice(0, 3);
   const lastWorkout = state.workouts[state.workouts.length - 1];
 
   return (
     <div className="px-5">
-      <div className="card-elev p-5 section-gradient ring-section">
+      <div
+        className="card-elev p-5 section-gradient ring-section"
+        onClick={() => setScoreOpen(true)}
+      >
         <div className="flex items-center gap-4">
           <Ring value={score} max={100} size={92} label="score" />
           <div className="flex-1">
             <p className="text-xs uppercase tracking-wider text-muted-foreground">FitCore score</p>
             <p className="text-3xl font-bold tabular-nums mt-1">{score}</p>
-            <p className="text-xs text-muted-foreground mt-1">Composite of training, nutrition, recovery, and progress.</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Composite of training, nutrition, recovery, and progress.
+            </p>
           </div>
         </div>
       </div>
@@ -62,28 +86,45 @@ function OverviewTab() {
       <SectionHeader title="Bodyweight trend" />
       <Card>
         {sortedBw.length < 2 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">Log at least 2 weigh-ins to see your trend.</p>
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            Log at least 2 weigh-ins to see your trend.
+          </p>
         ) : (
-          <Sparkline points={sortedBw.map(b => b.weightLb)} unit=" lb" />
+          <Sparkline points={sortedBw.map((b) => b.weightLb)} unit=" lb" />
         )}
-        <p className="text-xs text-muted-foreground mt-2">Target {target} lb ({(target - bw) >= 0 ? "+" : ""}{(target - bw).toFixed(1)} to go)</p>
+        <p className="text-xs text-muted-foreground mt-2">
+          Target {target} lb ({target - bw >= 0 ? "+" : ""}
+          {(target - bw).toFixed(1)} to go)
+        </p>
       </Card>
 
       <SectionHeader title="Current goals" />
       {goalList.length === 0 ? (
-        <Card><p className="text-sm text-muted-foreground">Pin goals on the home Goals panel to track them here.</p></Card>
+        <Card>
+          <p className="text-sm text-muted-foreground">
+            Pin goals on the home Goals panel to track them here.
+          </p>
+        </Card>
       ) : (
         <div className="space-y-2">
-          {goalList.map(g => {
+          {goalList.map((g) => {
             const pct = Math.min(100, (g.current / Math.max(0.01, g.target)) * 100);
             return (
               <Card key={g.id}>
                 <div className="flex justify-between items-baseline mb-2">
                   <p className="font-medium text-sm">{g.label}</p>
-                  <p className="text-xs text-muted-foreground tabular-nums">{Math.round(g.current)}/{g.target}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {Math.round(g.current)}/{g.target}
+                  </p>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
-                  <div className="h-full" style={{ width: `${pct}%`, background: "var(--section)" }} />
+                <div
+                  className="h-1.5 rounded-full overflow-hidden"
+                  style={{ background: "var(--surface-2)" }}
+                >
+                  <div
+                    className="h-full"
+                    style={{ width: `${pct}%`, background: "var(--section)" }}
+                  />
                 </div>
               </Card>
             );
@@ -96,10 +137,14 @@ function OverviewTab() {
           <SectionHeader title="Recent activity" />
           <Card>
             <p className="font-semibold text-sm">{lastWorkout.name}</p>
-            <p className="text-xs text-muted-foreground">{new Date(lastWorkout.startedAt).toLocaleDateString()} • {lastWorkout.exercises.length} exercises</p>
+            <p className="text-xs text-muted-foreground">
+              {new Date(lastWorkout.startedAt).toLocaleDateString()} •{" "}
+              {lastWorkout.exercises.length} exercises
+            </p>
           </Card>
         </>
       )}
+      <FitcoreScoreSheet open={scoreOpen} onClose={() => setScoreOpen(false)} />
     </div>
   );
 }
@@ -111,8 +156,12 @@ function BodyTab() {
   return (
     <div className="px-5">
       <div className="flex gap-2 mb-3">
-        <Chip active={sub === "weight"} onClick={() => setSub("weight")}>Weight</Chip>
-        <Chip active={sub === "photos"} onClick={() => setSub("photos")}>Photos</Chip>
+        <Chip active={sub === "weight"} onClick={() => setSub("weight")}>
+          Weight
+        </Chip>
+        <Chip active={sub === "photos"} onClick={() => setSub("photos")}>
+          Photos
+        </Chip>
       </div>
       {sub === "weight" ? <WeightSection /> : <PhotosSection />}
     </div>
@@ -123,22 +172,34 @@ function WeightSection() {
   const { state, set } = useStore();
   const [w, setW] = useState(String(state.profile.bodyweightLb));
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const sorted = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
+  const [weighInOpen, setWeighInOpen] = useState(false);
+  const sorted = useMemo(
+    () => [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt),
+    [state.bodyweightEntries],
+  );
   const last = sorted[sorted.length - 1];
-  const weekAgo = Date.now() - 7*86400000, monthAgo = Date.now() - 30*86400000;
-  const week = sorted.filter(e => e.createdAt > weekAgo);
-  const weekAvg = week.length ? (week.reduce((a, e) => a + e.weightLb, 0) / week.length).toFixed(1) : "—";
-  const lastWeek = sorted.find(e => e.createdAt < weekAgo);
-  const lastMonth = sorted.find(e => e.createdAt < monthAgo);
-  const dWeek = last && lastWeek ? (last.weightLb - lastWeek.weightLb) : 0;
-  const dMonth = last && lastMonth ? (last.weightLb - lastMonth.weightLb) : 0;
+  const weekAgo = Date.now() - 7 * 86400000,
+    monthAgo = Date.now() - 30 * 86400000;
+  const week = sorted.filter((e) => e.createdAt > weekAgo);
+  const weekAvg = week.length
+    ? (week.reduce((a, e) => a + e.weightLb, 0) / week.length).toFixed(1)
+    : "—";
+  const lastWeek = sorted.find((e) => e.createdAt < weekAgo);
+  const lastMonth = sorted.find((e) => e.createdAt < monthAgo);
+  const dWeek = last && lastWeek ? last.weightLb - lastWeek.weightLb : 0;
+  const dMonth = last && lastMonth ? last.weightLb - lastMonth.weightLb : 0;
 
   const submit = () => {
-    const wt = Number(w); if (!wt) return;
-    set(s => ({ ...s,
-      bodyweightEntries: [...s.bodyweightEntries, { id: uid(), weightLb: wt, createdAt: Date.now() }],
+    const wt = Number(w);
+    if (!wt) return;
+    set((s) => ({
+      ...s,
+      bodyweightEntries: [
+        ...s.bodyweightEntries,
+        { id: uid(), weightLb: wt, createdAt: Date.now() },
+      ],
       profile: { ...s.profile, bodyweightLb: wt },
-      goals: s.goals.map(g => g.type === "bodyweight" ? { ...g, current: wt } : g),
+      goals: s.goals.map((g) => (g.type === "bodyweight" ? { ...g, current: wt } : g)),
     }));
   };
 
@@ -150,33 +211,73 @@ function WeightSection() {
         <StatCard label="Δ 30d" value={`${dMonth >= 0 ? "+" : ""}${dMonth.toFixed(1)}`} sub="lb" />
       </div>
 
-      <SectionHeader title="Log new" />
+      <SectionHeader
+        title="Log new"
+        action={
+          <button
+            onClick={() => setWeighInOpen(true)}
+            className="text-xs font-semibold text-[var(--section)]"
+          >
+            Quick log
+          </button>
+        }
+      />
       <div className="flex gap-2">
-        <Input className="flex-1" inputMode="decimal" value={w} onChange={e => setW(e.target.value)} placeholder="Weight in lb" />
+        <Input
+          className="flex-1"
+          inputMode="decimal"
+          value={w}
+          onChange={(e) => setW(e.target.value)}
+          placeholder="Weight in lb"
+        />
         <PrimaryButton onClick={submit}>Save</PrimaryButton>
       </div>
 
       <SectionHeader title="Recent weigh-ins" />
       {sorted.length === 0 ? (
-        <EmptyState icon={<Scale size={22} />} title="No weigh-ins" description="Track weekly for real trends." />
+        <EmptyState
+          icon={<Scale size={22} />}
+          title="No weigh-ins"
+          description="Track weekly for real trends."
+        />
       ) : (
         <div className="space-y-2">
-          {[...sorted].reverse().slice(0, 15).map(e => (
-            <Card key={e.id}>
-              <div className="flex justify-between">
-                <div>
-                  <p className="font-semibold tabular-nums">{e.weightLb} lb</p>
-                  <p className="text-xs text-muted-foreground">{new Date(e.createdAt).toLocaleDateString()}</p>
+          {[...sorted]
+            .reverse()
+            .slice(0, 15)
+            .map((e) => (
+              <Card key={e.id}>
+                <div className="flex justify-between">
+                  <div>
+                    <p className="font-semibold tabular-nums">{e.weightLb} lb</p>
+                    <p className="text-xs text-muted-foreground">
+                      {new Date(e.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <button onClick={() => setConfirmDel(e.id)} className="text-muted-foreground">
+                    <Trash2 size={14} />
+                  </button>
                 </div>
-                <button onClick={() => setConfirmDel(e.id)} className="text-muted-foreground"><Trash2 size={14} /></button>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            ))}
         </div>
       )}
-      <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
-        onConfirm={() => { set(s => ({ ...s, bodyweightEntries: s.bodyweightEntries.filter(x => x.id !== confirmDel) })); setConfirmDel(null); }}
-        title="Delete weigh-in?" message="This can't be undone." confirmLabel="Delete" destructive />
+      <ConfirmDialog
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        onConfirm={() => {
+          set((s) => ({
+            ...s,
+            bodyweightEntries: s.bodyweightEntries.filter((x) => x.id !== confirmDel),
+          }));
+          setConfirmDel(null);
+        }}
+        title="Delete weigh-in?"
+        message="This can't be undone."
+        confirmLabel="Delete"
+        destructive
+      />
+      <WeighInSheet open={weighInOpen} onClose={() => setWeighInOpen(false)} />
     </>
   );
 }
@@ -187,17 +288,30 @@ function PhotosSection() {
   const [view, setView] = useState<ProgressPhoto | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   return (
-    <>
-      <PrimaryButton className="w-full" onClick={() => setOpen(true)}><Plus size={16} />Add photo</PrimaryButton>
+    <div className="space-y-4">
+      <PrimaryButton className="w-full" onClick={() => setOpen(true)}>
+        <Plus size={16} />
+        Add photo
+      </PrimaryButton>
       <SectionHeader title="Timeline" />
       {state.progressPhotos.length === 0 ? (
-        <EmptyState icon={<Camera size={22} />} title="No photos yet" description="Photos tell the real story. Add one weekly." />
+        <EmptyState
+          icon={<Camera size={22} />}
+          title="No photos yet"
+          description="Photos tell the real story. Add one weekly."
+        />
       ) : (
         <div className="grid grid-cols-3 gap-2">
-          {[...state.progressPhotos].reverse().map(p => (
-            <button key={p.id} onClick={() => setView(p)} className="aspect-[3/4] rounded-xl overflow-hidden bg-[var(--surface-2)] relative active:scale-[0.98]">
+          {[...state.progressPhotos].reverse().map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setView(p)}
+              className="aspect-[3/4] rounded-xl overflow-hidden bg-[var(--surface-2)] relative active:scale-[0.98]"
+            >
               <img src={p.dataUrl} alt={p.view} className="w-full h-full object-cover" />
-              <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 px-1.5 py-0.5 rounded">{p.view}</span>
+              <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 px-1.5 py-0.5 rounded">
+                {p.view}
+              </span>
             </button>
           ))}
         </div>
@@ -210,20 +324,47 @@ function PhotosSection() {
           <>
             <img src={view.dataUrl} alt={view.view} className="w-full rounded-xl" />
             <div className="grid grid-cols-3 gap-2 mt-3 text-sm">
-              <div><p className="text-[10px] uppercase text-muted-foreground">View</p><p className="capitalize">{view.view}</p></div>
-              <div><p className="text-[10px] uppercase text-muted-foreground">Phase</p><p className="capitalize">{view.phase}</p></div>
-              <div><p className="text-[10px] uppercase text-muted-foreground">Date</p><p>{new Date(view.createdAt).toLocaleDateString()}</p></div>
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground">View</p>
+                <p className="capitalize">{view.view}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground">Phase</p>
+                <p className="capitalize">{view.phase}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase text-muted-foreground">Date</p>
+                <p>{new Date(view.createdAt).toLocaleDateString()}</p>
+              </div>
             </div>
             {view.notes && <p className="text-sm text-muted-foreground mt-3">{view.notes}</p>}
-            <button onClick={() => setConfirmDel(view.id)} className="w-full mt-4 px-4 py-3 rounded-xl border border-destructive text-destructive text-sm font-medium">Delete photo</button>
+            <button
+              onClick={() => setConfirmDel(view.id)}
+              className="w-full mt-4 px-4 py-3 rounded-xl border border-destructive text-destructive text-sm font-medium"
+            >
+              Delete photo
+            </button>
           </>
         )}
       </BottomSheet>
 
-      <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
-        onConfirm={() => { set(s => ({ ...s, progressPhotos: s.progressPhotos.filter(x => x.id !== confirmDel) })); setConfirmDel(null); setView(null); }}
-        title="Delete photo?" message="This can't be undone." confirmLabel="Delete" destructive />
-    </>
+      <ConfirmDialog
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        onConfirm={() => {
+          set((s) => ({
+            ...s,
+            progressPhotos: s.progressPhotos.filter((x) => x.id !== confirmDel),
+          }));
+          setConfirmDel(null);
+          setView(null);
+        }}
+        title="Delete photo?"
+        message="This can't be undone."
+        confirmLabel="Delete"
+        destructive
+      />
+    </div>
   );
 }
 
@@ -235,28 +376,48 @@ function AnalyticsTab() {
   const days = range === "14d" ? 14 : 30;
   const series = weeklyVolumeSeries(state, days);
   const total = series.reduce((a, s) => a + s.volume, 0);
-  const max = Math.max(1, ...series.map(s => s.volume));
-  const sortedBw = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
-  const bwInRange = sortedBw.filter(b => b.createdAt > Date.now() - days * 86400000);
+  const max = Math.max(1, ...series.map((s) => s.volume));
+  const sortedBw = useMemo(
+    () => [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt),
+    [state.bodyweightEntries],
+  );
+  const bwInRange = sortedBw.filter((b) => b.createdAt > Date.now() - days * 86400000);
 
   return (
     <div className="px-5">
       <div className="flex gap-2 mb-3">
-        {(["14d","30d"] as const).map(r => <Chip key={r} active={range === r} onClick={() => setRange(r)}>{r}</Chip>)}
+        {(["14d", "30d"] as const).map((r) => (
+          <Chip key={r} active={range === r} onClick={() => setRange(r)}>
+            {r}
+          </Chip>
+        ))}
       </div>
 
       <SectionHeader title="Training volume" />
       <Card>
         {total === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">Complete workouts to see volume trends.</p>
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            Complete workouts to see volume trends.
+          </p>
         ) : (
           <>
             <div className="flex items-end gap-1 h-28">
               {series.map((s, i) => (
-                <div key={i} className="flex-1 rounded-t" style={{ height: `${(s.volume / max) * 100}%`, background: "var(--section)", minHeight: s.volume ? 4 : 0, opacity: s.volume ? 0.85 : 0.15 }} />
+                <div
+                  key={i}
+                  className="flex-1 rounded-t"
+                  style={{
+                    height: `${(s.volume / max) * 100}%`,
+                    background: "var(--section)",
+                    minHeight: s.volume ? 4 : 0,
+                    opacity: s.volume ? 0.85 : 0.15,
+                  }}
+                />
               ))}
             </div>
-            <p className="text-xs text-muted-foreground mt-2 tabular-nums">{Math.round(total/1000)}k lb total over {days}d</p>
+            <p className="text-xs text-muted-foreground mt-2 tabular-nums">
+              {Math.round(total / 1000)}k lb total over {days}d
+            </p>
           </>
         )}
       </Card>
@@ -264,18 +425,24 @@ function AnalyticsTab() {
       <SectionHeader title="Bodyweight vs time" />
       <Card>
         {bwInRange.length < 2 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">Log more weigh-ins to compare.</p>
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            Log more weigh-ins to compare.
+          </p>
         ) : (
-          <Sparkline points={bwInRange.map(b => b.weightLb)} unit=" lb" />
+          <Sparkline points={bwInRange.map((b) => b.weightLb)} unit=" lb" />
         )}
       </Card>
 
       <SectionHeader title="Goal progress" />
       {state.goals.length === 0 ? (
-        <EmptyState icon={<Target size={22} />} title="No goals" description="Add goals on the home Goals panel." />
+        <EmptyState
+          icon={<Target size={22} />}
+          title="No goals"
+          description="Add goals on the home Goals panel."
+        />
       ) : (
         <div className="space-y-2">
-          {state.goals.map(g => {
+          {state.goals.map((g) => {
             const pct = Math.min(100, (g.current / Math.max(0.01, g.target)) * 100);
             return (
               <Card key={g.id}>
@@ -283,8 +450,14 @@ function AnalyticsTab() {
                   <p className="font-medium text-sm">{g.label}</p>
                   <p className="text-xs text-muted-foreground tabular-nums">{Math.round(pct)}%</p>
                 </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
-                  <div className="h-full" style={{ width: `${pct}%`, background: "var(--section)" }} />
+                <div
+                  className="h-1.5 rounded-full overflow-hidden"
+                  style={{ background: "var(--surface-2)" }}
+                >
+                  <div
+                    className="h-full"
+                    style={{ width: `${pct}%`, background: "var(--section)" }}
+                  />
                 </div>
               </Card>
             );
@@ -298,18 +471,40 @@ function AnalyticsTab() {
 /* ===================== SHARED ===================== */
 
 function Sparkline({ points, unit }: { points: number[]; unit: string }) {
-  const w = 320, h = 80, pad = 8;
-  const min = Math.min(...points), max = Math.max(...points);
+  const w = 320,
+    h = 80,
+    pad = 8;
+  const min = Math.min(...points),
+    max = Math.max(...points);
   const range = Math.max(0.1, max - min);
-  const step = (w - pad*2) / Math.max(1, points.length - 1);
-  const path = points.map((v, i) => `${i === 0 ? "M" : "L"} ${pad + i*step} ${h - pad - ((v - min)/range)*(h - pad*2)}`).join(" ");
+  const step = (w - pad * 2) / Math.max(1, points.length - 1);
+  const path = points
+    .map(
+      (v, i) =>
+        `${i === 0 ? "M" : "L"} ${pad + i * step} ${h - pad - ((v - min) / range) * (h - pad * 2)}`,
+    )
+    .join(" ");
   return (
     <div>
       <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-20">
-        <path d={path} fill="none" stroke="var(--section)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d={path}
+          fill="none"
+          stroke="var(--section)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
       <div className="flex justify-between text-xs text-muted-foreground tabular-nums mt-1">
-        <span>{points[0]}{unit}</span><span>{points[points.length-1]}{unit}</span>
+        <span>
+          {points[0]}
+          {unit}
+        </span>
+        <span>
+          {points[points.length - 1]}
+          {unit}
+        </span>
       </div>
     </div>
   );
@@ -323,35 +518,83 @@ function PhotoSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [dataUrl, setDataUrl] = useState("");
   const onFile = (f: File | null) => {
     if (!f) return;
-    if (f.size > 4_000_000) { alert("Image is too large (max 4MB)"); return; }
+    if (f.size > 4_000_000) {
+      alert("Image is too large (max 4MB)");
+      return;
+    }
     const r = new FileReader();
     r.onload = () => setDataUrl(r.result as string);
     r.readAsDataURL(f);
   };
   const submit = () => {
     if (!dataUrl) return;
-    set(s => ({ ...s, progressPhotos: [...s.progressPhotos, { id: uid(), dataUrl, view, phase, notes: notes || undefined, createdAt: Date.now() }] }));
-    setDataUrl(""); setNotes("");
+    set((s) => ({
+      ...s,
+      progressPhotos: [
+        ...s.progressPhotos,
+        { id: uid(), dataUrl, view, phase, notes: notes || undefined, createdAt: Date.now() },
+      ],
+    }));
+    setDataUrl("");
+    setNotes("");
     onClose();
   };
   return (
     <BottomSheet open={open} onClose={onClose} title="Add progress photo" height="tall">
       <div className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
-          <div><Label>View</Label><Select value={view} onChange={e => setView(e.target.value as ProgressPhoto["view"])}><option>front</option><option>side</option><option>back</option></Select></div>
-          <div><Label>Phase</Label><Select value={phase} onChange={e => setPhase(e.target.value as ProgressPhoto["phase"])}><option>bulk</option><option>cut</option><option>maintenance</option></Select></div>
+          <div>
+            <Label>View</Label>
+            <Select value={view} onChange={(e) => setView(e.target.value as ProgressPhoto["view"])}>
+              <option>front</option>
+              <option>side</option>
+              <option>back</option>
+            </Select>
+          </div>
+          <div>
+            <Label>Phase</Label>
+            <Select
+              value={phase}
+              onChange={(e) => setPhase(e.target.value as ProgressPhoto["phase"])}
+            >
+              <option>bulk</option>
+              <option>cut</option>
+              <option>maintenance</option>
+            </Select>
+          </div>
         </div>
-        <div><Label>Notes</Label><Input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional" /></div>
+        <div>
+          <Label>Notes</Label>
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+        </div>
         <div>
           <Label>Photo</Label>
           <label className="mt-1 block cursor-pointer">
             <div className="aspect-[3/4] rounded-xl bg-[var(--surface-2)] border border-dashed border-border flex items-center justify-center overflow-hidden">
-              {dataUrl ? <img src={dataUrl} alt="New progress photo preview" className="w-full h-full object-cover" /> : <div className="text-center text-muted-foreground"><ImageIcon className="mx-auto mb-1" /><span className="text-xs">Tap to choose</span></div>}
+              {dataUrl ? (
+                <img
+                  src={dataUrl}
+                  alt="New progress photo preview"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="text-center text-muted-foreground">
+                  <ImageIcon className="mx-auto mb-1" />
+                  <span className="text-xs">Tap to choose</span>
+                </div>
+              )}
             </div>
-            <input type="file" accept="image/*" className="hidden" onChange={e => onFile(e.target.files?.[0] ?? null)} />
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+            />
           </label>
         </div>
-        <PrimaryButton className="w-full" disabled={!dataUrl} onClick={submit}>Save photo</PrimaryButton>
+        <PrimaryButton className="w-full" disabled={!dataUrl} onClick={submit}>
+          Save photo
+        </PrimaryButton>
       </div>
     </BottomSheet>
   );

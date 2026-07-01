@@ -1,6 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 
-export function CountUp({ value, duration = 900, decimals = 0, className }: { value: number; duration?: number; decimals?: number; className?: string }) {
+export function CountUp({
+  value,
+  duration = 900,
+  decimals = 0,
+  className,
+}: {
+  value: number;
+  duration?: number;
+  decimals?: number;
+  className?: string;
+}) {
   const [display, setDisplay] = useState(0);
   const startRef = useRef<number | null>(null);
   const fromRef = useRef(0);
@@ -21,5 +31,9 @@ export function CountUp({ value, duration = 900, decimals = 0, className }: { va
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, duration]);
 
-  return <span className={`tabular-nums ${className ?? ""}`}>{decimals === 0 ? Math.round(display).toLocaleString() : display.toFixed(decimals)}</span>;
+  return (
+    <span className={`tabular-nums ${className ?? ""}`}>
+      {decimals === 0 ? Math.round(display).toLocaleString() : display.toFixed(decimals)}
+    </span>
+  );
 }
