@@ -1,0 +1,11 @@
+{
+  "name": "FitCore",
+  "short_name": "FitCore",
+  "description": "Personal fitness command center with AI coaching.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0a0f",
+  "theme_color": "#1a1626",
+  "orientation": "portrait-primary",
+  "icons": []
+}
