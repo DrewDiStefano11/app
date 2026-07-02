@@ -71,18 +71,20 @@ export function HomeView({ onNavigate, onOpenSettings }: {
   return (
     <div className="pb-2">
       {/* Header */}
-      <header className="px-6 pt-6 pb-3 flex items-end justify-between">
+      <header className="px-6 pt-8 pb-4 flex items-end justify-between">
         <div>
           <Eyebrow>Command Center</Eyebrow>
-          <h1 className="font-display text-4xl leading-none mt-1 uppercase">FitCore Command Center — {name}</h1>
+          <h1 className="font-display text-5xl leading-none mt-1 uppercase tracking-tight">
+            Good Morning, <span className="text-[var(--section)]">{name}</span>
+          </h1>
         </div>
         <button
           onClick={onOpenSettings}
-          className="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center press relative"
+          className="w-11 h-11 rounded-xl border border-white/10 bg-white/5 flex items-center justify-center press relative"
           aria-label="Settings"
         >
-          <SettingsIcon size={16} className="text-white/70" />
-          <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[var(--section)] shimmer-dot" />
+          <SettingsIcon size={18} className="text-white/70" />
+          <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-[var(--section)] border-2 border-[var(--background)] shimmer-dot" />
         </button>
       </header>
 
@@ -106,32 +108,47 @@ export function HomeView({ onNavigate, onOpenSettings }: {
       <div className="px-5 space-y-3">
         {/* Score + Readiness row */}
         <div className="grid grid-cols-2 gap-3">
-          <Tile hero accent delay={0} onClick={() => setPopup("score")}>
+          <Tile hero accent delay={0} onClick={() => setPopup("score")} className="glow-section">
             <Eyebrow color="var(--section)">FitCore Score</Eyebrow>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="font-display text-5xl leading-none text-white">
+            <div className="flex items-baseline gap-1.5 mt-2">
+              <span className="font-display text-6xl leading-none text-white">
                 <CountUp value={score} />
               </span>
-              <span className="text-xs text-white/40 font-bold uppercase">{score >= 80 ? "Elite" : score >= 60 ? "Strong" : score >= 40 ? "Building" : "Start"}</span>
+              <span className="text-xs text-white/40 font-bold uppercase tracking-widest">
+                {score >= 80 ? "Elite" : score >= 65 ? "Strong" : score >= 45 ? "Building" : "Foundation"}
+              </span>
             </div>
-            <div className="mt-4 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full rounded-full transition-all duration-700"
-                style={{ width: `${score}%`, background: "var(--section)", boxShadow: "0 0 8px var(--section)" }} />
+            <div className="mt-4 h-2 w-full bg-white/5 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-1000"
+                style={{
+                  width: `${score}%`,
+                  background: "var(--section)",
+                  boxShadow: "0 0 12px var(--section)",
+                }}
+              />
             </div>
-            <div className="mt-2 text-[10px] text-white/40 font-bold uppercase tracking-wider">
-              {volDelta >= 0 ? `+${volDelta}%` : `${volDelta}%`} vs last week · tap for detail
+            <div className="mt-3 text-[10px] text-white/50 font-bold uppercase tracking-widest flex items-center gap-1">
+              <span className={volDelta >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]"}>
+                {volDelta >= 0 ? "↑" : "↓"} {Math.abs(volDelta)}%
+              </span>
+              <span className="opacity-60">vs last week</span>
             </div>
           </Tile>
 
           <Tile delay={60} onClick={() => setPopup("readiness")}>
-            <div className="h-full grid grid-cols-2 gap-2 items-center">
+            <div className="h-full grid grid-cols-2 gap-4 items-center">
               <div className="flex flex-col items-center justify-center gap-2">
-                <RingScore value={readiness} color="rgb(59 130 246)" size={76} />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[rgb(96_165_250)]">Readiness</span>
+                <RingScore value={readiness} color="var(--recovery)" size={76} />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+                  Readiness
+                </span>
               </div>
               <div className="flex flex-col items-center justify-center gap-2">
-                <RingScore value={recovery} color="rgb(74 222 128)" size={76} />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-[rgb(74_222_128)]">Recovery</span>
+                <RingScore value={recovery} color="var(--success)" size={76} />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+                  Recovery
+                </span>
               </div>
             </div>
           </Tile>
@@ -171,33 +188,67 @@ export function HomeView({ onNavigate, onOpenSettings }: {
         {/* Macros + Volume row */}
         <div className="grid grid-cols-2 gap-3">
           <Tile delay={180} onClick={() => setPopup("macros")}>
-            <Eyebrow color="rgb(248 113 113)">Macros</Eyebrow>
-            <div className="font-display text-2xl mt-1 leading-none">
+            <Eyebrow color="var(--nutrition)">Macros</Eyebrow>
+            <div className="font-display text-3xl mt-1 leading-none">
               <CountUp value={meals.calories} />
-              <span className="text-xs text-white/40 font-bold uppercase ml-1">/ {targets.calories}</span>
+              <span className="text-xs text-white/30 font-bold uppercase ml-1">
+                / {targets.calories}
+              </span>
             </div>
             <div className="mt-3 space-y-1.5">
-              <MacroBar label="P" value={meals.protein} target={targets.protein} pct={proteinPct} color="rgb(239 68 68)" />
-              <MacroBar label="C" value={meals.carbs} target={targets.carbs} pct={carbsPct} color="rgb(245 158 11)" />
-              <MacroBar label="F" value={meals.fat} target={targets.fat} pct={fatPct} color="rgb(34 197 94)" />
+              <MacroBar
+                label="P"
+                value={meals.protein}
+                target={targets.protein}
+                pct={proteinPct}
+                color="rgb(239 68 68)"
+              />
+              <MacroBar
+                label="C"
+                value={meals.carbs}
+                target={targets.carbs}
+                pct={carbsPct}
+                color="rgb(245 158 11)"
+              />
+              <MacroBar
+                label="F"
+                value={meals.fat}
+                target={targets.fat}
+                pct={fatPct}
+                color="rgb(34 197 94)"
+              />
             </div>
-            <div className="mt-2 text-[10px] text-white/40 font-bold uppercase tracking-wider">{kcalPct}% of goal</div>
+            <div className="mt-2 text-[10px] text-white/40 font-bold uppercase tracking-widest">
+              {kcalPct}% of daily goal
+            </div>
           </Tile>
 
           <Tile delay={240} onClick={() => setPopup("volume")}>
-            <Eyebrow color="rgb(74 222 128)">
-              Volume · {volumeMode === "muscle" ? "By Muscle" : volumeMode === "exercise" ? "By Exercise" : volumeMode === "day" ? "By Day" : "7d"}
+            <Eyebrow color="var(--success)">
+              Volume ·{" "}
+              {volumeMode === "muscle"
+                ? "Muscle"
+                : volumeMode === "exercise"
+                  ? "Exercise"
+                  : volumeMode === "day"
+                    ? "Day"
+                    : "7d"}
             </Eyebrow>
-            <div className="font-display text-2xl mt-1 leading-none">
+            <div className="font-display text-3xl mt-1 leading-none">
               <CountUp value={Math.round(weekVol / 1000)} />
-              <span className="text-xs text-white/40 font-bold uppercase ml-1">k lb</span>
+              <span className="text-xs text-white/30 font-bold uppercase ml-1">k lb</span>
             </div>
             <div className="mt-3 h-16">
               <VolumePreview view={view} mode={volumeMode} />
             </div>
-            <div className="mt-2 text-[10px] font-bold uppercase tracking-wider"
-              style={{ color: volDelta >= 0 ? "rgb(74 222 128)" : "rgb(248 113 113)" }}>
-              {volDelta >= 0 ? "+" : ""}{volDelta}% trend · tap to expand
+            <div
+              className="mt-2 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1"
+              style={{ color: volDelta >= 0 ? "var(--success)" : "var(--danger)" }}
+            >
+              <span>
+                {volDelta >= 0 ? "↑" : "↓"} {Math.abs(volDelta)}%
+              </span>
+              <span className="opacity-60">trend</span>
             </div>
           </Tile>
         </div>
@@ -226,10 +277,22 @@ export function HomeView({ onNavigate, onOpenSettings }: {
         </button>
 
         {/* Quick actions */}
-        <div className="grid grid-cols-3 gap-2 pt-1">
-          <QuickAction icon={<Plus size={18} />} label="Log Meal" onClick={() => setPopup("logmeal")} />
-          <QuickAction icon={<Heart size={18} />} label="Check In" onClick={() => setPopup("checkin")} />
-          <QuickAction icon={<Apple size={18} />} label="Weigh In" onClick={() => setPopup("weighin")} />
+        <div className="grid grid-cols-3 gap-3 pt-1 pb-4">
+          <QuickAction
+            icon={<Plus size={20} />}
+            label="Log Meal"
+            onClick={() => setPopup("logmeal")}
+          />
+          <QuickAction
+            icon={<Heart size={20} />}
+            label="Check In"
+            onClick={() => setPopup("checkin")}
+          />
+          <QuickAction
+            icon={<Apple size={20} />}
+            label="Weigh In"
+            onClick={() => setPopup("weighin")}
+          />
         </div>
       </div>
 
@@ -283,11 +346,22 @@ function MacroBar({ label, value, target, pct, color }: { label: string; value: 
   );
 }
 
-function QuickAction({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+function QuickAction({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
   return (
-    <button onClick={onClick} className="press h-14 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-0.5 text-white/70">
-      {icon}
-      <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>
+    <button
+      onClick={onClick}
+      className="press h-16 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center justify-center gap-1 text-white/70 shadow-sm"
+    >
+      <div className="text-[var(--section)]">{icon}</div>
+      <span className="text-[10px] font-bold uppercase tracking-widest">{label}</span>
     </button>
   );
 }
@@ -308,12 +382,17 @@ function VolumePreview({ view, mode }: { view: AppState; mode: string }) {
     if (top.length === 0) return <EmptyMini />;
     const max = top[0].volume;
     return (
-      <div className="space-y-1 h-full flex flex-col justify-center">
+      <div className="space-y-1.5 h-full flex flex-col justify-center">
         {top.map((d) => (
-          <div key={d.name} className="flex items-center gap-1.5">
-            <span className="text-[9px] text-white/40 font-bold uppercase tracking-wider w-12 truncate">{d.name}</span>
-            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${(d.volume / max) * 100}%`, background: "rgb(34 197 94)" }} />
+          <div key={d.name} className="flex items-center gap-2">
+            <span className="text-[9px] text-white/40 font-bold uppercase tracking-wider w-12 truncate">
+              {d.name}
+            </span>
+            <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${(d.volume / max) * 100}%`, background: "var(--success)" }}
+              />
             </div>
           </div>
         ))}
@@ -325,12 +404,15 @@ function VolumePreview({ view, mode }: { view: AppState; mode: string }) {
     if (top.length === 0) return <EmptyMini />;
     const max = top[0].volume;
     return (
-      <div className="space-y-1 h-full flex flex-col justify-center">
+      <div className="space-y-1.5 h-full flex flex-col justify-center">
         {top.map((d) => (
-          <div key={d.name} className="flex items-center gap-1.5">
+          <div key={d.name} className="flex items-center gap-2">
             <span className="text-[9px] text-white/60 font-bold truncate w-20">{d.name}</span>
-            <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <div className="h-full rounded-full" style={{ width: `${(d.volume / max) * 100}%`, background: "rgb(34 197 94)" }} />
+            <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${(d.volume / max) * 100}%`, background: "var(--success)" }}
+              />
             </div>
           </div>
         ))}
@@ -339,49 +421,75 @@ function VolumePreview({ view, mode }: { view: AppState; mode: string }) {
   }
   if (mode === "day") {
     const days = volumeByDayOfWeek(view, 30);
-    const max = Math.max(...days.map(d => d.volume), 1);
+    const max = Math.max(...days.map((d) => d.volume), 1);
     return (
-      <div className="flex items-end gap-1 h-full">
+      <div className="flex items-end gap-1 h-full pt-2">
         {days.map((d, i) => (
-          <div key={i} className="flex-1 flex flex-col items-center gap-1">
-            <div className="w-full rounded-t" style={{ height: `${Math.max(6, (d.volume / max) * 100)}%`, background: d.volume > 0 ? "rgb(34 197 94)" : "rgba(255,255,255,0.1)" }} />
-            <span className="text-[8px] text-white/30 font-bold">{d.label[0]}</span>
+          <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+            <div
+              className="w-full rounded-t-sm transition-all"
+              style={{
+                height: `${Math.max(6, (d.volume / max) * 100)}%`,
+                minHeight: d.volume > 0 ? "4px" : "2px",
+                background: d.volume > 0 ? "var(--success)" : "rgba(255,255,255,0.06)",
+              }}
+            />
+            <span className="text-[8px] text-white/30 font-bold uppercase">{d.label[0]}</span>
           </div>
         ))}
       </div>
     );
   }
   // total / default
-  const series = (function() {
+  const series = (function () {
     const out = [];
     const DAY = 86400000;
     const now = Date.now();
     for (let i = 6; i >= 0; i--) {
       const start = now - (i + 1) * DAY;
       const end = now - i * DAY;
-      const vol = view.workouts.filter(w => w.startedAt >= start && w.startedAt < end)
-        .reduce((s, w) => s + w.exercises.reduce((a, ex) => a + ex.sets.reduce((b, st) => b + (st.completed && st.weight && st.reps ? st.weight * st.reps : 0), 0), 0), 0);
+      const vol = view.workouts
+        .filter((w) => w.startedAt >= start && w.startedAt < end)
+        .reduce(
+          (s, w) =>
+            s +
+            w.exercises.reduce(
+              (a, ex) =>
+                a +
+                ex.sets.reduce(
+                  (b, st) =>
+                    b + (st.completed && st.weight && st.reps ? st.weight * st.reps : 0),
+                  0,
+                ),
+              0,
+            ),
+          0,
+        );
       out.push(vol);
     }
     return out;
   })();
   const max = Math.max(...series, 1);
   return (
-    <div className="flex items-end gap-1 h-full">
+    <div className="flex items-end gap-1 h-full pt-1">
       {series.map((v, i) => {
         const isLast = i === series.length - 1;
         const hasVol = v > 0;
         return (
           <div key={i} className="flex-1 h-full flex items-end">
-            <div className="w-full rounded-t transition-all" style={{
-              height: `${Math.max(8, (v / max) * 100)}%`,
-              background: hasVol
-                ? (isLast
-                    ? "linear-gradient(180deg, rgb(74 222 128), rgb(34 197 94))"
-                    : "linear-gradient(180deg, rgba(34,197,94,0.7), rgba(34,197,94,0.35))")
-                : "rgba(255,255,255,0.08)",
-              boxShadow: isLast && hasVol ? "0 0 12px rgba(34,197,94,0.5)" : undefined,
-            }} />
+            <div
+              className="w-full rounded-t-sm transition-all"
+              style={{
+                height: `${Math.max(8, (v / max) * 100)}%`,
+                minHeight: hasVol ? "4px" : "2px",
+                background: hasVol
+                  ? isLast
+                    ? "var(--section)"
+                    : "color-mix(in oklab, var(--section) 40%, transparent)"
+                  : "rgba(255,255,255,0.06)",
+                boxShadow: isLast && hasVol ? "0 0 12px var(--section)" : undefined,
+              }}
+            />
           </div>
         );
       })}
