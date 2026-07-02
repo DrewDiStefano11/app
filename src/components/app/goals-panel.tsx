@@ -45,7 +45,7 @@ const ALL_GOALS: { key: GoalKey; label: string; description: string }[] = [
 const fmtInt = (n: number) => Math.round(n).toLocaleString();
 const fmt1 = (n: number) => n.toFixed(1);
 
-export function GoalsPanel() {
+export function GoalsPanel({ compact = false }: { compact?: boolean }) {
   const { view, state } = useStore();
   const [selected, setSelected] = usePersistentState<GoalKey[]>(STORE_KEY, DEFAULT_SELECTED);
   const [open, setOpen] = useState(false);
@@ -112,7 +112,7 @@ export function GoalsPanel() {
 
   return (
     <>
-      <Tile delay={300}>
+      <Tile delay={compact ? 160 : 300} className={compact ? "home-section-card home-goals-card" : undefined}>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Target size={14} className="text-[var(--section)]" />
@@ -137,8 +137,8 @@ export function GoalsPanel() {
             </button>
           </div>
         ) : (
-          <div className="space-y-2.5">
-            {rows.map(r => <GoalRowItem key={r.key} row={r} />)}
+          <div className={compact ? "space-y-2" : "space-y-2.5"}>
+            {rows.map(r => <GoalRowItem key={r.key} row={r} compact={compact} />)}
           </div>
         )}
       </Tile>
@@ -153,7 +153,7 @@ export function GoalsPanel() {
   );
 }
 
-function GoalRowItem({ row }: { row: GoalRow }) {
+function GoalRowItem({ row, compact }: { row: GoalRow; compact?: boolean }) {
   const { current, target, color, label, unit, fmt = fmtInt, inverse } = row;
   const safeTarget = target || 1;
   const rawPct = (current / safeTarget) * 100;
@@ -162,8 +162,8 @@ function GoalRowItem({ row }: { row: GoalRow }) {
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-white/70 truncate">{label}</span>
-        <span className="text-[11px] font-bold tabular-nums text-white/90">
+        <span className={`${compact ? "text-[10px]" : "text-[11px]"} font-bold uppercase tracking-wider text-white/70 truncate`}>{label}</span>
+        <span className={`${compact ? "text-[10px]" : "text-[11px]"} font-bold tabular-nums text-white/90`}>
           {fmt(current)}<span className="text-white/40"> / {fmt(target)} {unit}</span>
         </span>
       </div>
@@ -173,7 +173,7 @@ function GoalRowItem({ row }: { row: GoalRow }) {
           style={{ width: `${pct}%`, background: color, boxShadow: `0 0 6px ${color}` }}
         />
       </div>
-      <div className="mt-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ color: status.color }}>
+      <div className={`mt-0.5 ${compact ? "text-[8px]" : "text-[9px]"} font-bold uppercase tracking-wider`} style={{ color: status.color }}>
         {status.label}
       </div>
     </div>

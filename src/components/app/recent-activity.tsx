@@ -23,7 +23,7 @@ export function RecentActivity() {
 
   return (
     <div className="px-5 mt-3">
-      <Tile>
+      <Tile className={activity.length === 0 ? "recent-activity-card--empty" : undefined}>
         <div className="flex items-center justify-between">
           <Eyebrow color="var(--section)">Recent activity</Eyebrow>
           <Activity size={15} className="text-white/40" />

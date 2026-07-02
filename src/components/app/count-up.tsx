@@ -1,6 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 
-export function CountUp({ value, duration = 900, decimals = 0, className }: { value: number; duration?: number; decimals?: number; className?: string }) {
+export function CountUp({
+  value,
+  duration = 900,
+  delay = 0,
+  decimals = 0,
+  className,
+}: {
+  value: number;
+  duration?: number;
+  delay?: number;
+  decimals?: number;
+  className?: string;
+}) {
   const [display, setDisplay] = useState(0);
   const startRef = useRef<number | null>(null);
   const fromRef = useRef(0);
@@ -8,7 +20,12 @@ export function CountUp({ value, duration = 900, decimals = 0, className }: { va
   useEffect(() => {
     fromRef.current = display;
     startRef.current = null;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setDisplay(value);
+      return;
+    }
     let raf = 0;
+    let timer = 0;
     const step = (t: number) => {
       if (startRef.current == null) startRef.current = t;
       const p = Math.min(1, (t - startRef.current) / duration);
@@ -16,10 +33,19 @@ export function CountUp({ value, duration = 900, decimals = 0, className }: { va
       setDisplay(fromRef.current + (value - fromRef.current) * eased);
       if (p < 1) raf = requestAnimationFrame(step);
     };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
+    timer = window.setTimeout(() => {
+      raf = requestAnimationFrame(step);
+    }, delay);
+    return () => {
+      window.clearTimeout(timer);
+      cancelAnimationFrame(raf);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value, duration]);
+  }, [value, duration, delay]);
 
-  return <span className={`tabular-nums ${className ?? ""}`}>{decimals === 0 ? Math.round(display).toLocaleString() : display.toFixed(decimals)}</span>;
+  return (
+    <span className={`tabular-nums ${className ?? ""}`}>
+      {decimals === 0 ? Math.round(display).toLocaleString() : display.toFixed(decimals)}
+    </span>
+  );
 }
