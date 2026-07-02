@@ -1,33 +1,39 @@
 name: CI
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  build:
+  validate:
+    name: Validate
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: 20
+          cache: npm
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
 
-      - name: Run lint
-        run: bun run lint
-        continue-on-error: true
+      - name: Check TypeScript
+        run: npx tsc --noEmit
 
-      - name: Run formatting check
-        run: bunx prettier --check .
-        continue-on-error: true
+      - name: Lint
+        run: npm run lint
 
-      - name: Build
-        run: bun run build
+      - name: Check formatting
+        run: npx prettier --check .
+
+      - name: Build production bundle
+        run: npm run build
