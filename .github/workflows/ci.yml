@@ -27,13 +27,32 @@ jobs:
         run: npm ci
 
       - name: Check TypeScript
+        id: typescript
+        continue-on-error: true
         run: npx tsc --noEmit
 
       - name: Lint
+        id: lint
+        continue-on-error: true
         run: npm run lint
 
       - name: Check formatting
+        id: formatting
+        continue-on-error: true
         run: npx prettier --check .
 
       - name: Build production bundle
+        id: build
+        continue-on-error: true
         run: npm run build
+
+      - name: Enforce validation results
+        if: always()
+        shell: bash
+        run: |
+          if [[ "${{ steps.typescript.outcome }}" != "success" || \
+                "${{ steps.lint.outcome }}" != "success" || \
+                "${{ steps.formatting.outcome }}" != "success" || \
+                "${{ steps.build.outcome }}" != "success" ]]; then
+            exit 1
+          fi
