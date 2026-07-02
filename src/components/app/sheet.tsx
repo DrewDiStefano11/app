@@ -28,31 +28,32 @@ export function BottomSheet({
   return (
     <div className="sheet-root fixed inset-0 z-50 flex items-end justify-center">
       <div
-        className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in"
+        className="sheet-backdrop absolute inset-0 bg-black/82 backdrop-blur-[10px] animate-in fade-in duration-200"
         onClick={onClose}
       />
       <div
         className={cn(
-          "sheet-surface relative w-full max-w-[480px] mx-auto rounded-t-[var(--radius-modal)] animate-in slide-in-from-bottom duration-300 overflow-hidden",
+          "sheet-surface relative w-full max-w-[480px] mx-auto rounded-t-[var(--radius-modal)] animate-in slide-in-from-bottom duration-250 ease-[cubic-bezier(0.22,1,0.36,1)] overflow-hidden",
           height === "tall" && "max-h-[88dvh]",
           height === "full" && "h-[100dvh] rounded-none",
         )}
       >
-        <div className="sheet-header flex min-h-16 items-center justify-between border-b border-white/[0.06] px-5 pb-3 pt-5">
-          <div className="sheet-grabber absolute left-1/2 top-2 -translate-x-1/2 h-1 w-10 rounded-full bg-white/25" />
-          <h3 className="sheet-title font-semibold text-lg text-white">
-            {title}
-          </h3>
+        {/* Grabber */}
+        <div className="sheet-grabber-bar" />
+
+        <div className="sheet-header flex min-h-[66px] items-center justify-between border-b border-white/[0.07] px-5 pb-3 pt-6">
+          <h3 className="sheet-title font-semibold text-lg text-white">{title}</h3>
           <button
             onClick={onClose}
-            className="btn-control grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white press"
+            className="btn-control press grid h-10 w-10 place-items-center rounded-full border border-white/12 bg-white/[0.07] text-white/70 transition-colors hover:bg-white/12 hover:text-white"
+            aria-label="Close"
           >
-            <X size={18} />
+            <X size={17} strokeWidth={2.5} />
           </button>
         </div>
         <div
-          className="sheet-scroll overflow-y-auto px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-4"
-          style={{ maxHeight: "calc(88dvh - 60px)" }}
+          className="sheet-scroll overflow-y-auto px-5 pb-[max(28px,env(safe-area-inset-bottom))] pt-4"
+          style={{ maxHeight: "calc(88dvh - 66px)" }}
         >
           {children}
         </div>
@@ -82,16 +83,16 @@ export function ConfirmDialog({
   return (
     <div className="sheet-root fixed inset-0 z-50 flex items-center justify-center p-6">
       <div
-        className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md"
+        className="sheet-backdrop absolute inset-0 bg-black/82 backdrop-blur-[10px] animate-in fade-in duration-200"
         onClick={onClose}
       />
-      <div className="sheet-surface relative w-full max-w-sm rounded-[var(--radius-modal)] p-5">
+      <div className="dialog-surface relative w-full max-w-sm rounded-[var(--radius-modal)] p-6 animate-in zoom-in-95 fade-in duration-200">
         <h3 className="font-semibold text-lg text-white">{title}</h3>
-        <p className="text-sm text-white/70 mt-2">{message}</p>
-        <div className="mt-5 flex gap-2 border-t border-white/[0.06] pt-4">
+        <p className="text-sm text-white/65 mt-2 leading-relaxed">{message}</p>
+        <div className="mt-5 flex gap-2.5 border-t border-white/[0.07] pt-4">
           <button
             onClick={onClose}
-            className="btn-control flex-1 px-4 py-2.5 rounded-xl border border-white/15 bg-white/5 font-medium text-white"
+            className="btn-control press flex-1 px-4 py-3 rounded-xl border border-white/14 bg-white/[0.055] font-medium text-white/85 hover:bg-white/[0.08] transition-colors"
           >
             Cancel
           </button>
@@ -101,7 +102,7 @@ export function ConfirmDialog({
               onClose();
             }}
             className={cn(
-              "btn-control flex-1 px-4 py-2.5 rounded-xl font-semibold text-white",
+              "btn-control press flex-1 px-4 py-3 rounded-xl font-semibold text-white transition-opacity hover:opacity-90",
               destructive ? "bg-destructive" : "",
             )}
             style={!destructive ? { background: "var(--section)" } : undefined}

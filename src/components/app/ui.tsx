@@ -15,8 +15,7 @@ export function Card({
       onClick={onClick}
       className={cn(
         "premium-card card-elev p-4 sm:p-[1.125rem]",
-        onClick &&
-          "cursor-pointer press transition-[transform,border-color,background-color]",
+        onClick && "cursor-pointer press transition-[transform,border-color,background-color]",
         className,
       )}
     >
@@ -25,13 +24,7 @@ export function Card({
   );
 }
 
-export function SectionCard({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+export function SectionCard({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cn(
@@ -57,44 +50,32 @@ export function StatCard({
 }) {
   return (
     <Card
-      className={cn(
-        "metric-shell stat-card flex flex-col gap-1.5 p-4",
-        accent && "ring-section",
-      )}
+      className={cn("metric-shell stat-card flex flex-col gap-1.5 p-4", accent && "ring-section")}
     >
       <span className="stat-card__label text-xs uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
-      <span className="stat-card__value text-2xl font-bold tabular-nums">
-        {value}
-      </span>
-      {sub && (
-        <span className="stat-card__helper text-xs text-muted-foreground">
-          {sub}
-        </span>
-      )}
+      <span className="stat-card__value text-2xl font-bold tabular-nums">{value}</span>
+      {sub && <span className="stat-card__helper text-xs text-muted-foreground">{sub}</span>}
     </Card>
   );
 }
 
-export function ProgressBar({
-  value,
-  max,
-  color,
-}: {
-  value: number;
-  max: number;
-  color?: string;
-}) {
+export function ProgressBar({ value, max, color }: { value: number; max: number; color?: string }) {
   const pct = Math.min(100, Math.max(0, (value / Math.max(1, max)) * 100));
   return (
-    <div
-      className="h-2 rounded-full overflow-hidden ring-1 ring-white/[0.04]"
-      style={{ background: "var(--surface-2)" }}
-    >
+    <div className="progress-bar-track">
       <div
-        className="h-full rounded-full transition-all"
-        style={{ width: `${pct}%`, background: color ?? "var(--section)" }}
+        className="progress-bar-fill"
+        style={{
+          width: `${pct}%`,
+          ...(color
+            ? {
+                background: `linear-gradient(90deg, rgb(255 255 255 / 0.18), transparent 60%), ${color}`,
+                boxShadow: `0 0 10px color-mix(in oklab, ${color} 45%, transparent)`,
+              }
+            : {}),
+        }}
       />
     </div>
   );
@@ -111,42 +92,50 @@ export function Ring({
   size?: number;
   label?: string;
 }) {
-  const r = size / 2 - 8;
+  const sw = size >= 100 ? 9 : 8;
+  const r = size / 2 - sw;
   const c = 2 * Math.PI * r;
   const pct = Math.min(1, value / Math.max(1, max));
+  const gradId = `ring-grad-${size}`;
   return (
     <div
       className="relative inline-flex items-center justify-center"
       style={{ width: size, height: size }}
     >
       <svg width={size} height={size} className="rotate-[-90deg]">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          stroke="var(--surface-2)"
-          strokeWidth="8"
-          fill="none"
-        />
+        <defs>
+          <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stopColor="var(--section)" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="var(--section)" stopOpacity="1" />
+          </linearGradient>
+        </defs>
+        {/* Track */}
         <circle
           cx={size / 2}
           cy={size / 2}
           r={r}
           stroke="var(--section)"
-          strokeWidth="8"
+          strokeWidth={sw}
+          fill="none"
+          className="ring-track"
+        />
+        {/* Progress */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={`url(#${gradId})`}
+          strokeWidth={sw}
           fill="none"
           strokeDasharray={c}
           strokeDashoffset={c * (1 - pct)}
           strokeLinecap="round"
+          className="ring-progress"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-sm font-bold tabular-nums">
-          {Math.round(pct * 100)}%
-        </span>
-        {label && (
-          <span className="text-[10px] text-muted-foreground">{label}</span>
-        )}
+        <span className="text-sm font-bold tabular-nums">{Math.round(pct * 100)}%</span>
+        {label && <span className="text-[10px] text-muted-foreground">{label}</span>}
       </div>
     </div>
   );
@@ -164,19 +153,14 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="empty-shell flex flex-col items-center text-center gap-3 py-9 px-6">
-      {icon && (
-        <div
-          className="empty-state-graphic"
-          style={{ background: "var(--section-soft)", color: "var(--section)" }}
-        >
-          {icon}
-        </div>
-      )}
-      <h3 className="font-semibold">{title}</h3>
-      {description && (
-        <p className="text-sm text-muted-foreground max-w-xs">{description}</p>
-      )}
+    <div className="empty-shell flex flex-col items-center text-center gap-3.5 py-10 px-6">
+      {icon && <div className="empty-state-graphic">{icon}</div>}
+      <div className="space-y-1.5">
+        <h3 className="font-semibold text-[var(--text-primary)]">{title}</h3>
+        {description && (
+          <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">{description}</p>
+        )}
+      </div>
       {action}
     </div>
   );
@@ -221,13 +205,9 @@ export function PageHeader({
   return (
     <header className="page-header px-5 pt-6 pb-4 flex items-end justify-between gap-3">
       <div>
-        <h1 className="page-header__title text-3xl font-bold tracking-tight">
-          {title}
-        </h1>
+        <h1 className="page-header__title text-3xl font-bold tracking-tight">{title}</h1>
         {subtitle && (
-          <p className="page-header__subtitle text-sm text-muted-foreground mt-1">
-            {subtitle}
-          </p>
+          <p className="page-header__subtitle text-sm text-muted-foreground mt-1">{subtitle}</p>
         )}
       </div>
       {action}
@@ -254,13 +234,14 @@ export function PrimaryButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "btn-control btn-primary inline-flex min-h-12 items-center justify-center gap-2 px-5 py-3 rounded-[var(--radius-small)] font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed press transition-[transform,filter,box-shadow] hover:brightness-105",
+        "btn-control btn-primary inline-flex min-h-12 items-center justify-center gap-2 px-5 py-3 rounded-[var(--radius-small)] font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed press",
         className,
       )}
       style={{
-        background: "var(--section)",
+        background: "linear-gradient(180deg, rgb(255 255 255 / 0.18), transparent), var(--section)",
         boxShadow:
-          "0 10px 30px -10px color-mix(in oklab, var(--section) 60%, transparent)",
+          "0 12px 32px -10px color-mix(in oklab, var(--section) 65%, transparent), inset 0 1px rgb(255 255 255 / 0.22)",
+        border: "1px solid color-mix(in oklab, var(--section) 40%, white 14%)",
       }}
     >
       {children}
@@ -315,9 +296,7 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   );
 }
 
-export function Textarea(
-  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>,
-) {
+export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
@@ -378,13 +357,7 @@ export function SubTabs<T extends string>({
   );
 }
 
-export function SectionHeader({
-  title,
-  action,
-}: {
-  title: string;
-  action?: ReactNode;
-}) {
+export function SectionHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="section-header flex items-center justify-between mt-5 mb-2 px-1">
       <h3 className="section-header__title font-semibold">{title}</h3>
@@ -467,9 +440,7 @@ export function ScoreCard({
             )}
           </div>
           {description && (
-            <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">
-              {description}
-            </p>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">{description}</p>
           )}
           {trend && <div className="mt-3">{trend}</div>}
         </div>
@@ -512,9 +483,7 @@ export function ErrorState({
         !
       </div>
       <h3 className="mt-3 font-semibold">{title}</h3>
-      {description && (
-        <p className="mt-1 text-sm text-[var(--text-muted)]">{description}</p>
-      )}
+      {description && <p className="mt-1 text-sm text-[var(--text-muted)]">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );

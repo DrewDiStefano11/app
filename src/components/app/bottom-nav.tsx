@@ -29,24 +29,23 @@ export function BottomNav({
                 key={id}
                 onClick={() => onChange(id)}
                 className={cn(
-                  "btn-control relative flex min-h-[52px] flex-1 flex-col items-center justify-center gap-1 rounded-[0.9rem] py-1.5 transition-[color,background-color] press",
-                  isActive
-                    ? "nav-item-active text-white"
-                    : "text-white/40 hover:text-white/65",
+                  "btn-control relative flex min-h-[54px] flex-1 flex-col items-center justify-center gap-0.5 rounded-[0.9rem] py-2 transition-all duration-200 press",
+                  isActive ? "nav-item-active text-white" : "text-white/38 hover:text-white/60",
                 )}
                 aria-label={label}
               >
                 <Icon
-                  size={20}
-                  strokeWidth={isActive ? 2.4 : 1.8}
+                  size={21}
+                  strokeWidth={isActive ? 2.5 : 1.75}
                   style={isActive ? { color: "var(--section)" } : undefined}
                 />
                 <span
-                  className="text-[9px] font-bold uppercase tracking-[0.09em]"
+                  className="text-[9.5px] font-bold uppercase tracking-[0.08em] leading-none"
                   style={isActive ? { color: "var(--section)" } : undefined}
                 >
                   {label}
                 </span>
+                {isActive && <span className="nav-item-dot" />}
               </button>
             );
           })}
