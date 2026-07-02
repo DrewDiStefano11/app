@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   validate:
@@ -14,54 +14,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out branch
+      - name: Check out repository
         uses: actions/checkout@v4
-        with:
-          ref: codex/ci-validation-workflow
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-
-      - name: Regenerate npm lockfile
-        run: npm install --package-lock-only --ignore-scripts
-
-      - name: Verify lockfile scope
-        shell: bash
-        run: |
-          test "$(git diff --name-only)" = "package-lock.json"
-          node --input-type=module <<'NODE'
-          import { execFileSync } from 'node:child_process'
-          import { readFileSync } from 'node:fs'
-
-          const before = JSON.parse(execFileSync('git', ['show', 'HEAD:package-lock.json'], { encoding: 'utf8' }))
-          const after = JSON.parse(readFileSync('package-lock.json', 'utf8'))
-          const beforePackages = before.packages ?? {}
-          const afterPackages = after.packages ?? {}
-          const added = Object.keys(afterPackages).filter((name) => !(name in beforePackages))
-          const removed = Object.keys(beforePackages).filter((name) => !(name in afterPackages))
-          const versionChanges = Object.keys(afterPackages).filter(
-            (name) => name in beforePackages && beforePackages[name].version !== afterPackages[name].version,
-          )
-
-          console.log(JSON.stringify({ added, removed, versionChanges }, null, 2))
-          if (added.length > 5 || removed.length > 0 || versionChanges.length > 0) {
-            throw new Error('Lockfile changes are broader than the approved repair scope')
-          }
-          NODE
-          changed_lines=$(git diff --numstat -- package-lock.json | awk '{ print $1 + $2 }')
-          test "$changed_lines" -le 200
-
-      - name: Commit lockfile repair
-        shell: bash
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "Repair npm lockfile"
-          git push origin HEAD:codex/ci-validation-workflow
 
       - name: Install dependencies
         run: npm ci
