@@ -4,7 +4,7 @@ GitHub Actions validates the repository for every pull request and every push to
 
 ## Automated checks
 
-The workflow uses Node.js 20 and npm's dependency cache, then runs these commands in order:
+The workflow uses Node.js 22, which satisfies the repository's dependency requirements, and npm's dependency cache. It then runs these commands in order:
 
 1. `npm ci` installs the exact dependency versions recorded in `package-lock.json` from a clean state.
 2. `npx tsc --noEmit` type-checks the TypeScript project without writing compiled files.
