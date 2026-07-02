@@ -1,16 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { defaultState, defaultPersonalization, defaultJarvisSettings, type AppState, type Personalization } from "./types";
 import { buildDemoState } from "./demo-data";
-
-const KEY = "fitcore.v1";
+import { loadFitCoreData, migrateFitCoreDataIfNeeded, saveFitCoreData } from "./fitcore-data";
 
 function load(): AppState {
   if (typeof window === "undefined") return defaultState;
   try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return defaultState;
-    const parsed = JSON.parse(raw) as Partial<AppState>;
-    return migrate(parsed);
+    return migrate(loadFitCoreData(defaultState));
   } catch {
     return defaultState;
   }
@@ -25,7 +21,7 @@ function migrate(parsed: Partial<AppState>): AppState {
     reminders: { ...defaultPersonalization.reminders!, ...(parsed.personalization?.reminders ?? {}) },
     defaultGraphModes: { ...defaultPersonalization.defaultGraphModes!, ...(parsed.personalization?.defaultGraphModes ?? {}) },
   };
-  return {
+  return migrateFitCoreDataIfNeeded({
     ...defaultState,
     ...parsed,
     profile: { ...defaultState.profile, ...(parsed.profile ?? {}) },
@@ -38,11 +34,7 @@ function migrate(parsed: Partial<AppState>): AppState {
     userGoalsProfile: parsed.userGoalsProfile ?? {},
     supplementLogs: parsed.supplementLogs ?? [],
     dismissedSuggestions: parsed.dismissedSuggestions ?? [],
-  };
-}
-
-function save(state: AppState) {
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* quota */ }
+  });
 }
 
 type Updater = (s: AppState) => AppState;
@@ -69,11 +61,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (hydrated) save(state);
+    if (hydrated) saveFitCoreData(state);
   }, [state, hydrated]);
 
-  const set = useCallback((u: Updater) => setState(s => u(s)), []);
-  const reset = useCallback(() => setState(defaultState), []);
+  // Every manual and Jarvis mutation passes through this boundary. Normalizing
+  // here keeps all screens, summaries, history, and recovery signals connected.
+  const set = useCallback((u: Updater) => setState(s => migrateFitCoreDataIfNeeded(u(s))), []);
+  const reset = useCallback(() => setState(migrateFitCoreDataIfNeeded(defaultState)), []);
   const exportJson = useCallback(() => JSON.stringify(state, null, 2), [state]);
   const importJson = useCallback((text: string) => {
     try {
@@ -83,7 +77,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch { return false; }
   }, []);
 
-  const view = useMemo(() => state.demoMode ? buildDemoState(state) : state, [state]);
+  const view = useMemo(() => state.demoMode ? migrateFitCoreDataIfNeeded(buildDemoState(state)) : state, [state]);
 
   const value = useMemo(() => ({ state, view, set, reset, exportJson, importJson }), [state, view, set, reset, exportJson, importJson]);
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { StoreProvider, useStore } from "@/lib/store";
 import { BottomNav } from "@/components/app/bottom-nav";
 import { JarvisPanel, JarvisUndoSnackbar } from "@/components/app/jarvis/jarvis-panel";
+import { RecentActivity } from "@/components/app/recent-activity";
 import { HomeView } from "@/components/app/views/home";
 import { TrainingView } from "@/components/app/views/training";
 import { NutritionView } from "@/components/app/views/nutrition";
@@ -10,6 +11,7 @@ import { RecoveryView } from "@/components/app/views/recovery";
 import { ProgressView } from "@/components/app/views/progress";
 import { SettingsView } from "@/components/app/views/settings";
 import { Onboarding } from "@/components/app/views/onboarding";
+import { buildAICoachContext } from "@/lib/fitcore-data";
 import type { SectionId } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
@@ -52,8 +54,6 @@ function FitCoreApp() {
 
   const hasActiveWorkout = !!state.activeWorkout;
 
-  // Lock app to Training while a workout is active — protects against losing progress
-  // on refresh/nav. User can still discard via the active workout screen.
   useEffect(() => {
     if (hasActiveWorkout) {
       if (section !== "training") setSection("training");
@@ -61,7 +61,6 @@ function FitCoreApp() {
     }
   }, [hasActiveWorkout, section, settingsOpen]);
 
-  // Warn on accidental tab close/refresh while a workout is in progress.
   useEffect(() => {
     if (!hasActiveWorkout) return;
     const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
@@ -77,7 +76,7 @@ function FitCoreApp() {
     );
   }
 
-  const contextSummary = buildContext(view, section);
+  const contextSummary = buildAICoachContext(view, section);
 
   return (
     <div className="phone-shell" data-section={section} key={section}>
@@ -87,10 +86,13 @@ function FitCoreApp() {
         ) : (
           <>
             {section === "home" && (
-              <HomeView
-                onNavigate={(s) => setSection(s)}
-                onOpenSettings={() => setSettingsOpen(true)}
-              />
+              <>
+                <HomeView
+                  onNavigate={(s) => setSection(s)}
+                  onOpenSettings={() => setSettingsOpen(true)}
+                />
+                <RecentActivity />
+              </>
             )}
             {section === "training" && <TrainingView />}
             {section === "nutrition" && <NutritionView />}
@@ -111,20 +113,4 @@ function FitCoreApp() {
       )}
     </div>
   );
-}
-
-function buildContext(state: ReturnType<typeof useStore>["state"], section: SectionId): string {
-  const lines: string[] = [];
-  lines.push(`Section: ${section}`);
-  lines.push(`Goal: ${state.profile.goal}, ${state.profile.experience}, ${state.profile.daysPerWeek}d/wk, ${state.profile.split}`);
-  lines.push(`Bodyweight: ${state.profile.bodyweightLb}lb (target ${state.profile.targetBodyweightLb}lb)`);
-  lines.push(`Macros: ${state.nutritionTargets.calories} kcal / P${state.nutritionTargets.protein} C${state.nutritionTargets.carbs} F${state.nutritionTargets.fat}`);
-  lines.push(`Workouts last 7d: ${state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000).length}`);
-  lines.push(`Meals today: ${state.mealEntries.filter(m => m.createdAt > Date.now() - 86400000).length}`);
-  if (state.recoveryCheckIns.length) {
-    const c = state.recoveryCheckIns[state.recoveryCheckIns.length - 1];
-    lines.push(`Last check-in: energy ${c.energy}, soreness ${c.soreness}, stress ${c.stress}`);
-  }
-  if (state.prs.length) lines.push(`Tracked PRs: ${state.prs.length}`);
-  return lines.join("\n");
 }
