@@ -132,6 +132,25 @@ function RootShell({ children }: { children: ReactNode }) {
   );
 }
 
+function ServiceWorkerRegister() {
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker
+          .register("/sw.js")
+          .then((registration) => {
+            console.log("SW registered: ", registration);
+          })
+          .catch((registrationError) => {
+            console.log("SW registration failed: ", registrationError);
+          });
+      });
+    }
+  }, []);
+
+  return null;
+}
+
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
@@ -139,6 +158,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
+      <ServiceWorkerRegister />
     </QueryClientProvider>
   );
 }

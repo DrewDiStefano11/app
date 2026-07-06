@@ -24,25 +24,25 @@ test.describe('Mobile Smoke Test', () => {
   });
 
   test('should navigate to training without horizontal overflow', async ({ page }) => {
-    await page.getByRole('button', { name: 'Train' }).click();
+    await page.getByRole('button', { name: 'Train', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Training' })).toBeVisible();
     await checkOverflow(page);
   });
 
   test('should navigate to nutrition without horizontal overflow', async ({ page }) => {
-    await page.getByRole('button', { name: 'Fuel' }).click();
+    await page.getByRole('button', { name: 'Fuel', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Nutrition' })).toBeVisible();
     await checkOverflow(page);
   });
 
   test('should navigate to recovery without horizontal overflow', async ({ page }) => {
-    await page.getByRole('button', { name: 'Recover' }).click();
+    await page.getByRole('button', { name: 'Recover', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Recovery' })).toBeVisible();
     await checkOverflow(page);
   });
 
   test('should navigate to progress without horizontal overflow', async ({ page }) => {
-    await page.getByRole('button', { name: 'Stats' }).click();
+    await page.getByRole('button', { name: 'Stats', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Progress' })).toBeVisible();
     await checkOverflow(page);
   });
