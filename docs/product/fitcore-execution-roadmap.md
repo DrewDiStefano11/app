@@ -134,30 +134,30 @@ The user opens the app and immediately sees:
 
 ## 13. Suggested Next Build Batches
 
-### Batch 1: Trust & Integrity (Foundation)
+### Batch 1: Explainability Foundation
 
-- **Codex:** Implement atomic state updates and validation middleware in `src/lib/store.tsx`.
-- **Jules:** Add `source` and `confidence` metadata to all `MealEntry` and `Workout` types in `src/lib/types.ts`.
-- **Jules:** Implement the AI confirmation UI component for suggested logs.
-- **Jules:** Audit and fix PWA manifest and meta tags in `src/routes/__root.tsx`.
+- **Codex:** Implement the data provenance foundation and add `source` and `confidence` metadata to all core types (`MealEntry`, `Workout`, etc.).
+- **Jules:** Implement "Source & Confidence" badges for log entries within the Training and Nutrition history views.
+- **Jules:** Build a "Confidence Legend" documentation view to explain AI certainty levels to users.
+- **Jules:** Add status indicators to logging history to show which entries were AI-suggested vs. manually confirmed.
 
-### Batch 2: Explainable AI (V1)
+### Batch 2: Nutrition Confidence & Usability
 
-- **Codex:** Create the Jarvis recommendation engine logic that references specific data points.
-- **Jules:** Update the `PageHeader` to show "Why?" tooltips for AI-generated scores.
-- **Jules:** Build the "What Changed?" insight tile for the Home screen.
-- **Jules:** Add confidence labels to the nutrition summary view.
+- **Codex:** Develop the "Confidence Margin" calculation logic for AI-estimated meal macros.
+- **Jules:** Implement visual "Margin of Error" bars in the Nutrition detail charts.
+- **Jules:** Build the "Recent & Frequent" food selection sub-components for the nutrition logging flow.
+- **Jules:** Add a "Verified Data" filter to nutrition history and summary views.
 
-### Batch 3: Adaptive Training (V1)
+### Batch 3: Recovery & Training Load
 
-- **Codex:** Build the pain/soreness exercise substitution algorithm.
-- **Jules:** Update `active-workout.tsx` to handle dynamic exercise swaps.
-- **Jules:** Implement the soreness input slider in the recovery check-in.
-- **Jules:** Add volume-by-muscle-group trend lines to the progress view.
+- **Codex:** Implement the Training Load algorithm (integrating Volume, Intensity, and Frequency metrics).
+- **Jules:** Build the "Soreness & Pain" input sliders for the recovery check-in flow.
+- **Jules:** Implement "Recovery Bottleneck" visual indicators within the Recovery view.
+- **Jules:** Add the "Readiness vs. Training Load" correlation chart to the progress dashboard.
 
-### Batch 4: Advanced Recovery (V2)
+### Batch 4: Adaptive Planning (Post-UI Stability)
 
-- **Codex:** Logic for multi-day sleep debt calculation.
-- **Jules:** Design and build the sleep debt planner UI.
-- **Jules:** Add "Trend vs Correlation" disclaimers to all analytics charts.
-- **Jules:** Implement weekly summary email/notification trigger logic.
+- **Codex:** Create the pain-aware exercise substitution algorithm and program pivot logic.
+- **Jules:** Implement "Daily Goal" selectors (e.g., Performance, Recovery, Maintenance) for the Training view.
+- **Jules:** Build the "Explain the Pivot" text generator for AI-suggested workout changes.
+- **Jules:** Add volume-by-muscle-group history visualizations to the progress view.
