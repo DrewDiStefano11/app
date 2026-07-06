@@ -1,5 +1,5 @@
 import type { AppState, JarvisAuditEntry, UserGoalsProfile, JarvisSettings, Confidence, MealEntry, MealItem, SupplementLog, RecoveryCheckIn, Workout, WorkoutExercise, SetEntry, CardioEntry } from "../types";
-import { createAiEstimateProvenance, createJarvisProvenance } from "../fitcore-data";
+import { createAiEstimateProvenance, createJarvisProvenance, markProvenanceEdited } from "../fitcore-data";
 import { uid, todayStart, e1RM } from "../store";
 import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "../data";
 
@@ -282,7 +282,15 @@ const handlers: Record<ToolName, ToolHandler> = {
     pushAudit(set, { id: auditId, tool: "logMeal", summary, status: "logged", originalText, confidence, assumptions, entityIds: [id], entityKind: "meal", patch: { name, mealType, calories, protein, carbs, fat, actionKey: actionKey("logMeal", args) }, createdAt: Date.now() });
     return { ok: true, summary, auditId, data: { id, calories, protein, carbs, fat, fiber, items, confidence, assumptions } };
   },
-  updateMeal: (args, { set, state }) => { const id = String(args.id ?? ""), meal = state.mealEntries.find(m => m.id === id); if (!meal) return { ok: false, summary: "meal not found", error: "Meal id not found" }; const patch = (args.patch ?? {}) as Partial<MealEntry>, auditId = uid(); set(s => ({ ...s, mealEntries: s.mealEntries.map(m => m.id === id ? { ...m, ...patch, source: "edited" } : m) })); pushAudit(set, { id: auditId, tool: "updateMeal", summary: `Edited meal: ${meal.name}`, status: "logged", entityIds: [id], entityKind: "mealEdit", patch: { prev: meal, next: patch }, createdAt: Date.now() }); return { ok: true, summary: `Updated ${meal.name}`, auditId }; },
+  updateMeal: (args, { set, state, confirmed }) => {
+    const id = String(args.id ?? ""), meal = state.mealEntries.find(m => m.id === id);
+    if (!meal) return { ok: false, summary: "meal not found", error: "Meal id not found" };
+    const patch = (args.patch ?? {}) as Partial<MealEntry>, auditId = uid(), editedAt = Date.now();
+    const provenance = markProvenanceEdited(meal.provenance, { editedBy: confirmed ? "user" : "jarvis", editedAt, auditId });
+    set(s => ({ ...s, mealEntries: s.mealEntries.map(m => m.id === id ? { ...m, ...patch, source: "edited", confirmed: confirmed ? true : m.confirmed, provenance } : m) }));
+    pushAudit(set, { id: auditId, tool: "updateMeal", summary: `Edited meal: ${meal.name}`, status: "logged", entityIds: [id], entityKind: "mealEdit", patch: { prev: meal, next: patch }, createdAt: editedAt });
+    return { ok: true, summary: `Updated ${meal.name}`, auditId };
+  },
   deleteMeal: (args, { set, state }) => { const id = String(args.id ?? ""), meal = state.mealEntries.find(m => m.id === id); if (!meal) return { ok: false, summary: "meal not found", error: "Meal id not found" }; const auditId = uid(); set(s => ({ ...s, mealEntries: s.mealEntries.filter(m => m.id !== id) })); pushAudit(set, { id: auditId, tool: "deleteMeal", summary: `Deleted meal: ${meal.name}`, status: "logged", entityIds: [id], entityKind: "mealDelete", patch: { prev: meal }, createdAt: Date.now() }); return { ok: true, summary: `Deleted ${meal.name}`, auditId }; },
   getMealHistory: (args, { state }) => { const cutoff = Date.now() - Math.min(30, Math.max(1, Number(args.days) || 14)) * 86400000; const meals = state.mealEntries.filter(m => m.createdAt >= cutoff).slice(-50); return { ok: true, summary: `${meals.length} meals`, data: meals }; },
   getUsualMeals: (_a, { state }) => { const p = state.userGoalsProfile, learned = state.jarvisLearning as Record<string, unknown>, get = (k: string) => learned[`usualMeal_${k}`]; return { ok: true, summary: "usual meals", data: { breakfast: { name: p.usualBreakfast, macros: get("breakfast") }, lunch: { name: p.usualLunch, macros: get("lunch") }, dinner: { name: p.usualDinner, macros: get("dinner") }, snack: { name: p.usualSnack, macros: get("snack") }, proteinShake: { name: p.usualProteinShake, macros: get("proteinShake") }, preWorkout: { name: p.usualPreWorkoutMeal, macros: get("preWorkout") }, postWorkout: { name: p.usualPostWorkoutMeal, macros: get("postWorkout") } } }; },
@@ -291,7 +299,15 @@ const handlers: Record<ToolName, ToolHandler> = {
   getSupplementStatus: (_a, { state }) => { const today = state.supplementLogs.filter(s => s.createdAt >= todayStart()), routine = state.userGoalsProfile.supplementRoutine ?? [], taken = today.map(s => s.name.toLowerCase()); return { ok: true, summary: `${today.length} taken today`, data: { takenToday: today, routine, missing: routine.filter(r => !taken.some(t => t.includes(r.toLowerCase()))) } }; },
   getMissedHabits: (_a, { state }) => { const missed: { habit: string; reason: string }[] = [], totals = todaysMealsTotal(state), target = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein; if (totals.protein < ptarget * 0.7 && Date.now() - todayStart() > 12 * 3600000) missed.push({ habit: "protein", reason: `${totals.protein}g / ${ptarget}g target` }); if (totals.calories < target * 0.5 && Date.now() - todayStart() > 14 * 3600000) missed.push({ habit: "calories", reason: `${totals.calories} / ${target} kcal` }); if (!state.bodyweightEntries.some(b => b.createdAt >= todayStart()) && state.userGoalsProfile.normalWeighInTime) missed.push({ habit: "weigh-in", reason: "not logged today" }); if (!state.recoveryCheckIns.some(c => c.createdAt >= todayStart())) missed.push({ habit: "check-in", reason: "no daily check-in yet" }); return { ok: true, summary: `${missed.length} missed habits`, data: missed }; },
   getDailyReviewSummary: (_a, { state }) => { const totals = todaysMealsTotal(state), target = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein, meals = state.mealEntries.filter(m => m.createdAt >= todayStart()), supps = state.supplementLogs.filter(s => s.createdAt >= todayStart()), ci = state.recoveryCheckIns.filter(c => c.createdAt >= todayStart()).at(-1), bw = state.bodyweightEntries.filter(b => b.createdAt >= todayStart()).at(-1), workout = state.workouts.find(w => w.startedAt >= todayStart()); return { ok: true, summary: "daily review", data: { calories: { logged: totals.calories, target, remaining: Math.max(0, target - totals.calories) }, protein: { logged: totals.protein, target: ptarget, remaining: Math.max(0, ptarget - totals.protein) }, macros: totals, mealsLogged: meals.length, lowConfidenceMeals: meals.filter(m => m.confidence === "low").length, supplementsToday: supps.map(s => s.name), bodyweight: bw?.weightLb ?? null, checkIn: ci ?? null, workoutToday: workout?.name ?? null } }; },
-  updateDailyCheckIn: (args, { set, state }) => { const last = [...state.recoveryCheckIns].reverse().find(c => c.createdAt >= todayStart()); if (!last) return { ok: false, summary: "no check-in today", error: "Run logDailyCheckIn first." }; const patch = (args.patch ?? {}) as Partial<RecoveryCheckIn>, auditId = uid(); set(s => ({ ...s, recoveryCheckIns: s.recoveryCheckIns.map(c => c.id === last.id ? { ...c, ...patch } : c) })); pushAudit(set, { id: auditId, tool: "updateDailyCheckIn", summary: "Updated today's check-in", status: "logged", entityIds: [last.id], entityKind: "checkinEdit", patch: { prev: last, next: patch }, createdAt: Date.now() }); return { ok: true, summary: "Check-in updated", auditId }; },
+  updateDailyCheckIn: (args, { set, state, confirmed }) => {
+    const last = [...state.recoveryCheckIns].reverse().find(c => c.createdAt >= todayStart());
+    if (!last) return { ok: false, summary: "no check-in today", error: "Run logDailyCheckIn first." };
+    const patch = (args.patch ?? {}) as Partial<RecoveryCheckIn>, auditId = uid(), editedAt = Date.now();
+    const provenance = markProvenanceEdited(last.provenance, { editedBy: confirmed ? "user" : "jarvis", editedAt, auditId });
+    set(s => ({ ...s, recoveryCheckIns: s.recoveryCheckIns.map(c => c.id === last.id ? { ...c, ...patch, provenance } : c) }));
+    pushAudit(set, { id: auditId, tool: "updateDailyCheckIn", summary: "Updated today's check-in", status: "logged", entityIds: [last.id], entityKind: "checkinEdit", patch: { prev: last, next: patch }, createdAt: editedAt });
+    return { ok: true, summary: "Check-in updated", auditId };
+  },
   suggestNutritionAction: (_a, { state, settings }) => { if (!settings.nutritionSuggestions) return { ok: true, summary: "nutrition suggestions off", data: { suggestion: null } }; const totals = todaysMealsTotal(state), ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein, ctarget = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, proteinGap = ptarget - totals.protein, calorieGap = ctarget - totals.calories; const suggestion = proteinGap > 30 ? `You're ${proteinGap}g short on protein.` : calorieGap > 500 ? `Still ${calorieGap} kcal under target.` : "Macros look on track."; return { ok: true, summary: suggestion, data: { suggestion, proteinGap, calorieGap } }; },
   createWorkoutDraft: (args) => { const draft = workoutPayload(args); if (!draft.exercises.length) return { ok: false, summary: "no exercises found", error: "Add at least one exercise." }; return { ok: true, summary: `Review ${draft.name}: ${draft.exercises.length} exercises`, needsConfirmation: true, data: { ...draft, durationMin: Math.round((draft.endedAt - draft.startedAt) / 60000), exercises: draft.exercises.map(e => ({ ...e, name: exerciseById(e.exerciseId)?.name ?? e.exerciseId })) } }; },
   logWorkout: (args, { set, state, confirmed }) => {
@@ -310,7 +326,15 @@ const handlers: Record<ToolName, ToolHandler> = {
     pushAudit(set, { id: auditId, tool: "logWorkout", summary: `Logged ${workout.name}`, status: "logged", originalText: draft.originalText, confidence: draft.confidence, entityIds: [workout.id], entityKind: "workout", patch: { prev: null, workout, actionKey: actionKey("logWorkout", args) }, createdAt: Date.now() });
     return { ok: true, summary: `Logged ${workout.name}`, auditId, data: { ...draft, id: workout.id, durationMin: Math.round((draft.endedAt - draft.startedAt) / 60000), exercises: workout.exercises.map(e => ({ ...e, name: exerciseById(e.exerciseId)?.name ?? e.exerciseId })) } };
   },
-  updateWorkout: (args, { set, state }) => { const id = String(args.id ?? ""), workout = state.workouts.find(w => w.id === id); if (!workout) return { ok: false, summary: "workout not found" }; const patch = (args.patch ?? {}) as Partial<Workout>, auditId = uid(); set(s => ({ ...s, workouts: s.workouts.map(w => w.id === id ? { ...w, ...patch } : w) })); pushAudit(set, { id: auditId, tool: "updateWorkout", summary: `Updated ${workout.name}`, status: "logged", entityIds: [id], entityKind: "workoutEdit", patch: { prev: workout, next: patch }, createdAt: Date.now() }); return { ok: true, summary: `Updated ${workout.name}`, auditId }; },
+  updateWorkout: (args, { set, state, confirmed }) => {
+    const id = String(args.id ?? ""), workout = state.workouts.find(w => w.id === id);
+    if (!workout) return { ok: false, summary: "workout not found" };
+    const patch = (args.patch ?? {}) as Partial<Workout>, auditId = uid(), editedAt = Date.now();
+    const provenance = markProvenanceEdited(workout.provenance, { editedBy: confirmed ? "user" : "jarvis", editedAt, auditId });
+    set(s => ({ ...s, workouts: s.workouts.map(w => w.id === id ? { ...w, ...patch, provenance } : w) }));
+    pushAudit(set, { id: auditId, tool: "updateWorkout", summary: `Updated ${workout.name}`, status: "logged", entityIds: [id], entityKind: "workoutEdit", patch: { prev: workout, next: patch }, createdAt: editedAt });
+    return { ok: true, summary: `Updated ${workout.name}`, auditId };
+  },
   deleteWorkout: (args, { set, state }) => { const id = String(args.id ?? ""), workout = state.workouts.find(w => w.id === id); if (!workout) return { ok: false, summary: "workout not found" }; const auditId = uid(); set(s => ({ ...s, workouts: s.workouts.filter(w => w.id !== id) })); pushAudit(set, { id: auditId, tool: "deleteWorkout", summary: `Deleted ${workout.name}`, status: "logged", entityIds: [id], entityKind: "workoutDelete", patch: { prev: workout }, createdAt: Date.now() }); return { ok: true, summary: `Deleted ${workout.name}`, auditId }; },
   getWorkoutHistory: (args, { state }) => { const cutoff = Date.now() - Math.min(90, Math.max(1, Number(args.days) || 30)) * 86400000; const workouts = state.workouts.filter(w => w.startedAt >= cutoff); return { ok: true, summary: `${workouts.length} workouts`, data: workouts }; },
   getLastWorkoutByType: (args, { state }) => { const q = normalizeText(args.workoutType); const w = [...state.workouts].reverse().find(w => normalizeText(w.name).includes(q)); return { ok: true, summary: w ? `Last ${q}: ${w.name}` : `No ${q} workout found`, data: w ?? null }; },
@@ -327,7 +351,16 @@ const handlers: Record<ToolName, ToolHandler> = {
     pushAudit(set, { id: auditId, tool: "logExerciseSet", summary: `Logged set for ${exerciseById(exerciseId)?.name ?? exerciseId}`, status: "logged", entityIds: [setId], entityKind: "activeSet", patch: { workoutId: active.id, exerciseId, actionKey: actionKey("logExerciseSet", args) }, createdAt: Date.now() });
     return { ok: true, summary: "Set logged", auditId };
   },
-  updateExerciseSet: (args, { set, state }) => { const setId = String(args.setId ?? ""), patch = (args.patch ?? {}) as Partial<SetEntry>, prev = state.activeWorkout?.exercises.flatMap(e => e.sets).find(s => s.id === setId); if (!prev) return { ok: false, summary: "set not found" }; set(s => ({ ...s, activeWorkout: s.activeWorkout ? { ...s.activeWorkout, exercises: s.activeWorkout.exercises.map(e => ({ ...e, sets: e.sets.map(st => st.id === setId ? { ...st, ...patch } : st) })) } : null })); const auditId = uid(); pushAudit(set, { id: auditId, tool: "updateExerciseSet", summary: "Updated active set", status: "logged", entityIds: [setId], entityKind: "activeSetEdit", patch: { prev, next: patch }, createdAt: Date.now() }); return { ok: true, summary: "Set updated", auditId }; },
+  updateExerciseSet: (args, { set, state, confirmed }) => {
+    const setId = String(args.setId ?? ""), patch = (args.patch ?? {}) as Partial<SetEntry>;
+    const prev = state.activeWorkout?.exercises.flatMap(e => e.sets).find(s => s.id === setId);
+    if (!prev) return { ok: false, summary: "set not found" };
+    const auditId = uid(), editedAt = Date.now();
+    const provenance = markProvenanceEdited(prev.provenance, { editedBy: confirmed ? "user" : "jarvis", editedAt, auditId });
+    set(s => ({ ...s, activeWorkout: s.activeWorkout ? { ...s.activeWorkout, exercises: s.activeWorkout.exercises.map(e => ({ ...e, sets: e.sets.map(st => st.id === setId ? { ...st, ...patch, provenance } : st) })) } : null }));
+    pushAudit(set, { id: auditId, tool: "updateExerciseSet", summary: "Updated active set", status: "logged", entityIds: [setId], entityKind: "activeSetEdit", patch: { prev, next: patch }, createdAt: editedAt });
+    return { ok: true, summary: "Set updated", auditId };
+  },
   deleteExerciseSet: (args, { set, state }) => {
     const setId = String(args.setId ?? ""), active = state.activeWorkout;
     if (!active) return { ok: false, summary: "no active workout" };
@@ -351,7 +384,14 @@ const handlers: Record<ToolName, ToolHandler> = {
     pushAudit(set, { id: auditId, tool: "logCardio", summary, status: "logged", originalText, confidence: entryConfidence, entityIds: [id], entityKind: "cardio", patch: { entry, actionKey: actionKey("logCardio", args) }, createdAt: Date.now() });
     return { ok: true, summary, auditId, data: { ...entry, confidence: entryConfidence } };
   },
-  updateActiveWorkout: (args, { set, state }) => { if (!state.activeWorkout) return { ok: false, summary: "no active workout" }; const patch = (args.patch ?? {}) as Partial<Workout>, auditId = uid(), prev = state.activeWorkout; set(s => ({ ...s, activeWorkout: s.activeWorkout ? { ...s.activeWorkout, ...patch } : null })); pushAudit(set, { id: auditId, tool: "updateActiveWorkout", summary: "Updated active workout", status: "logged", originalText: textArg(args, "originalText"), entityIds: [prev.id], entityKind: "activeWorkoutEdit", patch: { prev, next: patch }, createdAt: Date.now() }); return { ok: true, summary: "Active workout updated", auditId }; },
+  updateActiveWorkout: (args, { set, state, confirmed }) => {
+    if (!state.activeWorkout) return { ok: false, summary: "no active workout" };
+    const patch = (args.patch ?? {}) as Partial<Workout>, auditId = uid(), editedAt = Date.now(), prev = state.activeWorkout;
+    const provenance = markProvenanceEdited(prev.provenance, { editedBy: confirmed ? "user" : "jarvis", editedAt, auditId });
+    set(s => ({ ...s, activeWorkout: s.activeWorkout ? { ...s.activeWorkout, ...patch, provenance } : null }));
+    pushAudit(set, { id: auditId, tool: "updateActiveWorkout", summary: "Updated active workout", status: "logged", originalText: textArg(args, "originalText"), entityIds: [prev.id], entityKind: "activeWorkoutEdit", patch: { prev, next: patch }, createdAt: editedAt });
+    return { ok: true, summary: "Active workout updated", auditId };
+  },
   suggestActiveWorkoutChange: (args, { state }) => { const active = state.activeWorkout; const request = normalizeText(args.request ?? args.reason); const suggestion = !active ? "Start a workout first." : request.includes("shoulder") ? "Swap incline pressing for cable fly or machine press for 3 sets of 12, and keep pain-free range." : request.includes("20") ? "Shorten to one top set per remaining exercise and skip low-priority accessories." : "Use previous performance and current fatigue: keep the next set 1-2 reps from failure."; return { ok: true, summary: suggestion, data: { suggestion, activeWorkout: active } }; },
   finishActiveWorkout: (args, { set, state, confirmed }) => {
     const dupeAudit = hasAuditKey(state, "finishActiveWorkout", args); if (dupeAudit) return duplicateResult(dupeAudit);

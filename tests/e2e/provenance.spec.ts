@@ -209,4 +209,168 @@ test.describe("FitCore provenance foundation", () => {
       set: { source: "jarvis", confidence: "high", confirmation: "confirmed" },
     });
   });
+
+  test("user corrections preserve origin and add durable edit provenance", async ({ page }) => {
+    await page.goto("/");
+    const result = await page.evaluate(async () => {
+      const importModule = (path: string) => import(path);
+      const data = await importModule("/src/lib/fitcore-data.ts");
+      const tools = await importModule("/src/lib/jarvis/tools.ts");
+      const types = await importModule("/src/lib/types.ts");
+      const imported = {
+        source: "imported",
+        confidence: "unknown",
+        confirmation: "not-required",
+      };
+      let state = data.migrateFitCoreDataIfNeeded({
+        ...structuredClone(types.defaultState),
+        activeWorkout: {
+          id: "imported-active",
+          name: "Imported active workout",
+          startedAt: Date.now(),
+          completed: false,
+          provenance: imported,
+          exercises: [{
+            id: "imported-exercise",
+            exerciseId: "bench-press",
+            completed: false,
+            provenance: imported,
+            sets: [{
+              id: "imported-set",
+              weight: 180,
+              reps: 5,
+              completed: true,
+              provenance: imported,
+            }],
+          }],
+        },
+      });
+      const set = (update: (current: typeof state) => typeof state) => {
+        state = data.migrateFitCoreDataIfNeeded(update(state));
+      };
+      const ctx = (confirmed = false) => ({ state, set, settings: state.jarvisSettings, confirmed });
+
+      tools.runTool("logMeal", {
+        name: "Estimated bowl",
+        mealType: "dinner",
+        calories: 700,
+        protein: 35,
+        carbs: 90,
+        fat: 20,
+        confidence: "low",
+        source: "camera",
+        originalText: "photo of a bowl",
+        draftId: "estimated-bowl",
+      }, ctx(true));
+      const mealId = state.mealEntries[0].id;
+      const mealEdit = tools.runTool("updateMeal", {
+        id: mealId,
+        patch: {
+          calories: 610,
+          provenance: { source: "manual", confidence: "high", confirmation: "confirmed" },
+        },
+      }, ctx(true));
+
+      tools.runTool("logDailyCheckIn", {
+        energy: 7,
+        soreness: 4,
+        stress: 5,
+        motivation: 8,
+        originalText: "feeling okay",
+      }, ctx());
+      const checkInEdit = tools.runTool("updateDailyCheckIn", {
+        patch: { energy: 8 },
+      }, ctx(true));
+
+      tools.runTool("logWorkout", {
+        name: "AI workout",
+        exercises: [{ exerciseId: "bench-press", sets: [{ weight: 185, reps: 5 }] }],
+        confidence: "high",
+        draftId: "saved-workout",
+      }, ctx(true));
+      const savedWorkoutId = state.workouts[0].id;
+      const workoutEdit = tools.runTool("updateWorkout", {
+        id: savedWorkoutId,
+        patch: { name: "Corrected workout" },
+      }, ctx(true));
+      const activeEdit = tools.runTool("updateActiveWorkout", {
+        patch: { name: "Corrected imported workout" },
+      }, ctx(true));
+      const setEdit = tools.runTool("updateExerciseSet", {
+        setId: "imported-set",
+        patch: { weight: 190 },
+      }, ctx(true));
+
+      const restored = data.migrateFitCoreDataIfNeeded(structuredClone(state));
+      return {
+        meal: restored.mealEntries[0],
+        mealEditAuditId: mealEdit.auditId,
+        checkIn: restored.recoveryCheckIns[0],
+        checkInEditAuditId: checkInEdit.auditId,
+        workout: restored.workouts[0],
+        workoutEditAuditId: workoutEdit.auditId,
+        activeWorkout: restored.activeWorkout,
+        activeEditAuditId: activeEdit.auditId,
+        activeSet: restored.activeWorkout?.exercises[0].sets[0],
+        setEditAuditId: setEdit.auditId,
+      };
+    });
+
+    expect(result.meal).toMatchObject({
+      calories: 610,
+      source: "edited",
+      confirmed: true,
+      provenance: {
+        source: "ai-estimated",
+        confidence: "low",
+        confirmation: "confirmed",
+        originalText: "photo of a bowl",
+        editedBy: "user",
+        editAuditId: result.mealEditAuditId,
+      },
+    });
+    expect(result.checkIn).toMatchObject({
+      energy: 8,
+      provenance: {
+        source: "jarvis",
+        confidence: "high",
+        confirmation: "confirmed",
+        editedBy: "user",
+        editAuditId: result.checkInEditAuditId,
+      },
+    });
+    expect(result.workout).toMatchObject({
+      name: "Corrected workout",
+      provenance: {
+        source: "jarvis",
+        confidence: "high",
+        confirmation: "confirmed",
+        editedBy: "user",
+        editAuditId: result.workoutEditAuditId,
+      },
+    });
+    expect(result.activeWorkout).toMatchObject({
+      name: "Corrected imported workout",
+      provenance: {
+        source: "imported",
+        confidence: "unknown",
+        confirmation: "confirmed",
+        editedBy: "user",
+        editAuditId: result.activeEditAuditId,
+      },
+    });
+    expect(result.activeSet).toMatchObject({
+      weight: 190,
+      provenance: {
+        source: "imported",
+        confidence: "unknown",
+        confirmation: "confirmed",
+        editedBy: "user",
+        editAuditId: result.setEditAuditId,
+      },
+    });
+    for (const entry of [result.meal, result.checkIn, result.workout, result.activeWorkout, result.activeSet]) {
+      expect(entry?.provenance.editedAt).toEqual(expect.any(Number));
+    }
+  });
 });

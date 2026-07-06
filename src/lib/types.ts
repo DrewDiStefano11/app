@@ -138,6 +138,9 @@ export interface DataProvenance {
   auditId?: string;
   originalText?: string;
   assumptions?: string[];
+  editedBy?: "user" | "jarvis";
+  editedAt?: number;
+  editAuditId?: string;
 }
 
 export interface SourceMeta {

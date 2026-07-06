@@ -75,6 +75,20 @@ export function createAiEstimateProvenance(options: {
   };
 }
 
+export function markProvenanceEdited(
+  provenance: DataProvenance | undefined,
+  options: { editedBy: "user" | "jarvis"; editedAt?: number; auditId?: string },
+): DataProvenance {
+  const base = provenance ?? createManualProvenance();
+  return {
+    ...base,
+    confirmation: options.editedBy === "user" ? "confirmed" : base.confirmation,
+    editedBy: options.editedBy,
+    editedAt: options.editedAt ?? Date.now(),
+    editAuditId: cleanText(options.auditId),
+  };
+}
+
 type ProvenanceInput = DataProvenance | {
   provenance?: DataProvenance;
   confidence?: ProvenanceConfidence;
@@ -202,7 +216,9 @@ function normalizeProvenance(
   const defaultConfidence: ProvenanceConfidence = inferredSource === "manual"
     ? "high"
     : audit?.confidence ?? (inferredSource === "system-derived" ? "medium" : "unknown");
-  const explicitlyConfirmed = value.confirmed === true || legacySource === "jarvis-confirmed";
+  const explicitlyConfirmed = value.confirmed === true
+    || legacySource === "jarvis-confirmed"
+    || legacySource === "edited";
   const defaultConfirmation: ConfirmationStatus = inferredSource === "manual" || explicitlyConfirmed
     ? "confirmed"
     : ["imported", "wearable", "apple-health", "health-connect", "barcode", "system-derived"].includes(inferredSource)
@@ -215,6 +231,18 @@ function normalizeProvenance(
     auditId: cleanText(existing.auditId ?? value.auditId ?? audit?.id),
     originalText: cleanText(existing.originalText ?? value.originalText ?? audit?.originalText),
     assumptions: cleanAssumptions(existing.assumptions ?? value.assumptions ?? audit?.assumptions),
+    editedBy: existing.editedBy === "user" || existing.editedBy === "jarvis"
+      ? existing.editedBy
+      : legacySource === "edited"
+        ? "user"
+        : undefined,
+    editedAt: Number.isFinite(existing.editedAt)
+      ? Number(existing.editedAt)
+      : legacySource === "edited" && audit
+        ? audit.createdAt
+        : undefined,
+    editAuditId: cleanText(existing.editAuditId)
+      ?? (legacySource === "edited" ? audit?.id : undefined),
   };
 }
 
