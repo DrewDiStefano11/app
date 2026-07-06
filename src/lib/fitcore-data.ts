@@ -1,7 +1,17 @@
-import type { AppState, MealEntry, RecoveryCheckIn, Workout } from "./types";
+import type {
+  AppState,
+  ConfirmationStatus,
+  DataProvenance,
+  MealEntry,
+  ProvenanceConfidence,
+  ProvenanceSource,
+  RecoveryCheckIn,
+  RecoverySignal,
+  Workout,
+} from "./types";
 
 export const FITCORE_STORAGE_KEY = "fitcore.v1";
-export const FITCORE_DATA_VERSION = 3;
+export const FITCORE_DATA_VERSION = 4;
 const LEGACY_KEYS = ["fitcore.state", "fitcore.data", "focus-lift-data", "fitcore.v0"];
 
 export type FitCoreLogType = "workout_session" | "workout_exercise" | "workout_set" | "meal" | "weigh_in" | "check_in" | "recovery_signal" | "body_metric" | "ai_event" | "template";
@@ -9,33 +19,96 @@ export type FitCoreLogSource = "manual" | "ai" | "camera" | "imported" | "barcod
 export interface FitCoreLog {
   id: string; type: FitCoreLogType; subtype?: string; createdAt: number; updatedAt: number;
   date: string; source: FitCoreLogSource; notes?: string; tags: string[]; relatedIds: string[];
-  metrics: Record<string, unknown>; rawInput?: string; confidence?: "high" | "medium" | "low";
+  metrics: Record<string, unknown>; rawInput?: string; confidence?: ProvenanceConfidence;
+  provenance: DataProvenance;
 }
-export interface RecoverySignal {
-  id: string; sourceLogId: string; kind: "pain" | "soreness" | "fatigue" | "sleep" | "injury" | "discomfort";
-  bodyArea?: string; severity: number; notes: string; createdAt: number; source: FitCoreLogSource;
-}
-type StateWithSignals = AppState & { recoverySignals?: RecoverySignal[] };
-
 const id = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 const isoDay = (n: number) => new Date(n).toISOString().slice(0, 10);
 const list = <T,>(v: unknown): T[] => Array.isArray(v) ? v as T[] : [];
 const record = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === "object" && !Array.isArray(v);
 const norm = (v: unknown) => String(v ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-const source = (v: unknown): FitCoreLogSource =>
-  v === "jarvis" || v === "jarvis-confirmed" ? "ai" :
-  v === "camera" || v === "barcode" || v === "imported" ? v : "manual";
+const cleanText = (value: unknown) =>
+  typeof value === "string" && value.trim() ? value.trim() : undefined;
+const cleanAssumptions = (value: unknown) =>
+  Array.isArray(value) ? value.map(String).map(x => x.trim()).filter(Boolean) : undefined;
+const confidence = (value: unknown, fallback: ProvenanceConfidence): ProvenanceConfidence =>
+  value === "high" || value === "medium" || value === "low" || value === "unknown"
+    ? value
+    : fallback;
+const confirmation = (value: unknown, fallback: ConfirmationStatus): ConfirmationStatus =>
+  value === "confirmed" || value === "unconfirmed" || value === "not-required"
+    ? value
+    : fallback;
+
+export function createManualProvenance(): DataProvenance {
+  return { source: "manual", confidence: "high", confirmation: "confirmed" };
+}
+
+export function createJarvisProvenance(options: {
+  confidence?: ProvenanceConfidence;
+  confirmed?: boolean;
+  auditId?: string;
+  originalText?: string;
+  assumptions?: string[];
+} = {}): DataProvenance {
+  return {
+    source: "jarvis",
+    confidence: options.confidence ?? "high",
+    confirmation: options.confirmed ? "confirmed" : "unconfirmed",
+    auditId: cleanText(options.auditId),
+    originalText: cleanText(options.originalText),
+    assumptions: cleanAssumptions(options.assumptions),
+  };
+}
+
+export function createAiEstimateProvenance(options: {
+  confidence?: ProvenanceConfidence;
+  confirmed?: boolean;
+  auditId?: string;
+  originalText?: string;
+  assumptions?: string[];
+} = {}): DataProvenance {
+  return {
+    ...createJarvisProvenance({ ...options, confidence: options.confidence ?? "low" }),
+    source: "ai-estimated",
+  };
+}
+
+type ProvenanceInput = DataProvenance | {
+  provenance?: DataProvenance;
+  confidence?: ProvenanceConfidence;
+};
+
+function provenanceOf(value: ProvenanceInput | null | undefined): DataProvenance | undefined {
+  if (!value) return undefined;
+  if ("source" in value && "confirmation" in value) return value as DataProvenance;
+  return value.provenance;
+}
+
+export function isLowConfidence(value: ProvenanceInput | null | undefined): boolean {
+  const metadata = provenanceOf(value);
+  return (metadata?.confidence ?? value?.confidence) === "low";
+}
+
+export function shouldRequireConfirmation(value: ProvenanceInput | null | undefined): boolean {
+  const metadata = provenanceOf(value);
+  if (!metadata || metadata.confirmation !== "unconfirmed") return false;
+  return metadata.source === "jarvis"
+    || metadata.source === "ai-estimated"
+    || metadata.confidence === "low"
+    || metadata.confidence === "unknown";
+}
 const STATE_KEYS = new Set<keyof AppState>([
   "version", "onboardingComplete", "profile", "personalization", "nutritionTargets",
   "workouts", "activeWorkout", "workoutTemplates", "customExercises", "cardioEntries",
-  "mealEntries", "bodyweightEntries", "sleepEntries", "recoveryCheckIns", "muscleFatigue",
+  "mealEntries", "bodyweightEntries", "sleepEntries", "recoveryCheckIns", "recoverySignals", "muscleFatigue",
   "prs", "goals", "progressPhotos", "aiMessages", "reminders", "demoMode", "jarvisSettings",
   "jarvisAudit", "jarvisLearning", "userGoalsProfile", "supplementLogs", "dismissedSuggestions",
 ]);
 const ARRAY_KEYS = new Set<keyof AppState>([
   "workouts", "workoutTemplates", "customExercises", "cardioEntries", "mealEntries",
-  "bodyweightEntries", "sleepEntries", "recoveryCheckIns", "prs", "goals",
+  "bodyweightEntries", "sleepEntries", "recoveryCheckIns", "recoverySignals", "prs", "goals",
   "progressPhotos", "aiMessages", "jarvisAudit", "supplementLogs", "dismissedSuggestions",
 ]);
 const OBJECT_KEYS = new Set<keyof AppState>([
@@ -96,38 +169,115 @@ export function saveFitCoreData(state: AppState) {
   catch { return false; }
 }
 
+const PROVENANCE_SOURCES = new Set<ProvenanceSource>([
+  "manual", "jarvis", "ai-estimated", "imported", "wearable",
+  "apple-health", "health-connect", "barcode", "system-derived",
+]);
+
+function normalizeProvenance(
+  value: Record<string, unknown>,
+  audit?: AppState["jarvisAudit"][number],
+  sourceOverride?: ProvenanceSource,
+): DataProvenance {
+  const existing = record(value.provenance) ? value.provenance : {};
+  const legacySource = String(value.source ?? "");
+  const inferredSource: ProvenanceSource = sourceOverride
+    ?? (PROVENANCE_SOURCES.has(existing.source as ProvenanceSource)
+      ? existing.source as ProvenanceSource
+      : legacySource === "camera"
+          ? "ai-estimated"
+          : legacySource === "barcode"
+            ? "barcode"
+            : legacySource === "imported"
+              ? "imported"
+              : legacySource === "apple-health"
+                ? "apple-health"
+                : legacySource === "whoop"
+                  ? "wearable"
+                  : legacySource === "wearable" || legacySource === "health-connect" || legacySource === "system-derived"
+                    ? legacySource
+                    : audit || cleanText(value.auditId) || legacySource === "jarvis" || legacySource === "jarvis-confirmed"
+                      ? "jarvis"
+                      : "manual");
+  const defaultConfidence: ProvenanceConfidence = inferredSource === "manual"
+    ? "high"
+    : audit?.confidence ?? (inferredSource === "system-derived" ? "medium" : "unknown");
+  const explicitlyConfirmed = value.confirmed === true || legacySource === "jarvis-confirmed";
+  const defaultConfirmation: ConfirmationStatus = inferredSource === "manual" || explicitlyConfirmed
+    ? "confirmed"
+    : ["imported", "wearable", "apple-health", "health-connect", "barcode", "system-derived"].includes(inferredSource)
+      ? "not-required"
+      : "unconfirmed";
+  return {
+    source: inferredSource,
+    confidence: confidence(existing.confidence ?? value.confidence ?? audit?.confidence, defaultConfidence),
+    confirmation: confirmation(existing.confirmation, defaultConfirmation),
+    auditId: cleanText(existing.auditId ?? value.auditId ?? audit?.id),
+    originalText: cleanText(existing.originalText ?? value.originalText ?? audit?.originalText),
+    assumptions: cleanAssumptions(existing.assumptions ?? value.assumptions ?? audit?.assumptions),
+  };
+}
+
+function withProvenance<T extends object>(
+  value: T,
+  audit?: AppState["jarvisAudit"][number],
+  sourceOverride?: ProvenanceSource,
+): T & { provenance: DataProvenance } {
+  return {
+    ...value,
+    provenance: normalizeProvenance(value as Record<string, unknown>, audit, sourceOverride),
+  };
+}
+
 /** Existing domain arrays stay authoritative; helpers project them into one log shape. */
 export function migrateFitCoreDataIfNeeded(input: AppState): AppState {
-  const s = input as StateWithSignals;
-  const workouts = list<Workout>(s.workouts).filter(w =>
-    record(w) && typeof w.id === "string" && Number.isFinite(w.startedAt) && Array.isArray(w.exercises),
-  ).map(w => ({
+  const s = input;
+  const timestamped = <T extends { id: string; createdAt: number }>(value: unknown) =>
+    list<T>(value).filter(x => record(x) && typeof x.id === "string" && Number.isFinite(x.createdAt));
+  const jarvisAudit = timestamped<AppState["jarvisAudit"][number]>(s.jarvisAudit)
+    .filter(x => typeof x.tool === "string" && typeof x.summary === "string");
+  const auditFor = (entityId: string) =>
+    jarvisAudit.find(x => !x.undone && x.entityIds?.includes(entityId));
+  const hydrateWorkout = (w: Workout) => withProvenance({
     ...w,
     exercises: w.exercises.filter(e => record(e) && typeof e.id === "string"
       && typeof e.exerciseId === "string" && Array.isArray(e.sets))
-      .map(e => ({ ...e, sets: e.sets.filter(set => record(set) && typeof set.id === "string") })),
-  }));
-  const bodyweightEntries = list(s.bodyweightEntries).filter(x =>
+      .map(e => withProvenance({
+        ...e,
+        sets: e.sets.filter(set => record(set) && typeof set.id === "string")
+          .map(set => withProvenance(set, auditFor(set.id))),
+      }, auditFor(e.id))),
+  }, auditFor(w.id));
+  const workouts = list<Workout>(s.workouts).filter(w =>
+    record(w) && typeof w.id === "string" && Number.isFinite(w.startedAt) && Array.isArray(w.exercises),
+  ).map(hydrateWorkout);
+  const activeWorkout = s.activeWorkout && record(s.activeWorkout)
+    && typeof s.activeWorkout.id === "string" && Number.isFinite(s.activeWorkout.startedAt)
+    && Array.isArray(s.activeWorkout.exercises)
+    ? hydrateWorkout(s.activeWorkout)
+    : null;
+  const bodyweightEntries = list<AppState["bodyweightEntries"][number]>(s.bodyweightEntries).filter(x =>
     record(x) && typeof x.id === "string" && Number.isFinite(x.weightLb)
       && Number(x.weightLb) > 0 && Number.isFinite(x.createdAt),
-  ) as AppState["bodyweightEntries"];
-  const timestamped = <T extends { id: string; createdAt: number }>(value: unknown) =>
-    list<T>(value).filter(x => record(x) && typeof x.id === "string" && Number.isFinite(x.createdAt));
+  ).map(x => withProvenance(x, auditFor(x.id))) as AppState["bodyweightEntries"];
   const mealEntries = timestamped<AppState["mealEntries"][number]>(s.mealEntries)
     .filter(x => Number.isFinite(x.calories) && Number.isFinite(x.protein)
-      && Number.isFinite(x.carbs) && Number.isFinite(x.fat));
+      && Number.isFinite(x.carbs) && Number.isFinite(x.fat))
+    .map(x => withProvenance(x, auditFor(x.id)));
   const sleepEntries = timestamped<AppState["sleepEntries"][number]>(s.sleepEntries)
-    .filter(x => Number.isFinite(x.hours) && Number.isFinite(x.quality));
+    .filter(x => Number.isFinite(x.hours) && Number.isFinite(x.quality))
+    .map(x => withProvenance(x, auditFor(x.id)));
   const recoveryCheckIns = timestamped<AppState["recoveryCheckIns"][number]>(s.recoveryCheckIns)
-    .filter(x => [x.energy, x.soreness, x.stress, x.motivation].every(Number.isFinite));
-  const jarvisAudit = timestamped<AppState["jarvisAudit"][number]>(s.jarvisAudit)
-    .filter(x => typeof x.tool === "string" && typeof x.summary === "string");
+    .filter(x => [x.energy, x.soreness, x.stress, x.motivation].every(Number.isFinite))
+    .map(x => withProvenance(x, auditFor(x.id)));
   const latestWeight = [...bodyweightEntries].sort((a, b) => b.createdAt - a.createdAt)[0];
-  const next: StateWithSignals = {
+  const next: AppState = {
     ...s, version: Math.max(FITCORE_DATA_VERSION, Number(s.version) || 1),
     profile: { ...s.profile, ...(latestWeight ? { bodyweightLb: latestWeight.weightLb } : {}) },
-    workouts, workoutTemplates: list(s.workoutTemplates),
-    customExercises: timestamped(s.customExercises), cardioEntries: timestamped(s.cardioEntries),
+    workouts, activeWorkout, workoutTemplates: list(s.workoutTemplates),
+    customExercises: timestamped(s.customExercises),
+    cardioEntries: timestamped<AppState["cardioEntries"][number]>(s.cardioEntries)
+      .map(x => withProvenance(x, auditFor(x.id))),
     mealEntries, bodyweightEntries,
     sleepEntries, recoveryCheckIns,
     prs: list(s.prs),
@@ -141,9 +291,13 @@ export function migrateFitCoreDataIfNeeded(input: AppState): AppState {
       return goal;
     }) as AppState["goals"],
     progressPhotos: list(s.progressPhotos), aiMessages: list(s.aiMessages),
-    supplementLogs: timestamped(s.supplementLogs), jarvisAudit,
+    supplementLogs: timestamped<AppState["supplementLogs"][number]>(s.supplementLogs)
+      .map(x => withProvenance(x, auditFor(x.id))),
+    jarvisAudit,
     dismissedSuggestions: list(s.dismissedSuggestions),
-    recoverySignals: list(s.recoverySignals),
+    recoverySignals: list<RecoverySignal>(s.recoverySignals)
+      .filter(x => record(x) && typeof x.id === "string" && Number.isFinite(x.createdAt))
+      .map(x => withProvenance(x, auditFor(x.id), "system-derived")),
   };
   const inputs = [
     ...next.workouts.flatMap(w => [{ id: w.id, text: w.notes, at: w.endedAt ?? w.startedAt, src: "manual" as const }, ...w.exercises.map(e => ({ id: e.id, text: e.notes, at: w.endedAt ?? w.startedAt, src: "manual" as const }))]),
@@ -159,14 +313,37 @@ export function migrateFitCoreDataIfNeeded(input: AppState): AppState {
 
 export function createLog(raw: Partial<FitCoreLog> & Pick<FitCoreLog, "type">): FitCoreLog {
   const createdAt = Number.isFinite(raw.createdAt) ? raw.createdAt! : Date.now();
+  const fallbackSource: ProvenanceSource = raw.source === "ai"
+    ? "jarvis"
+    : raw.source === "camera"
+      ? "ai-estimated"
+      : raw.source === "health"
+        ? "wearable"
+        : raw.source === "barcode" || raw.source === "imported"
+          ? raw.source
+          : "manual";
+  const metadata = raw.provenance ?? normalizeProvenance(
+    { source: fallbackSource, confidence: raw.confidence },
+  );
+  const projectedSource: FitCoreLogSource = metadata.source === "jarvis"
+    || metadata.source === "ai-estimated"
+    || metadata.source === "system-derived"
+    ? "ai"
+    : metadata.source === "barcode" || metadata.source === "imported"
+      ? metadata.source
+      : metadata.source === "manual"
+        ? "manual"
+        : "health";
   return {
     id: raw.id?.trim() || id(), type: raw.type, subtype: raw.subtype, createdAt,
     updatedAt: Number.isFinite(raw.updatedAt) ? raw.updatedAt! : createdAt,
     date: raw.date && !Number.isNaN(Date.parse(raw.date)) ? raw.date : isoDay(createdAt),
-    source: source(raw.source), notes: raw.notes?.trim() || undefined,
+    source: projectedSource, notes: raw.notes?.trim() || undefined,
     tags: [...new Set(list<string>(raw.tags).filter(Boolean))],
     relatedIds: [...new Set(list<string>(raw.relatedIds).filter(Boolean))],
-    metrics: raw.metrics ?? {}, rawInput: raw.rawInput?.trim() || undefined, confidence: raw.confidence,
+    metrics: raw.metrics ?? {}, rawInput: raw.rawInput?.trim() || metadata.originalText,
+    confidence: raw.confidence ?? metadata.confidence,
+    provenance: metadata,
   };
 }
 
@@ -176,22 +353,22 @@ export function saveLog(state: AppState, raw: FitCoreLog): AppState {
   if (x.type === "meal") {
     const nums = ["calories", "protein", "carbs", "fat"].map(k => Number(x.metrics[k]));
     if (!nums.every(Number.isFinite)) return state;
-    const meal: MealEntry = { id: x.id, name: x.subtype || "Meal", type: String(x.metrics.mealType || "meal"), calories: nums[0], protein: nums[1], carbs: nums[2], fat: nums[3], notes: x.notes, createdAt: x.createdAt, source: x.source === "ai" ? "jarvis" : x.source === "health" ? "imported" : x.source, confidence: x.confidence, originalText: x.rawInput };
+    const meal: MealEntry = { id: x.id, name: x.subtype || "Meal", type: String(x.metrics.mealType || "meal"), calories: nums[0], protein: nums[1], carbs: nums[2], fat: nums[3], notes: x.notes, createdAt: x.createdAt, source: x.source === "ai" ? "jarvis" : x.source === "health" ? "imported" : x.source, confidence: x.confidence === "unknown" ? undefined : x.confidence, originalText: x.rawInput, confirmed: x.provenance.confirmation === "confirmed", auditId: x.provenance.auditId, provenance: x.provenance };
     return migrateFitCoreDataIfNeeded({ ...state, mealEntries: [...state.mealEntries, meal] });
   }
   if (x.type === "weigh_in") {
     const weightLb = Number(x.metrics.weightLb); if (!Number.isFinite(weightLb) || weightLb <= 0) return state;
-    return migrateFitCoreDataIfNeeded({ ...state, bodyweightEntries: [...state.bodyweightEntries, { id: x.id, weightLb, notes: x.notes, createdAt: x.createdAt }] });
+    return migrateFitCoreDataIfNeeded({ ...state, bodyweightEntries: [...state.bodyweightEntries, { id: x.id, weightLb, notes: x.notes, createdAt: x.createdAt, provenance: x.provenance }] });
   }
   if (x.type === "check_in") {
     const score = (k: string) => Math.max(1, Math.min(10, Math.round(Number(x.metrics[k]) || 5)));
-    const check: RecoveryCheckIn = { id: x.id, energy: score("energy"), soreness: score("soreness"), stress: score("stress"), motivation: score("motivation"), notes: x.notes, createdAt: x.createdAt };
+    const check: RecoveryCheckIn = { id: x.id, energy: score("energy"), soreness: score("soreness"), stress: score("stress"), motivation: score("motivation"), notes: x.notes, createdAt: x.createdAt, provenance: x.provenance };
     return migrateFitCoreDataIfNeeded({ ...state, recoveryCheckIns: [...state.recoveryCheckIns, check] });
   }
   if (x.type === "workout_session") {
     const workout = x.metrics.workout as Workout;
     if (!workout?.exercises) return state;
-    return migrateFitCoreDataIfNeeded({ ...state, workouts: [...state.workouts, { ...workout, id: x.id }] });
+    return migrateFitCoreDataIfNeeded({ ...state, workouts: [...state.workouts, { ...workout, id: x.id, provenance: x.provenance }] });
   }
   return state;
 }
@@ -207,29 +384,34 @@ export function updateLog(state: AppState, logId: string, patch: Partial<FitCore
 }
 
 export function deleteLog(state: AppState, logId: string): AppState {
-  const s = state as StateWithSignals;
-  return migrateFitCoreDataIfNeeded({ ...state, workouts: state.workouts.filter(x => x.id !== logId), mealEntries: state.mealEntries.filter(x => x.id !== logId), bodyweightEntries: state.bodyweightEntries.filter(x => x.id !== logId), recoveryCheckIns: state.recoveryCheckIns.filter(x => x.id !== logId), cardioEntries: state.cardioEntries.filter(x => x.id !== logId), sleepEntries: state.sleepEntries.filter(x => x.id !== logId), supplementLogs: state.supplementLogs.filter(x => x.id !== logId), recoverySignals: list<RecoverySignal>(s.recoverySignals).filter(x => x.id !== logId && x.sourceLogId !== logId) } as AppState);
+  return migrateFitCoreDataIfNeeded({ ...state, workouts: state.workouts.filter(x => x.id !== logId), mealEntries: state.mealEntries.filter(x => x.id !== logId), bodyweightEntries: state.bodyweightEntries.filter(x => x.id !== logId), recoveryCheckIns: state.recoveryCheckIns.filter(x => x.id !== logId), cardioEntries: state.cardioEntries.filter(x => x.id !== logId), sleepEntries: state.sleepEntries.filter(x => x.id !== logId), supplementLogs: state.supplementLogs.filter(x => x.id !== logId), recoverySignals: state.recoverySignals.filter(x => x.id !== logId && x.sourceLogId !== logId) });
 }
 
-function provenance(s: AppState, entityId: string) {
-  const a = s.jarvisAudit.find(x => !x.undone && x.entityIds?.includes(entityId));
-  return a ? { source: "ai" as const, rawInput: a.originalText, confidence: a.confidence } : { source: "manual" as const };
+function projectedProvenance(s: AppState, entity: Record<string, unknown>) {
+  const entityId = String(entity.id ?? "");
+  const audit = s.jarvisAudit.find(x => !x.undone && x.entityIds?.includes(entityId));
+  const metadata = normalizeProvenance(entity, audit);
+  return {
+    provenance: metadata,
+    rawInput: metadata.originalText,
+    confidence: metadata.confidence,
+  };
 }
 
 function allLogs(s: AppState): FitCoreLog[] {
   const workouts = s.workouts.flatMap(w => {
-    const session = createLog({ ...provenance(s, w.id), id: w.id, type: "workout_session", subtype: w.name, createdAt: w.startedAt, updatedAt: w.endedAt ?? w.startedAt, notes: w.notes, metrics: { completed: !!w.endedAt, volume: w.exercises.flatMap(e => e.sets).reduce((n, x) => n + (x.completed ? (x.weight ?? 0) * (x.reps ?? 0) : 0), 0) } });
-    const children = w.exercises.flatMap((e, order) => [createLog({ id: e.id, type: "workout_exercise", subtype: e.exerciseId, createdAt: w.startedAt, notes: e.notes, relatedIds: [w.id], tags: e.exerciseTags, metrics: { order, completed: e.completed } }), ...e.sets.map((x, i) => createLog({ ...provenance(s, x.id), id: x.id, type: "workout_set", subtype: e.exerciseId, createdAt: w.startedAt, relatedIds: [w.id, e.id], tags: x.modifier && x.modifier !== "normal" ? [x.modifier] : [], metrics: { order: i, reps: x.reps ?? 0, weight: x.weight ?? 0, completed: x.completed, modifier: x.modifier ?? "normal" } }))]);
+    const session = createLog({ ...projectedProvenance(s, w as unknown as Record<string, unknown>), id: w.id, type: "workout_session", subtype: w.name, createdAt: w.startedAt, updatedAt: w.endedAt ?? w.startedAt, notes: w.notes, metrics: { completed: !!w.endedAt, volume: w.exercises.flatMap(e => e.sets).reduce((n, x) => n + (x.completed ? (x.weight ?? 0) * (x.reps ?? 0) : 0), 0) } });
+    const children = w.exercises.flatMap((e, order) => [createLog({ ...projectedProvenance(s, e as unknown as Record<string, unknown>), id: e.id, type: "workout_exercise", subtype: e.exerciseId, createdAt: w.startedAt, notes: e.notes, relatedIds: [w.id], tags: e.exerciseTags, metrics: { order, completed: e.completed } }), ...e.sets.map((x, i) => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "workout_set", subtype: e.exerciseId, createdAt: w.startedAt, relatedIds: [w.id, e.id], tags: x.modifier && x.modifier !== "normal" ? [x.modifier] : [], metrics: { order: i, reps: x.reps ?? 0, weight: x.weight ?? 0, completed: x.completed, modifier: x.modifier ?? "normal" } }))]);
     return [session, ...children];
   });
-  const signals = list<RecoverySignal>((s as StateWithSignals).recoverySignals);
+  const signals = s.recoverySignals;
   return [
     ...workouts,
-    ...s.mealEntries.map(x => createLog({ id: x.id, type: "meal", subtype: x.name, createdAt: x.createdAt, source: source(x.source), notes: x.notes, rawInput: x.originalText, confidence: x.confidence, metrics: { mealType: x.type, calories: x.calories, protein: x.protein, carbs: x.carbs, fat: x.fat } })),
-    ...s.bodyweightEntries.map(x => createLog({ ...provenance(s, x.id), id: x.id, type: "weigh_in", subtype: "bodyweight", createdAt: x.createdAt, notes: x.notes, metrics: { weightLb: x.weightLb } })),
-    ...s.recoveryCheckIns.map(x => createLog({ ...provenance(s, x.id), id: x.id, type: "check_in", subtype: "daily", createdAt: x.createdAt, notes: x.notes, metrics: { energy: x.energy, soreness: x.soreness, stress: x.stress, motivation: x.motivation } })),
-    ...signals.map(x => createLog({ id: x.id, type: "recovery_signal", subtype: x.kind, createdAt: x.createdAt, source: x.source, notes: x.notes, relatedIds: [x.sourceLogId], tags: x.bodyArea ? [x.bodyArea] : [], metrics: { severity: x.severity } })),
-    ...s.jarvisAudit.filter(x => !x.undone).map(x => createLog({ id: `ai:${x.id}`, type: "ai_event", subtype: x.tool, createdAt: x.createdAt, source: "ai", notes: x.summary, rawInput: x.originalText, confidence: x.confidence, relatedIds: x.entityIds, metrics: { status: x.status } })),
+    ...s.mealEntries.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "meal", subtype: x.name, createdAt: x.createdAt, notes: x.notes, metrics: { mealType: x.type, calories: x.calories, protein: x.protein, carbs: x.carbs, fat: x.fat } })),
+    ...s.bodyweightEntries.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "weigh_in", subtype: "bodyweight", createdAt: x.createdAt, notes: x.notes, metrics: { weightLb: x.weightLb } })),
+    ...s.recoveryCheckIns.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "check_in", subtype: "daily", createdAt: x.createdAt, notes: x.notes, metrics: { energy: x.energy, soreness: x.soreness, stress: x.stress, motivation: x.motivation } })),
+    ...signals.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "recovery_signal", subtype: x.kind, createdAt: x.createdAt, notes: x.notes, relatedIds: [x.sourceLogId], tags: x.bodyArea ? [x.bodyArea] : [], metrics: { severity: x.severity } })),
+    ...s.jarvisAudit.filter(x => !x.undone).map(x => createLog({ id: `ai:${x.id}`, type: "ai_event", subtype: x.tool, createdAt: x.createdAt, provenance: createJarvisProvenance({ confidence: x.confidence ?? "unknown", auditId: x.id, originalText: x.originalText, assumptions: x.assumptions }), notes: x.summary, relatedIds: x.entityIds, metrics: { status: x.status } })),
   ].sort((a, b) => b.createdAt - a.createdAt);
 }
 
@@ -256,7 +438,21 @@ export const getRecentActivity = (s: AppState, limit = 8) => {
 export function extractRecoverySignalsFromNotes(notes: string, sourceLogId = id(), createdAt = Date.now(), src: FitCoreLogSource = "manual"): RecoverySignal[] {
   const defs: [RecoverySignal["kind"], RegExp, number][] = [["injury", /\b(injur(?:y|ed)|sprain|strain)\b/i, 8], ["pain", /\b(pain|hurt|hurts|aching?)\b/i, 7], ["soreness", /\b(sore|soreness)\b/i, 5], ["fatigue", /\b(tired|fatigue|fatigued|exhausted|low energy)\b/i, 6], ["sleep", /\b(poor sleep|bad sleep|slept bad)\b/i, 6], ["discomfort", /\b(discomfort|tight|tightness)\b/i, 5]];
   const area = ["knee", "shoulder", "elbow", "back", "hip", "ankle", "wrist", "neck"].find(x => new RegExp(`\\b${x}\\b`, "i").test(notes));
-  return defs.filter(([, re]) => re.test(notes)).map(([kind, , severity]) => ({ id: `recovery:${sourceLogId}:${kind}:${area ?? "general"}`, sourceLogId, kind, bodyArea: area, severity, notes: notes.trim(), createdAt, source: src }));
+  return defs.filter(([, re]) => re.test(notes)).map(([kind, , severity]) => ({
+    id: `recovery:${sourceLogId}:${kind}:${area ?? "general"}`,
+    sourceLogId,
+    kind,
+    bodyArea: area,
+    severity,
+    notes: notes.trim(),
+    createdAt,
+    source: src,
+    provenance: {
+      source: "system-derived",
+      confidence: "medium",
+      confirmation: "not-required",
+    },
+  }));
 }
 
 export function buildAICoachContext(s: AppState, section: string) {

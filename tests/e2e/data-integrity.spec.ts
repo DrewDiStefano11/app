@@ -42,11 +42,12 @@ test.describe("FitCore data integrity", () => {
         goalsRepaired: Array.isArray(saved.goals) && saved.goals.length > 0,
         hasCurrentFields: Array.isArray(saved.supplementLogs)
           && Array.isArray(saved.jarvisAudit)
+          && Array.isArray(saved.recoverySignals)
           && Array.isArray(saved.dismissedSuggestions),
         nestedDefaultPreserved: saved.personalization?.units?.distance === "mi",
       };
     })).toEqual({
-      version: 3,
+      version: 4,
       name: "Migration Test",
       profileWeight: 177.5,
       storedWeight: 177.5,
@@ -59,7 +60,7 @@ test.describe("FitCore data integrity", () => {
     await page.reload();
     await expect.poll(() => page.evaluate(() =>
       JSON.parse(localStorage.getItem("fitcore.v1") || "{}").version,
-    )).toBe(3);
+    )).toBe(4);
   });
 
   test("rejects broken imports and safely repairs incomplete saved collections", async ({ page }) => {
