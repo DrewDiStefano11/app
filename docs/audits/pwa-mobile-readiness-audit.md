@@ -8,7 +8,7 @@ FitCore is designed as a mobile-first fitness app, but its PWA foundations are c
 
 - **Manifest:** Present.
 - **Icons:** Present (added in this PR).
-- **Service Worker:** Missing.
+- **Service Worker:** Present (added in this PR).
 - **Mobile Metadata:** Present in `src/routes/__root.tsx`.
 
 ## 3. Installability Checklist
@@ -16,7 +16,7 @@ FitCore is designed as a mobile-first fitness app, but its PWA foundations are c
 - [x] `manifest.json` present: **Yes**
 - [x] `manifest.json` linked in HTML: **Yes**
 - [x] At least 192x192px and 512x512px icons: **Yes**
-- [ ] Service Worker registered with `fetch` handler: **No**
+- [x] Service Worker registered with `fetch` handler: **Yes**
 - [ ] HTTPS (Production): **TBD**
 
 ## 4. Mobile Metadata Checklist
@@ -39,16 +39,16 @@ FitCore is designed as a mobile-first fitness app, but its PWA foundations are c
 
 ## 6. Service Worker/Offline Checklist
 
-- [ ] Service worker presence: **No**
-- [ ] Offline fallback behavior: **No**
-- [ ] Cache management Strategy: **N/A**
+- [x] Service worker presence: **Yes** (`public/sw.js`)
+- [x] Offline fallback behavior: **Yes** (App Shell fallback for navigation)
+- [x] Cache management Strategy: **Yes** (Cache-first for assets, Network-first for navigation)
 
 ## 7. Issues Found
 
 1. **Missing Web Manifest:** (Fixed) Added `manifest.json`.
 2. **Missing Assets:** (Fixed) Added app icons and `apple-touch-icon` to `public/`.
 3. **Incomplete Meta Tags:** (Fixed) Added `apple-touch-icon`.
-4. **No Offline Support:** The app requires an active connection for all parts unless a service worker is implemented.
+4. **No Offline Support:** (Fixed) Implemented manual Service Worker for App Shell caching.
 
 ## 8. Fixes Made
 
@@ -56,10 +56,12 @@ FitCore is designed as a mobile-first fitness app, but its PWA foundations are c
 - Generated and added icon assets: `icon-192.png`, `icon-512.png`, `apple-touch-icon.png`, `icon-maskable-192.png`, `icon-maskable-512.png`.
 - Linked `manifest.json` and `apple-touch-icon` in `src/routes/__root.tsx`.
 - Added `application-name` and `apple-mobile-web-app-title` to `src/routes/__root.tsx`.
+- Implemented `public/sw.js` with Cache-first/Network-first strategies.
+- Added Service Worker registration in `src/routes/__root.tsx`.
 
 ## 9. Remaining Recommended Fixes
 
-- **Service Worker:** Implement `@vite-pwa/plugin` or a custom service worker to enable offline capabilities and faster load times via caching.
+- **Automated PWA Build:** Consider migrating to `@vite-pwa/plugin` for automated asset manifest generation if the static asset list grows significantly.
 - **iOS Splash Screens:** Generate `apple-touch-startup-image` links for various iPhone/iPad screen sizes.
 
 ## 10. Files Reviewed
