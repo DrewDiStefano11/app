@@ -355,7 +355,7 @@ export const defaultPersonalization: Personalization = {
 };
 
 export const defaultState: AppState = {
-  version: 2,
+  version: 3,
   onboardingComplete: false,
   profile: {
     goal: "hypertrophy",

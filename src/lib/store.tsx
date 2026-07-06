@@ -1,39 +1,36 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { defaultState, defaultPersonalization, defaultJarvisSettings, type AppState, type Personalization } from "./types";
 import { buildDemoState } from "./demo-data";
-import { loadFitCoreData, migrateFitCoreDataIfNeeded, saveFitCoreData } from "./fitcore-data";
+import { loadFitCoreData, migrateFitCoreDataIfNeeded, parseFitCoreImport, saveFitCoreData } from "./fitcore-data";
 
 function load(): AppState {
   if (typeof window === "undefined") return defaultState;
   try {
-    return migrate(loadFitCoreData(defaultState));
+    return migrateAppState(loadFitCoreData(defaultState));
   } catch {
     return defaultState;
   }
 }
 
 /** Merge partial saved state with defaults so nested objects don't get blown away. */
-function migrate(parsed: Partial<AppState>): AppState {
+function migrateAppState(parsed: Partial<AppState>, base: AppState = defaultState): AppState {
   const personalization: Personalization = {
     ...defaultPersonalization,
+    ...base.personalization,
     ...(parsed.personalization ?? {}),
-    units: { ...defaultPersonalization.units!, ...(parsed.personalization?.units ?? {}) },
-    reminders: { ...defaultPersonalization.reminders!, ...(parsed.personalization?.reminders ?? {}) },
-    defaultGraphModes: { ...defaultPersonalization.defaultGraphModes!, ...(parsed.personalization?.defaultGraphModes ?? {}) },
+    units: { ...defaultPersonalization.units!, ...base.personalization.units, ...(parsed.personalization?.units ?? {}) },
+    reminders: { ...defaultPersonalization.reminders!, ...base.personalization.reminders, ...(parsed.personalization?.reminders ?? {}) },
+    defaultGraphModes: { ...defaultPersonalization.defaultGraphModes!, ...base.personalization.defaultGraphModes, ...(parsed.personalization?.defaultGraphModes ?? {}) },
   };
   return migrateFitCoreDataIfNeeded({
     ...defaultState,
+    ...base,
     ...parsed,
-    profile: { ...defaultState.profile, ...(parsed.profile ?? {}) },
-    nutritionTargets: { ...defaultState.nutritionTargets, ...(parsed.nutritionTargets ?? {}) },
+    profile: { ...defaultState.profile, ...base.profile, ...(parsed.profile ?? {}) },
+    nutritionTargets: { ...defaultState.nutritionTargets, ...base.nutritionTargets, ...(parsed.nutritionTargets ?? {}) },
     personalization,
-    reminders: { ...defaultState.reminders, ...(parsed.reminders ?? {}) },
-    jarvisSettings: { ...defaultJarvisSettings, ...(parsed.jarvisSettings ?? {}) },
-    jarvisAudit: parsed.jarvisAudit ?? [],
-    jarvisLearning: parsed.jarvisLearning ?? {},
-    userGoalsProfile: parsed.userGoalsProfile ?? {},
-    supplementLogs: parsed.supplementLogs ?? [],
-    dismissedSuggestions: parsed.dismissedSuggestions ?? [],
+    reminders: { ...defaultState.reminders, ...base.reminders, ...(parsed.reminders ?? {}) },
+    jarvisSettings: { ...defaultJarvisSettings, ...base.jarvisSettings, ...(parsed.jarvisSettings ?? {}) },
   });
 }
 
@@ -66,13 +63,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // Every manual and Jarvis mutation passes through this boundary. Normalizing
   // here keeps all screens, summaries, history, and recovery signals connected.
-  const set = useCallback((u: Updater) => setState(s => migrateFitCoreDataIfNeeded(u(s))), []);
-  const reset = useCallback(() => setState(migrateFitCoreDataIfNeeded(defaultState)), []);
+  const set = useCallback((u: Updater) => setState(s => {
+    const next = migrateFitCoreDataIfNeeded(u(s));
+    saveFitCoreData(next);
+    return next;
+  }), []);
+  const reset = useCallback(() => {
+    const next = migrateFitCoreDataIfNeeded(defaultState);
+    saveFitCoreData(next);
+    setState(next);
+  }, []);
   const exportJson = useCallback(() => JSON.stringify(state, null, 2), [state]);
   const importJson = useCallback((text: string) => {
     try {
-      const parsed = JSON.parse(text) as Partial<AppState>;
-      setState(migrate(parsed));
+      const parsed = parseFitCoreImport(text);
+      if (!parsed) return false;
+      setState(current => {
+        const next = migrateAppState(parsed, current);
+        saveFitCoreData(next);
+        return next;
+      });
       return true;
     } catch { return false; }
   }, []);
