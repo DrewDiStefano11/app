@@ -241,6 +241,17 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
     }
   }, [settings, chatFn, set, section, contextSummary]);
 
+  useEffect(() => {
+    const handleCompose = (event: Event) => {
+      const text = (event as CustomEvent<{ text?: string }>).detail?.text?.trim();
+      if (!text) return;
+      setOpen(true);
+      void send(text);
+    };
+    window.addEventListener("fitcore:jarvis-compose", handleCompose);
+    return () => window.removeEventListener("fitcore:jarvis-compose", handleCompose);
+  }, [send]);
+
   const applyPending = (msgId: string, idx: number) => {
     const msg = messages.find(m => m.id === msgId);
     const existing = msg?.toolResults?.[idx];
@@ -280,13 +291,6 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
 
   return (
     <>
-      <button onClick={() => setOpen(true)}
-        className="fixed z-20 right-4 bottom-[calc(96px+env(safe-area-inset-bottom))] w-14 h-14 rounded-full flex items-center justify-center text-white shadow-2xl active:scale-95 transition-transform"
-        style={{ background: "var(--section)", boxShadow: "0 10px 40px -5px color-mix(in oklab, var(--section) 60%, transparent)" }}
-        aria-label="Open Jarvis">
-        <Sparkles size={22} />
-      </button>
-
       <BottomSheet open={open} onClose={() => setOpen(false)} title="Jarvis" height="tall">
         <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--surface-2)]">

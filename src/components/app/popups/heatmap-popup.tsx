@@ -17,11 +17,16 @@ export function HeatmapDetailSheet({ open, onClose }: { open: boolean; onClose: 
   const { view } = useStore();
   const [mode, setMode] = usePersistentState<HeatMode>("heatmap.mode", "load");
   const [selected, setSelected] = useState<string | null>(null);
+  const [detailMuscle, setDetailMuscle] = useState<string | null>(null);
   const values = useMemo(() => muscleMap(view, mode), [view, mode]);
+  const selectMuscle = (muscle: string) => {
+    setSelected(muscle);
+    setDetailMuscle(muscle);
+  };
 
   return (
     <>
-      <BottomSheet open={open && !selected} onClose={onClose} title="Body Heat Map" height="tall">
+      <BottomSheet open={open && !detailMuscle} onClose={onClose} title="Body Heat Map" height="tall">
         <div className="space-y-4">
           {/* Mode toggle */}
           <div className="flex gap-1 p-1 rounded-full bg-white/5 border border-white/10 overflow-x-auto no-scrollbar">
@@ -35,20 +40,31 @@ export function HeatmapDetailSheet({ open, onClose }: { open: boolean; onClose: 
           </div>
 
           {/* Dual front+back */}
-          <div className="tile p-4">
+          <div className="heatmap-expanded-card tile p-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col items-center">
                 <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1">Front</div>
-                <div className="aspect-[1/2] w-full max-w-[150px]">
-                  <BodyHeatmap values={values} mode={mode} side="front" compact onSelect={setSelected} />
+                <div className="heatmap-expanded-figure">
+                  <BodyHeatmap values={values} mode={mode} side="front" compact selected={selected} onSelect={selectMuscle} />
                 </div>
               </div>
               <div className="flex flex-col items-center">
                 <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1">Back</div>
-                <div className="aspect-[1/2] w-full max-w-[150px]">
-                  <BodyHeatmap values={values} mode={mode} side="back" compact onSelect={setSelected} />
+                <div className="heatmap-expanded-figure">
+                  <BodyHeatmap values={values} mode={mode} side="back" compact selected={selected} onSelect={selectMuscle} />
                 </div>
               </div>
+            </div>
+            {selected && (
+              <div className="heatmap-selected-chip">
+                <span className="heatmap-selected-chip__dot" />
+                {selected}
+              </div>
+            )}
+            <div className="heatmap-scale" data-mode={mode} aria-label="Heat map intensity from low to high">
+              <span>Low</span>
+              <span className="heatmap-scale__bar" />
+              <span>High</span>
             </div>
             <p className="text-[11px] text-white/40 text-center mt-3">Tap any muscle for details</p>
           </div>
@@ -63,7 +79,7 @@ export function HeatmapDetailSheet({ open, onClose }: { open: boolean; onClose: 
         </div>
       </BottomSheet>
 
-      <MuscleDetailSheet muscle={selected} onClose={() => setSelected(null)} />
+      <MuscleDetailSheet muscle={detailMuscle} onClose={() => setDetailMuscle(null)} />
     </>
   );
 }
