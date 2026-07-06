@@ -36,7 +36,7 @@ test.describe('Mobile Smoke Test', () => {
   });
 
   test('should navigate to recovery without horizontal overflow', async ({ page }) => {
-    await page.locator('.app-bottom-nav').getByRole('button', { name: 'Recover' }).click();
+    await page.locator('.app-bottom-nav').getByRole('button', { name: 'Recover', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Recovery' })).toBeVisible();
     await checkOverflow(page);
   });
