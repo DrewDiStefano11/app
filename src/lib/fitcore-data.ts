@@ -20,13 +20,67 @@ type StateWithSignals = AppState & { recoverySignals?: RecoverySignal[] };
 const id = () => Math.random().toString(36).slice(2) + Date.now().toString(36);
 const isoDay = (n: number) => new Date(n).toISOString().slice(0, 10);
 const list = <T,>(v: unknown): T[] => Array.isArray(v) ? v as T[] : [];
+const record = (v: unknown): v is Record<string, unknown> =>
+  v !== null && typeof v === "object" && !Array.isArray(v);
 const norm = (v: unknown) => String(v ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const source = (v: unknown): FitCoreLogSource =>
   v === "jarvis" || v === "jarvis-confirmed" ? "ai" :
   v === "camera" || v === "barcode" || v === "imported" ? v : "manual";
-const parse = (raw: string | null) => {
-  try { const v = JSON.parse(raw ?? "null"); return v && typeof v === "object" ? v : null; }
+const STATE_KEYS = new Set<keyof AppState>([
+  "version", "onboardingComplete", "profile", "personalization", "nutritionTargets",
+  "workouts", "activeWorkout", "workoutTemplates", "customExercises", "cardioEntries",
+  "mealEntries", "bodyweightEntries", "sleepEntries", "recoveryCheckIns", "muscleFatigue",
+  "prs", "goals", "progressPhotos", "aiMessages", "reminders", "demoMode", "jarvisSettings",
+  "jarvisAudit", "jarvisLearning", "userGoalsProfile", "supplementLogs", "dismissedSuggestions",
+]);
+const ARRAY_KEYS = new Set<keyof AppState>([
+  "workouts", "workoutTemplates", "customExercises", "cardioEntries", "mealEntries",
+  "bodyweightEntries", "sleepEntries", "recoveryCheckIns", "prs", "goals",
+  "progressPhotos", "aiMessages", "jarvisAudit", "supplementLogs", "dismissedSuggestions",
+]);
+const OBJECT_KEYS = new Set<keyof AppState>([
+  "profile", "personalization", "nutritionTargets", "muscleFatigue", "reminders",
+  "jarvisSettings", "jarvisLearning", "userGoalsProfile",
+]);
+const validStateField = (key: keyof AppState, field: unknown) => {
+  if (ARRAY_KEYS.has(key)) return Array.isArray(field);
+  if (OBJECT_KEYS.has(key)) return record(field);
+  if (key === "onboardingComplete" || key === "demoMode") return typeof field === "boolean";
+  if (key === "version") return Number.isFinite(field) && Number(field) >= 1;
+  if (key === "activeWorkout") return field === null || record(field);
+  return true;
+};
+
+/** Reject empty or shape-invalid data before it can replace known-good state. */
+export function validateFitCorePayload(value: unknown): Partial<AppState> | null {
+  if (!record(value)) return null;
+  const keys = Object.keys(value).filter((key): key is keyof AppState =>
+    STATE_KEYS.has(key as keyof AppState),
+  );
+  if (!keys.length) return null;
+  for (const key of keys) {
+    if (!validStateField(key, value[key])) return null;
+  }
+  return value as Partial<AppState>;
+}
+
+export function parseFitCoreImport(text: string): Partial<AppState> | null {
+  try { return validateFitCorePayload(JSON.parse(text)); }
   catch { return null; }
+}
+
+const parse = (raw: string | null): Partial<AppState> | null => {
+  if (raw === null) return null;
+  try {
+    const value = JSON.parse(raw);
+    if (!record(value)) return null;
+    const repaired = Object.fromEntries(Object.entries(value).filter(([key, field]) =>
+      STATE_KEYS.has(key as keyof AppState) && validStateField(key as keyof AppState, field),
+    ));
+    return Object.keys(repaired).length ? repaired as Partial<AppState> : null;
+  } catch {
+    return null;
+  }
 };
 
 export function loadFitCoreData(fallback: AppState): Partial<AppState> {
@@ -45,13 +99,50 @@ export function saveFitCoreData(state: AppState) {
 /** Existing domain arrays stay authoritative; helpers project them into one log shape. */
 export function migrateFitCoreDataIfNeeded(input: AppState): AppState {
   const s = input as StateWithSignals;
+  const workouts = list<Workout>(s.workouts).filter(w =>
+    record(w) && typeof w.id === "string" && Number.isFinite(w.startedAt) && Array.isArray(w.exercises),
+  ).map(w => ({
+    ...w,
+    exercises: w.exercises.filter(e => record(e) && typeof e.id === "string"
+      && typeof e.exerciseId === "string" && Array.isArray(e.sets))
+      .map(e => ({ ...e, sets: e.sets.filter(set => record(set) && typeof set.id === "string") })),
+  }));
+  const bodyweightEntries = list(s.bodyweightEntries).filter(x =>
+    record(x) && typeof x.id === "string" && Number.isFinite(x.weightLb)
+      && Number(x.weightLb) > 0 && Number.isFinite(x.createdAt),
+  ) as AppState["bodyweightEntries"];
+  const timestamped = <T extends { id: string; createdAt: number }>(value: unknown) =>
+    list<T>(value).filter(x => record(x) && typeof x.id === "string" && Number.isFinite(x.createdAt));
+  const mealEntries = timestamped<AppState["mealEntries"][number]>(s.mealEntries)
+    .filter(x => Number.isFinite(x.calories) && Number.isFinite(x.protein)
+      && Number.isFinite(x.carbs) && Number.isFinite(x.fat));
+  const sleepEntries = timestamped<AppState["sleepEntries"][number]>(s.sleepEntries)
+    .filter(x => Number.isFinite(x.hours) && Number.isFinite(x.quality));
+  const recoveryCheckIns = timestamped<AppState["recoveryCheckIns"][number]>(s.recoveryCheckIns)
+    .filter(x => [x.energy, x.soreness, x.stress, x.motivation].every(Number.isFinite));
+  const jarvisAudit = timestamped<AppState["jarvisAudit"][number]>(s.jarvisAudit)
+    .filter(x => typeof x.tool === "string" && typeof x.summary === "string");
+  const latestWeight = [...bodyweightEntries].sort((a, b) => b.createdAt - a.createdAt)[0];
   const next: StateWithSignals = {
     ...s, version: Math.max(FITCORE_DATA_VERSION, Number(s.version) || 1),
-    workouts: list(s.workouts), workoutTemplates: list(s.workoutTemplates),
-    customExercises: list(s.customExercises), cardioEntries: list(s.cardioEntries),
-    mealEntries: list(s.mealEntries), bodyweightEntries: list(s.bodyweightEntries),
-    sleepEntries: list(s.sleepEntries), recoveryCheckIns: list(s.recoveryCheckIns),
-    supplementLogs: list(s.supplementLogs), jarvisAudit: list(s.jarvisAudit),
+    profile: { ...s.profile, ...(latestWeight ? { bodyweightLb: latestWeight.weightLb } : {}) },
+    workouts, workoutTemplates: list(s.workoutTemplates),
+    customExercises: timestamped(s.customExercises), cardioEntries: timestamped(s.cardioEntries),
+    mealEntries, bodyweightEntries,
+    sleepEntries, recoveryCheckIns,
+    prs: list(s.prs),
+    goals: list(s.goals).map(goal => {
+      if (!record(goal)) return goal;
+      if (goal.type === "bodyweight" && latestWeight) return { ...goal, current: latestWeight.weightLb };
+      if (goal.type === "weekly_workouts") {
+        const count = workouts.filter(w => w.startedAt >= Date.now() - 7 * 86400000).length;
+        return { ...goal, current: Math.min(Number(goal.target) || count, count) };
+      }
+      return goal;
+    }) as AppState["goals"],
+    progressPhotos: list(s.progressPhotos), aiMessages: list(s.aiMessages),
+    supplementLogs: timestamped(s.supplementLogs), jarvisAudit,
+    dismissedSuggestions: list(s.dismissedSuggestions),
     recoverySignals: list(s.recoverySignals),
   };
   const inputs = [
@@ -61,7 +152,7 @@ export function migrateFitCoreDataIfNeeded(input: AppState): AppState {
     ...next.jarvisAudit.map(x => ({ id: x.id, text: x.originalText ?? x.summary, at: x.createdAt, src: "ai" as const })),
   ];
   const found = inputs.flatMap(x => extractRecoverySignalsFromNotes(x.text ?? "", x.id, x.at, x.src));
-  next.recoverySignals = [...new Map([...next.recoverySignals, ...found].map(x => [x.id, x])).values()]
+  next.recoverySignals = [...new Map([...(next.recoverySignals ?? []), ...found].map(x => [x.id, x])).values()]
     .sort((a, b) => b.createdAt - a.createdAt).slice(0, 500);
   return next;
 }
@@ -117,7 +208,7 @@ export function updateLog(state: AppState, logId: string, patch: Partial<FitCore
 
 export function deleteLog(state: AppState, logId: string): AppState {
   const s = state as StateWithSignals;
-  return migrateFitCoreDataIfNeeded({ ...state, workouts: state.workouts.filter(x => x.id !== logId), mealEntries: state.mealEntries.filter(x => x.id !== logId), bodyweightEntries: state.bodyweightEntries.filter(x => x.id !== logId), recoveryCheckIns: state.recoveryCheckIns.filter(x => x.id !== logId), cardioEntries: state.cardioEntries.filter(x => x.id !== logId), sleepEntries: state.sleepEntries.filter(x => x.id !== logId), supplementLogs: state.supplementLogs.filter(x => x.id !== logId), recoverySignals: list(s.recoverySignals).filter(x => x.id !== logId && x.sourceLogId !== logId) } as AppState);
+  return migrateFitCoreDataIfNeeded({ ...state, workouts: state.workouts.filter(x => x.id !== logId), mealEntries: state.mealEntries.filter(x => x.id !== logId), bodyweightEntries: state.bodyweightEntries.filter(x => x.id !== logId), recoveryCheckIns: state.recoveryCheckIns.filter(x => x.id !== logId), cardioEntries: state.cardioEntries.filter(x => x.id !== logId), sleepEntries: state.sleepEntries.filter(x => x.id !== logId), supplementLogs: state.supplementLogs.filter(x => x.id !== logId), recoverySignals: list<RecoverySignal>(s.recoverySignals).filter(x => x.id !== logId && x.sourceLogId !== logId) } as AppState);
 }
 
 function provenance(s: AppState, entityId: string) {
@@ -152,7 +243,15 @@ export function getDailyMacroSummary(s: AppState, at = Date.now()) { return s.me
 export function getNutritionSummary(s: AppState, at = Date.now()) { return { totals: getDailyMacroSummary(s, at), targets: s.nutritionTargets, meals: s.mealEntries.filter(x => isoDay(x.createdAt) === isoDay(at)) }; }
 export function getRecoverySummary(s: AppState) { const latest = getLatestMetrics(s).checkIn; return { latestCheckIn: latest, signals: getLogsByType(s, "recovery_signal").slice(0, 12), readiness: latest ? Math.round((latest.energy + latest.motivation + 11 - latest.soreness + 11 - latest.stress) / 40 * 100) : null }; }
 export function getProgressSeries(s: AppState) { return { workouts: getLogsByType(s, "workout_session").map(x => ({ date: x.createdAt, volume: Number(x.metrics.volume) || 0 })), bodyweight: s.bodyweightEntries.map(x => ({ date: x.createdAt, weightLb: x.weightLb })), nutrition: [...new Set(s.mealEntries.map(x => isoDay(x.createdAt)))].map(date => ({ date, ...getDailyMacroSummary(s, Date.parse(`${date}T12:00:00`)) })), recovery: s.recoveryCheckIns.map(x => ({ date: x.createdAt, score: Math.round((x.energy + x.motivation + 11 - x.soreness + 11 - x.stress) / 40 * 100) })) }; }
-export const getRecentActivity = (s: AppState, limit = 8) => allLogs(s).filter(x => x.type !== "workout_exercise" && x.type !== "template").slice(0, Math.max(1, limit));
+export const getRecentActivity = (s: AppState, limit = 8) => {
+  const logs = allLogs(s);
+  const entityIds = new Set(logs.filter(x => x.type !== "ai_event").map(x => x.id));
+  return logs.filter(x =>
+    x.type !== "workout_exercise"
+    && x.type !== "template"
+    && !(x.type === "ai_event" && x.relatedIds.some(entityId => entityIds.has(entityId))),
+  ).slice(0, Math.max(1, limit));
+};
 
 export function extractRecoverySignalsFromNotes(notes: string, sourceLogId = id(), createdAt = Date.now(), src: FitCoreLogSource = "manual"): RecoverySignal[] {
   const defs: [RecoverySignal["kind"], RegExp, number][] = [["injury", /\b(injur(?:y|ed)|sprain|strain)\b/i, 8], ["pain", /\b(pain|hurt|hurts|aching?)\b/i, 7], ["soreness", /\b(sore|soreness)\b/i, 5], ["fatigue", /\b(tired|fatigue|fatigued|exhausted|low energy)\b/i, 6], ["sleep", /\b(poor sleep|bad sleep|slept bad)\b/i, 6], ["discomfort", /\b(discomfort|tight|tightness)\b/i, 5]];

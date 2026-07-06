@@ -267,7 +267,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
       return { ...m, toolResults: next };
     }));
 
-    const r = runTool(tool, pending.args, { state: stateRef.current, set, settings });
+    const r = runTool(tool, pending.args, { state: stateRef.current, set, settings, confirmed: true });
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId || !m.toolResults) return m;
       const next = [...m.toolResults];
