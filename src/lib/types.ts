@@ -8,6 +8,7 @@ export interface SetEntry {
   distanceMi?: number;
   modifier?: "normal" | "warmup" | "drop" | "failure" | "partials" | "unilateral" | "paused" | "tempo";
   completed: boolean;
+  provenance?: DataProvenance;
 }
 
 export interface WorkoutExercise {
@@ -18,6 +19,7 @@ export interface WorkoutExercise {
   completed: boolean;
   /** Tags applied to the whole exercise (e.g. unilateral, paused). */
   exerciseTags?: NonNullable<SetEntry["modifier"]>[];
+  provenance?: DataProvenance;
 }
 
 export interface Workout {
@@ -28,6 +30,7 @@ export interface Workout {
   templateId?: string;
   exercises: WorkoutExercise[];
   notes?: string;
+  provenance?: DataProvenance;
 }
 
 export interface CustomExercise {
@@ -47,6 +50,7 @@ export interface CardioEntry {
   id: string; type: string; minutes: number;
   distanceMi?: number; calories?: number; heartRate?: number;
   speed?: number; incline?: number; notes?: string; createdAt: number;
+  provenance?: DataProvenance;
 }
 
 export interface MealItem {
@@ -55,6 +59,7 @@ export interface MealItem {
   calories: number; protein: number; carbs: number; fat: number;
   source?: DataSource;
   confidence?: Confidence;
+  provenance?: DataProvenance;
 }
 
 export interface MealEntry {
@@ -72,6 +77,7 @@ export interface MealEntry {
   assumptions?: string[];
   confirmed?: boolean;
   auditId?: string;
+  provenance?: DataProvenance;
 }
 
 export interface SupplementLog {
@@ -82,11 +88,23 @@ export interface SupplementLog {
   createdAt: number;
   source?: DataSource;
   auditId?: string;
+  provenance?: DataProvenance;
 }
 
-export interface BodyweightEntry { id: string; weightLb: number; notes?: string; createdAt: number; }
-export interface SleepEntry { id: string; hours: number; quality: number; notes?: string; createdAt: number; }
-export interface RecoveryCheckIn { id: string; energy: number; soreness: number; stress: number; motivation: number; notes?: string; createdAt: number; }
+export interface BodyweightEntry { id: string; weightLb: number; notes?: string; createdAt: number; provenance?: DataProvenance; }
+export interface SleepEntry { id: string; hours: number; quality: number; notes?: string; createdAt: number; provenance?: DataProvenance; }
+export interface RecoveryCheckIn { id: string; energy: number; soreness: number; stress: number; motivation: number; notes?: string; createdAt: number; provenance?: DataProvenance; }
+export interface RecoverySignal {
+  id: string;
+  sourceLogId: string;
+  kind: "pain" | "soreness" | "fatigue" | "sleep" | "injury" | "discomfort";
+  bodyArea?: string;
+  severity: number;
+  notes: string;
+  createdAt: number;
+  source: "manual" | "ai" | "camera" | "imported" | "barcode" | "health";
+  provenance?: DataProvenance;
+}
 export type FatigueLevel = "fresh" | "moderate" | "fatigued" | "very";
 export type MuscleFatigueMap = Partial<Record<string, FatigueLevel>>;
 export interface PR { id: string; exerciseId: string; type: "1rm" | "weight" | "volume"; value: number; reps?: number; weight?: number; date: number; }
@@ -98,6 +116,32 @@ export interface AiMessage { id: string; role: "user" | "assistant"; content: st
 
 export type DataSource = "manual" | "jarvis" | "jarvis-confirmed" | "barcode" | "camera" | "whoop" | "apple-health" | "imported" | "edited";
 export type Confidence = "high" | "medium" | "low";
+
+/** Canonical source metadata for logged health and fitness data. */
+export type ProvenanceSource =
+  | "manual"
+  | "jarvis"
+  | "ai-estimated"
+  | "imported"
+  | "wearable"
+  | "apple-health"
+  | "health-connect"
+  | "barcode"
+  | "system-derived";
+export type ProvenanceConfidence = Confidence | "unknown";
+export type ConfirmationStatus = "confirmed" | "unconfirmed" | "not-required";
+
+export interface DataProvenance {
+  source: ProvenanceSource;
+  confidence: ProvenanceConfidence;
+  confirmation: ConfirmationStatus;
+  auditId?: string;
+  originalText?: string;
+  assumptions?: string[];
+  editedBy?: "user" | "jarvis";
+  editedAt?: number;
+  editAuditId?: string;
+}
 
 export interface SourceMeta {
   source?: DataSource;
@@ -327,6 +371,7 @@ export interface AppState {
   bodyweightEntries: BodyweightEntry[];
   sleepEntries: SleepEntry[];
   recoveryCheckIns: RecoveryCheckIn[];
+  recoverySignals: RecoverySignal[];
   muscleFatigue: MuscleFatigueMap;
   prs: PR[];
   goals: Goal[];
@@ -355,7 +400,7 @@ export const defaultPersonalization: Personalization = {
 };
 
 export const defaultState: AppState = {
-  version: 3,
+  version: 4,
   onboardingComplete: false,
   profile: {
     goal: "hypertrophy",
@@ -382,6 +427,7 @@ export const defaultState: AppState = {
   bodyweightEntries: [],
   sleepEntries: [],
   recoveryCheckIns: [],
+  recoverySignals: [],
   muscleFatigue: {},
   prs: [],
   goals: [
