@@ -592,7 +592,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
           <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-3 ml-1">
             Meal Templates
           </p>
-          <div className="space-y-2.5 max-h-[40dvh] overflow-y-auto pr-1">
+          <div className="space-y-2.5 pr-1">
             {MEAL_TEMPLATES.map((mt) => {
               const t = mealTotals(mt.items);
               return (
@@ -665,7 +665,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
               ))}
             </Select>
           </div>
-          <div className="space-y-2 max-h-[45dvh] overflow-y-auto pr-1">
+          <div className="space-y-2 pr-1">
             {filteredFoods.map((f) => (
               <button
                 key={f.id}

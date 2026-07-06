@@ -300,7 +300,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
           <span className="ml-auto capitalize">{providerName} / L{settings.permission}</span>
         </div>
 
-        <div ref={scrollRef} className="space-y-3 max-h-[45dvh] overflow-y-auto pb-2">
+        <div ref={scrollRef} className="space-y-3 pb-2">
           {messages.length === 0 && (
             <div className="text-center py-6">
               <div className="inline-flex w-12 h-12 items-center justify-center rounded-2xl mb-3" style={{ background: "var(--section-soft)", color: "var(--section)" }}>

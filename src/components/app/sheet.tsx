@@ -28,13 +28,13 @@ export function BottomSheet({
   return (
     <div className="sheet-root fixed inset-0 z-50 flex items-end justify-center">
       <div
-        className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in"
+        className="sheet-backdrop absolute inset-0 bg-black/85 backdrop-blur-md animate-in fade-in"
         onClick={onClose}
       />
       <div
         className={cn(
           "sheet-surface relative w-full max-w-[480px] mx-auto rounded-t-[var(--radius-modal)] animate-in slide-in-from-bottom duration-300 overflow-hidden",
-          height === "tall" && "max-h-[88dvh]",
+          height === "tall" && "max-h-[92dvh]",
           height === "full" && "h-[100dvh] rounded-none",
         )}
       >
@@ -51,8 +51,8 @@ export function BottomSheet({
           </button>
         </div>
         <div
-          className="sheet-scroll overflow-y-auto px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-4"
-          style={{ maxHeight: "calc(88dvh - 60px)" }}
+          className="sheet-scroll overflow-y-auto px-5 pb-[max(24px,env(safe-area-inset-bottom)+16px)] pt-4"
+          style={{ maxHeight: height === "tall" ? "calc(92dvh - 64px)" : "calc(85dvh - 64px)" }}
         >
           {children}
         </div>
@@ -82,10 +82,10 @@ export function ConfirmDialog({
   return (
     <div className="sheet-root fixed inset-0 z-50 flex items-center justify-center p-6">
       <div
-        className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md"
+        className="sheet-backdrop absolute inset-0 bg-black/85 backdrop-blur-md"
         onClick={onClose}
       />
-      <div className="sheet-surface relative w-full max-w-sm rounded-[var(--radius-modal)] p-5">
+      <div className="sheet-surface relative w-full max-w-sm rounded-[var(--radius-modal)] p-5 max-h-[92dvh] overflow-y-auto">
         <h3 className="font-semibold text-lg text-white">{title}</h3>
         <p className="text-sm text-white/70 mt-2">{message}</p>
         <div className="mt-5 flex gap-2 border-t border-white/[0.06] pt-4">

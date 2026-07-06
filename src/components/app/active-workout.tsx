@@ -547,7 +547,7 @@ function ExercisePicker({ open, onClose, customExercises, onPick }: {
   return (
     <BottomSheet open={open} onClose={onClose} title="Add exercise" height="tall">
       <Input placeholder="Search exercise or muscle…" value={q} onChange={e => setQ(e.target.value)} autoFocus />
-      <div className="mt-3 space-y-1.5 max-h-[60dvh] overflow-y-auto">
+      <div className="mt-3 space-y-1.5">
         {filtered.map(e => (
           <button key={e.id} onClick={() => onPick(e.id)}
             className="w-full text-left p-3 rounded-xl bg-[var(--surface-2)] hover:ring-1 hover:ring-[var(--section)]">
