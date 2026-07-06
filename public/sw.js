@@ -83,8 +83,9 @@ self.addEventListener('fetch', (event) => {
         }
 
         // Dynamically cache versioned assets (Vite assets have hashes)
+        // Strictly avoid caching .json files here to protect user health data
         const isAsset = url.pathname.includes('/assets/') ||
-                        /\.(js|css|png|jpg|jpeg|svg|woff2?|json)$/.test(url.pathname);
+                        /\.(js|css|png|jpg|jpeg|svg|woff2?)$/.test(url.pathname);
 
         if (isAsset) {
           const responseToCache = networkResponse.clone();
