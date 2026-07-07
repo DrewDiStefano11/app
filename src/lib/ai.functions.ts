@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 
 type AiProvider = "groq" | "gemini" | "legacy-lovable";
 type AiKeyMode = "local" | "environment" | "user";
@@ -49,6 +50,57 @@ interface EstimateTextInput extends ProviderOptions {
   detail?: "simple" | "normal" | "detailed";
   learnedHints?: string;
 }
+
+const aiProviderSchema = z.enum(["groq", "gemini", "legacy-lovable"]);
+const aiKeyModeSchema = z.enum(["local", "environment", "user"]);
+const geminiModelSchema = z.enum(["gemini-2.5-flash-lite", "gemini-2.5-flash"]);
+const groqModelSchema = z.enum(["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen/qwen3-32b"]);
+
+const providerOptionsSchema = z.object({
+  provider: aiProviderSchema.optional(),
+  geminiKeyMode: aiKeyModeSchema.optional(),
+  userGeminiApiKey: z.string().optional(),
+  geminiModel: geminiModelSchema.optional(),
+  groqKeyMode: aiKeyModeSchema.optional(),
+  userGroqApiKey: z.string().optional(),
+  groqModel: groqModelSchema.optional(),
+  autoModelRouting: z.boolean().optional(),
+  autoAiFallback: z.boolean().optional(),
+  allowGeminiFallback: z.boolean().optional(),
+});
+
+const toolDescriptorSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  parameters: z.record(z.unknown()),
+});
+
+const chatInputSchema = providerOptionsSchema.extend({
+  messages: z.array(
+    z.object({
+      role: z.enum(["user", "assistant", "system"]),
+      content: z.string(),
+    })
+  ),
+  mode: z.enum(["quick", "detailed"]).optional(),
+  context: z.string().optional(),
+  tools: z.array(toolDescriptorSchema).optional(),
+  systemOverride: z.string().optional(),
+});
+
+const connectionTestInputSchema = providerOptionsSchema.extend({});
+
+const estimateInputSchema = providerOptionsSchema.extend({
+  imageDataUrl: z.string(),
+  hint: z.string().optional(),
+});
+
+const estimateTextInputSchema = providerOptionsSchema.extend({
+  text: z.string(),
+  mealType: z.string().optional(),
+  detail: z.enum(["simple", "normal", "detailed"]).optional(),
+  learnedHints: z.string().optional(),
+});
 
 interface AiCallDiagnostics {
   provider: AiProvider;
@@ -608,7 +660,7 @@ function parseJsonText(raw: string) {
 }
 
 export const aiChat = createServerFn({ method: "POST" })
-  .validator((data: ChatInput) => data)
+  .validator(chatInputSchema)
   .handler(async ({ data }) => {
     try {
       return await callChatProvider(data);
@@ -619,7 +671,7 @@ export const aiChat = createServerFn({ method: "POST" })
   });
 
 export const testAiConnection = createServerFn({ method: "POST" })
-  .validator((data: ConnectionTestInput) => data)
+  .validator(connectionTestInputSchema)
   .handler(async ({ data }) => {
     try {
       const provider = safeProvider(data.provider);
@@ -659,7 +711,7 @@ export const testAiConnection = createServerFn({ method: "POST" })
 
 /** Text-based food macro estimation. Returns structured items + totals. */
 export const estimateFoodFromText = createServerFn({ method: "POST" })
-  .validator((data: EstimateTextInput) => data)
+  .validator(estimateTextInputSchema)
   .handler(async ({ data }) => {
     if (!data.text?.trim()) return { ok: false as const, error: "No food text provided.", code: "malformed_request" as const };
     const detail = data.detail ?? "normal";
@@ -704,7 +756,7 @@ ${data.learnedHints ? `\nUser's known portions/preferences:\n${data.learnedHints
   });
 
 export const estimateMealMacros = createServerFn({ method: "POST" })
-  .validator((data: EstimateInput) => data)
+  .validator(estimateInputSchema)
   .handler(async ({ data }) => {
     if (!data.imageDataUrl?.startsWith("data:image/")) {
       return { ok: false as const, error: "Invalid image. Please retake the photo.", code: "malformed_request" as const };
