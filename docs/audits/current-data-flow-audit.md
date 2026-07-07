@@ -84,8 +84,8 @@ This audit traces the lifecycle of user-entered and app-generated data within th
 - **Location:** `src/lib/demo-data.ts` builds sample workouts, meals, bodyweights, and check-ins.
 - **Activation:** The `demoMode` flag in `AppState`.
 - **Separation:** In `src/lib/store.tsx`, `view` is derived: `useMemo(() => state.demoMode ? migrateFitCoreDataIfNeeded(buildDemoState(state)) : state, [state])`.
-- **Risk Mitigation:** The `state` variable holds the true user data and is saved to `localStorage`. `view` overlays demo data only for display.
-- **Risks:** If a component accidentally uses `state` instead of `view` (or vice versa) during a mutation while in demo mode, demo data could be written into real history. Or if `demoMode` gets permanently stuck, users can't see their real data.
+- **Risk Mitigation:** The `state` variable holds the true user data and is saved to `localStorage`. Demo mode appears intended to separate demo display data from persisted user data through the derived `view`.
+- **Risks:** Current usage may be inconsistent because some views may still use `state` directly from `useStore()` instead of `view`. This means demo-mode behavior may be inconsistent across Training, Nutrition, Progress, and Recovery. The risk is not only that demo data could accidentally be written into real state during active demo mode, but also that demo mode may not display consistently because some screens may bypass the demo overlay. Future cleanup should verify every `useStore()` consumer and clearly define when components should use `state`, `view`, or mutation helpers before treating demo mode as fully isolated.
 
 ## Data Loss / Inconsistency Risks
 
@@ -97,7 +97,7 @@ This audit traces the lifecycle of user-entered and app-generated data within th
 ## Highest-Risk Data Issues
 
 1.  **Storage Quota:** All historical data is kept in a single JSON blob in `localStorage`. Long-term use will inevitably hit quota limits, leading to silent data loss on `save`.
-2.  **Demo Mode Writes:** Accidental writes to the store while `demoMode` is active could inadvertently bake demo structures into the real state if mutations aren't strictly gated against the `view` object.
+2.  **Demo Mode Writes & Inconsistent Display:** Accidental real-state mutations while `demoMode` is active could inadvertently bake demo structures into the real state. Additionally, inconsistent demo display due to mixed `state` vs `view` usage poses a risk. There is a need for a clear convention for display data vs persisted data vs mutation helpers.
 3.  **Base64 Photos:** If `progressPhotos` or AI camera snapshot strings are stored directly in `localStorage` state, the 5MB limit will be reached extremely quickly.
 
 ## Recommended Cleanup Order (Post-Product Bible)
