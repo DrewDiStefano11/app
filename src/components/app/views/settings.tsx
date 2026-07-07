@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, Upload, Trash2, Bell, User } from "lucide-react";
+import { Download, Upload, Trash2, Bell, User, BrainCircuit, Database, Info, TestTube2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import type { Profile } from "@/lib/types";
 import { Card, PageHeader, PrimaryButton, GhostButton, Input, Label, Select } from "@/components/app/ui";
@@ -38,13 +38,24 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
       <PageHeader title="Hub" subtitle="Profile, targets, data" action={<button onClick={onBack} className="text-sm text-muted-foreground">Done</button>} />
 
       <div className="px-5 space-y-5">
-        <JarvisSettingsCard />
-        <GoalsProfileCard />
-        <JarvisActivityCard />
+        <section className="space-y-3">
+          <div>
+            <h3 className="font-semibold flex items-center gap-2"><BrainCircuit size={16} />AI Coach & Goals</h3>
+            <p className="text-xs text-muted-foreground mt-1 mb-2">Manage Jarvis permissions, memory, and your current targets.</p>
+          </div>
+          <div className="space-y-4">
+            <JarvisSettingsCard />
+            <GoalsProfileCard />
+            <JarvisActivityCard />
+          </div>
+        </section>
 
         <section>
-          <h3 className="font-semibold mb-2 flex items-center gap-2"><User size={16} />Profile</h3>
-          <Card className="space-y-3">
+          <div>
+            <h3 className="font-semibold flex items-center gap-2"><User size={16} />Profile</h3>
+            <p className="text-xs text-muted-foreground mt-1 mb-2">Adjust your metrics and experience level to calibrate Jarvis's workout suggestions.</p>
+          </div>
+          <Card className="space-y-4">
             <div><Label>Goal</Label>
               <Select value={state.profile.goal} onChange={e => updateProfile({ goal: e.target.value as Profile["goal"] })}>
                 <option value="strength">Strength</option><option value="hypertrophy">Hypertrophy</option>
@@ -79,7 +90,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
               <label key={k} className="flex items-center justify-between py-1">
                 <span className="text-sm capitalize">{k === "weighIn" ? "Weigh-in 9 PM" : k === "workout" ? "Workout 5 PM" : "Lunch log 12 PM"}</span>
                 <input type="checkbox" checked={state.reminders[k]} onChange={e => set(s => ({ ...s, reminders: { ...s.reminders, [k]: e.target.checked } }))}
-                  className="w-5 h-5 accent-[var(--section)]" />
+                  className="w-5 h-5 accent-[var(--section)]" aria-label={`Toggle ${k} reminder`} />
               </label>
             ))}
             <p className="text-xs text-muted-foreground pt-2">Reminders use browser notifications when granted. The app works without them.</p>
@@ -87,7 +98,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
         </section>
 
         <section>
-          <h3 className="font-semibold mb-2">Demo data</h3>
+          <h3 className="font-semibold mb-2 flex items-center gap-2"><TestTube2 size={16} />Demo data</h3>
           <Card className="space-y-2">
             <label className="flex items-center justify-between py-1">
               <div>
@@ -102,23 +113,29 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
         </section>
 
         <section>
-          <h3 className="font-semibold mb-2">Data</h3>
-          <Card className="space-y-2">
-            <GhostButton className="w-full justify-center" onClick={downloadBackup}><Download size={16} />Export backup</GhostButton>
-            <label className="block">
-              <GhostButton className="w-full justify-center"><Upload size={16} />Import backup</GhostButton>
-              <input type="file" accept="application/json" className="hidden" onChange={e => handleImport(e.target.files?.[0] ?? null)} />
-            </label>
+          <div>
+            <h3 className="font-semibold flex items-center gap-2"><Database size={16} />Data Management</h3>
+            <p className="text-xs text-muted-foreground mt-1 mb-2">Your data stays strictly on this device. Use backups to save your progress.</p>
+          </div>
+          <Card className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <GhostButton className="justify-center" onClick={downloadBackup}><Download size={16} />Export</GhostButton>
+              <label>
+                <GhostButton className="w-full justify-center pointer-events-none"><Upload size={16} />Import</GhostButton>
+                <input type="file" accept="application/json" className="hidden" onChange={e => handleImport(e.target.files?.[0] ?? null)} />
+              </label>
+            </div>
             {importMsg && <p className="text-xs text-center" style={{ color: "var(--section)" }}>{importMsg}</p>}
+            <div className="h-px bg-border my-2" />
             <button onClick={() => setConfirmReset(true)} className="w-full px-4 py-2.5 rounded-xl border border-destructive text-destructive font-medium flex items-center justify-center gap-2"><Trash2 size={16} />Reset all data</button>
           </Card>
         </section>
 
         <section>
-          <h3 className="font-semibold mb-2">About</h3>
+          <h3 className="font-semibold mb-2 flex items-center gap-2"><Info size={16} />About</h3>
           <Card>
             <p className="text-sm">FitCore v1 — your personal fitness command center.</p>
-            <p className="text-xs text-muted-foreground mt-2">AI coach: Lovable AI (Gemini). Data stays on this device. No accounts, no tracking.</p>
+            <p className="text-xs text-muted-foreground mt-2">AI coach: Lovable AI (Gemini). <span className="font-medium text-foreground">Data stays on this device.</span> No accounts, no tracking.</p>
           </Card>
         </section>
       </div>
