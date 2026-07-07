@@ -1,7 +1,7 @@
 # Build, Dependency, Script, Deployment, and Cache Risk Audit
 
 ## Executive Summary
-The FitCore project is in a healthy, buildable state using the Vite, TanStack Router/Start, and Nitro (Cloudflare module target) ecosystem. Standard CI/CD processes (`npm ci`, `npm run build`, `npm run lint`, `npm test`) function correctly. There are no major blockages, syntax errors, or failing tests that would prevent safe deployment. However, there are minor technical debt items, including extensive Prettier formatting errors, deprecated dependency warnings, and some module directive warnings during the build step. The Service Worker strategy is correctly configured to protect sensitive data while enabling offline capability for the app shell, but it will require manual cache version bumping on significant updates.
+The FitCore project is in a healthy, buildable state using the Vite, TanStack Router/Start, and Nitro (Cloudflare module target) ecosystem. Standard CI/CD processes (`npm ci`, `npm run build`, `npm run lint`, `npm run test:e2e`) function correctly. There are no major blockages, syntax errors, or failing tests that would prevent safe deployment. However, there are minor technical debt items, including extensive Prettier formatting errors, deprecated dependency warnings, and some module directive warnings during the build step. The Service Worker strategy is correctly configured to protect sensitive data while enabling offline capability for the app shell, but it will require manual cache version bumping on significant updates.
 
 ## Commands Run and Results
 The following commands were executed to validate the repository:
