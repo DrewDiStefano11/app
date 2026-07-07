@@ -1,48 +1,77 @@
 import { useState, useMemo } from "react";
-import { Camera, Plus, Trash2, Image as ImageIcon, Scale, Target } from "lucide-react";
+import { Camera, Plus, Trash2, Image as ImageIcon, Scale, Target, Zap, Activity, Utensils, Moon } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import { fitcoreScore, weeklyVolumeSeries, bodyweightDelta } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
 import { Card, StatCard, PageHeader, PrimaryButton, EmptyState, Label, Input, Select, SubTabs, SectionHeader, Chip, Ring } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 
-type Tab = "overview" | "body" | "analytics";
+type Tab = "daily" | "body";
 const TABS: { id: Tab; label: string }[] = [
-  { id: "overview", label: "Overview" },
-  { id: "body", label: "Body" },
-  { id: "analytics", label: "Analytics" },
+  { id: "daily", label: "Daily View" },
+  { id: "body", label: "Log Body" },
 ];
 
 export function ProgressView() {
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>("daily");
   return (
     <div className="pb-24">
-      <PageHeader title="Progress" subtitle="Your trends and milestones" />
+      <PageHeader title="Insights" subtitle="Your Daily View" />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} />
-      {tab === "overview" && <OverviewTab />}
+      {tab === "daily" && <DailyViewTab />}
       {tab === "body" && <BodyTab />}
-      {tab === "analytics" && <AnalyticsTab />}
     </div>
   );
 }
 
-/* ===================== OVERVIEW ===================== */
 
-function OverviewTab() {
+function DailyViewTab() {
   const { state } = useStore();
   const score = fitcoreScore(state);
+
+  const lastWorkout = state.workouts[state.workouts.length - 1];
   const sortedBw = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
-  const bw = state.profile.bodyweightLb;
-  const target = state.profile.targetBodyweightLb;
-  const dWeek = bodyweightDelta(state, 7) ?? 0;
-  const dMonth = bodyweightDelta(state, 30) ?? 0;
+  const lastBw = sortedBw[sortedBw.length - 1];
+
+  const days = 14;
+  const series = weeklyVolumeSeries(state, days);
+  const totalVolume = series.reduce((a, s) => a + s.volume, 0);
+  const maxVolume = Math.max(1, ...series.map(s => s.volume));
+
+  const bwInRange = sortedBw.filter(b => b.createdAt > Date.now() - days * 86400000);
+
+  const recentMeals = state.mealEntries.filter(m => m.createdAt > Date.now() - 7 * 86400000);
+  const recentRecovery = state.recoveryCheckIns.filter(r => r.createdAt > Date.now() - 7 * 86400000);
+
   const topGoals = state.goals.filter(g => g.pinned).slice(0, 3);
   const goalList = topGoals.length ? topGoals : state.goals.slice(0, 3);
-  const lastWorkout = state.workouts[state.workouts.length - 1];
+
+  // What Changed Logic
+  const threeDaysAgo = Date.now() - 3 * 86400000;
+  const recentWorkout = lastWorkout && lastWorkout.startedAt > threeDaysAgo;
+  const recentWeighIn = lastBw && lastBw.createdAt > threeDaysAgo;
 
   return (
     <div className="px-5">
-      <div className="card-elev p-5 section-gradient ring-section">
+      <SectionHeader title="What Changed" />
+      {recentWorkout || recentWeighIn ? (
+        <Card>
+          <div className="flex items-center gap-3">
+            <Zap className="text-[var(--section)]" size={24} />
+            <div>
+              <p className="font-semibold text-sm">Recent Activity</p>
+              <p className="text-xs text-muted-foreground">
+                {recentWorkout ? `Completed ${lastWorkout.name} on ${new Date(lastWorkout.startedAt).toLocaleDateString()}` : `Logged ${lastBw.weightLb} lb on ${new Date(lastBw.createdAt).toLocaleDateString()}`}
+              </p>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <EmptyState icon={<Zap size={22} />} title="No recent changes" description="Log a workout, meal, or weigh-in." />
+      )}
+
+      <SectionHeader title="Weekly Progress" />
+      <div className="card-elev p-5 section-gradient ring-section mb-4">
         <div className="flex items-center gap-4">
           <Ring value={score} max={100} size={92} label="score" />
           <div className="flex-1">
@@ -53,25 +82,8 @@ function OverviewTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 mt-4">
-        <StatCard label="Bodyweight" value={`${bw}`} sub="lb" accent />
-        <StatCard label="Δ 7d" value={`${dWeek >= 0 ? "+" : ""}${dWeek.toFixed(1)}`} sub="lb" />
-        <StatCard label="Δ 30d" value={`${dMonth >= 0 ? "+" : ""}${dMonth.toFixed(1)}`} sub="lb" />
-      </div>
-
-      <SectionHeader title="Bodyweight trend" />
-      <Card>
-        {sortedBw.length < 2 ? (
-          <EmptyState icon={<Scale size={22} />} title="Not enough data" description="Log at least 2 weigh-ins to see your trend." />
-        ) : (
-          <Sparkline points={sortedBw.map(b => b.weightLb)} unit=" lb" />
-        )}
-        <p className="text-xs text-muted-foreground mt-2">Target {target} lb ({(target - bw) >= 0 ? "+" : ""}{(target - bw).toFixed(1)} to go)</p>
-      </Card>
-
-      <SectionHeader title="Current goals" />
       {goalList.length === 0 ? (
-        <EmptyState icon={<Target size={22} />} title="No pinned goals" description="Pin goals on the home Goals panel to track them here." />
+        <EmptyState icon={<Target size={22} />} title="No goals" description="Add goals on the home Goals panel." />
       ) : (
         <div className="space-y-2">
           {goalList.map(g => {
@@ -91,12 +103,59 @@ function OverviewTab() {
         </div>
       )}
 
-      {lastWorkout && (
+      <SectionHeader title="Training Trend" />
+      {totalVolume === 0 ? (
+        <EmptyState icon={<Activity size={22} />} title="No training volume" description="Complete workouts to see volume trends." />
+      ) : (
+        <Card>
+          <div className="flex items-end gap-1 h-28">
+            {series.map((s, i) => (
+              <div key={i} className="flex-1 rounded-t" style={{ height: `${(s.volume / maxVolume) * 100}%`, background: "var(--section)", minHeight: s.volume ? 4 : 0, opacity: s.volume ? 0.85 : 0.15 }} />
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 tabular-nums">{Math.round(totalVolume/1000)}k lb total over {days}d</p>
+        </Card>
+      )}
+
+      <SectionHeader title="Nutrition Trend" />
+      {recentMeals.length > 0 ? (
+        <Card>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[var(--surface-2)] rounded-lg">
+              <Utensils size={20} className="text-muted-foreground" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm">Meals Logged</p>
+              <p className="text-xs text-muted-foreground">{recentMeals.length} meals tracked in the last 7 days.</p>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <EmptyState icon={<Utensils size={22} />} title="No recent meals" description="Log meals to see nutrition trends." />
+      )}
+
+      <SectionHeader title="Recovery Trend" />
+      {recentRecovery.length > 0 ? (
+        <Card>
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[var(--surface-2)] rounded-lg">
+              <Moon size={20} className="text-muted-foreground" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm">Recovery Logged</p>
+              <p className="text-xs text-muted-foreground">{recentRecovery.length} check-ins this week.</p>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <EmptyState icon={<Moon size={22} />} title="No recent recovery logs" description="Log daily check-ins to see recovery trends." />
+      )}
+
+      {bwInRange.length >= 2 && (
         <>
-          <SectionHeader title="Recent activity" />
+          <SectionHeader title="Body Trend" />
           <Card>
-            <p className="font-semibold text-sm">{lastWorkout.name}</p>
-            <p className="text-xs text-muted-foreground">{new Date(lastWorkout.startedAt).toLocaleDateString()} • {lastWorkout.exercises.length} exercises</p>
+            <Sparkline points={bwInRange.map(b => b.weightLb)} unit=" lb" />
           </Card>
         </>
       )}
@@ -104,7 +163,8 @@ function OverviewTab() {
   );
 }
 
-/* ===================== BODY ===================== */
+
+
 
 function BodyTab() {
   const [sub, setSub] = useState<"weight" | "photos">("weight");
@@ -224,72 +284,6 @@ function PhotosSection() {
         onConfirm={() => { set(s => ({ ...s, progressPhotos: s.progressPhotos.filter(x => x.id !== confirmDel) })); setConfirmDel(null); setView(null); }}
         title="Delete photo?" message="This can't be undone." confirmLabel="Delete" destructive />
     </>
-  );
-}
-
-/* ===================== ANALYTICS ===================== */
-
-function AnalyticsTab() {
-  const { state } = useStore();
-  const [range, setRange] = useState<"14d" | "30d">("14d");
-  const days = range === "14d" ? 14 : 30;
-  const series = weeklyVolumeSeries(state, days);
-  const total = series.reduce((a, s) => a + s.volume, 0);
-  const max = Math.max(1, ...series.map(s => s.volume));
-  const sortedBw = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
-  const bwInRange = sortedBw.filter(b => b.createdAt > Date.now() - days * 86400000);
-
-  return (
-    <div className="px-5">
-      <div className="flex gap-2 mb-3">
-        {(["14d","30d"] as const).map(r => <Chip key={r} aria-label={`View ${r} range`} active={range === r} onClick={() => setRange(r)}>{r}</Chip>)}
-      </div>
-
-      <SectionHeader title="Training volume" />
-      {total === 0 ? (
-        <EmptyState icon={<Target size={22} />} title="No training volume" description="Complete workouts to see volume trends." />
-      ) : (
-        <Card>
-          <div className="flex items-end gap-1 h-28">
-            {series.map((s, i) => (
-              <div key={i} className="flex-1 rounded-t" style={{ height: `${(s.volume / max) * 100}%`, background: "var(--section)", minHeight: s.volume ? 4 : 0, opacity: s.volume ? 0.85 : 0.15 }} />
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground mt-2 tabular-nums">{Math.round(total/1000)}k lb total over {days}d</p>
-        </Card>
-      )}
-
-      <SectionHeader title="Bodyweight vs time" />
-      {bwInRange.length < 2 ? (
-        <EmptyState icon={<Scale size={22} />} title="Not enough data" description="Log more weigh-ins to compare." />
-      ) : (
-        <Card>
-          <Sparkline points={bwInRange.map(b => b.weightLb)} unit=" lb" />
-        </Card>
-      )}
-
-      <SectionHeader title="Goal progress" />
-      {state.goals.length === 0 ? (
-        <EmptyState icon={<Target size={22} />} title="No goals" description="Add goals on the home Goals panel." />
-      ) : (
-        <div className="space-y-2">
-          {state.goals.map(g => {
-            const pct = Math.min(100, (g.current / Math.max(0.01, g.target)) * 100);
-            return (
-              <Card key={g.id}>
-                <div className="flex justify-between items-baseline mb-2">
-                  <p className="font-medium text-sm">{g.label}</p>
-                  <p className="text-xs text-muted-foreground tabular-nums">{Math.round(pct)}%</p>
-                </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
-                  <div className="h-full" style={{ width: `${pct}%`, background: "var(--section)" }} />
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-    </div>
   );
 }
 
