@@ -62,7 +62,7 @@ function OverviewTab() {
       <SectionHeader title="Bodyweight trend" />
       <Card>
         {sortedBw.length < 2 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">Log at least 2 weigh-ins to see your trend.</p>
+          <EmptyState icon={<Scale size={22} />} title="Not enough data" description="Log at least 2 weigh-ins to see your trend." />
         ) : (
           <Sparkline points={sortedBw.map(b => b.weightLb)} unit=" lb" />
         )}
@@ -71,7 +71,7 @@ function OverviewTab() {
 
       <SectionHeader title="Current goals" />
       {goalList.length === 0 ? (
-        <Card><p className="text-sm text-muted-foreground">Pin goals on the home Goals panel to track them here.</p></Card>
+        <EmptyState icon={<Target size={22} />} title="No pinned goals" description="Pin goals on the home Goals panel to track them here." />
       ) : (
         <div className="space-y-2">
           {goalList.map(g => {
@@ -111,8 +111,8 @@ function BodyTab() {
   return (
     <div className="px-5">
       <div className="flex gap-2 mb-3">
-        <Chip active={sub === "weight"} onClick={() => setSub("weight")}>Weight</Chip>
-        <Chip active={sub === "photos"} onClick={() => setSub("photos")}>Photos</Chip>
+        <Chip active={sub === "weight"} aria-label="Weight tab" onClick={() => setSub("weight")}>Weight</Chip>
+        <Chip active={sub === "photos"} aria-label="Photos tab" onClick={() => setSub("photos")}>Photos</Chip>
       </div>
       {sub === "weight" ? <WeightSection /> : <PhotosSection />}
     </div>
@@ -168,7 +168,7 @@ function WeightSection() {
                   <p className="font-semibold tabular-nums">{e.weightLb} lb</p>
                   <p className="text-xs text-muted-foreground">{new Date(e.createdAt).toLocaleDateString()}</p>
                 </div>
-                <button onClick={() => setConfirmDel(e.id)} className="text-muted-foreground"><Trash2 size={14} /></button>
+                <button aria-label="Delete weigh-in" onClick={() => setConfirmDel(e.id)} className="text-muted-foreground"><Trash2 size={14} /></button>
               </div>
             </Card>
           ))}
@@ -195,7 +195,7 @@ function PhotosSection() {
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {[...state.progressPhotos].reverse().map(p => (
-            <button key={p.id} onClick={() => setView(p)} className="aspect-[3/4] rounded-xl overflow-hidden bg-[var(--surface-2)] relative active:scale-[0.98]">
+            <button key={p.id} aria-label={`View ${p.view} photo`} onClick={() => setView(p)} className="aspect-[3/4] rounded-xl overflow-hidden bg-[var(--surface-2)] relative active:scale-[0.98]">
               <img src={p.dataUrl} alt={p.view} className="w-full h-full object-cover" />
               <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 px-1.5 py-0.5 rounded">{p.view}</span>
             </button>
@@ -242,33 +242,31 @@ function AnalyticsTab() {
   return (
     <div className="px-5">
       <div className="flex gap-2 mb-3">
-        {(["14d","30d"] as const).map(r => <Chip key={r} active={range === r} onClick={() => setRange(r)}>{r}</Chip>)}
+        {(["14d","30d"] as const).map(r => <Chip key={r} aria-label={`View ${r} range`} active={range === r} onClick={() => setRange(r)}>{r}</Chip>)}
       </div>
 
       <SectionHeader title="Training volume" />
-      <Card>
-        {total === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">Complete workouts to see volume trends.</p>
-        ) : (
-          <>
-            <div className="flex items-end gap-1 h-28">
-              {series.map((s, i) => (
-                <div key={i} className="flex-1 rounded-t" style={{ height: `${(s.volume / max) * 100}%`, background: "var(--section)", minHeight: s.volume ? 4 : 0, opacity: s.volume ? 0.85 : 0.15 }} />
-              ))}
-            </div>
-            <p className="text-xs text-muted-foreground mt-2 tabular-nums">{Math.round(total/1000)}k lb total over {days}d</p>
-          </>
-        )}
-      </Card>
+      {total === 0 ? (
+        <EmptyState icon={<Target size={22} />} title="No training volume" description="Complete workouts to see volume trends." />
+      ) : (
+        <Card>
+          <div className="flex items-end gap-1 h-28">
+            {series.map((s, i) => (
+              <div key={i} className="flex-1 rounded-t" style={{ height: `${(s.volume / max) * 100}%`, background: "var(--section)", minHeight: s.volume ? 4 : 0, opacity: s.volume ? 0.85 : 0.15 }} />
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 tabular-nums">{Math.round(total/1000)}k lb total over {days}d</p>
+        </Card>
+      )}
 
       <SectionHeader title="Bodyweight vs time" />
-      <Card>
-        {bwInRange.length < 2 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">Log more weigh-ins to compare.</p>
-        ) : (
+      {bwInRange.length < 2 ? (
+        <EmptyState icon={<Scale size={22} />} title="Not enough data" description="Log more weigh-ins to compare." />
+      ) : (
+        <Card>
           <Sparkline points={bwInRange.map(b => b.weightLb)} unit=" lb" />
-        )}
-      </Card>
+        </Card>
+      )}
 
       <SectionHeader title="Goal progress" />
       {state.goals.length === 0 ? (
