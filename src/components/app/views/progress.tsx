@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Camera, Plus, Trash2, Image as ImageIcon, Scale, Target, Zap, Activity, Utensils, Moon } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
-import { fitcoreScore, weeklyVolumeSeries, bodyweightDelta } from "@/lib/analytics";
+import { fitcoreScore, weeklyVolumeSeries } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
 import { Card, StatCard, PageHeader, PrimaryButton, EmptyState, Label, Input, Select, SubTabs, SectionHeader, Chip, Ring } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
@@ -9,14 +9,14 @@ import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 type Tab = "daily" | "body";
 const TABS: { id: Tab; label: string }[] = [
   { id: "daily", label: "Daily View" },
-  { id: "body", label: "Log Body" },
+  { id: "body", label: "Body" },
 ];
 
 export function ProgressView() {
   const [tab, setTab] = useState<Tab>("daily");
   return (
     <div className="pb-24">
-      <PageHeader title="Insights" subtitle="Your Daily View" />
+      <PageHeader title="Progress" subtitle="Your Daily View" />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} />
       {tab === "daily" && <DailyViewTab />}
       {tab === "body" && <BodyTab />}
