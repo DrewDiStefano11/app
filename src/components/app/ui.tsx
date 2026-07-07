@@ -15,8 +15,7 @@ export function Card({
       onClick={onClick}
       className={cn(
         "premium-card card-elev p-4 sm:p-[1.125rem]",
-        onClick &&
-          "cursor-pointer press transition-[transform,border-color,background-color]",
+        onClick && "cursor-pointer press transition-[transform,border-color,background-color]",
         className,
       )}
     >
@@ -25,13 +24,7 @@ export function Card({
   );
 }
 
-export function SectionCard({
-  children,
-  className,
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
+export function SectionCard({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cn(
@@ -57,35 +50,18 @@ export function StatCard({
 }) {
   return (
     <Card
-      className={cn(
-        "metric-shell stat-card flex flex-col gap-1.5 p-4",
-        accent && "ring-section",
-      )}
+      className={cn("metric-shell stat-card flex flex-col gap-1.5 p-4", accent && "ring-section")}
     >
       <span className="stat-card__label text-xs uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
-      <span className="stat-card__value text-2xl font-bold tabular-nums">
-        {value}
-      </span>
-      {sub && (
-        <span className="stat-card__helper text-xs text-muted-foreground">
-          {sub}
-        </span>
-      )}
+      <span className="stat-card__value text-2xl font-bold tabular-nums">{value}</span>
+      {sub && <span className="stat-card__helper text-xs text-muted-foreground">{sub}</span>}
     </Card>
   );
 }
 
-export function ProgressBar({
-  value,
-  max,
-  color,
-}: {
-  value: number;
-  max: number;
-  color?: string;
-}) {
+export function ProgressBar({ value, max, color }: { value: number; max: number; color?: string }) {
   const pct = Math.min(100, Math.max(0, (value / Math.max(1, max)) * 100));
   return (
     <div
@@ -141,12 +117,8 @@ export function Ring({
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-sm font-bold tabular-nums">
-          {Math.round(pct * 100)}%
-        </span>
-        {label && (
-          <span className="text-[10px] text-muted-foreground">{label}</span>
-        )}
+        <span className="text-sm font-bold tabular-nums">{Math.round(pct * 100)}%</span>
+        {label && <span className="text-[10px] text-muted-foreground">{label}</span>}
       </div>
     </div>
   );
@@ -174,9 +146,7 @@ export function EmptyState({
         </div>
       )}
       <h3 className="font-semibold">{title}</h3>
-      {description && (
-        <p className="text-sm text-muted-foreground max-w-xs">{description}</p>
-      )}
+      {description && <p className="text-sm text-muted-foreground max-w-xs">{description}</p>}
       {action}
     </div>
   );
@@ -221,13 +191,9 @@ export function PageHeader({
   return (
     <header className="page-header px-5 pt-6 pb-4 flex items-end justify-between gap-3">
       <div>
-        <h1 className="page-header__title text-3xl font-bold tracking-tight">
-          {title}
-        </h1>
+        <h1 className="page-header__title text-3xl font-bold tracking-tight">{title}</h1>
         {subtitle && (
-          <p className="page-header__subtitle text-sm text-muted-foreground mt-1">
-            {subtitle}
-          </p>
+          <p className="page-header__subtitle text-sm text-muted-foreground mt-1">{subtitle}</p>
         )}
       </div>
       {action}
@@ -259,8 +225,7 @@ export function PrimaryButton({
       )}
       style={{
         background: "var(--section)",
-        boxShadow:
-          "0 10px 30px -10px color-mix(in oklab, var(--section) 60%, transparent)",
+        boxShadow: "0 10px 30px -10px color-mix(in oklab, var(--section) 60%, transparent)",
       }}
     >
       {children}
@@ -315,9 +280,7 @@ export function Select(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
   );
 }
 
-export function Textarea(
-  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>,
-) {
+export function Textarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return (
     <textarea
       {...props}
@@ -378,13 +341,7 @@ export function SubTabs<T extends string>({
   );
 }
 
-export function SectionHeader({
-  title,
-  action,
-}: {
-  title: string;
-  action?: ReactNode;
-}) {
+export function SectionHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="section-header flex items-center justify-between mt-5 mb-2 px-1">
       <h3 className="section-header__title font-semibold">{title}</h3>
@@ -467,9 +424,7 @@ export function ScoreCard({
             )}
           </div>
           {description && (
-            <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">
-              {description}
-            </p>
+            <p className="mt-2 text-xs leading-relaxed text-[var(--text-muted)]">{description}</p>
           )}
           {trend && <div className="mt-3">{trend}</div>}
         </div>
@@ -512,9 +467,7 @@ export function ErrorState({
         !
       </div>
       <h3 className="mt-3 font-semibold">{title}</h3>
-      {description && (
-        <p className="mt-1 text-sm text-[var(--text-muted)]">{description}</p>
-      )}
+      {description && <p className="mt-1 text-sm text-[var(--text-muted)]">{description}</p>}
       {action && <div className="mt-4">{action}</div>}
     </div>
   );

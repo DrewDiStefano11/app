@@ -18,30 +18,30 @@ It should help the user:
 
 ## Active Workout Layout Principles
 
-| Requirement | Status |
-| :---------- | :----- |
-| Each exercise should appear as an expandable card. | Planned |
-| Exercise cards should start closed by default. | Planned |
-| The current exercise should open automatically. | Planned |
-| When an exercise is completed, it should close automatically. | Planned |
-| A completed closed exercise card should show useful summary stats. | Planned |
-| The next exercise should open automatically. | Planned |
-| The user should still be able to manually expand or collapse cards. | Planned |
+| Requirement                                                          | Status  |
+| :------------------------------------------------------------------- | :------ |
+| Each exercise should appear as an expandable card.                   | Planned |
+| Exercise cards should start closed by default.                       | Planned |
+| The current exercise should open automatically.                      | Planned |
+| When an exercise is completed, it should close automatically.        | Planned |
+| A completed closed exercise card should show useful summary stats.   | Planned |
+| The next exercise should open automatically.                         | Planned |
+| The user should still be able to manually expand or collapse cards.  | Planned |
 | The interface should avoid making the workout feel like a long form. | Planned |
-| The current exercise should be visually obvious. | Planned |
-| Logged data should be easy to review before finishing. | Planned |
+| The current exercise should be visually obvious.                     | Planned |
+| Logged data should be easy to review before finishing.               | Planned |
 
 ## Exercise Card States
 
-| State | Behavior | Visible Information | User Actions |
-| :---- | :------- | :------------------ | :----------- |
-| Not Started | Card is closed unless manually opened. | Exercise name, planned sets/reps, equipment, status. | Open, reorder if allowed, substitute, skip. |
-| Current | Card opens automatically and becomes the focus. | Planned sets, logged sets, previous performance, set inputs, notes. | Log set, copy previous performance, add modifier, flag pain, substitute, complete. |
-| In Progress | Card remains open while some sets are logged. | Completed sets, remaining planned sets, rest timer if available. | Edit set, add set, mark set complete, add note, finish exercise. |
-| Completed | Card closes automatically by default. | Sets completed, top set, total volume, best reps, pain flag, note indicator, comparison to previous performance. | Reopen, edit, add note, mark needs review. |
-| Skipped | Card remains in the workout record. | Original exercise, skipped status, optional reason. | Add reason, unskip, substitute. |
-| Substituted | Original plan and replacement are both visible. | Original exercise, actual exercise, reason, completed set summary. | Edit reason, change replacement, review history impact. |
-| Needs Review | Card is flagged because data may be incomplete or unusual. | Missing values, unusual load, pain flag, AI-assisted entry, correction cue. | Correct, confirm, add note, dismiss review. |
+| State        | Behavior                                                   | Visible Information                                                                                              | User Actions                                                                       |
+| :----------- | :--------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------- |
+| Not Started  | Card is closed unless manually opened.                     | Exercise name, planned sets/reps, equipment, status.                                                             | Open, reorder if allowed, substitute, skip.                                        |
+| Current      | Card opens automatically and becomes the focus.            | Planned sets, logged sets, previous performance, set inputs, notes.                                              | Log set, copy previous performance, add modifier, flag pain, substitute, complete. |
+| In Progress  | Card remains open while some sets are logged.              | Completed sets, remaining planned sets, rest timer if available.                                                 | Edit set, add set, mark set complete, add note, finish exercise.                   |
+| Completed    | Card closes automatically by default.                      | Sets completed, top set, total volume, best reps, pain flag, note indicator, comparison to previous performance. | Reopen, edit, add note, mark needs review.                                         |
+| Skipped      | Card remains in the workout record.                        | Original exercise, skipped status, optional reason.                                                              | Add reason, unskip, substitute.                                                    |
+| Substituted  | Original plan and replacement are both visible.            | Original exercise, actual exercise, reason, completed set summary.                                               | Edit reason, change replacement, review history impact.                            |
+| Needs Review | Card is flagged because data may be incomplete or unusual. | Missing values, unusual load, pain flag, AI-assisted entry, correction cue.                                      | Correct, confirm, add note, dismiss review.                                        |
 
 ## Current Exercise Behavior
 

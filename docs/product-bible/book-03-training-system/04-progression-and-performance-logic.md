@@ -35,18 +35,18 @@ Status: Planned.
 
 ## Types Of Progression
 
-| Progression Type | Example | Best Used For | Risks |
-| :--------------- | :------ | :------------ | :---- |
-| Weight increase | Move from 185 lb to 190 lb. | Stable lifts with completed target reps. | Too aggressive when recovery is low or pain is present. |
-| Rep increase | Keep 50 lb dumbbells and add one rep per set. | Dumbbells, isolation lifts, conservative progress. | Can become junk volume if form degrades. |
-| Set increase | Add a fourth working set. | Hypertrophy blocks or undertrained muscles. | Recovery cost may exceed benefit. |
-| Volume increase | Add more total hard work across the week. | Muscles below target volume. | May worsen soreness or stall recovery. |
-| Density/rest-time improvement | Same work with shorter rest. | Conditioning, time-efficient training. | Can reduce strength output and confuse load comparisons. |
-| Form improvement | Same weight with cleaner reps. | Technique-limited movements. | Hard to quantify without notes or video. |
-| Range of motion improvement | Deeper squat or fuller curl. | Mobility or technique goals. | Misleading if compared directly to shorter-range sets. |
-| Tempo control | Slower eccentric at same load. | Hypertrophy, control, rehab/prehab. | Makes load/reps comparisons less direct. |
-| Pain-free progression | Same work with lower pain or discomfort. | Return-to-training and rehab-like contexts. | Should avoid implying medical treatment or diagnosis. |
-| Consistency progression | Complete planned sessions for multiple weeks. | Habit rebuilding, busy schedules. | Should not pressure user into training through concerning symptoms. |
+| Progression Type              | Example                                       | Best Used For                                      | Risks                                                               |
+| :---------------------------- | :-------------------------------------------- | :------------------------------------------------- | :------------------------------------------------------------------ |
+| Weight increase               | Move from 185 lb to 190 lb.                   | Stable lifts with completed target reps.           | Too aggressive when recovery is low or pain is present.             |
+| Rep increase                  | Keep 50 lb dumbbells and add one rep per set. | Dumbbells, isolation lifts, conservative progress. | Can become junk volume if form degrades.                            |
+| Set increase                  | Add a fourth working set.                     | Hypertrophy blocks or undertrained muscles.        | Recovery cost may exceed benefit.                                   |
+| Volume increase               | Add more total hard work across the week.     | Muscles below target volume.                       | May worsen soreness or stall recovery.                              |
+| Density/rest-time improvement | Same work with shorter rest.                  | Conditioning, time-efficient training.             | Can reduce strength output and confuse load comparisons.            |
+| Form improvement              | Same weight with cleaner reps.                | Technique-limited movements.                       | Hard to quantify without notes or video.                            |
+| Range of motion improvement   | Deeper squat or fuller curl.                  | Mobility or technique goals.                       | Misleading if compared directly to shorter-range sets.              |
+| Tempo control                 | Slower eccentric at same load.                | Hypertrophy, control, rehab/prehab.                | Makes load/reps comparisons less direct.                            |
+| Pain-free progression         | Same work with lower pain or discomfort.      | Return-to-training and rehab-like contexts.        | Should avoid implying medical treatment or diagnosis.               |
+| Consistency progression       | Complete planned sessions for multiple weeks. | Habit rebuilding, busy schedules.                  | Should not pressure user into training through concerning symptoms. |
 
 ## Exercise-Specific Progression
 

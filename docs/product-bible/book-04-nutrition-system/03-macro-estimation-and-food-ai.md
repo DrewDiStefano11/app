@@ -48,12 +48,12 @@ AI-estimated meals should preserve:
 
 ## Confidence Levels
 
-| Confidence | Meaning | Example | AI Behavior |
-| :--------- | :------ | :------ | :---------- |
-| High | Source and serving details are strong. | Scanned label with confirmed serving size. | Use in totals with normal source disclosure; still allow edits. |
-| Medium | Estimate is useful but has uncertain portions or ingredients. | Clear photo with common foods. | Show uncertainty, avoid precise claims, invite correction. |
-| Low | Meal could vary widely or details are vague. | "Big plate of pasta." | Use as rough estimate, label confidence clearly, ask only if it matters. |
-| Unknown | Missing details prevent meaningful confidence. | Meal logged without portion or source. | Avoid strong recommendations and request context when the value materially affects the plan. |
+| Confidence | Meaning                                                       | Example                                    | AI Behavior                                                                                  |
+| :--------- | :------------------------------------------------------------ | :----------------------------------------- | :------------------------------------------------------------------------------------------- |
+| High       | Source and serving details are strong.                        | Scanned label with confirmed serving size. | Use in totals with normal source disclosure; still allow edits.                              |
+| Medium     | Estimate is useful but has uncertain portions or ingredients. | Clear photo with common foods.             | Show uncertainty, avoid precise claims, invite correction.                                   |
+| Low        | Meal could vary widely or details are vague.                  | "Big plate of pasta."                      | Use as rough estimate, label confidence clearly, ask only if it matters.                     |
+| Unknown    | Missing details prevent meaningful confidence.                | Meal logged without portion or source.     | Avoid strong recommendations and request context when the value materially affects the plan. |
 
 ## Uncertainty Language
 

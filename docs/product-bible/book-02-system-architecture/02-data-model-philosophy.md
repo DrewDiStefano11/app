@@ -12,35 +12,35 @@ The goal is not to store everything forever without judgment. The goal is to kee
 
 ## Core Data Principles
 
-| Principle | Product Rule | Status |
-| :-------- | :----------- | :----- |
-| Preserve raw data when possible | Keep the original input or import reference when it may explain future differences. | `Planned` |
-| Never silently overwrite important user data | Manual entries and accepted values should not disappear because AI or imports disagree. | `Planned` |
-| Manual edits should create a correction trail | Corrections should preserve original value, corrected value, time, source, and learning preference when practical. | `Planned` |
-| AI-generated data must be labeled | AI-created logs, estimates, summaries, and interpretations should be visibly distinct from user-confirmed facts. | `Planned` |
-| Estimated values need confidence levels | Photo estimates, vague text logs, and inferred values should carry confidence or uncertainty. | `Planned` |
-| Derived metrics should be traceable | Scores, trends, and recommendations should link back to the inputs that affected them. | `Planned` |
-| Important data needs source/provenance | Training, nutrition, recovery, body, wearable, and sensitive data should preserve source information where practical. | `Planned` |
-| Conflicting inputs should be visible or explainable | FitCore should explain conflicts when they affect decisions. | `Planned` |
-| Summaries should not destroy important detail | A weekly summary should not erase the specific pain note or corrected meal that explains a recommendation. | `Planned` |
-| Deleted data should be handled intentionally | Deletion should explain consequences for derived summaries, recommendations, and export. | `Planned` |
-| User corrections should improve future recommendations | Accepted corrections should become learning signals when the user allows it. | `Planned` |
-| Data should be reusable across screens and engines | A log should not be trapped in one screen if it matters elsewhere. | `Planned` |
+| Principle                                              | Product Rule                                                                                                          | Status    |
+| :----------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- | :-------- |
+| Preserve raw data when possible                        | Keep the original input or import reference when it may explain future differences.                                   | `Planned` |
+| Never silently overwrite important user data           | Manual entries and accepted values should not disappear because AI or imports disagree.                               | `Planned` |
+| Manual edits should create a correction trail          | Corrections should preserve original value, corrected value, time, source, and learning preference when practical.    | `Planned` |
+| AI-generated data must be labeled                      | AI-created logs, estimates, summaries, and interpretations should be visibly distinct from user-confirmed facts.      | `Planned` |
+| Estimated values need confidence levels                | Photo estimates, vague text logs, and inferred values should carry confidence or uncertainty.                         | `Planned` |
+| Derived metrics should be traceable                    | Scores, trends, and recommendations should link back to the inputs that affected them.                                | `Planned` |
+| Important data needs source/provenance                 | Training, nutrition, recovery, body, wearable, and sensitive data should preserve source information where practical. | `Planned` |
+| Conflicting inputs should be visible or explainable    | FitCore should explain conflicts when they affect decisions.                                                          | `Planned` |
+| Summaries should not destroy important detail          | A weekly summary should not erase the specific pain note or corrected meal that explains a recommendation.            | `Planned` |
+| Deleted data should be handled intentionally           | Deletion should explain consequences for derived summaries, recommendations, and export.                              | `Planned` |
+| User corrections should improve future recommendations | Accepted corrections should become learning signals when the user allows it.                                          | `Planned` |
+| Data should be reusable across screens and engines     | A log should not be trapped in one screen if it matters elsewhere.                                                    | `Planned` |
 
 ## Data Source Types
 
-| Source Type | What It Means | Trust Level | Required Metadata | Example |
-| :---------- | :------------ | :---------- | :---------------- | :------ |
-| Manual user entry | The user entered the value directly. | High when specific; medium when vague. | Source type, created time, raw value, final accepted value. | User logs 185 lb for 5 reps. |
-| AI-assisted entry | AI helped structure or create a log from user intent. | Medium until confirmed; higher after correction or acceptance. | Source type, prompt/note reference, AI generated flag, confidence, accepted status. | User says "log chicken and rice" and AI creates a meal draft. |
-| Photo estimate | AI estimates data from an image. | Medium or low unless confirmed. | Image reference, detected items, confidence, estimate, correction status. | Meal photo estimated as 850 calories. |
-| Voice/text assistant log | Natural language input becomes a structured record. | Medium until reviewed; depends on specificity. | Raw transcript/text, parsed values, source, confidence, accepted status. | "Squat 225 for 5, felt knee pain." |
-| Wearable import | Data from a wearable or health platform. | Useful but not perfect. | Provider, device, sync time, raw value, normalized value, imported timestamp. | Imported sleep duration from a device. |
-| Device sync | Data from connected equipment or sensors. | Depends on device reliability. | Device/provider, timestamp, raw payload or reference, normalized value. | Smart scale weight import. |
-| Third-party app import | Data imported from another app or service. | Depends on source and mapping quality. | Provider, import time, source record id/reference, mapping confidence. | Food log imported from a nutrition app. |
-| System-generated calculation | FitCore calculates a value from stored inputs. | High if inputs are complete; lower if inputs are estimated. | Formula/version where practical, input references, calculation time. | Weekly training volume. |
-| AI-generated interpretation | AI explains, summarizes, or recommends based on context. | Must show confidence and sources. | AI generated flag, source data used, confidence, timestamp, model/version if relevant. | "Lower intensity today because soreness is high." |
-| User correction | The user changes an estimated or existing value. | High for accepted value; also a learning signal. | Original value, corrected value, editor, time, reason/note, learn-from-correction flag. | User changes photo-estimated calories from 850 to 700. |
+| Source Type                  | What It Means                                            | Trust Level                                                    | Required Metadata                                                                       | Example                                                       |
+| :--------------------------- | :------------------------------------------------------- | :------------------------------------------------------------- | :-------------------------------------------------------------------------------------- | :------------------------------------------------------------ |
+| Manual user entry            | The user entered the value directly.                     | High when specific; medium when vague.                         | Source type, created time, raw value, final accepted value.                             | User logs 185 lb for 5 reps.                                  |
+| AI-assisted entry            | AI helped structure or create a log from user intent.    | Medium until confirmed; higher after correction or acceptance. | Source type, prompt/note reference, AI generated flag, confidence, accepted status.     | User says "log chicken and rice" and AI creates a meal draft. |
+| Photo estimate               | AI estimates data from an image.                         | Medium or low unless confirmed.                                | Image reference, detected items, confidence, estimate, correction status.               | Meal photo estimated as 850 calories.                         |
+| Voice/text assistant log     | Natural language input becomes a structured record.      | Medium until reviewed; depends on specificity.                 | Raw transcript/text, parsed values, source, confidence, accepted status.                | "Squat 225 for 5, felt knee pain."                            |
+| Wearable import              | Data from a wearable or health platform.                 | Useful but not perfect.                                        | Provider, device, sync time, raw value, normalized value, imported timestamp.           | Imported sleep duration from a device.                        |
+| Device sync                  | Data from connected equipment or sensors.                | Depends on device reliability.                                 | Device/provider, timestamp, raw payload or reference, normalized value.                 | Smart scale weight import.                                    |
+| Third-party app import       | Data imported from another app or service.               | Depends on source and mapping quality.                         | Provider, import time, source record id/reference, mapping confidence.                  | Food log imported from a nutrition app.                       |
+| System-generated calculation | FitCore calculates a value from stored inputs.           | High if inputs are complete; lower if inputs are estimated.    | Formula/version where practical, input references, calculation time.                    | Weekly training volume.                                       |
+| AI-generated interpretation  | AI explains, summarizes, or recommends based on context. | Must show confidence and sources.                              | AI generated flag, source data used, confidence, timestamp, model/version if relevant.  | "Lower intensity today because soreness is high."             |
+| User correction              | The user changes an estimated or existing value.         | High for accepted value; also a learning signal.               | Original value, corrected value, editor, time, reason/note, learn-from-correction flag. | User changes photo-estimated calories from 850 to 700.        |
 
 ## Provenance Metadata
 
@@ -61,11 +61,11 @@ FitCore should preserve the following source/provenance metadata when practical:
 
 ## Raw Value vs Normalized Value vs Derived Value
 
-| Value Type | Meaning | Example |
-| :--------- | :------ | :------ |
-| Raw value | Original user input or imported value. | User logs "about 200g chicken" as raw text. |
-| Normalized value | Cleaned value used by the app for calculations. | FitCore maps the text to a food item and macro estimate. |
-| Derived value | A calculated or interpreted result based on one or more inputs. | FitCore derives protein total, nutrition trend, and whether protein target was met. |
+| Value Type       | Meaning                                                         | Example                                                                             |
+| :--------------- | :-------------------------------------------------------------- | :---------------------------------------------------------------------------------- |
+| Raw value        | Original user input or imported value.                          | User logs "about 200g chicken" as raw text.                                         |
+| Normalized value | Cleaned value used by the app for calculations.                 | FitCore maps the text to a food item and macro estimate.                            |
+| Derived value    | A calculated or interpreted result based on one or more inputs. | FitCore derives protein total, nutrition trend, and whether protein target was met. |
 
 Raw values preserve truth. Normalized values make the product usable. Derived values explain meaning. FitCore should not confuse these layers.
 

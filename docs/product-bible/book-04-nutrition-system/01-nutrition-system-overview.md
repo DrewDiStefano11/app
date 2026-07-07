@@ -18,24 +18,24 @@ The system should answer practical questions:
 
 ## Core Nutrition Modules
 
-| Module | Purpose | Example Inputs | Example Outputs | Status |
-| :----- | :------ | :------------- | :-------------- | :----- |
-| Nutrition Goals | Define what nutrition is trying to support. | Cut, bulk, maintain, recomposition, performance focus, recovery focus. | Goal phase, nutrition priority, coaching bias. | Planned |
-| Macro Targets | Set calorie, protein, carb, and fat targets. | Goal phase, body weight, training day, adherence history. | Daily targets, protein priority, remaining macros. | Planned |
-| Meal Logger | Capture meals with low friction. | Manual entry, quick add, photo, text, voice, saved meal. | Meal record, daily totals, source/confidence. | Partial |
-| Food Search | Find foods from a local or provider-backed food database. | Query, brand, serving size, aliases. | Candidate foods, serving options, macro values. | Planned |
-| Quick Add | Let users enter rough calories and macros fast. | Calories, optional protein/carbs/fat, note. | Low-friction meal entry, estimated daily total. | Planned |
-| Barcode/Label Entry | Capture packaged-food nutrition with source preservation. | Barcode, label image, serving size. | Higher-confidence food entry, source reference. | Future |
-| Photo Meal Estimation | Estimate meal components and macros from photos. | Meal photo, optional note, goal context. | AI-estimated foods, portions, macros, confidence. | Planned |
-| Voice/Text Meal Logging | Parse natural-language meal descriptions. | Voice transcript, typed meal, portion note. | Parsed meal items, estimate, clarification if needed. | Planned |
-| Recipe and Repeated Meal System | Reuse common meals without rebuilding them. | Saved recipe, previous meal, favorite breakfast. | Reusable meal, serving selection, copied or updated values. | Planned |
-| Food Database Layer | Keep food identity, source, and nutrition values usable. | Provider data, user foods, aliases, corrections. | Normalized foods, duplicate handling, confidence. | Planned |
-| User Corrections Layer | Preserve edits and make accepted values explicit. | Corrected calories, portion edit, food replacement. | Accepted values, correction history, learning signal. | Planned |
-| Nutrition Analytics | Turn logs into trends and useful context. | Daily totals, weekly averages, confidence, adherence. | Trends, target progress, uncertainty warnings. | Planned |
-| Body-Weight Feedback Loop | Explain weight changes with nutrition context. | Weigh-ins, calorie averages, carbs, sodium, soreness, sleep. | Trend explanation, adjustment caution, next action. | Planned |
-| Training and Recovery Integration | Connect food choices to workout and readiness decisions. | Training day, performance, soreness, recovery, sleep. | Fueling insight, recovery warning, training-aware coaching. | Planned |
-| AI Nutrition Coach | Recommend practical, goal-aware nutrition actions. | Targets, logs, training status, body-weight trend, preferences. | Recommendation, reason, confidence, next action. | Planned |
-| Privacy and Photo Control Layer | Keep sensitive nutrition media under user control. | Meal photo, progress photo, deletion request, memory setting. | Storage/deletion behavior, AI-use disclosure, privacy status. | Planned |
+| Module                            | Purpose                                                   | Example Inputs                                                         | Example Outputs                                               | Status  |
+| :-------------------------------- | :-------------------------------------------------------- | :--------------------------------------------------------------------- | :------------------------------------------------------------ | :------ |
+| Nutrition Goals                   | Define what nutrition is trying to support.               | Cut, bulk, maintain, recomposition, performance focus, recovery focus. | Goal phase, nutrition priority, coaching bias.                | Planned |
+| Macro Targets                     | Set calorie, protein, carb, and fat targets.              | Goal phase, body weight, training day, adherence history.              | Daily targets, protein priority, remaining macros.            | Planned |
+| Meal Logger                       | Capture meals with low friction.                          | Manual entry, quick add, photo, text, voice, saved meal.               | Meal record, daily totals, source/confidence.                 | Partial |
+| Food Search                       | Find foods from a local or provider-backed food database. | Query, brand, serving size, aliases.                                   | Candidate foods, serving options, macro values.               | Planned |
+| Quick Add                         | Let users enter rough calories and macros fast.           | Calories, optional protein/carbs/fat, note.                            | Low-friction meal entry, estimated daily total.               | Planned |
+| Barcode/Label Entry               | Capture packaged-food nutrition with source preservation. | Barcode, label image, serving size.                                    | Higher-confidence food entry, source reference.               | Future  |
+| Photo Meal Estimation             | Estimate meal components and macros from photos.          | Meal photo, optional note, goal context.                               | AI-estimated foods, portions, macros, confidence.             | Planned |
+| Voice/Text Meal Logging           | Parse natural-language meal descriptions.                 | Voice transcript, typed meal, portion note.                            | Parsed meal items, estimate, clarification if needed.         | Planned |
+| Recipe and Repeated Meal System   | Reuse common meals without rebuilding them.               | Saved recipe, previous meal, favorite breakfast.                       | Reusable meal, serving selection, copied or updated values.   | Planned |
+| Food Database Layer               | Keep food identity, source, and nutrition values usable.  | Provider data, user foods, aliases, corrections.                       | Normalized foods, duplicate handling, confidence.             | Planned |
+| User Corrections Layer            | Preserve edits and make accepted values explicit.         | Corrected calories, portion edit, food replacement.                    | Accepted values, correction history, learning signal.         | Planned |
+| Nutrition Analytics               | Turn logs into trends and useful context.                 | Daily totals, weekly averages, confidence, adherence.                  | Trends, target progress, uncertainty warnings.                | Planned |
+| Body-Weight Feedback Loop         | Explain weight changes with nutrition context.            | Weigh-ins, calorie averages, carbs, sodium, soreness, sleep.           | Trend explanation, adjustment caution, next action.           | Planned |
+| Training and Recovery Integration | Connect food choices to workout and readiness decisions.  | Training day, performance, soreness, recovery, sleep.                  | Fueling insight, recovery warning, training-aware coaching.   | Planned |
+| AI Nutrition Coach                | Recommend practical, goal-aware nutrition actions.        | Targets, logs, training status, body-weight trend, preferences.        | Recommendation, reason, confidence, next action.              | Planned |
+| Privacy and Photo Control Layer   | Keep sensitive nutrition media under user control.        | Meal photo, progress photo, deletion request, memory setting.          | Storage/deletion behavior, AI-use disclosure, privacy status. | Planned |
 
 ## Nutrition System Loop
 

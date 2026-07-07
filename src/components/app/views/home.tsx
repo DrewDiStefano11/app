@@ -415,19 +415,15 @@ export function HomeView({
           </div>
         </section>
 
-        <button
-          onClick={openAi}
-          className="home-ai-insight animate-tile-in press"
-          style={{ animationDelay: "260ms" }}
-        >
-          <AiInsightStrip>
+        <div className="home-ai-insight animate-tile-in" style={{ animationDelay: "260ms" }}>
+          <AiInsightStrip onClick={openAi}>
             {insight.split(bestMuscle)[0]}
             <span className="font-bold capitalize text-[var(--section)]">
               {insight.includes(bestMuscle) ? bestMuscle : ""}
             </span>
             {insight.split(bestMuscle)[1] ?? ""}
           </AiInsightStrip>
-        </button>
+        </div>
 
         <button
           onClick={() => setPopup("start")}

@@ -20,12 +20,12 @@ Overall, Jarvis provides a high degree of transparency through audit logs and co
 
 FitCore implements a 4-level permission model that governs AI autonomy:
 
-| Level | Name | Behavior |
-|-------|------|----------|
-| **L1** | Suggest Only | AI is restricted to `get*` tools. No mutations allowed. |
-| **L2** | Draft & Confirm | Default level. All mutations create a `pending` draft in the UI for user review. |
-| **L3** | Auto-Log Simple | Auto-saves low-risk items (Bodyweight, Supplements) if confidence is high. Vague items still ask. |
-| **L4** | Full Control | Expanded auto-apply for workouts/meals with high confidence. Destructive actions still require confirmation. |
+| Level  | Name            | Behavior                                                                                                     |
+| ------ | --------------- | ------------------------------------------------------------------------------------------------------------ |
+| **L1** | Suggest Only    | AI is restricted to `get*` tools. No mutations allowed.                                                      |
+| **L2** | Draft & Confirm | Default level. All mutations create a `pending` draft in the UI for user review.                             |
+| **L3** | Auto-Log Simple | Auto-saves low-risk items (Bodyweight, Supplements) if confidence is high. Vague items still ask.            |
+| **L4** | Full Control    | Expanded auto-apply for workouts/meals with high confidence. Destructive actions still require confirmation. |
 
 **Enforcement:** Handled in `jarvis-panel.tsx` via `isMutatingTool` and `shouldAutoRun` checks.
 
@@ -33,19 +33,20 @@ FitCore implements a 4-level permission model that governs AI autonomy:
 
 ## 3. Tool Safety Map
 
-| Risk Category | Protection Mechanism | Effectiveness |
-|---------------|----------------------|---------------|
-| **Silent Mutation** | `isMutatingTool` filter + `pending` state in UI. | High |
-| **Data Loss** | Multi-entity `undoAuditEntry` + `patch` preservation. | High |
-| **Duplication** | `actionKey` generation and `hasAuditKey` pre-check. | High |
-| **Misdiagnosis** | System prompt instructions ("Never diagnose"). | High |
-| **Key Exposure** | Server-side execution + storage in `localStorage` (never logs). | High |
+| Risk Category       | Protection Mechanism                                            | Effectiveness |
+| ------------------- | --------------------------------------------------------------- | ------------- |
+| **Silent Mutation** | `isMutatingTool` filter + `pending` state in UI.                | High          |
+| **Data Loss**       | Multi-entity `undoAuditEntry` + `patch` preservation.           | High          |
+| **Duplication**     | `actionKey` generation and `hasAuditKey` pre-check.             | High          |
+| **Misdiagnosis**    | System prompt instructions ("Never diagnose").                  | High          |
+| **Key Exposure**    | Server-side execution + storage in `localStorage` (never logs). | High          |
 
 ---
 
 ## 4. Mutating vs Non-Mutating Tool List
 
 ### Non-Mutating (Safe)
+
 - `getTodaySummary`, `getNutritionStatus`, `getTrainingStatus`, `getRecoveryStatus`, `getProgressTrends`
 - `getUserGoalsProfile`, `getJarvisSettings`, `getJarvisLearnedPreferences`
 - `getMealHistory`, `getUsualMeals`, `getSupplementStatus`, `getMissedHabits`, `getDailyReviewSummary`
@@ -53,6 +54,7 @@ FitCore implements a 4-level permission model that governs AI autonomy:
 - `suggestNutritionAction`, `suggestActiveWorkoutChange`, `suggestWorkoutProgression`, `suggestExerciseSubstitution`
 
 ### Mutating (Protected)
+
 - **Logging:** `logBodyWeight`, `logSupplement`, `logDailyCheckIn`, `logMeal`, `logUsualMeal`, `logWorkout`, `logCardio`, `logExerciseSet`
 - **Editing:** `updateUserGoalsProfile`, `updateJarvisSettings`, `updateMeal`, `updateWorkout`, `updateActiveWorkout`, `updateExerciseSet`, `updateDailyCheckIn`
 - **Deletion:** `deleteMeal`, `deleteWorkout`, `deleteExerciseSet`
@@ -105,13 +107,16 @@ FitCore implements a 4-level permission model that governs AI autonomy:
 ## 10. Priority Findings
 
 ### High Priority
+
 - **Fixed:** Active workout set deletion undo was imprecise (restored to wrong exercise).
 
 ### Medium Priority
+
 - **Ambiguity Handling:** AI might occasionally log a "Usual Meal" with high confidence even if the saved macros are missing (though it includes an assumption note).
 - **Audit Limit:** The audit log is capped at 200 entries. While sufficient for undoing recent actions, long-term auditability is limited.
 
 ### Low Priority
+
 - **humanizeArgs Coverage:** Some internal tools like `logWorkoutPainOrSoreness` could have better human-readable summaries in the confirm card.
 
 ---

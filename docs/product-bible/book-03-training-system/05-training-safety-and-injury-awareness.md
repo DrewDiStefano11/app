@@ -29,20 +29,20 @@ Status: Planned.
 
 ## Signal Types
 
-| Signal | Example | Training Impact | AI Response |
-| :----- | :------ | :-------------- | :---------- |
-| Normal soreness | Mild quad soreness after leg day. | May keep plan or reduce volume slightly. | Acknowledge, monitor, avoid over-warning. |
-| High soreness | Severe soreness limiting normal movement. | Consider reducing volume/intensity or training another area. | Suggest conservative adjustment and ask context. |
-| Sharp pain | Sharp shoulder pain during bench. | Stop or modify the movement; avoid progression. | Caution, suggest safer options, avoid diagnosis. |
-| Joint pain | Knee pain during squats. | Prefer pain-free alternatives or reduced range/load. | Ask location/severity and explain adjustment. |
-| Swelling | Swollen ankle after training. | Trigger caution and avoid loading affected area. | Recommend appropriate medical care if concerning. |
-| Instability | Knee feels like it may give out. | Avoid challenging load or unstable movement. | Strong caution and professional evaluation suggestion. |
-| Fatigue | User feels drained before workout. | Reduce intensity, volume, or failure work. | Suggest lower-aggression plan. |
-| Poor sleep | Four hours of sleep before heavy day. | Lower load target or avoid max-effort attempts. | Explain sleep/readiness effect. |
-| Low motivation | User feels unmotivated but not physically limited. | Consider shorter minimum effective workout. | Offer smaller action without shame. |
-| Form breakdown | Reps slow and technique degrades. | Stop set, reduce load, or change movement. | Suggest form-first adjustment. |
-| Repeated performance drop | Three sessions below expected performance. | Consider recovery issue, deload, or plan review. | Explain trend and recommend review. |
-| Post-injury limitation | User avoids overhead pressing after shoulder issue. | Modify exercise selection and progression. | Respect user-controlled limitation and explain changes. |
+| Signal                    | Example                                             | Training Impact                                              | AI Response                                             |
+| :------------------------ | :-------------------------------------------------- | :----------------------------------------------------------- | :------------------------------------------------------ |
+| Normal soreness           | Mild quad soreness after leg day.                   | May keep plan or reduce volume slightly.                     | Acknowledge, monitor, avoid over-warning.               |
+| High soreness             | Severe soreness limiting normal movement.           | Consider reducing volume/intensity or training another area. | Suggest conservative adjustment and ask context.        |
+| Sharp pain                | Sharp shoulder pain during bench.                   | Stop or modify the movement; avoid progression.              | Caution, suggest safer options, avoid diagnosis.        |
+| Joint pain                | Knee pain during squats.                            | Prefer pain-free alternatives or reduced range/load.         | Ask location/severity and explain adjustment.           |
+| Swelling                  | Swollen ankle after training.                       | Trigger caution and avoid loading affected area.             | Recommend appropriate medical care if concerning.       |
+| Instability               | Knee feels like it may give out.                    | Avoid challenging load or unstable movement.                 | Strong caution and professional evaluation suggestion.  |
+| Fatigue                   | User feels drained before workout.                  | Reduce intensity, volume, or failure work.                   | Suggest lower-aggression plan.                          |
+| Poor sleep                | Four hours of sleep before heavy day.               | Lower load target or avoid max-effort attempts.              | Explain sleep/readiness effect.                         |
+| Low motivation            | User feels unmotivated but not physically limited.  | Consider shorter minimum effective workout.                  | Offer smaller action without shame.                     |
+| Form breakdown            | Reps slow and technique degrades.                   | Stop set, reduce load, or change movement.                   | Suggest form-first adjustment.                          |
+| Repeated performance drop | Three sessions below expected performance.          | Consider recovery issue, deload, or plan review.             | Explain trend and recommend review.                     |
+| Post-injury limitation    | User avoids overhead pressing after shoulder issue. | Modify exercise selection and progression.                   | Respect user-controlled limitation and explain changes. |
 
 Status: Planned.
 

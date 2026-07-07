@@ -6,11 +6,11 @@ FitCore should not become a set of disconnected trackers. It should preserve use
 
 ## Files
 
-| File | Purpose |
-| :--- | :------ |
-| [01-system-overview.md](./01-system-overview.md) | Defines the high-level connected system, module map, decision loop, architecture values, and anti-patterns. |
+| File                                                         | Purpose                                                                                                                                   |
+| :----------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| [01-system-overview.md](./01-system-overview.md)             | Defines the high-level connected system, module map, decision loop, architecture values, and anti-patterns.                               |
 | [02-data-model-philosophy.md](./02-data-model-philosophy.md) | Defines product-level data principles for raw data, normalized data, provenance, confidence, corrections, conflicts, deletion, and reuse. |
-| [03-ai-context-and-memory.md](./03-ai-context-and-memory.md) | Defines how FitCore AI should use context, memory, uncertainty, sensitive data, source transparency, feedback, and safety boundaries. |
+| [03-ai-context-and-memory.md](./03-ai-context-and-memory.md) | Defines how FitCore AI should use context, memory, uncertainty, sensitive data, source transparency, feedback, and safety boundaries.     |
 
 ## Core Principle
 

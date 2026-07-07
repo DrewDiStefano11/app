@@ -19,24 +19,24 @@ The system should answer practical questions:
 
 ## Core Training Modules
 
-| Module | Purpose | Example Inputs | Example Outputs | Status |
-| :----- | :------ | :------------- | :-------------- | :----- |
-| Training Goals | Define what training is trying to improve. | Strength goal, hypertrophy goal, injury limitation, schedule constraint. | Training priority, target volume, progression bias. | Planned |
-| Workout Plan | Represent what the user is expected to train. | Program day, AI recommendation, user-selected routine. | Planned exercises, target sets, target reps, ordering. | Partial |
-| Workout Templates | Save reusable workout structures. | Finished workout, named routine, exercise order. | Reusable template, planned set structure. | Planned |
-| Active Workout Session | Guide the user while training. | Selected plan, manual start, substitutions, logged sets. | Live workout state, completed workout record. | Partial |
-| Exercise Library | Keep exercise identity consistent. | Exercise names, aliases, muscles, equipment. | Exercise options, substitutions, history grouping. | Planned |
-| Set Logger | Preserve set-level performance data. | Weight, reps, set type, RPE/RIR, notes, modifiers. | Logged set, volume inputs, performance history. | Partial |
-| Previous Performance Layer | Show relevant history while logging. | Last session, recent average, best recent set, notes. | Quiet context, suggested starting point, comparison. | Planned |
-| Progression Engine | Recommend smarter next steps. | History, readiness, pain, RPE/RIR, goals. | Load/reps/set suggestion, deload cue, explanation. | Planned |
-| Substitution Engine | Help replace exercises safely and usefully. | Equipment limits, pain, preference, fatigue, AI suggestion. | Replacement exercise, preserved original plan, reason. | Planned |
-| Recovery and Readiness Integration | Connect training to sleep, soreness, nutrition, and fatigue. | Recovery check-ins, sleep, notes, nutrition adherence. | Adjusted training intensity, caution, next action. | Planned |
-| Pain and Injury Awareness | Prevent generic training advice from overriding pain signals. | Pain note, injury limitation, severity, affected movement. | Caution, substitution, reduced intensity, safety routing. | Planned |
-| Muscle Volume Tracker | Estimate training stress by muscle group. | Completed sets, exercise muscles, modifiers, substitutions. | Weekly volume, undertrained/overworked cues. | Planned |
-| Exercise Notes and Feedback | Preserve qualitative context. | "Too heavy", "felt great", form note, equipment note. | AI context, future suggestion adjustment, history note. | Planned |
-| Post-Workout Summary | Turn a completed session into useful feedback. | Completed sets, skipped exercises, notes, flags. | Summary, PRs, signals, save-as-template option. | Planned |
-| AI Training Coach | Explain and recommend training actions. | Goals, history, readiness, notes, pain, nutrition. | Recommendation, reason, confidence, watch-out, next action. | Planned |
-| Progress Analytics | Show trends without misleading comparisons. | Set history, volume, PRs, templates, readiness. | Charts, trend labels, muscle balance, insights. | Planned |
+| Module                             | Purpose                                                       | Example Inputs                                                           | Example Outputs                                             | Status  |
+| :--------------------------------- | :------------------------------------------------------------ | :----------------------------------------------------------------------- | :---------------------------------------------------------- | :------ |
+| Training Goals                     | Define what training is trying to improve.                    | Strength goal, hypertrophy goal, injury limitation, schedule constraint. | Training priority, target volume, progression bias.         | Planned |
+| Workout Plan                       | Represent what the user is expected to train.                 | Program day, AI recommendation, user-selected routine.                   | Planned exercises, target sets, target reps, ordering.      | Partial |
+| Workout Templates                  | Save reusable workout structures.                             | Finished workout, named routine, exercise order.                         | Reusable template, planned set structure.                   | Planned |
+| Active Workout Session             | Guide the user while training.                                | Selected plan, manual start, substitutions, logged sets.                 | Live workout state, completed workout record.               | Partial |
+| Exercise Library                   | Keep exercise identity consistent.                            | Exercise names, aliases, muscles, equipment.                             | Exercise options, substitutions, history grouping.          | Planned |
+| Set Logger                         | Preserve set-level performance data.                          | Weight, reps, set type, RPE/RIR, notes, modifiers.                       | Logged set, volume inputs, performance history.             | Partial |
+| Previous Performance Layer         | Show relevant history while logging.                          | Last session, recent average, best recent set, notes.                    | Quiet context, suggested starting point, comparison.        | Planned |
+| Progression Engine                 | Recommend smarter next steps.                                 | History, readiness, pain, RPE/RIR, goals.                                | Load/reps/set suggestion, deload cue, explanation.          | Planned |
+| Substitution Engine                | Help replace exercises safely and usefully.                   | Equipment limits, pain, preference, fatigue, AI suggestion.              | Replacement exercise, preserved original plan, reason.      | Planned |
+| Recovery and Readiness Integration | Connect training to sleep, soreness, nutrition, and fatigue.  | Recovery check-ins, sleep, notes, nutrition adherence.                   | Adjusted training intensity, caution, next action.          | Planned |
+| Pain and Injury Awareness          | Prevent generic training advice from overriding pain signals. | Pain note, injury limitation, severity, affected movement.               | Caution, substitution, reduced intensity, safety routing.   | Planned |
+| Muscle Volume Tracker              | Estimate training stress by muscle group.                     | Completed sets, exercise muscles, modifiers, substitutions.              | Weekly volume, undertrained/overworked cues.                | Planned |
+| Exercise Notes and Feedback        | Preserve qualitative context.                                 | "Too heavy", "felt great", form note, equipment note.                    | AI context, future suggestion adjustment, history note.     | Planned |
+| Post-Workout Summary               | Turn a completed session into useful feedback.                | Completed sets, skipped exercises, notes, flags.                         | Summary, PRs, signals, save-as-template option.             | Planned |
+| AI Training Coach                  | Explain and recommend training actions.                       | Goals, history, readiness, notes, pain, nutrition.                       | Recommendation, reason, confidence, watch-out, next action. | Planned |
+| Progress Analytics                 | Show trends without misleading comparisons.                   | Set history, volume, PRs, templates, readiness.                          | Charts, trend labels, muscle balance, insights.             | Planned |
 
 ## Training System Loop
 
