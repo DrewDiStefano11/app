@@ -1,0 +1,20 @@
+Add next runtime planning documents
+
+Created a combined docs-only planning PR for three future implementation areas:
+1. First usable testing version gap review
+2. Data propagation runtime pass prep plan
+3. FitCore Hub detail implementation plan
+
+This PR does not implement runtime behavior. It only adds these new files:
+* docs/planning/first-usable-testing-version-gap-review.md
+* docs/planning/data-propagation-runtime-pass-plan.md
+* docs/planning/fitcore-hub-detail-implementation-plan.md
+
+Validation results:
+- `git status --short` shows only the three new files added.
+- `git diff --check` shows no trailing whitespace.
+- `npm run build` / `bun run build` completed successfully without related issues.
+- No runtime/source/test/package/lockfile/config/workflow/schema/migration/service-worker/public-asset files were modified.
+- No Product Bible files were modified.
+- No active docs files were modified.
+- Parked PRs #34, #14, and #2 were not touched.
