@@ -233,4 +233,3 @@ Status: Planned.
 - Pain/soreness/fatigue notes are routed to relevant systems.
 - Save as template option exists.
 - Planned vs actual differences are preserved.
-

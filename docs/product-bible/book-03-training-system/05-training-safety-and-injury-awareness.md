@@ -182,4 +182,3 @@ Status: Planned.
 - Docs require caution for concerning symptoms.
 - Docs connect safety notes to future recommendations.
 - Docs connect injury limitations to privacy/memory principles.
-

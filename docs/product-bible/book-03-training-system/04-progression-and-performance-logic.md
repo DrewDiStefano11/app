@@ -214,4 +214,3 @@ Status: Planned.
 - Docs define PR types.
 - Docs explain stalling/deload caution.
 - Docs define AI recommendation format.
-

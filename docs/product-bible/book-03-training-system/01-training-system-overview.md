@@ -136,4 +136,3 @@ FitCore training outputs should include:
 - Letting skipped or substituted exercises disappear from history.
 - Failing to explain why a recommendation changed.
 - Treating every failed set as weakness instead of possible fatigue or recovery issue.
-

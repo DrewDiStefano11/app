@@ -2,6 +2,7 @@ import type { AppState, JarvisAuditEntry, UserGoalsProfile, JarvisSettings, Conf
 import { createAiEstimateProvenance, createJarvisProvenance, markProvenanceEdited } from "../fitcore-data";
 import { uid, todayStart, e1RM } from "../store";
 import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "../data";
+import { buildDailyDecision } from "../daily-decision";
 
 export interface ToolResult {
   ok: boolean;
@@ -29,7 +30,7 @@ export type ToolName =
   | "updateActiveWorkout" | "suggestActiveWorkoutChange" | "getActiveWorkout"
   | "finishActiveWorkout" | "saveWorkoutTemplate" | "getWorkoutTemplates"
   | "suggestWorkoutProgression" | "suggestExerciseSubstitution" | "logWorkoutNote"
-  | "logWorkoutPainOrSoreness" | "getTrainingReadinessContext";
+  | "logWorkoutPainOrSoreness" | "getTrainingReadinessContext" | "getDailyDecision";
 
 export interface ToolSpec { name: ToolName; description: string; parameters: Record<string, unknown>; }
 
@@ -88,6 +89,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   { name: "logWorkoutNote", description: "Add notes to active or saved workout.", parameters: { type: "object", properties: { workoutId: { type: "string" }, notes: { type: "string" } }, required: ["notes"] } },
   { name: "logWorkoutPainOrSoreness", description: "Log pain/soreness/fatigue note into workout and recovery context.", parameters: { type: "object", properties: { area: { type: "string" }, notes: { type: "string" }, severity: { type: "number" } }, required: ["notes"] } },
   { name: "getTrainingReadinessContext", description: "Read readiness, soreness, previous performance, and profile context for training choices.", parameters: emptyParams },
+  { name: "getDailyDecision", description: "Get today's structured training, nutrition, recovery, what-changed, confidence, provenance, and single next-action decision.", parameters: emptyParams },
 ];
 
 export type Updater = (u: (s: AppState) => AppState) => void;
@@ -418,6 +420,28 @@ const handlers: Record<ToolName, ToolHandler> = {
     return { ok: true, summary: "Pain/soreness note saved", auditId };
   },
   getTrainingReadinessContext: (_a, { state }) => ({ ok: true, summary: "training readiness context", data: { profile: state.profile, latestCheckIn: state.recoveryCheckIns.at(-1), sleep: state.sleepEntries.at(-1), fatigue: state.muscleFatigue, recentWorkouts: state.workouts.slice(-5), goals: state.goals } }),
+  getDailyDecision: (_a, { state }) => {
+    const decision = buildDailyDecision(state);
+    return {
+      ok: true,
+      summary: decision.training.recommendation,
+      data: {
+        recommendation: {
+          decisionType: decision.decisionType,
+          training: decision.training,
+          nutrition: decision.nutrition,
+          recovery: decision.recovery,
+          whatChanged: decision.whatChanged,
+        },
+        explanation: decision.explanation,
+        confidence: decision.confidence,
+        dataUsed: decision.dataUsed,
+        dataMissing: decision.dataMissing,
+        warnings: decision.warnings,
+        oneAction: decision.oneAction,
+      },
+    };
+  },
 };
 
 function slotField(slot: string): keyof UserGoalsProfile | null {
