@@ -19,17 +19,17 @@ This Product Bible should be treated as canonical when it conflicts with ad hoc 
 
 ## Current Books
 
-| Book                                                                                                                                       | Status  | Purpose                                                                                                                                  |
-| :----------------------------------------------------------------------------------------------------------------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------- |
-| [Book 1 - Vision, Product Strategy and Documentation Foundation](./book-01-vision-product-strategy-and-documentation-foundation/README.md) | Active  | Defines the North Star, product principles, phase roadmap, feature inventory, status rules, scope, and parallel implementation strategy. |
-| [Book 2 - System Architecture, Data Philosophy, and AI Memory](./book-02-system-architecture/README.md)                                     | Active  | Defines FitCore's connected system architecture, data philosophy, AI context, memory, and privacy/control principles.                    |
-| [Book 3 - Training System, Workout Logging, Exercise Intelligence, and Progression Logic](./book-03-training-system/README.md)             | Active  | Defines FitCore's training system, active workout logging, exercise/set data requirements, progression logic, and training safety principles. |
+| Book                                                                                                                                       | Status  | Purpose                                                                                                                                                            |
+| :----------------------------------------------------------------------------------------------------------------------------------------- | :------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Book 1 - Vision, Product Strategy and Documentation Foundation](./book-01-vision-product-strategy-and-documentation-foundation/README.md) | Active  | Defines the North Star, product principles, phase roadmap, feature inventory, status rules, scope, and parallel implementation strategy.                           |
+| [Book 2 - System Architecture, Data Philosophy, and AI Memory](./book-02-system-architecture/README.md)                                    | Active  | Defines FitCore's connected system architecture, data philosophy, AI context, memory, and privacy/control principles.                                              |
+| [Book 3 - Training System, Workout Logging, Exercise Intelligence, and Progression Logic](./book-03-training-system/README.md)             | Active  | Defines FitCore's training system, active workout logging, exercise/set data requirements, progression logic, and training safety principles.                      |
 | [Book 5 - UX/UI and User Experience](./book-05-ux-ui-and-user-experience/README.md)                                                        | Active  | Defines navigation, screen hierarchy, popups/sheets, dashboard cards, graph interactions, onboarding, settings, accessibility, mobile polish, and AI assistant UX. |
-| Book 6 - Reserved Future Domain                                                                                                            | Planned | Placeholder from the earlier structure. The canonical nutrition system requirements now live in Book 4.                                  |
-| Book 7 - Recovery, Sleep and Wearables                                                                                                     | Planned | Will specify recovery logging, sleep intelligence, wearable integrations, sensor data, and readiness signals.                            |
-| Book 8 - Medical, Genetics and Precision Health                                                                                            | Planned | Will specify medical records, labs, imaging, medications, safety boundaries, and precision health inputs.                                |
-| Book 9 - Analytics, Insights and Health Twin                                                                                               | Planned | Will specify long-term analytics, dashboards, graph explanations, simulations, Health Twin, and personal operating manual outputs.       |
-| Book 10 - Testing, QA and Platform Engineering                                                                                             | Planned | Will specify automated tests, manual QA, release safety, platform hardening, and agent-safe implementation workflows.                    |
+| Book 6 - Reserved Future Domain                                                                                                            | Planned | Placeholder from the earlier structure. The canonical nutrition system requirements now live in Book 4.                                                            |
+| [Book 7 - Recovery, Sleep and Wearables](./book-07-recovery-sleep-and-wearables/README.md)                                                 | Active  | Defines recovery logging, sleep intelligence, wearable integrations, sensor data, and readiness signals.                                                           |
+| Book 8 - Medical, Genetics and Precision Health                                                                                            | Planned | Will specify medical records, labs, imaging, medications, safety boundaries, and precision health inputs.                                                          |
+| Book 9 - Analytics, Insights and Health Twin                                                                                               | Planned | Will specify long-term analytics, dashboards, graph explanations, simulations, Health Twin, and personal operating manual outputs.                                 |
+| Book 10 - Testing, QA and Platform Engineering                                                                                             | Planned | Will specify automated tests, manual QA, release safety, platform hardening, and agent-safe implementation workflows.                                              |
 
 See [BOOK_STRUCTURE.md](./BOOK_STRUCTURE.md) for the full Book plan.
 
@@ -37,15 +37,15 @@ See [BOOK_STRUCTURE.md](./BOOK_STRUCTURE.md) for the full Book plan.
 
 Feature statuses are conservative:
 
-| Status         | Meaning                                                                               |
-| :------------- | :------------------------------------------------------------------------------------ |
-| Planned        | The feature is desired but not necessarily implemented.                               |
+| Status         | Meaning                                                                                     |
+| :------------- | :------------------------------------------------------------------------------------------ |
+| Planned        | The feature is desired but not necessarily implemented.                                     |
 | Partial        | Some supporting behavior or documentation exists, but the full requirement is not complete. |
-| Deferred       | The feature is desired later and should not be implemented until explicitly approved. |
-| Future         | The feature is long-term, speculative, or dependent on major platform maturity.       |
-| Open Question  | A decision, scope boundary, or safety rule needs clarification before implementation. |
-| Needs Decision | The feature, scope, provider, safety model, or implementation path is unclear.        |
-| Implemented    | Use only when the repository clearly confirms the feature exists.                     |
+| Deferred       | The feature is desired later and should not be implemented until explicitly approved.       |
+| Future         | The feature is long-term, speculative, or dependent on major platform maturity.             |
+| Open Question  | A decision, scope boundary, or safety rule needs clarification before implementation.       |
+| Needs Decision | The feature, scope, provider, safety model, or implementation path is unclear.              |
+| Implemented    | Use only when the repository clearly confirms the feature exists.                           |
 
 Do not mark features as Implemented from product intent alone.
 
