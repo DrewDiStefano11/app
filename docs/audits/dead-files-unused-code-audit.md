@@ -107,9 +107,9 @@ The following dependencies appear in `package.json` but are not referenced in th
 
 ## Probably Unused Items
 
-### Unused Exports & Functions
+### Unused Exported API Surface
 
-These exports are not used anywhere outside of their defining files:
+These exports are not used anywhere outside of their defining files. Note that many of these functions may still be used internally within their respective modules; this section primarily highlights unnecessary `export` declarations.
 
 - `SourceBadge` (src/components/app/jarvis/jarvis-panel.tsx)
 - `SectionCard`, `ProgressBar`, `ChartCard`, `TrendChip`, `ScoreCard`, `SkeletonCard`, `ErrorState` (src/components/app/ui.tsx)
@@ -151,7 +151,7 @@ Numerous TypeScript interfaces and types in `src/lib/types.ts`, `src/lib/daily-d
 
 1. **Remove Unused Components:** Safely delete unreferenced `src/components/ui/` files and `src/components/app/dashboard-layout.ts`.
 2. **Clean package.json:** Uninstall unused UI and utility dependencies.
-3. **Clean Unused Exports:** Remove unused functions from `src/lib/*` unless explicitly planned for upcoming work.
+3. **Clean Unused Exports:** Remove unnecessary `export` keywords from functions in `src/lib/*` to limit the API surface. Only delete the functions entirely after verifying they are not used internally within their own files.
 4. **CSS Review:** Cross-reference `src/styles.css` with active React components and remove dead classes.
 
 ## Items Safe to Delete Now
