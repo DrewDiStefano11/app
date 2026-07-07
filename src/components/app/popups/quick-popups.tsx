@@ -26,6 +26,7 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiConfidence, setAiConfidence] = useState<"low" | "medium" | "high" | null>(null);
   const [aiNotes, setAiNotes] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const reset = () => {
     setName("");
@@ -214,12 +215,47 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
             </select>
           </Field>
           <div className="grid grid-cols-4 gap-2">
-            <NumField label="Cal" value={cal} onChange={setCal} />
-            <NumField label="P (g)" value={p} onChange={setP} />
-            <NumField label="C (g)" value={c} onChange={setC} />
-            <NumField label="F (g)" value={f} onChange={setF} />
+            <NumField
+              label="Cal"
+              value={cal}
+              onChange={(v) => {
+                setCal(v);
+                setSaveError(null);
+              }}
+            />
+            <NumField
+              label="P (g)"
+              value={p}
+              onChange={(v) => {
+                setP(v);
+                setSaveError(null);
+              }}
+            />
+            <NumField
+              label="C (g)"
+              value={c}
+              onChange={(v) => {
+                setC(v);
+                setSaveError(null);
+              }}
+            />
+            <NumField
+              label="F (g)"
+              value={f}
+              onChange={(v) => {
+                setF(v);
+                setSaveError(null);
+              }}
+            />
           </div>
         </div>
+
+        {(saveError || validationError) && (
+          <div className="mt-2 flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300 text-xs">
+            <AlertCircle size={14} className="shrink-0 mt-0.5" />
+            <span>{saveError || validationError}</span>
+          </div>
+        )}
 
         <div className="flex gap-2 pt-1">
           <button
@@ -252,6 +288,23 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [sleepHours, setSleepHours] = useState("");
   const [sleepQ, setSleepQ] = useState(7);
   const [notes, setNotes] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const reset = () => {
+    setEnergy(7);
+    setSoreness(3);
+    setStress(3);
+    setMotivation(8);
+    setSleepHours("");
+    setSleepQ(7);
+    setNotes("");
+    setSaveError(null);
+  };
+
+  const close = () => {
+    reset();
+    onClose();
+  };
 
   const readiness = Math.round(
     ((energy + motivation + (10 - soreness) + (10 - stress)) / 40) * 100,
@@ -380,6 +433,18 @@ export function WeighInSheet({ open, onClose }: { open: boolean; onClose: () => 
   const { state, set } = useStore();
   const [w, setW] = useState(String(state.profile.bodyweightLb));
   const [notes, setNotes] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
+
+  const reset = () => {
+    setW(String(state.profile.bodyweightLb));
+    setNotes("");
+    setSaveError(null);
+  };
+
+  const close = () => {
+    reset();
+    onClose();
+  };
 
   const recent = useMemo(() => {
     return [...state.bodyweightEntries]
