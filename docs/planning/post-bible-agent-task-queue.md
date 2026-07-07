@@ -17,42 +17,66 @@ The following foundational tasks are complete and merged into `main`. They shoul
 
 Tasks within a single group generally touch similar files. Do not assign multiple agents to tasks within the same group simultaneously unless the file bounds are strictly separated.
 
-### Task Group A — Audits and Missing Documentation
+### Available source docs for implementation
 
-- **Task name:** Create Product Bible implementation gap matrix
-  - **Agent recommendation:** Jules
-  - **Type:** docs-only
-  - **Safe to run in parallel:** yes
-  - **Files allowed:** `docs/planning/implementation-gap-matrix.md`
-  - **Files forbidden:** Source code
-  - **Output expected:** New matrix document
-  - **Validation required:** Visual review
-  - **Suggested PR title:** `Add Product Bible implementation gap matrix`
-  - **Risk level:** Low
+**Product Bible**
+- Books 1-10 (Book 6 reserved)
 
-### Task Group B — Planning and Alignment
+**Core planning**
+- `docs/planning/data-propagation-and-no-wasted-data-map.md`
+- `docs/planning/first-usable-testing-version-checklist.md`
+- `docs/planning/demo-mode-seed-data-and-test-account-safety-plan.md`
 
-- **Task name:** Audit Jarvis tool ownership
-  - **Agent recommendation:** Codex
-  - **Type:** docs-only
-  - **Safe to run in parallel:** yes
-  - **Files allowed:** `docs/planning/jarvis-tool-ownership.md`
-  - **Files forbidden:** Source code
-  - **Output expected:** Ownership map
-  - **Validation required:** Visual review
-  - **Suggested PR title:** `Audit Jarvis tool ownership`
-  - **Risk level:** Low
+**Privacy/AI/data governance**
+- `docs/planning/ai-jarvis-source-permission-and-logging-map.md`
+- `docs/planning/settings-privacy-implementation-readiness-checklist.md`
+- `docs/planning/ai-memory-category-control-plan.md`
+- `docs/planning/source-labels-and-confidence-model-plan.md`
+- `docs/planning/correction-deletion-propagation-plan.md`
 
-- **Task name:** Add testing coverage gap map
-  - **Agent recommendation:** Jules
-  - **Type:** docs-only
-  - **Safe to run in parallel:** yes
-  - **Files allowed:** `docs/planning/testing-coverage-map.md`
-  - **Files forbidden:** Source code
-  - **Output expected:** Coverage map using Book 10 principles
-  - **Validation required:** Visual review
-  - **Suggested PR title:** `Add testing coverage gap map`
-  - **Risk level:** Low
+**Implementation readiness**
+- `docs/planning/active-workout-implementation-readiness-checklist.md`
+- `docs/planning/graph-popup-behavior-acceptance-checklist.md`
+- `docs/planning/core-logging-popup-implementation-readiness-checklist.md`
+- `docs/planning/dashboard-graph-propagation-implementation-readiness-checklist.md`
+
+**Dependency maps**
+- `docs/planning/training-implementation-dependency-map.md`
+- `docs/planning/nutrition-implementation-dependency-map.md`
+- `docs/planning/recovery-implementation-dependency-map.md`
+- `docs/planning/analytics-implementation-dependency-map.md`
+- `docs/planning/ai-jarvis-implementation-dependency-map.md`
+- `docs/planning/ui-popup-sheet-implementation-dependency-map.md`
+
+**QA checklists**
+- `docs/planning/manual-regression-checklist.md`
+- `docs/planning/mobile-qa-checklist.md`
+- `docs/planning/data-integrity-qa-checklist.md`
+- `docs/planning/ai-logging-qa-checklist.md`
+- `docs/planning/privacy-deletion-qa-checklist.md`
+- `docs/planning/demo-mode-qa-checklist.md`
+
+**Current behavior audits**
+- `docs/audits/meal-logging-current-behavior-audit.md`
+- `docs/audits/check-in-current-behavior-audit.md`
+- `docs/audits/weigh-in-current-behavior-audit.md`
+- `docs/audits/graph-dashboard-current-behavior-audit.md`
+- `docs/audits/settings-privacy-current-behavior-audit.md`
+- `docs/audits/demo-mode-current-behavior-audit.md`
+- `docs/audits/current-data-flow-audit.md`
+- `docs/audits/current-code-structure-audit.md`
+- `docs/audits/current-testing-smoke-check-audit.md`
+- `docs/audits/state-view-usage-map.md`
+- `docs/audits/current-ui-behavior-audit.md`
+- `docs/audits/popup-sheet-behavior-inventory.md`
+- `docs/audits/error-empty-loading-state-audit.md`
+- `docs/audits/ai-provenance-confidence-audit.md`
+- `docs/audits/dashboard-graph-data-consistency-audit.md`
+- `docs/audits/storage-persistence-readiness-audit.md`
+- `docs/audits/active-workout-state-machine-audit.md`
+- `docs/audits/jarvis-action-logging-audit.md`
+- `docs/audits/settings-onboarding-control-audit.md`
+
 
 ### Task Group C — Safe Mechanical Cleanup
 
@@ -89,30 +113,6 @@ Tasks within a single group generally touch similar files. Do not assign multipl
   - **Suggested PR title:** `Extract home dashboard presentational cards`
   - **Risk level:** Medium
 
-### Task Group D — Testing Before Risky Work
-
-- **Task name:** Add demo-mode safety test plan
-  - **Agent recommendation:** Jules
-  - **Type:** docs-only
-  - **Safe to run in parallel:** yes
-  - **Files allowed:** `docs/planning/demo-mode-tests.md`
-  - **Files forbidden:** Source code
-  - **Output expected:** Test plan conforming to Book 10
-  - **Validation required:** Visual review
-  - **Suggested PR title:** `Add demo-mode safety test plan`
-  - **Risk level:** Low
-
-- **Task name:** Document feature-sliced architecture migration plan
-  - **Agent recommendation:** Codex
-  - **Type:** docs-only
-  - **Safe to run in parallel:** yes
-  - **Files allowed:** `docs/planning/architecture-migration.md`
-  - **Files forbidden:** Source code
-  - **Output expected:** Migration plan
-  - **Validation required:** Visual review
-  - **Suggested PR title:** `Document feature-sliced architecture migration plan`
-  - **Risk level:** Low
-
 ### Task Group E — Data and State Cleanup
 *(Future tasks to be fully detailed once docs are complete, relying heavily on the Data Propagation Map)*
 - state/view separation convention
@@ -147,14 +147,9 @@ Tasks within a single group generally touch similar files. Do not assign multipl
 
 ## Suggested PR Titles
 
-- `Add Product Bible implementation gap matrix`
-- `Audit Jarvis tool ownership`
-- `Add testing coverage gap map`
 - `Remove unnecessary exported API surface`
 - `Extract home dashboard presentational cards`
-- `Add demo-mode safety test plan`
 - `Audit service worker cache versioning`
-- `Document feature-sliced architecture migration plan`
 
 ## Implementation Task Quality Standard
 
