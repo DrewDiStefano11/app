@@ -198,24 +198,13 @@ export function ActiveWorkoutView({ onMinimize }: { onMinimize?: () => void }) {
             {fmtTime(now - w.startedAt)}
           </span>
         </div>
-        <div className="flex gap-1">
-          {onMinimize && (
-            <button
-              onClick={onMinimize}
-              aria-label="Minimize workout"
-              className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-muted-foreground"
-            >
-              <ChevronDown size={18} />
-            </button>
-          )}
-          <button
-            onClick={() => setConfirmCancel(true)}
-            aria-label="Discard workout"
-            className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-muted-foreground"
-          >
-            <X size={18} />
-          </button>
-        </div>
+        <button
+          onClick={() => setConfirmCancel(true)}
+          aria-label="Discard workout"
+          className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-muted-foreground"
+        >
+          <X size={18} />
+        </button>
       </div>
 
       <div className="px-4 mt-3 space-y-2.5">
