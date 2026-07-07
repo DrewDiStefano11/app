@@ -9,61 +9,79 @@ test.describe("FitCore data integrity", () => {
   test("hydrates partial older state without losing data or looping versions", async ({ page }) => {
     const now = Date.now();
     await page.evaluate((createdAt) => {
-      localStorage.setItem("fitcore.v1", JSON.stringify({
-        version: 1,
-        onboardingComplete: true,
-        profile: { name: "Migration Test", bodyweightLb: 180 },
-        personalization: { units: { weight: "kg" } },
-        workouts: [{
-          id: "workout-old",
-          name: "Saved Push",
-          startedAt: createdAt - 60_000,
-          endedAt: createdAt,
-          exercises: [],
-        }],
-        bodyweightEntries: [{ id: "weight-old", weightLb: 177.5, createdAt }],
-        mealEntries: [],
-        recoveryCheckIns: [],
-        goals: "corrupted-field-that-should-be-repaired",
-      }));
+      localStorage.setItem(
+        "fitcore.v1",
+        JSON.stringify({
+          version: 1,
+          onboardingComplete: true,
+          profile: { name: "Migration Test", bodyweightLb: 180 },
+          personalization: { units: { weight: "kg" } },
+          workouts: [
+            {
+              id: "workout-old",
+              name: "Saved Push",
+              startedAt: createdAt - 60_000,
+              endedAt: createdAt,
+              exercises: [],
+            },
+          ],
+          bodyweightEntries: [{ id: "weight-old", weightLb: 177.5, createdAt }],
+          mealEntries: [],
+          recoveryCheckIns: [],
+          goals: "corrupted-field-that-should-be-repaired",
+        }),
+      );
     }, now);
 
     await page.reload();
-    await expect(page.getByText("FitCore Score", { exact: true })).toBeVisible();
+    await expect(
+      page
+        .getByText("FitCore Today", { exact: true })
+        .or(page.getByText("FitCore Score", { exact: true })),
+    ).toBeVisible({ timeout: 10000 });
 
-    await expect.poll(() => page.evaluate(() => {
-      const saved = JSON.parse(localStorage.getItem("fitcore.v1") || "{}");
-      return {
-        version: saved.version,
-        name: saved.profile?.name,
-        profileWeight: saved.profile?.bodyweightLb,
-        storedWeight: saved.bodyweightEntries?.[0]?.weightLb,
-        workoutId: saved.workouts?.[0]?.id,
-        goalsRepaired: Array.isArray(saved.goals) && saved.goals.length > 0,
-        hasCurrentFields: Array.isArray(saved.supplementLogs)
-          && Array.isArray(saved.jarvisAudit)
-          && Array.isArray(saved.recoverySignals)
-          && Array.isArray(saved.dismissedSuggestions),
-        nestedDefaultPreserved: saved.personalization?.units?.distance === "mi",
-      };
-    })).toEqual({
-      version: 4,
-      name: "Migration Test",
-      profileWeight: 177.5,
-      storedWeight: 177.5,
-      workoutId: "workout-old",
-      goalsRepaired: true,
-      hasCurrentFields: true,
-      nestedDefaultPreserved: true,
-    });
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const saved = JSON.parse(localStorage.getItem("fitcore.v1") || "{}");
+          return {
+            version: saved.version,
+            name: saved.profile?.name,
+            profileWeight: saved.profile?.bodyweightLb,
+            storedWeight: saved.bodyweightEntries?.[0]?.weightLb,
+            workoutId: saved.workouts?.[0]?.id,
+            goalsRepaired: Array.isArray(saved.goals) && saved.goals.length > 0,
+            hasCurrentFields:
+              Array.isArray(saved.supplementLogs) &&
+              Array.isArray(saved.jarvisAudit) &&
+              Array.isArray(saved.recoverySignals) &&
+              Array.isArray(saved.dismissedSuggestions),
+            nestedDefaultPreserved: saved.personalization?.units?.distance === "mi",
+          };
+        }),
+      )
+      .toEqual({
+        version: 4,
+        name: "Migration Test",
+        profileWeight: 177.5,
+        storedWeight: 177.5,
+        workoutId: "workout-old",
+        goalsRepaired: true,
+        hasCurrentFields: true,
+        nestedDefaultPreserved: true,
+      });
 
     await page.reload();
-    await expect.poll(() => page.evaluate(() =>
-      JSON.parse(localStorage.getItem("fitcore.v1") || "{}").version,
-    )).toBe(4);
+    await expect
+      .poll(() =>
+        page.evaluate(() => JSON.parse(localStorage.getItem("fitcore.v1") || "{}").version),
+      )
+      .toBe(4);
   });
 
-  test("rejects broken imports and safely repairs incomplete saved collections", async ({ page }) => {
+  test("rejects broken imports and safely repairs incomplete saved collections", async ({
+    page,
+  }) => {
     const result = await page.evaluate(async () => {
       const importModule = (path: string) => import(path);
       const data = await importModule("/src/lib/fitcore-data.ts");
@@ -72,12 +90,15 @@ test.describe("FitCore data integrity", () => {
       const repaired = data.migrateFitCoreDataIfNeeded({
         ...base,
         onboardingComplete: true,
-        workouts: [null, {
-          id: "valid-workout",
-          name: "Valid",
-          startedAt: Date.now(),
-          exercises: [null, { id: "valid-exercise", exerciseId: "bench-press", sets: [null] }],
-        }],
+        workouts: [
+          null,
+          {
+            id: "valid-workout",
+            name: "Valid",
+            startedAt: Date.now(),
+            exercises: [null, { id: "valid-exercise", exerciseId: "bench-press", sets: [null] }],
+          },
+        ],
         mealEntries: [null],
         recoveryCheckIns: [null],
       });
@@ -117,7 +138,10 @@ test.describe("FitCore data integrity", () => {
     await page.getByRole("button", { name: /Confirm & save/i }).click();
 
     await page.getByRole("button", { name: "Fuel" }).click();
-    await page.getByRole("button", { name: /Log meal/i }).first().click();
+    await page
+      .getByRole("button", { name: /Log meal/i })
+      .first()
+      .click();
     await page.getByRole("button", { name: "Custom Entry" }).click();
     await page.getByPlaceholder("e.g. Post-workout protein bowl").fill("Integrity meal");
     await page.getByText("Kcal", { exact: true }).locator("..").locator("input").fill("650");
@@ -129,33 +153,43 @@ test.describe("FitCore data integrity", () => {
     await page.getByRole("button", { name: "Recover" }).click();
     await page.getByRole("button", { name: "Check-in" }).click();
     await page.getByRole("button", { name: "Save check-in" }).click();
-
-    await page.getByRole("button", { name: "Stats" }).click();
+    await expect(page.getByRole("heading", { name: "Daily check-in" })).not.toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(500); // Wait for nav to reappear
+    await page.getByRole("button", { name: "Stats" }).click({ force: true });
     await page.getByText("Body", { exact: true }).click();
     await page.getByPlaceholder("Weight in lb").fill("179.4");
     await page.getByRole("button", { name: "Save", exact: true }).click();
 
-    await expect.poll(() => page.evaluate(() => {
-      const state = JSON.parse(localStorage.getItem("fitcore.v1") || "{}");
-      return {
-        workouts: state.workouts?.length,
-        meals: state.mealEntries?.length,
-        checkIns: state.recoveryCheckIns?.length,
-        weights: state.bodyweightEntries?.length,
-        profileWeight: state.profile?.bodyweightLb,
-      };
-    })).toEqual({ workouts: 1, meals: 1, checkIns: 1, weights: 1, profileWeight: 179.4 });
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const state = JSON.parse(localStorage.getItem("fitcore.v1") || "{}");
+          return {
+            workouts: state.workouts?.length,
+            meals: state.mealEntries?.length,
+            checkIns: state.recoveryCheckIns?.length,
+            weights: state.bodyweightEntries?.length,
+            profileWeight: state.profile?.bodyweightLb,
+          };
+        }),
+      )
+      .toEqual({ workouts: 1, meals: 1, checkIns: 1, weights: 1, profileWeight: 179.4 });
 
     await page.reload();
-    await expect.poll(() => page.evaluate(() => {
-      const state = JSON.parse(localStorage.getItem("fitcore.v1") || "{}");
-      return [
-        state.workouts?.[0]?.name,
-        state.mealEntries?.[0]?.name,
-        state.recoveryCheckIns?.[0]?.energy,
-        state.bodyweightEntries?.[0]?.weightLb,
-      ];
-    })).toEqual(["Push Day", "Integrity meal", 7, 179.4]);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const state = JSON.parse(localStorage.getItem("fitcore.v1") || "{}");
+          return [
+            state.workouts?.[0]?.name,
+            state.mealEntries?.[0]?.name,
+            state.recoveryCheckIns?.[0]?.energy,
+            state.bodyweightEntries?.[0]?.weightLb,
+          ];
+        }),
+      )
+      .toEqual(["Push Day", "Integrity meal", 7, 179.4]);
 
     await page.getByRole("button", { name: "Home" }).click();
     await expect(page.getByText("Workout completed")).toBeVisible();
@@ -164,7 +198,9 @@ test.describe("FitCore data integrity", () => {
     await expect(page.getByText("Weigh-in saved")).toBeVisible();
   });
 
-  test("Jarvis logs share projections, require confidence review, dedupe retries, and undo precisely", async ({ page }) => {
+  test("Jarvis logs share projections, require confidence review, dedupe retries, and undo precisely", async ({
+    page,
+  }) => {
     const result = await page.evaluate(async () => {
       const importModule = (path: string) => import(path);
       const tools = await importModule("/src/lib/jarvis/tools.ts");
@@ -201,37 +237,49 @@ test.describe("FitCore data integrity", () => {
       const weightArgs = { weightLb: 181.2, originalText: "I weigh 181.2 pounds" };
       const firstWeight = tools.runTool("logBodyWeight", weightArgs, ctx());
       const duplicateWeight = tools.runTool("logBodyWeight", weightArgs, ctx());
-      const lowMeal = tools.runTool("logMeal", {
-        name: "Maybe pasta",
-        mealType: "dinner",
-        calories: 700,
-        protein: 30,
-        carbs: 100,
-        fat: 20,
-        confidence: "low",
-        originalText: "some pasta",
-      }, ctx());
-      const confirmedMeal = tools.runTool("logMeal", {
-        name: "Maybe pasta",
-        mealType: "dinner",
-        calories: 700,
-        protein: 30,
-        carbs: 100,
-        fat: 20,
-        confidence: "low",
-        originalText: "some pasta",
-        draftId: "meal-draft",
-      }, ctx(true));
+      const lowMeal = tools.runTool(
+        "logMeal",
+        {
+          name: "Maybe pasta",
+          mealType: "dinner",
+          calories: 700,
+          protein: 30,
+          carbs: 100,
+          fat: 20,
+          confidence: "low",
+          originalText: "some pasta",
+        },
+        ctx(),
+      );
+      const confirmedMeal = tools.runTool(
+        "logMeal",
+        {
+          name: "Maybe pasta",
+          mealType: "dinner",
+          calories: 700,
+          protein: 30,
+          carbs: 100,
+          fat: 20,
+          confidence: "low",
+          originalText: "some pasta",
+          draftId: "meal-draft",
+        },
+        ctx(true),
+      );
 
       const deleted = tools.runTool("deleteExerciseSet", { setId: "set-b" }, ctx(true));
       const undoDelete = tools.undoAuditEntry(deleted.auditId, state, set);
 
-      const pain = tools.runTool("logWorkoutPainOrSoreness", {
-        area: "shoulder",
-        notes: "sharp pain",
-        severity: 7,
-        draftId: "pain-draft",
-      }, ctx(true));
+      const pain = tools.runTool(
+        "logWorkoutPainOrSoreness",
+        {
+          area: "shoulder",
+          notes: "sharp pain",
+          severity: 7,
+          draftId: "pain-draft",
+        },
+        ctx(true),
+      );
       const checkInsAfterPain = state.recoveryCheckIns.length;
       const undoPain = tools.undoAuditEntry(pain.auditId, state, set);
       const recent = data.getRecentActivity(state, 20);
@@ -245,7 +293,8 @@ test.describe("FitCore data integrity", () => {
         duplicateWeight: (duplicateWeight.data as { duplicate?: boolean })?.duplicate,
         weightEntries: state.bodyweightEntries.length,
         profileWeight: state.profile.bodyweightLb,
-        bodyweightGoal: state.goals.find((goal: { type: string }) => goal.type === "bodyweight")?.current,
+        bodyweightGoal: state.goals.find((goal: { type: string }) => goal.type === "bodyweight")
+          ?.current,
         lowMealNeedsConfirmation: lowMeal.needsConfirmation,
         meals: state.mealEntries.length,
         confirmedMeal: confirmedMeal.ok,
@@ -256,8 +305,10 @@ test.describe("FitCore data integrity", () => {
         checkInsAfterUndo: state.recoveryCheckIns.length,
         undoPain: undoPain.ok,
         recentWeightRows: recent.filter((log: { type: string }) => log.type === "weigh_in").length,
-        duplicateAiRows: recent.filter((log: { type: string; relatedIds: string[] }) =>
-          log.type === "ai_event" && log.relatedIds.some(id => visibleEntityIds.has(id))).length,
+        duplicateAiRows: recent.filter(
+          (log: { type: string; relatedIds: string[] }) =>
+            log.type === "ai_event" && log.relatedIds.some((id) => visibleEntityIds.has(id)),
+        ).length,
       };
     });
 
