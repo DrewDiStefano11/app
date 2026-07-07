@@ -146,7 +146,7 @@ export function TrainingView() {
             <div className="flex gap-2 mt-4">
               {planExercises && !todays.length ? (
                 <PrimaryButton onClick={handleStartPlan} className="flex-1">
-                  <Play size={16} /> Start Plan
+                  <Play size={16} /> Start today&apos;s plan
                 </PrimaryButton>
               ) : (
                 <PrimaryButton onClick={() => setShowTemplates(true)} className="flex-1">
