@@ -23,9 +23,9 @@ This Product Bible should be treated as canonical when it conflicts with ad hoc 
 | :----------------------------------------------------------------------------------------------------------------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------- |
 | [Book 1 - Vision, Product Strategy and Documentation Foundation](./book-01-vision-product-strategy-and-documentation-foundation/README.md) | Active  | Defines the North Star, product principles, phase roadmap, feature inventory, status rules, scope, and parallel implementation strategy. |
 | [Book 2 - System Architecture, Data Philosophy, and AI Memory](./book-02-system-architecture/README.md)                                     | Active  | Defines FitCore's connected system architecture, data philosophy, AI context, memory, and privacy/control principles.                    |
-| Book 3 - AI Intelligence and Decision Engine                                                                                               | Planned | Will specify AI memory, recommendations, confidence, explainability, experiments, and agent behavior.                                    |
+| [Book 3 - Training System, Workout Logging, Exercise Intelligence, and Progression Logic](./book-03-training-system/README.md)             | Active  | Defines FitCore's training system, active workout logging, exercise/set data requirements, progression logic, and training safety principles. |
 | Book 4 - UX/UI and User Experience                                                                                                         | Planned | Will specify navigation, interaction patterns, design system usage, accessibility, and screen-level UX.                                  |
-| Book 5 - Training System                                                                                                                   | Planned | Will specify workout logging, programs, substitutions, readiness adaptation, performance analytics, and equipment context.               |
+| Book 5 - Reserved Future Domain                                                                                                            | Planned | Placeholder from the earlier structure. The canonical training system requirements now live in Book 3.                                  |
 | Book 6 - Nutrition System                                                                                                                  | Planned | Will specify food logging, macro estimates, meal systems, supplements, hydration, grocery workflows, and nutrition periodization.        |
 | Book 7 - Recovery, Sleep and Wearables                                                                                                     | Planned | Will specify recovery logging, sleep intelligence, wearable integrations, sensor data, and readiness signals.                            |
 | Book 8 - Medical, Genetics and Precision Health                                                                                            | Planned | Will specify medical records, labs, imaging, medications, safety boundaries, and precision health inputs.                                |
@@ -41,8 +41,10 @@ Feature statuses are conservative:
 | Status         | Meaning                                                                               |
 | :------------- | :------------------------------------------------------------------------------------ |
 | Planned        | The feature is desired but not necessarily implemented.                               |
+| Partial        | Some supporting behavior or documentation exists, but the full requirement is not complete. |
 | Deferred       | The feature is desired later and should not be implemented until explicitly approved. |
 | Future         | The feature is long-term, speculative, or dependent on major platform maturity.       |
+| Open Question  | A decision, scope boundary, or safety rule needs clarification before implementation. |
 | Needs Decision | The feature, scope, provider, safety model, or implementation path is unclear.        |
 | Implemented    | Use only when the repository clearly confirms the feature exists.                     |
 
