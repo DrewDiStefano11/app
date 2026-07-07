@@ -4,6 +4,45 @@
 
 This document is a staged cleanup plan based on merged audits and Product Bible direction. This is not an implementation plan for new features. The goal is to provide a safe, staged strategy for what should happen after the Product Bible books are complete, focusing on cleanup without introducing giant refactors, mixed feature PRs, or accidental deletion of internally used code.
 
+## Current State Summary
+
+As of the latest updates, the following documentation structure is present:
+
+- **Product Bible Books Completed:**
+  - `book-01-vision-product-strategy-and-documentation-foundation`
+  - `book-02-system-architecture`
+  - `book-03-training-system`
+  - `book-04-nutrition-system`
+  - `book-05-ux-ui-and-user-experience`
+
+- **Audit Documents Completed:**
+  - `accessibility-usability-audit.md`
+  - `bootstrap-layer-audit.md`
+  - `build-dependency-deployment-audit.md`
+  - `current-code-structure-audit.md`
+  - `current-testing-smoke-check-audit.md`
+  - `dead-files-unused-code-audit.md`
+  - `jarvis-tool-safety-audit.md`
+  - `pwa-mobile-readiness-audit.md`
+  - (Note: The `current-data-flow-audit.md` is currently missing or not yet merged on latest main.)
+
+- **Planning Docs Now Available:**
+  - `post-product-bible-cleanup-plan.md`
+  - `post-bible-agent-task-queue.md`
+
+- **Docs-Only Work Remaining:**
+  - Remaining Product Bible books (Book 6+).
+  - Any outstanding missing audits (like data-flow).
+  - Test coverage and state/view mapping docs.
+
+- **Work That Must Wait for Runtime Implementation:**
+  - Architectural or code cleanup.
+  - Dependency removals.
+  - AI/Jarvis behavior changes.
+
+- **Known Parked PRs:**
+  - Large runtime/UI PRs, AI feature PRs, and strict CI workflows should remain parked until planning docs merge and baseline issues are intentionally fixed.
+
 ## Source Documents Reviewed
 
 The following source documents were reviewed:
@@ -12,6 +51,9 @@ The following source documents were reviewed:
 - `docs/audits/bootstrap-layer-audit.md`
 - `docs/audits/current-code-structure-audit.md`
 - `docs/audits/current-testing-smoke-check-audit.md`
+- `docs/audits/jarvis-tool-safety-audit.md`
+- `docs/audits/pwa-mobile-readiness-audit.md`
+- `docs/audits/accessibility-usability-audit.md`
 - `docs/product-bible/README.md`
 - `docs/product-bible/BOOK_STRUCTURE.md`
 - `docs/product-bible/book-01-vision-product-strategy-and-documentation-foundation/README.md`
@@ -26,7 +68,7 @@ Documents not present (and therefore not reviewed):
 
 ## Executive Summary
 
-- docs/audits have identified structural, data-flow, bootstrap, dependency, and testing concerns.
+- docs/audits have identified structural, bootstrap, dependency, tooling safety, and testing concerns.
 - the app works but has hotspot files.
 - cleanup should happen in stages.
 - Product Bible completion should come before major implementation/refactor work.
@@ -42,6 +84,69 @@ Documents not present (and therefore not reviewed):
 - preserve user data and local persistence.
 - avoid breaking AI/Jarvis flows.
 - maintain mobile-first UX.
+
+## Implementation Readiness Gate
+
+Feature implementation must **not start** until the following conditions are met:
+- Product Bible index/structure is consistent and finalized.
+- All core audit docs are merged.
+- PR #49 (this planning documentation) is updated and merged.
+- There is a clear build order established.
+- Known merge conflicts across existing parked PRs are resolved or closed.
+- Runtime/UI feature PRs are not overlapping with active docs cleanup.
+- The next set of implementation tasks is split into small, reviewable PRs.
+
+## Recommended Next PR Sequence
+
+After this planning documentation merges, the work should follow this sequence (adjust if Product Bible/audit docs reveal different dependencies):
+
+1. Final docs/index consistency cleanup, if still needed.
+2. Implementation blueprint or roadmap PR, if not already present.
+3. Low-risk runtime cleanup/stabilization (e.g., removing unused exports).
+4. Core data foundation (fixing types, schemas, and state constraints).
+5. Active workout/training system implementation.
+6. Nutrition, bodyweight, and check-in logging implementation.
+7. Recovery/readiness and health context implementation.
+8. Analytics, insights, graph behavior, and Health Twin implementation.
+9. AI assistant logging, memory controls, and source explainability implementation.
+10. Testing, QA, and first usable testing release.
+
+## Data Foundation Warning
+
+**Critical Warning:** Most major features should not be built before the core data foundation is stable.
+
+Specifically:
+- AI logging accuracy depends on stable data models.
+- Graphs depend on reliable data propagation.
+- Health Twin depends on source-backed longitudinal data.
+- Recovery/readiness depends on training, check-in, sleep, pain, soreness, fatigue, and nutrition data being connected.
+- User corrections and deletions must propagate before advanced analytics can be trusted.
+
+## Safe 6-Agent Concurrency Plan
+
+To safely run up to six Jules/Codex tasks at a time, follow these guidelines:
+
+**Safe Examples:**
+- Six docs-only tasks that create separate new files (e.g., test coverage map, state view map, different Product Bible books).
+- One runtime cleanup task (e.g., fixing imports) plus several docs-only tasks.
+- Separate feature areas **only after** the shared data foundation is completely stable.
+- Testing/docs tasks in parallel with isolated UI polish tasks (e.g., fixing a specific popup's styling).
+
+**Unsafe Examples (Do Not Do):**
+- Multiple tasks editing the same state/data model files (`store.tsx`, `fitcore-data.ts`).
+- Multiple tasks changing the active workout flow at the same time.
+- AI logging work running while the core data schema is actively changing.
+- Graph/dashboard work running before data propagation logic is stable.
+- Large Jarvis/AI feature PRs merging before permission, audit, and data-source rules are stable.
+- CI gate merging before known baseline TypeScript/lint/format issues are fixed.
+
+## Merge and Parking Guidance for Open PRs
+
+- **Docs-only audit/planning PRs** should merge before runtime feature PRs.
+- **Runtime UI polish PRs** should be rebased after docs/planning merge.
+- **Large AI/Jarvis feature PRs** should remain parked until data foundation and permission/source-explainability planning are stable.
+- **CI workflow PRs** should remain draft until baseline errors are intentionally fixed.
+- **Do not close or rewrite** unrelated PRs as part of docs cleanup updates.
 
 ## Phase 0 — Finish Documentation Foundation
 

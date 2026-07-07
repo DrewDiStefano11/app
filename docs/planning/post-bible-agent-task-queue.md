@@ -41,6 +41,8 @@ This document is a task queue for future agent work after Product Bible books an
 
 ## Recommended Task Sequence
 
+The recommended task sequence ensures safe scaling and reduces collision between agents. Proceed in this order, adapting only if actual Product Bible requirements necessitate a shift.
+
 ### Task Group A — Finish Docs/Audits
 
 - **Task name:** Finish current data-flow audit correction
@@ -213,6 +215,21 @@ This document is a task queue for future agent work after Product Bible books an
 - `Add demo-mode safety test plan`
 - `Audit service worker cache versioning`
 - `Document feature-sliced architecture migration plan`
+
+## Implementation Task Quality Standard
+
+When assigning future implementation tasks to an agent, the prompt must meet this quality standard. Each task must explicitly define:
+- **Exact scope**: What is being done.
+- **Files/systems expected to be touched**: Clear boundaries for the PR.
+- **Files/systems forbidden to touch**: Specifically highlighting hotspot files to avoid.
+- **Dependency assumptions**: What must be merged or stable beforehand.
+- **User-facing behavior**: How the app should look and feel post-change.
+- **Data persistence expectations**: How localStorage, IndexedDB, or state behaves.
+- **AI/source/privacy expectations**: Where relevant (e.g. data provenance badges).
+- **Validation commands**: Exact commands to run (tests, linting).
+- **Rollback or safety notes**: Instructions on what to do if tests fail (don't break baseline).
+- **PR creation requirement**: Reminders to limit scope to the current task.
+- **Final response requirements**: Format of the response upon completion.
 
 ## Task Prompt Templates
 
