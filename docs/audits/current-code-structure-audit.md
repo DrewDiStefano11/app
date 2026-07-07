@@ -25,6 +25,7 @@ This audit reviews the current state of the FitCore codebase to identify maintai
 - **`src/components/app/active-workout.tsx` (40KB):** Highly overloaded. Mixes complex UI rendering, active timer state, workout session state, and persistence logic. Likely to cause severe merge conflicts when the Training System book is implemented.
 - **`src/lib/daily-decision.ts` (42KB):** Contains the entirety of the decision engine's logic. As the Product Bible expands decision rules, this file will become unmaintainable.
 - **`src/lib/ai.functions.ts` (36KB):** Centralizes all AI interactions. Risk of merge conflicts as multiple domains (nutrition parsing, recovery analysis, coaching) expand their AI capabilities simultaneously.
+- **`src/lib/jarvis/tools.ts`:** A major cross-domain hotspot because it centralizes AI/Jarvis actions and handlers across meals, workouts, recovery, daily decisions, confirmations, audit trails, and state mutations. Future Product Bible implementation work could easily collide there.
 - **`src/lib/fitcore-data.ts` (30KB):** Handles schemas, logging generation, and provenance. Modifying data models here risks unintended side effects across the app.
 - **`src/components/app/views/home.tsx` (27KB):** The main dashboard mixes multiple domains (training, nutrition, recovery insights) and imports a large number of popup components, making it a heavy "god component."
 
@@ -57,7 +58,7 @@ The current app structure is **not ready** for scalable Product Bible implementa
 
 ## Items safe to fix now
 
-- Extracting inline types and small utility functions from large view components into dedicated files within the `lib/` directory.
+- Extracting inline types and small utility functions from large view components into view-local or feature-local files/hooks/components, rather than adding more catch-all files to the overloaded `src/lib/` directory.
 - Standardizing imports (e.g., ensuring components only import what they need).
 - Removing unused code or dead variables.
 - Breaking massive components (like `home.tsx`) into smaller, presentational sub-components that still live in the same folder.
