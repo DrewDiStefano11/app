@@ -4,19 +4,8 @@ import type { ToolResult } from "@/lib/jarvis/tools";
 
 interface MealData {
   id?: string;
-  calories?: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-  fiber?: number;
-  items?: {
-    name: string;
-    qty?: string;
-    calories: number;
-    protein: number;
-    carbs: number;
-    fat: number;
-  }[];
+  calories?: number; protein?: number; carbs?: number; fat?: number; fiber?: number;
+  items?: { name: string; qty?: string; calories: number; protein: number; carbs: number; fat: number }[];
   confidence?: "high" | "medium" | "low";
   assumptions?: string[];
 }
@@ -27,11 +16,7 @@ interface WorkoutData {
   startedAt?: number;
   endedAt?: number;
   durationMin?: number;
-  exercises?: {
-    name?: string;
-    exerciseId?: string;
-    sets?: { weight?: number; reps?: number; modifier?: string }[];
-  }[];
+  exercises?: { name?: string; exerciseId?: string; sets?: { weight?: number; reps?: number; modifier?: string }[] }[];
   notes?: string;
   confidence?: "high" | "medium" | "low";
 }
@@ -53,9 +38,7 @@ function isWorkoutData(d: unknown): d is WorkoutData {
 }
 
 function isCardioData(d: unknown): d is CardioData {
-  return (
-    !!d && typeof d === "object" && ("minutes" in d || "distanceMi" in d) && !("exercises" in d)
-  );
+  return !!d && typeof d === "object" && ("minutes" in d || "distanceMi" in d) && !("exercises" in d);
 }
 
 function toolLabel(tool: string) {
@@ -76,43 +59,18 @@ function toolLabel(tool: string) {
   return labels[tool] ?? "Jarvis action";
 }
 
-export function ConfirmCard({
-  tool,
-  result,
-  onConfirm,
-  onCancel,
-  onUndo,
-}: {
-  tool: string;
-  result: ToolResult;
-  onConfirm: () => void;
-  onCancel: () => void;
-  onUndo?: () => void;
-}) {
+export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
+  { tool: string; result: ToolResult; onConfirm: () => void; onCancel: () => void; onUndo?: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const pending = result.needsConfirmation && result.ok;
   const done = !result.needsConfirmation && result.ok;
   const failed = !result.ok;
-  const meal =
-    (tool === "logMeal" || tool === "logUsualMeal") && isMealData(result.data) ? result.data : null;
-  const workout =
-    (tool === "createWorkoutDraft" || tool === "logWorkout") && isWorkoutData(result.data)
-      ? result.data
-      : null;
+  const meal = (tool === "logMeal" || tool === "logUsualMeal") && isMealData(result.data) ? result.data : null;
+  const workout = (tool === "createWorkoutDraft" || tool === "logWorkout") && isWorkoutData(result.data) ? result.data : null;
   const cardio = tool === "logCardio" && isCardioData(result.data) ? result.data : null;
   const confidence = meal?.confidence ?? workout?.confidence ?? cardio?.confidence;
-  const confColor =
-    confidence === "high"
-      ? "var(--success, #10b981)"
-      : confidence === "low"
-        ? "var(--destructive, #ef4444)"
-        : "var(--warning, #f59e0b)";
-  const saveLabel =
-    tool === "logWorkout" || tool === "createWorkoutDraft"
-      ? "Log workout"
-      : tool === "logCardio"
-        ? "Log cardio"
-        : "Save";
+  const confColor = confidence === "high" ? "var(--success, #10b981)" : confidence === "low" ? "var(--destructive, #ef4444)" : "var(--warning, #f59e0b)";
+  const saveLabel = tool === "logWorkout" || tool === "createWorkoutDraft" ? "Log workout" : tool === "logCardio" ? "Log cardio" : "Save";
 
   const confirmOnce = () => {
     if (submitting || !pending) return;
@@ -123,38 +81,17 @@ export function ConfirmCard({
   return (
     <div className="max-w-[85%] w-full rounded-2xl border border-border bg-[var(--surface-2)] p-3 text-sm space-y-2">
       <div className="flex items-center gap-2">
-        <span className="text-[10px] font-semibold tracking-wide uppercase text-muted-foreground">
-          {toolLabel(tool)}
-        </span>
+        <span className="text-[10px] font-semibold tracking-wide uppercase text-muted-foreground">{toolLabel(tool)}</span>
         {confidence && (
-          <span
-            className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded"
-            style={{
-              background: `color-mix(in oklab, ${confColor} 18%, transparent)`,
-              color: confColor,
-            }}
-          >
+          <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded" style={{ background: `color-mix(in oklab, ${confColor} 18%, transparent)`, color: confColor }}>
             {confidence}
           </span>
         )}
-        {done && (
-          <span className="text-[10px] font-semibold text-[color:var(--success,#10b981)] ml-auto">
-            SAVED
-          </span>
-        )}
-        {failed && (
-          <span className="text-[10px] font-semibold text-destructive ml-auto">FAILED</span>
-        )}
-        {pending && (
-          <span className="text-[10px] font-semibold text-[color:var(--warning,#f59e0b)] ml-auto">
-            REVIEW
-          </span>
-        )}
+        {done && <span className="text-[10px] font-semibold text-[color:var(--success,#10b981)] ml-auto">SAVED</span>}
+        {failed && <span className="text-[10px] font-semibold text-destructive ml-auto">FAILED</span>}
+        {pending && <span className="text-[10px] font-semibold text-[color:var(--warning,#f59e0b)] ml-auto">REVIEW</span>}
       </div>
-      <div>
-        {result.summary}
-        {failed && result.error ? ` - ${result.error}` : ""}
-      </div>
+      <div>{result.summary}{failed && result.error ? ` - ${result.error}` : ""}</div>
 
       {meal && (meal.calories ?? 0) > 0 && (
         <div className="rounded-xl bg-[var(--surface)] p-2 space-y-1.5">
@@ -168,20 +105,13 @@ export function ConfirmCard({
             <ul className="text-xs text-muted-foreground space-y-0.5 pt-1 border-t border-border">
               {meal.items.map((it, i) => (
                 <li key={i} className="flex justify-between gap-2">
-                  <span className="truncate">
-                    - {it.name}
-                    {it.qty ? ` (${it.qty})` : ""}
-                  </span>
-                  <span className="shrink-0">
-                    {it.calories}k / {it.protein}p
-                  </span>
+                  <span className="truncate">- {it.name}{it.qty ? ` (${it.qty})` : ""}</span>
+                  <span className="shrink-0">{it.calories}k / {it.protein}p</span>
                 </li>
               ))}
             </ul>
           )}
-          {meal.assumptions && meal.assumptions.length > 0 && (
-            <Assumptions items={meal.assumptions} />
-          )}
+          {meal.assumptions && meal.assumptions.length > 0 && <Assumptions items={meal.assumptions} />}
         </div>
       )}
 
@@ -189,31 +119,17 @@ export function ConfirmCard({
         <div className="rounded-xl bg-[var(--surface)] p-2 space-y-1.5">
           <div className="flex justify-between gap-2 text-xs text-muted-foreground">
             <span>{workout.workoutType ?? workout.workoutName ?? "Workout"}</span>
-            <span>
-              {workout.durationMin
-                ? `${workout.durationMin} min`
-                : workout.startedAt && workout.endedAt
-                  ? `${Math.round((workout.endedAt - workout.startedAt) / 60000)} min`
-                  : "Draft"}
-            </span>
+            <span>{workout.durationMin ? `${workout.durationMin} min` : workout.startedAt && workout.endedAt ? `${Math.round((workout.endedAt - workout.startedAt) / 60000)} min` : "Draft"}</span>
           </div>
           <ul className="text-xs text-muted-foreground space-y-0.5 pt-1 border-t border-border">
             {(workout.exercises ?? []).map((ex, i) => (
               <li key={i} className="flex justify-between gap-2">
                 <span className="truncate">{ex.name ?? ex.exerciseId}</span>
-                <span className="shrink-0">
-                  {(ex.sets ?? [])
-                    .map((s) => `${s.weight ? `${s.weight}x` : ""}${s.reps ?? "?"}`)
-                    .join(", ")}
-                </span>
+                <span className="shrink-0">{(ex.sets ?? []).map(s => `${s.weight ? `${s.weight}x` : ""}${s.reps ?? "?"}`).join(", ")}</span>
               </li>
             ))}
           </ul>
-          {workout.notes && (
-            <p className="text-xs text-muted-foreground border-t border-border pt-1">
-              {workout.notes}
-            </p>
-          )}
+          {workout.notes && <p className="text-xs text-muted-foreground border-t border-border pt-1">{workout.notes}</p>}
         </div>
       )}
 
@@ -227,28 +143,16 @@ export function ConfirmCard({
 
       {pending && (
         <div className="flex gap-2 pt-1">
-          <button
-            disabled={submitting}
-            onClick={confirmOnce}
-            className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-white text-xs font-semibold disabled:opacity-60"
-            style={{ background: "var(--section)" }}
-          >
+          <button disabled={submitting} onClick={confirmOnce} className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-white text-xs font-semibold disabled:opacity-60" style={{ background: "var(--section)" }}>
             <Check size={14} /> {submitting ? "Saving..." : saveLabel}
           </button>
-          <button
-            disabled={submitting}
-            onClick={onCancel}
-            className="px-3 py-2 rounded-xl bg-[var(--surface)] text-xs font-medium border border-border inline-flex items-center gap-1 disabled:opacity-60"
-          >
+          <button disabled={submitting} onClick={onCancel} className="px-3 py-2 rounded-xl bg-[var(--surface)] text-xs font-medium border border-border inline-flex items-center gap-1 disabled:opacity-60">
             <X size={14} /> Cancel
           </button>
         </div>
       )}
       {done && onUndo && (
-        <button
-          onClick={onUndo}
-          className="text-xs text-muted-foreground inline-flex items-center gap-1 hover:text-foreground"
-        >
+        <button onClick={onUndo} className="text-xs text-muted-foreground inline-flex items-center gap-1 hover:text-foreground">
           <Undo2 size={12} /> Undo
         </button>
       )}
@@ -260,11 +164,7 @@ function Assumptions({ items }: { items: string[] }) {
   return (
     <details className="text-xs text-muted-foreground">
       <summary className="cursor-pointer">Assumptions ({items.length})</summary>
-      <ul className="mt-1 ml-3 list-disc">
-        {items.map((a, i) => (
-          <li key={i}>{a}</li>
-        ))}
-      </ul>
+      <ul className="mt-1 ml-3 list-disc">{items.map((a, i) => <li key={i}>{a}</li>)}</ul>
     </details>
   );
 }
@@ -272,10 +172,7 @@ function Assumptions({ items }: { items: string[] }) {
 function Macro({ label, v, unit }: { label: string; v: number; unit?: string }) {
   return (
     <div>
-      <div className="text-sm font-semibold">
-        {v}
-        {unit ?? ""}
-      </div>
+      <div className="text-sm font-semibold">{v}{unit ?? ""}</div>
       <div className="text-[10px] text-muted-foreground uppercase truncate">{label}</div>
     </div>
   );

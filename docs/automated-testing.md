@@ -4,8 +4,8 @@ This repository uses [Playwright](https://playwright.dev/) for automated end-to-
 
 ## Prerequisites
 
-- Node.js (v22+)
-- npm
+-   Node.js (v22+)
+-   npm
 
 ## Getting Started
 
@@ -61,13 +61,13 @@ Traces are collected on the first retry of a failed test. You can view them with
 
 The current smoke test suite covers:
 
-- **Initial Load**: App loads without crashing and displays the onboarding screen.
-- **Onboarding**: Successful completion of the multi-step onboarding flow.
-- **Navigation**: Switching between all main sections (Home, Train, Fuel, Recover, Stats).
-- **Quick Actions**: Opening and closing "Log Meal", "Check In", and "Weigh In" sheets.
-- **Settings**: Opening and closing the Hub/Settings screen.
-- **AI Launcher**: Verification that the AI coaching entry points are rendered.
-- **Mobile Layout**: Verification that main screens do not have horizontal overflow on standard mobile widths (360px and 390px).
+-   **Initial Load**: App loads without crashing and displays the onboarding screen.
+-   **Onboarding**: Successful completion of the multi-step onboarding flow.
+-   **Navigation**: Switching between all main sections (Home, Train, Fuel, Recover, Stats).
+-   **Quick Actions**: Opening and closing "Log Meal", "Check In", and "Weigh In" sheets.
+-   **Settings**: Opening and closing the Hub/Settings screen.
+-   **AI Launcher**: Verification that the AI coaching entry points are rendered.
+-   **Mobile Layout**: Verification that main screens do not have horizontal overflow on standard mobile widths (360px and 390px).
 
 ## Known Testability Gaps / Recommended Future Improvements
 
@@ -80,8 +80,8 @@ The following areas are currently difficult to test reliably without modifying t
 
 ## Future Expansion Plan
 
-- [ ] Add functional tests for logging a meal (manual entry).
-- [ ] Add functional tests for starting and completing a workout.
-- [ ] Implement visual regression testing for key dashboard states.
-- [ ] Expand browser coverage beyond Chromium if required.
-- [ ] Integrate Playwright tests into the deployment pipeline as a blocking check.
+-   [ ] Add functional tests for logging a meal (manual entry).
+-   [ ] Add functional tests for starting and completing a workout.
+-   [ ] Implement visual regression testing for key dashboard states.
+-   [ ] Expand browser coverage beyond Chromium if required.
+-   [ ] Integrate Playwright tests into the deployment pipeline as a blocking check.

@@ -29,28 +29,18 @@ export function RecentActivity() {
           <Activity size={15} className="text-white/40" />
         </div>
         {activity.length === 0 ? (
-          <p className="text-xs text-white/40 mt-3">
-            Your saved workouts, meals, weigh-ins, and check-ins will appear here.
-          </p>
+          <p className="text-xs text-white/40 mt-3">Your saved workouts, meals, weigh-ins, and check-ins will appear here.</p>
         ) : (
           <div className="mt-2 divide-y divide-white/5">
-            {activity.map((log) => (
+            {activity.map(log => (
               <div key={`${log.type}:${log.id}`} className="py-2 flex items-center gap-3">
-                <span
-                  className="w-1.5 h-1.5 rounded-full shrink-0"
-                  style={{ background: "var(--section)" }}
-                />
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: "var(--section)" }} />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-bold text-white/80 truncate">{labels[log.type]}</p>
-                  <p className="text-[10px] text-white/40 truncate">
-                    {log.subtype || log.notes || "Saved to FitCore"}
-                  </p>
+                  <p className="text-[10px] text-white/40 truncate">{log.subtype || log.notes || "Saved to FitCore"}</p>
                 </div>
                 <time className="text-[9px] text-white/30 shrink-0">
-                  {new Date(log.createdAt).toLocaleDateString([], {
-                    month: "short",
-                    day: "numeric",
-                  })}
+                  {new Date(log.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })}
                 </time>
               </div>
             ))}

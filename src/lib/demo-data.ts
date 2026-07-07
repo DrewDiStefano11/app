@@ -1,12 +1,4 @@
-import type {
-  AppState,
-  Workout,
-  MealEntry,
-  BodyweightEntry,
-  SleepEntry,
-  RecoveryCheckIn,
-  PR,
-} from "./types";
+import type { AppState, Workout, MealEntry, BodyweightEntry, SleepEntry, RecoveryCheckIn, PR } from "./types";
 import { defaultState } from "./types";
 
 const DAY = 86400000;
@@ -20,169 +12,37 @@ function seeded(seed: number) {
   };
 }
 
-function id(prefix: string, i: number) {
-  return `${prefix}-demo-${i}`;
-}
+function id(prefix: string, i: number) { return `${prefix}-demo-${i}`; }
 
 const SPLIT = [
-  {
-    name: "Push Day",
-    exercises: [
-      {
-        exerciseId: "bench-press",
-        sets: [
-          [135, 8],
-          [185, 6],
-          [205, 5],
-          [205, 5],
-        ],
-      },
-      {
-        exerciseId: "incline-db",
-        sets: [
-          [70, 10],
-          [75, 8],
-          [75, 8],
-        ],
-      },
-      {
-        exerciseId: "ohp",
-        sets: [
-          [95, 8],
-          [115, 6],
-          [115, 5],
-        ],
-      },
-      {
-        exerciseId: "lat-raise",
-        sets: [
-          [20, 15],
-          [20, 14],
-          [20, 12],
-        ],
-      },
-      {
-        exerciseId: "tri-pushdown",
-        sets: [
-          [50, 12],
-          [55, 10],
-          [55, 10],
-        ],
-      },
-    ],
-  },
-  {
-    name: "Pull Day",
-    exercises: [
-      {
-        exerciseId: "deadlift",
-        sets: [
-          [225, 5],
-          [275, 5],
-          [315, 3],
-        ],
-      },
-      {
-        exerciseId: "pullup",
-        sets: [
-          [0, 8],
-          [0, 7],
-          [0, 6],
-        ],
-      },
-      {
-        exerciseId: "barbell-row",
-        sets: [
-          [135, 8],
-          [155, 8],
-          [155, 8],
-        ],
-      },
-      {
-        exerciseId: "cable-row",
-        sets: [
-          [120, 10],
-          [130, 10],
-          [130, 10],
-        ],
-      },
-      {
-        exerciseId: "bb-curl",
-        sets: [
-          [65, 10],
-          [75, 8],
-          [75, 8],
-        ],
-      },
-    ],
-  },
-  {
-    name: "Leg Day",
-    exercises: [
-      {
-        exerciseId: "squat",
-        sets: [
-          [185, 8],
-          [225, 6],
-          [245, 5],
-          [245, 5],
-        ],
-      },
-      {
-        exerciseId: "rdl",
-        sets: [
-          [185, 10],
-          [205, 8],
-          [205, 8],
-        ],
-      },
-      {
-        exerciseId: "leg-press",
-        sets: [
-          [270, 12],
-          [320, 10],
-          [320, 10],
-        ],
-      },
-      {
-        exerciseId: "lying-curl",
-        sets: [
-          [80, 12],
-          [90, 10],
-          [90, 10],
-        ],
-      },
-      {
-        exerciseId: "standing-calf",
-        sets: [
-          [120, 15],
-          [130, 12],
-          [130, 12],
-        ],
-      },
-    ],
-  },
+  { name: "Push Day", exercises: [
+    { exerciseId: "bench-press", sets: [[135, 8], [185, 6], [205, 5], [205, 5]] },
+    { exerciseId: "incline-db", sets: [[70, 10], [75, 8], [75, 8]] },
+    { exerciseId: "ohp", sets: [[95, 8], [115, 6], [115, 5]] },
+    { exerciseId: "lat-raise", sets: [[20, 15], [20, 14], [20, 12]] },
+    { exerciseId: "tri-pushdown", sets: [[50, 12], [55, 10], [55, 10]] },
+  ]},
+  { name: "Pull Day", exercises: [
+    { exerciseId: "deadlift", sets: [[225, 5], [275, 5], [315, 3]] },
+    { exerciseId: "pullup", sets: [[0, 8], [0, 7], [0, 6]] },
+    { exerciseId: "barbell-row", sets: [[135, 8], [155, 8], [155, 8]] },
+    { exerciseId: "cable-row", sets: [[120, 10], [130, 10], [130, 10]] },
+    { exerciseId: "bb-curl", sets: [[65, 10], [75, 8], [75, 8]] },
+  ]},
+  { name: "Leg Day", exercises: [
+    { exerciseId: "squat", sets: [[185, 8], [225, 6], [245, 5], [245, 5]] },
+    { exerciseId: "rdl", sets: [[185, 10], [205, 8], [205, 8]] },
+    { exerciseId: "leg-press", sets: [[270, 12], [320, 10], [320, 10]] },
+    { exerciseId: "lying-curl", sets: [[80, 12], [90, 10], [90, 10]] },
+    { exerciseId: "standing-calf", sets: [[120, 15], [130, 12], [130, 12]] },
+  ]},
 ];
 
 const MEAL_TEMPLATES = [
-  {
-    name: "Oats + Whey + Banana",
-    type: "breakfast",
-    calories: 520,
-    protein: 35,
-    carbs: 78,
-    fat: 9,
-  },
+  { name: "Oats + Whey + Banana", type: "breakfast", calories: 520, protein: 35, carbs: 78, fat: 9 },
   { name: "Chicken Rice Bowl", type: "lunch", calories: 640, protein: 55, carbs: 70, fat: 12 },
   { name: "Greek Yogurt + Berries", type: "snack", calories: 240, protein: 25, carbs: 22, fat: 4 },
-  {
-    name: "Salmon, Sweet Potato, Greens",
-    type: "dinner",
-    calories: 720,
-    protein: 48,
-    carbs: 60,
-    fat: 28,
-  },
+  { name: "Salmon, Sweet Potato, Greens", type: "dinner", calories: 720, protein: 48, carbs: 60, fat: 28 },
   { name: "Casein + Almond Butter", type: "snack", calories: 320, protein: 32, carbs: 12, fat: 16 },
 ];
 
@@ -226,33 +86,9 @@ export function buildDemoState(base: AppState = defaultState): AppState {
 
   // PRs
   prs.push(
-    {
-      id: "pr-1",
-      exerciseId: "bench-press",
-      type: "1rm",
-      value: 245,
-      weight: 225,
-      reps: 5,
-      date: now - 14 * DAY,
-    },
-    {
-      id: "pr-2",
-      exerciseId: "squat",
-      type: "1rm",
-      value: 295,
-      weight: 265,
-      reps: 5,
-      date: now - 9 * DAY,
-    },
-    {
-      id: "pr-3",
-      exerciseId: "deadlift",
-      type: "1rm",
-      value: 365,
-      weight: 335,
-      reps: 3,
-      date: now - 4 * DAY,
-    },
+    { id: "pr-1", exerciseId: "bench-press", type: "1rm", value: 245, weight: 225, reps: 5, date: now - 14 * DAY },
+    { id: "pr-2", exerciseId: "squat", type: "1rm", value: 295, weight: 265, reps: 5, date: now - 9 * DAY },
+    { id: "pr-3", exerciseId: "deadlift", type: "1rm", value: 365, weight: 335, reps: 3, date: now - 4 * DAY },
   );
 
   // Meals: last 14 days

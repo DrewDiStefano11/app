@@ -22,10 +22,10 @@ As the app evolves, the data structure (schema) may change.
 
 - **Current Behavior**: FitCore uses a lightweight default-merging pattern. When the app loads, it merges the saved `localStorage` data with the latest `defaultState`. This ensures that new features with new data fields don't crash when loading older saves.
 - **Migration Expectations**:
-  - Data/schema changes must be tested against existing `localStorage` data.
-  - Future schema changes should include explicit migration logic if simple merging is insufficient.
-  - Always test backup/import functionality when modifying the data store (`src/lib/store.tsx`).
-  - **Never** perform breaking changes that silently overwrite or discard user history without a migration path.
+    - Data/schema changes must be tested against existing `localStorage` data.
+    - Future schema changes should include explicit migration logic if simple merging is insufficient.
+    - Always test backup/import functionality when modifying the data store (`src/lib/store.tsx`).
+    - **Never** perform breaking changes that silently overwrite or discard user history without a migration path.
 
 ## AI Data
 

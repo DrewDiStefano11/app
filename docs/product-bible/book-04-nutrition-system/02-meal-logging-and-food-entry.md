@@ -8,19 +8,19 @@ FitCore should support detailed logging when the user wants accuracy and fast ap
 
 ## Food Entry Methods
 
-| Entry Method                    | Best For                                      | Required Data                                                          | Confidence Pattern                                                | Status  |
-| :------------------------------ | :-------------------------------------------- | :--------------------------------------------------------------------- | :---------------------------------------------------------------- | :------ |
-| Manual search                   | Common foods, user-selected database entries. | Food, serving size, quantity.                                          | Medium to high depending on source and serving confirmation.      | Planned |
-| Quick add calories/macros       | Fast rough logging.                           | Calories, optional protein/carbs/fat, optional note.                   | Usually medium or low unless user marks values as known.          | Planned |
-| Barcode/label scan              | Packaged foods with nutrition facts.          | Barcode or label, serving size, quantity.                              | Usually high after serving confirmation.                          | Future  |
-| Meal photo                      | Mixed meals where manual entry is too slow.   | Photo, optional note, optional portion context.                        | Medium or low depending on image clarity and portion uncertainty. | Planned |
-| Voice log                       | Hands-free meal capture.                      | Transcript or audio-derived text.                                      | Medium or low depending on detail.                                | Planned |
-| Text log                        | Natural-language quick capture.               | Typed meal description.                                                | Medium or low depending on detail.                                | Planned |
-| Repeated meal                   | Meals the user eats often.                    | Prior meal or saved favorite, date/time, serving adjustment if needed. | High when reused exactly; medium when adjusted.                   | Planned |
-| Recipe                          | Multi-ingredient meals with servings.         | Ingredients, servings, selected portion.                               | Medium to high depending on ingredient confidence.                | Planned |
-| Restaurant/common meal estimate | Meals without exact nutrition data.           | Meal description, restaurant if known, portion cue.                    | Often low or medium unless verified data exists.                  | Planned |
-| AI-suggested meal               | Planning meals before the user eats.          | Goal, macros remaining, preferences, context.                          | Not logged until user confirms it was eaten.                      | Planned |
-| Imported nutrition data         | External nutrition sources.                   | Provider entry, timestamp, serving/quantity.                           | Depends on provider source and user confirmation.                 | Future  |
+| Entry Method | Best For | Required Data | Confidence Pattern | Status |
+| :----------- | :------- | :------------ | :----------------- | :----- |
+| Manual search | Common foods, user-selected database entries. | Food, serving size, quantity. | Medium to high depending on source and serving confirmation. | Planned |
+| Quick add calories/macros | Fast rough logging. | Calories, optional protein/carbs/fat, optional note. | Usually medium or low unless user marks values as known. | Planned |
+| Barcode/label scan | Packaged foods with nutrition facts. | Barcode or label, serving size, quantity. | Usually high after serving confirmation. | Future |
+| Meal photo | Mixed meals where manual entry is too slow. | Photo, optional note, optional portion context. | Medium or low depending on image clarity and portion uncertainty. | Planned |
+| Voice log | Hands-free meal capture. | Transcript or audio-derived text. | Medium or low depending on detail. | Planned |
+| Text log | Natural-language quick capture. | Typed meal description. | Medium or low depending on detail. | Planned |
+| Repeated meal | Meals the user eats often. | Prior meal or saved favorite, date/time, serving adjustment if needed. | High when reused exactly; medium when adjusted. | Planned |
+| Recipe | Multi-ingredient meals with servings. | Ingredients, servings, selected portion. | Medium to high depending on ingredient confidence. | Planned |
+| Restaurant/common meal estimate | Meals without exact nutrition data. | Meal description, restaurant if known, portion cue. | Often low or medium unless verified data exists. | Planned |
+| AI-suggested meal | Planning meals before the user eats. | Goal, macros remaining, preferences, context. | Not logged until user confirms it was eaten. | Planned |
+| Imported nutrition data | External nutrition sources. | Provider entry, timestamp, serving/quantity. | Depends on provider source and user confirmation. | Future |
 
 ## Quick Add
 

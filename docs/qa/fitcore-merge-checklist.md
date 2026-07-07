@@ -3,7 +3,6 @@
 Every PR must confirm the following before merging to ensure codebase health and application stability.
 
 ## Standard Verification
-
 - [ ] Changed files reviewed
 - [ ] PR scope matches task
 - [ ] No unrelated broad formatting (Prettier/Lint)
@@ -12,14 +11,12 @@ Every PR must confirm the following before merging to ensure codebase health and
 - [ ] No source files changed in docs-only PRs
 
 ## Technical Quality
-
 - [ ] `npx tsc --noEmit` passed (TypeScript)
 - [ ] `npm run lint` passed
 - [ ] `npm run build` passed if applicable
 - [ ] Mobile smoke test passed (Mobile viewport verification)
 
 ## Feature Integrity
-
 - [ ] Existing tabs preserved and functional
 - [ ] Floating AI assistant preserved and interactive
 - [ ] Home quick actions still open their respective popups
@@ -27,7 +24,6 @@ Every PR must confirm the following before merging to ensure codebase health and
 - [ ] Migration considered if data shape changed
 
 ## AI & Data Safety
-
 - [ ] Manual logs and AI logs still connect to shared state
 - [ ] No demo data shown as real data
 - [ ] Destructive actions require confirmation

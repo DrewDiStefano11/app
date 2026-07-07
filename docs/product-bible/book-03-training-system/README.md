@@ -6,13 +6,13 @@ FitCore's training system should not become a disconnected workout notebook. It 
 
 ## Files
 
-| File                                                                                       | Purpose                                                                                                                                                                                                               |
-| :----------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [01-training-system-overview.md](./01-training-system-overview.md)                         | Defines the high-level training system, connected modules, training loop, inputs, outputs, architecture values, and anti-patterns.                                                                                    |
-| [02-workout-logging-and-active-workout.md](./02-workout-logging-and-active-workout.md)     | Defines the active workout experience, expandable exercise card behavior, previous performance display, set modifiers, notes, substitutions, plate calculator support, finish summary, and save-as-template behavior. |
-| [03-exercise-and-set-data-model.md](./03-exercise-and-set-data-model.md)                   | Defines product-level exercise identity, set-level data requirements, planned vs actual data, unilateral support, pain data, workout session data, corrections, and data transfer rules.                              |
-| [04-progression-and-performance-logic.md](./04-progression-and-performance-logic.md)       | Defines progression principles, performance interpretation, previous performance comparisons, suggested weights/reps, deload caution, PR logic, muscle volume, and AI recommendation format.                          |
-| [05-training-safety-and-injury-awareness.md](./05-training-safety-and-injury-awareness.md) | Defines product-level safety, pain, soreness, fatigue, injury limitations, caution boundaries, safety prompts, and safety anti-patterns.                                                                              |
+| File | Purpose |
+| :--- | :------ |
+| [01-training-system-overview.md](./01-training-system-overview.md) | Defines the high-level training system, connected modules, training loop, inputs, outputs, architecture values, and anti-patterns. |
+| [02-workout-logging-and-active-workout.md](./02-workout-logging-and-active-workout.md) | Defines the active workout experience, expandable exercise card behavior, previous performance display, set modifiers, notes, substitutions, plate calculator support, finish summary, and save-as-template behavior. |
+| [03-exercise-and-set-data-model.md](./03-exercise-and-set-data-model.md) | Defines product-level exercise identity, set-level data requirements, planned vs actual data, unilateral support, pain data, workout session data, corrections, and data transfer rules. |
+| [04-progression-and-performance-logic.md](./04-progression-and-performance-logic.md) | Defines progression principles, performance interpretation, previous performance comparisons, suggested weights/reps, deload caution, PR logic, muscle volume, and AI recommendation format. |
+| [05-training-safety-and-injury-awareness.md](./05-training-safety-and-injury-awareness.md) | Defines product-level safety, pain, soreness, fatigue, injury limitations, caution boundaries, safety prompts, and safety anti-patterns. |
 
 ## Core Principle
 
@@ -53,10 +53,10 @@ Training features should follow Book 2's data philosophy:
 
 Use conservative status labels in Book 3:
 
-| Status        | Meaning                                                                                     |
-| :------------ | :------------------------------------------------------------------------------------------ |
-| Implemented   | Use only when the repository clearly proves the behavior exists.                            |
-| Partial       | Some supporting behavior or documentation exists, but the full requirement is not complete. |
-| Planned       | Desired product behavior that future implementation should support.                         |
-| Future        | Longer-term behavior that depends on broader product maturity.                              |
-| Open Question | A decision, scope boundary, or safety rule needs clarification before implementation.       |
+| Status | Meaning |
+| :----- | :------ |
+| Implemented | Use only when the repository clearly proves the behavior exists. |
+| Partial | Some supporting behavior or documentation exists, but the full requirement is not complete. |
+| Planned | Desired product behavior that future implementation should support. |
+| Future | Longer-term behavior that depends on broader product maturity. |
+| Open Question | A decision, scope boundary, or safety rule needs clarification before implementation. |

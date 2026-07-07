@@ -3,7 +3,6 @@
 This document outlines the comprehensive manual QA test cases for the FitCore application. Use this pack to verify full app functionality before major releases or when automated tests are insufficient.
 
 ## 1. Home / Command Center
-
 - [ ] App loads without console errors
 - [ ] FitCore Score card renders
 - [ ] FitCore Score opens explanation popup
@@ -20,7 +19,6 @@ This document outlines the comprehensive manual QA test cases for the FitCore ap
 - [ ] Floating AI assistant does not block quick actions
 
 ## 2. Training
-
 - [ ] Training tab opens
 - [ ] Today / Workouts / Performance subtabs work
 - [ ] Start workout from template works
@@ -31,7 +29,6 @@ This document outlines the comprehensive manual QA test cases for the FitCore ap
 - [ ] Deleting workout requires confirmation
 
 ## 3. Active Workout
-
 - [ ] Exercise cards are collapsed except current exercise
 - [ ] Current exercise opens by default
 - [ ] Completed exercise collapses and shows stats
@@ -53,7 +50,6 @@ This document outlines the comprehensive manual QA test cases for the FitCore ap
 - [ ] Discard workout requires confirmation
 
 ## 4. Nutrition
-
 - [ ] Nutrition tab opens
 - [ ] Today / History / Goals subtabs work
 - [ ] Log meal opens
@@ -67,7 +63,6 @@ This document outlines the comprehensive manual QA test cases for the FitCore ap
 - [ ] Empty states look clean
 
 ## 5. Recovery
-
 - [ ] Recovery tab opens
 - [ ] Readiness / Muscle Status / Trends subtabs work
 - [ ] Check-in popup works
@@ -79,7 +74,6 @@ This document outlines the comprehensive manual QA test cases for the FitCore ap
 - [ ] Trends show empty state when insufficient data exists
 
 ## 6. Progress
-
 - [ ] Progress tab opens
 - [ ] Overview / Body / Analytics subtabs work
 - [ ] Weigh-in logging works
@@ -91,7 +85,6 @@ This document outlines the comprehensive manual QA test cases for the FitCore ap
 - [ ] Empty states are clear when data is missing
 
 ## 7. FitCore AI / Jarvis
-
 - [ ] Floating AI assistant opens
 - [ ] Assistant closes
 - [ ] Quick/detailed modes work if present
@@ -105,7 +98,6 @@ This document outlines the comprehensive manual QA test cases for the FitCore ap
 - [ ] AI does not silently overwrite manual logs
 
 ## 8. Data Persistence
-
 - [ ] Log meal, refresh, confirm meal remains
 - [ ] Log weigh-in, refresh, confirm weigh-in remains
 - [ ] Log check-in, refresh, confirm check-in remains
@@ -117,15 +109,12 @@ This document outlines the comprehensive manual QA test cases for the FitCore ap
 - [ ] Demo mode does not overwrite real data
 
 ## 9. Mobile / iPhone Layout
-
 Test at mobile widths (e.g., via Chrome DevTools):
-
 - 390x844 (iPhone 12/13/14/15)
 - 375x812 (iPhone X/11 Pro)
 - 360x800 (Android Standard)
 
 Check:
-
 - [ ] No horizontal scrolling
 - [ ] Bottom nav does not cover buttons
 - [ ] Floating AI button does not cover key actions
@@ -137,7 +126,6 @@ Check:
 - [ ] Safe-area spacing works
 
 ## 10. Accessibility / Usability
-
 - [ ] Icon-only buttons have labels where possible
 - [ ] Important buttons have visible text
 - [ ] Inputs have labels/placeholders

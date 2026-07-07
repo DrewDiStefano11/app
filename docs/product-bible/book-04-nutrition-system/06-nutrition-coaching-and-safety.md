@@ -49,19 +49,19 @@ Choose one protein source at dinner and log it.
 
 ## Coaching Contexts
 
-| Context                  | Example AI Response                                                                              | Data Needed                                      | Caution                                                                      |
-| :----------------------- | :----------------------------------------------------------------------------------------------- | :----------------------------------------------- | :--------------------------------------------------------------------------- |
-| Behind on protein        | "Add a protein-focused choice to your next meal before changing calories."                       | Protein logged, protein target, meals remaining. | Avoid treating one low-protein day as failure.                               |
-| Over calorie target      | "Keep dinner lighter if you are still hungry, but one high day does not erase the week."         | Calories logged, target, weekly average.         | Avoid shame and single-day overreaction.                                     |
-| Under calorie target     | "You may need a simple calorie/protein add-on, especially if you trained today."                 | Calories logged, target, training status.        | Avoid pushing food if appetite, illness, or safety context suggests caution. |
-| Training day fueling     | "Prioritize carbs and protein around training if performance has been dipping."                  | Workout timing, meals, performance trend.        | Avoid exact timing rules unless they matter.                                 |
-| Rest day adjustment      | "Stay near protein target; calories may not need to match a hard training day."                  | Goal phase, targets, rest day status.            | Avoid unnecessary restriction.                                               |
-| Poor recovery            | "Check protein, calories, hydration, and sleep before blaming the workout plan."                 | Recovery, sleep, soreness, nutrition logs.       | Do not overclaim causality.                                                  |
-| Body weight not changing | "If the 14-day average is flat and logging is consistent, a small adjustment may be reasonable." | Trend window, adherence, confidence.             | Avoid changing targets before checking data quality.                         |
-| Weight changing too fast | "A slower rate may better protect training energy and recovery."                                 | Weight trend, calories, performance, goal.       | Avoid unsafe rapid weight-loss advice.                                       |
-| Low-confidence logs      | "Improve one or two meal estimates before changing targets."                                     | Estimated vs confirmed totals.                   | Do not present uncertain totals as precise.                                  |
-| Restaurant meal          | "Use a rough estimate and note sauces/oils are the uncertain part."                              | Meal description, restaurant info if known.      | Avoid fake precision.                                                        |
-| Busy day/travel day      | "Use quick add or a saved meal so the day still has useful data."                                | Schedule note, meals logged, goal.               | Avoid making logging feel punitive.                                          |
+| Context | Example AI Response | Data Needed | Caution |
+| :------ | :------------------ | :---------- | :------ |
+| Behind on protein | "Add a protein-focused choice to your next meal before changing calories." | Protein logged, protein target, meals remaining. | Avoid treating one low-protein day as failure. |
+| Over calorie target | "Keep dinner lighter if you are still hungry, but one high day does not erase the week." | Calories logged, target, weekly average. | Avoid shame and single-day overreaction. |
+| Under calorie target | "You may need a simple calorie/protein add-on, especially if you trained today." | Calories logged, target, training status. | Avoid pushing food if appetite, illness, or safety context suggests caution. |
+| Training day fueling | "Prioritize carbs and protein around training if performance has been dipping." | Workout timing, meals, performance trend. | Avoid exact timing rules unless they matter. |
+| Rest day adjustment | "Stay near protein target; calories may not need to match a hard training day." | Goal phase, targets, rest day status. | Avoid unnecessary restriction. |
+| Poor recovery | "Check protein, calories, hydration, and sleep before blaming the workout plan." | Recovery, sleep, soreness, nutrition logs. | Do not overclaim causality. |
+| Body weight not changing | "If the 14-day average is flat and logging is consistent, a small adjustment may be reasonable." | Trend window, adherence, confidence. | Avoid changing targets before checking data quality. |
+| Weight changing too fast | "A slower rate may better protect training energy and recovery." | Weight trend, calories, performance, goal. | Avoid unsafe rapid weight-loss advice. |
+| Low-confidence logs | "Improve one or two meal estimates before changing targets." | Estimated vs confirmed totals. | Do not present uncertain totals as precise. |
+| Restaurant meal | "Use a rough estimate and note sauces/oils are the uncertain part." | Meal description, restaurant info if known. | Avoid fake precision. |
+| Busy day/travel day | "Use quick add or a saved meal so the day still has useful data." | Schedule note, meals logged, goal. | Avoid making logging feel punitive. |
 
 ## Meal Suggestions
 

@@ -19,11 +19,11 @@ The AI should support the Daily Decision Engine rather than replacing user contr
 
 ## AI Context Types
 
-| Context Type        | Time Range                                               | Examples                                                                                                      | How AI Should Use It                                                              | Risk                                                                     |
-| :------------------ | :------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------- | :----------------------------------------------------------------------- |
-| Short-term context  | Today, current session, current conversation.            | Today's logs, current workout, recent meals, current soreness or pain, current goal focus.                    | Guide immediate logging, answer current questions, adjust today's recommendation. | Treating incomplete same-day data as a full picture.                     |
-| Medium-term context | Usually the last 7 days or current training block slice. | Recent workouts, sleep trends, nutrition adherence, weight trend, soreness/pain pattern, performance changes. | Explain what changed, detect likely causes, avoid overreacting to one entry.      | Overweighting stale or sparse data.                                      |
-| Long-term memory    | Persistent user context across weeks, months, and years. | Goals, preferences, recurring limitations, injuries, equipment, common foods, training style, feedback.       | Personalize recommendations and reduce repeated setup.                            | Using sensitive or old context without user control or freshness checks. |
+| Context Type | Time Range | Examples | How AI Should Use It | Risk |
+| :----------- | :--------- | :------- | :------------------- | :--- |
+| Short-term context | Today, current session, current conversation. | Today's logs, current workout, recent meals, current soreness or pain, current goal focus. | Guide immediate logging, answer current questions, adjust today's recommendation. | Treating incomplete same-day data as a full picture. |
+| Medium-term context | Usually the last 7 days or current training block slice. | Recent workouts, sleep trends, nutrition adherence, weight trend, soreness/pain pattern, performance changes. | Explain what changed, detect likely causes, avoid overreacting to one entry. | Overweighting stale or sparse data. |
+| Long-term memory | Persistent user context across weeks, months, and years. | Goals, preferences, recurring limitations, injuries, equipment, common foods, training style, feedback. | Personalize recommendations and reduce repeated setup. | Using sensitive or old context without user control or freshness checks. |
 
 ## What the AI Should Know
 
@@ -101,19 +101,19 @@ Planned memory controls:
 - The app should support full export.
 - The app should support full deletion with confirmation.
 
-| Memory Category          | Example                                                | Default Sensitivity | User Control Needed                                   | Status    |
-| :----------------------- | :----------------------------------------------------- | :------------------ | :---------------------------------------------------- | :-------- |
-| Goals                    | Cut to a target weight, build strength, improve sleep. | Medium              | Review, edit, delete, disable AI use.                 | `Planned` |
-| Preferences              | Short workouts, disliked exercises, preferred foods.   | Medium              | Review, edit, delete.                                 | `Planned` |
-| Training history         | Exercises, sets, performance trends, substitutions.    | Medium              | Export, delete, restrict AI use.                      | `Partial` |
-| Nutrition patterns       | Common meals, macro adherence, corrections.            | Medium              | Review, delete, disable learning.                     | `Planned` |
-| Recovery patterns        | Sleep, soreness, fatigue, stress.                      | High                | Review, delete, restrict AI use.                      | `Planned` |
-| Injuries and limitations | Knee pain, shoulder history, movement restrictions.    | High                | Explicit review, edit, delete, cautious use.          | `Planned` |
-| Medical information      | Conditions, medications, allergies, surgeries.         | Very high           | Explicit consent, category toggle, delete/export.     | `Future`  |
-| Photos/body images       | Meal photos, progress photos, body images.             | Very high           | Explicit consent, local/cloud control, delete/export. | `Planned` |
-| Conversations            | AI chat history and user corrections.                  | High                | Review, delete, disable memory.                       | `Partial` |
-| Wearable data            | Sleep, heart rate, steps, recovery metrics.            | High                | Provider control, sync control, delete/export.        | `Planned` |
-| Coach feedback           | Notes from coach/pro mode or external guidance.        | High                | Review, source visibility, delete/export.             | `Future`  |
+| Memory Category | Example | Default Sensitivity | User Control Needed | Status |
+| :-------------- | :------ | :------------------ | :------------------ | :----- |
+| Goals | Cut to a target weight, build strength, improve sleep. | Medium | Review, edit, delete, disable AI use. | `Planned` |
+| Preferences | Short workouts, disliked exercises, preferred foods. | Medium | Review, edit, delete. | `Planned` |
+| Training history | Exercises, sets, performance trends, substitutions. | Medium | Export, delete, restrict AI use. | `Partial` |
+| Nutrition patterns | Common meals, macro adherence, corrections. | Medium | Review, delete, disable learning. | `Planned` |
+| Recovery patterns | Sleep, soreness, fatigue, stress. | High | Review, delete, restrict AI use. | `Planned` |
+| Injuries and limitations | Knee pain, shoulder history, movement restrictions. | High | Explicit review, edit, delete, cautious use. | `Planned` |
+| Medical information | Conditions, medications, allergies, surgeries. | Very high | Explicit consent, category toggle, delete/export. | `Future` |
+| Photos/body images | Meal photos, progress photos, body images. | Very high | Explicit consent, local/cloud control, delete/export. | `Planned` |
+| Conversations | AI chat history and user corrections. | High | Review, delete, disable memory. | `Partial` |
+| Wearable data | Sleep, heart rate, steps, recovery metrics. | High | Provider control, sync control, delete/export. | `Planned` |
+| Coach feedback | Notes from coach/pro mode or external guidance. | High | Review, source visibility, delete/export. | `Future` |
 
 ## Sensitive Data Handling
 

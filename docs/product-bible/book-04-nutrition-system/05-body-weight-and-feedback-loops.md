@@ -99,14 +99,14 @@ Example explanations:
 
 ## Goal-Phase Logic
 
-| Goal Phase        | Interpretation Pattern                                                                  |
-| :---------------- | :-------------------------------------------------------------------------------------- |
-| Cut               | Look for a sustainable downward trend while preserving performance and recovery.        |
-| Bulk              | Look for a controlled upward trend while avoiding unnecessary fat gain.                 |
-| Maintain          | Look for stable average and performance/recovery quality.                               |
-| Recomposition     | Look beyond scale weight, including performance, measurements, photos, and consistency. |
-| Performance focus | Prioritize fueling training and recovery.                                               |
-| Recovery focus    | Avoid aggressive restriction when recovery is poor.                                     |
+| Goal Phase | Interpretation Pattern |
+| :--------- | :--------------------- |
+| Cut | Look for a sustainable downward trend while preserving performance and recovery. |
+| Bulk | Look for a controlled upward trend while avoiding unnecessary fat gain. |
+| Maintain | Look for stable average and performance/recovery quality. |
+| Recomposition | Look beyond scale weight, including performance, measurements, photos, and consistency. |
+| Performance focus | Prioritize fueling training and recovery. |
+| Recovery focus | Avoid aggressive restriction when recovery is poor. |
 
 ## Adjustment Logic
 

@@ -6,15 +6,7 @@ export interface SetEntry {
   weight?: number;
   durationMin?: number;
   distanceMi?: number;
-  modifier?:
-    | "normal"
-    | "warmup"
-    | "drop"
-    | "failure"
-    | "partials"
-    | "unilateral"
-    | "paused"
-    | "tempo";
+  modifier?: "normal" | "warmup" | "drop" | "failure" | "partials" | "unilateral" | "paused" | "tempo";
   completed: boolean;
   provenance?: DataProvenance;
 }
@@ -55,26 +47,16 @@ export interface CustomExercise {
 }
 
 export interface CardioEntry {
-  id: string;
-  type: string;
-  minutes: number;
-  distanceMi?: number;
-  calories?: number;
-  heartRate?: number;
-  speed?: number;
-  incline?: number;
-  notes?: string;
-  createdAt: number;
+  id: string; type: string; minutes: number;
+  distanceMi?: number; calories?: number; heartRate?: number;
+  speed?: number; incline?: number; notes?: string; createdAt: number;
   provenance?: DataProvenance;
 }
 
 export interface MealItem {
   name: string;
   qty?: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+  calories: number; protein: number; carbs: number; fat: number;
   source?: DataSource;
   confidence?: Confidence;
   provenance?: DataProvenance;
@@ -84,10 +66,7 @@ export interface MealEntry {
   id: string;
   name: string;
   type: string;
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
+  calories: number; protein: number; carbs: number; fat: number;
   fiber?: number;
   notes?: string;
   createdAt: number;
@@ -112,31 +91,9 @@ export interface SupplementLog {
   provenance?: DataProvenance;
 }
 
-export interface BodyweightEntry {
-  id: string;
-  weightLb: number;
-  notes?: string;
-  createdAt: number;
-  provenance?: DataProvenance;
-}
-export interface SleepEntry {
-  id: string;
-  hours: number;
-  quality: number;
-  notes?: string;
-  createdAt: number;
-  provenance?: DataProvenance;
-}
-export interface RecoveryCheckIn {
-  id: string;
-  energy: number;
-  soreness: number;
-  stress: number;
-  motivation: number;
-  notes?: string;
-  createdAt: number;
-  provenance?: DataProvenance;
-}
+export interface BodyweightEntry { id: string; weightLb: number; notes?: string; createdAt: number; provenance?: DataProvenance; }
+export interface SleepEntry { id: string; hours: number; quality: number; notes?: string; createdAt: number; provenance?: DataProvenance; }
+export interface RecoveryCheckIn { id: string; energy: number; soreness: number; stress: number; motivation: number; notes?: string; createdAt: number; provenance?: DataProvenance; }
 export interface RecoverySignal {
   id: string;
   sourceLogId: string;
@@ -150,62 +107,14 @@ export interface RecoverySignal {
 }
 export type FatigueLevel = "fresh" | "moderate" | "fatigued" | "very";
 export type MuscleFatigueMap = Partial<Record<string, FatigueLevel>>;
-export interface PR {
-  id: string;
-  exerciseId: string;
-  type: "1rm" | "weight" | "volume";
-  value: number;
-  reps?: number;
-  weight?: number;
-  date: number;
-}
-export interface Goal {
-  id: string;
-  type:
-    | "lift"
-    | "weekly_workouts"
-    | "bodyweight"
-    | "cardio"
-    | "habit"
-    | "volume"
-    | "sleep"
-    | "readiness"
-    | "macro"
-    | "consistency"
-    | "photo";
-  label: string;
-  target: number;
-  current: number;
-  section?: SectionId;
-  pinned?: boolean;
-}
-export interface ProgressPhoto {
-  id: string;
-  dataUrl: string;
-  view: "front" | "side" | "back";
-  phase: "bulk" | "cut" | "maintenance";
-  notes?: string;
-  createdAt: number;
-}
-export interface AiMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt: number;
-}
+export interface PR { id: string; exerciseId: string; type: "1rm" | "weight" | "volume"; value: number; reps?: number; weight?: number; date: number; }
+export interface Goal { id: string; type: "lift" | "weekly_workouts" | "bodyweight" | "cardio" | "habit" | "volume" | "sleep" | "readiness" | "macro" | "consistency" | "photo"; label: string; target: number; current: number; section?: SectionId; pinned?: boolean; }
+export interface ProgressPhoto { id: string; dataUrl: string; view: "front" | "side" | "back"; phase: "bulk" | "cut" | "maintenance"; notes?: string; createdAt: number; }
+export interface AiMessage { id: string; role: "user" | "assistant"; content: string; createdAt: number; }
 
 /* --------------------- Jarvis (AI control layer) --------------------- */
 
-export type DataSource =
-  | "manual"
-  | "jarvis"
-  | "jarvis-confirmed"
-  | "barcode"
-  | "camera"
-  | "whoop"
-  | "apple-health"
-  | "imported"
-  | "edited";
+export type DataSource = "manual" | "jarvis" | "jarvis-confirmed" | "barcode" | "camera" | "whoop" | "apple-health" | "imported" | "edited";
 export type Confidence = "high" | "medium" | "low";
 
 /** Canonical source metadata for logged health and fitness data. */
@@ -358,14 +267,7 @@ export type JarvisLearning = Record<string, unknown>;
 
 /* ----------- Goals & Profile (extended subset, Phase 1) ----------- */
 
-export type ExtendedGoal =
-  | "bulk"
-  | "cut"
-  | "maintain"
-  | "recomp"
-  | "strength"
-  | "hypertrophy"
-  | "general";
+export type ExtendedGoal = "bulk" | "cut" | "maintain" | "recomp" | "strength" | "hypertrophy" | "general";
 
 export interface UserGoalsProfile {
   goal?: ExtendedGoal;
@@ -401,14 +303,7 @@ export interface UserGoalsProfile {
 export type Sex = "male" | "female" | "other";
 export type GymOrHome = "gym" | "home" | "both";
 export type Intensity = "easy" | "moderate" | "hard";
-export type DietStyle =
-  | "balanced"
-  | "high_protein"
-  | "low_carb"
-  | "keto"
-  | "vegetarian"
-  | "vegan"
-  | "mediterranean";
+export type DietStyle = "balanced" | "high_protein" | "low_carb" | "keto" | "vegetarian" | "vegan" | "mediterranean";
 export type MacroStrictness = "loose" | "moderate" | "strict";
 
 export interface Profile {
@@ -452,26 +347,14 @@ export interface Personalization {
   defaultDashboardFocus?: "training" | "nutrition" | "recovery" | "progress";
   defaultGraphModes?: { volume?: string; heatmap?: string };
   units?: { weight: "lb" | "kg"; distance: "mi" | "km" };
-  reminders?: {
-    workoutEnabled: boolean;
-    workoutTime: string;
-    weighInEnabled: boolean;
-    weighInTime: string;
-    mealLogEnabled: boolean;
-    mealLogTime: string;
-  };
+  reminders?: { workoutEnabled: boolean; workoutTime: string; weighInEnabled: boolean; weighInTime: string; mealLogEnabled: boolean; mealLogTime: string; };
   aiCoachTone?: "direct" | "supportive" | "detailed" | "simple";
   aiResponseLength?: "quick" | "detailed";
   uiComplexity?: "simple" | "advanced";
   showAdvancedStats?: boolean;
 }
 
-export interface NutritionTargets {
-  calories: number;
-  protein: number;
-  carbs: number;
-  fat: number;
-}
+export interface NutritionTargets { calories: number; protein: number; carbs: number; fat: number; }
 
 export interface AppState {
   version: number;
@@ -509,14 +392,7 @@ export const defaultPersonalization: Personalization = {
   defaultDashboardFocus: "training",
   defaultGraphModes: { volume: "total", heatmap: "load" },
   units: { weight: "lb", distance: "mi" },
-  reminders: {
-    workoutEnabled: true,
-    workoutTime: "17:00",
-    weighInEnabled: true,
-    weighInTime: "09:00",
-    mealLogEnabled: false,
-    mealLogTime: "12:00",
-  },
+  reminders: { workoutEnabled: true, workoutTime: "17:00", weighInEnabled: true, weighInTime: "09:00", mealLogEnabled: false, mealLogTime: "12:00" },
   aiCoachTone: "direct",
   aiResponseLength: "quick",
   uiComplexity: "advanced",
@@ -572,19 +448,11 @@ export const defaultState: AppState = {
 
 /* ----------------------- Format helpers ----------------------- */
 
-export function lbToKg(lb: number) {
-  return Math.round(lb * 0.453592 * 10) / 10;
-}
-export function kgToLb(kg: number) {
-  return Math.round(kg * 2.20462 * 10) / 10;
-}
-export function miToKm(mi: number) {
-  return Math.round(mi * 1.60934 * 10) / 10;
-}
+export function lbToKg(lb: number) { return Math.round(lb * 0.453592 * 10) / 10; }
+export function kgToLb(kg: number) { return Math.round(kg * 2.20462 * 10) / 10; }
+export function miToKm(mi: number) { return Math.round(mi * 1.60934 * 10) / 10; }
 
-export function weightUnit(p?: Personalization): "lb" | "kg" {
-  return p?.units?.weight ?? "lb";
-}
+export function weightUnit(p?: Personalization): "lb" | "kg" { return p?.units?.weight ?? "lb"; }
 
 export function formatWeight(lb: number, p?: Personalization, opts?: { unit?: boolean }): string {
   const u = weightUnit(p);
@@ -593,6 +461,4 @@ export function formatWeight(lb: number, p?: Personalization, opts?: { unit?: bo
   return opts?.unit === false ? out : `${out} ${u}`;
 }
 
-export function distanceUnit(p?: Personalization): "mi" | "km" {
-  return p?.units?.distance ?? "mi";
-}
+export function distanceUnit(p?: Personalization): "mi" | "km" { return p?.units?.distance ?? "mi"; }

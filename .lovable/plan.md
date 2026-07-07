@@ -1,3 +1,4 @@
+
 # Jarvis AI Assistant — Phased Build Plan
 
 This is a very large spec (7 phases, dozens of tools, voice mode, WHOOP/Apple Health, trend engine). I will NOT try to build it all in one turn — that would produce a shallow, broken result. Instead I'll ship it in working slices, starting with the foundation, and check in between phases.
@@ -7,7 +8,6 @@ This is a very large spec (7 phases, dozens of tools, voice mode, WHOOP/Apple He
 Phase 1 — **Jarvis Foundation**. Everything else builds on this.
 
 ### 1. Rename + UI shell
-
 - Rename the existing floating AI to **Jarvis** everywhere (button, headers, copy).
 - Keep the existing floating button position; add listening / thinking / speaking visual states (stubbed until voice ships in Phase 6).
 - Add a confidence + source badge component (`high/med/low`, `manual / jarvis / whoop / apple-health / barcode / imported`).
@@ -15,9 +15,7 @@ Phase 1 — **Jarvis Foundation**. Everything else builds on this.
 - Add a **Jarvis Activity** screen under Settings showing logged / suggested / edited / skipped items.
 
 ### 2. Structured tool layer (no free-form state mutation)
-
 Create `src/lib/jarvis/` with:
-
 - `tools.ts` — Zod schemas + handler registry for the core tools needed in Phase 1:
   `getTodaySummary`, `getNutritionStatus`, `getTrainingStatus`, `getRecoveryStatus`, `getProgressTrends`, `getUserGoalsProfile`, `updateUserGoalsProfile`, `getJarvisSettings`, `updateJarvisSettings`, `logBodyWeight`, `logSupplement`, `logDailyCheckIn`, `createUndoRecord`, `undoLastAction`, `saveJarvisLearning`.
   (Food / workout / WHOOP / reminder tools come in later phases — stubs only for now.)
@@ -26,20 +24,16 @@ Create `src/lib/jarvis/` with:
 - `learning.ts` — key/value store for corrections (`usualBreakfast`, `ricePortionMultiplier`, dismissed suggestions, etc.).
 
 ### 3. Server route
-
 - `src/routes/api/jarvis.ts` — streaming chat endpoint using AI SDK + Lovable Gateway (`google/gemini-3-flash-preview`) with the Phase 1 tools wired via `tool()` + `stopWhen: stepCountIs(50)`.
 - Reads `LOVABLE_API_KEY` server-side; I'll provision it if missing.
 - Client uses `useChat` with `DefaultChatTransport` pointed at `/api/jarvis`.
 
 ### 4. Goals / Profile system (Phase 1 subset)
-
 Add `userProfile` to AppState + a new **Goals & Profile** settings card with the fields most needed for early suggestions:
 goal (bulk/cut/maintain/recomp/strength/hypertrophy/general), targetBodyweight, currentBodyweight, calorieGoal, proteinGoal, carbGoal, fatGoal, weeklyWeightChange, normalWorkoutDays, normalWorkoutTime, weakPoints, injuryAreas, supplementRoutine, normalWeighInTime, usualMeals (breakfast/lunch/dinner/shake/pre/post). Remaining fields scaffolded but optional.
 
 ### 5. Jarvis AI Settings card
-
 Dedicated card in Settings:
-
 - Enabled toggle
 - Permission level (1 Suggest only → 4 Full control) — Phase 1 enforces levels 1–2 only; 3–4 marked "available next phase"
 - Response style (concise / normal / detailed)
@@ -54,18 +48,15 @@ Dedicated card in Settings:
 - Voice mode toggles (stubs for Phase 6, disabled with "coming soon")
 
 ### 6. Confirmation card component
-
 `<JarvisConfirmCard>` rendered inline in the Jarvis chat for any tool call where `needsConfirmation` is true. Buttons: **Save / Edit / Cancel**. Auto-save tier for clear bodyweight + named supplements per spec.
 
 ### 7. Safety
-
 - No tool can delete, change goals, create recurring reminders, or edit an active workout without explicit confirm — enforced in tool handlers, not in the prompt.
 - Every write returns an `undoId`; undo snackbar wires to `undoLastAction`.
 
 ## Files
 
 **New**
-
 - `src/lib/jarvis/tools.ts`
 - `src/lib/jarvis/funnel.ts`
 - `src/lib/jarvis/audit.ts`
@@ -82,7 +73,6 @@ Dedicated card in Settings:
 - `src/components/app/settings/goals-profile-card.tsx`
 
 **Edited**
-
 - `src/lib/types.ts` — `UserProfile`, `JarvisSettings`, `JarvisAuditEntry`, `JarvisLearning`, source/confidence on existing log types
 - `src/lib/store.tsx` — new slices + migration
 - `src/components/app/views/settings.tsx` — mount Jarvis Settings + Goals & Profile + Activity link
@@ -91,13 +81,11 @@ Dedicated card in Settings:
 - `src/lib/ai.functions.ts` — keep but mark deprecated; new flow uses streaming route
 
 **Removed/replaced**
-
 - `src/components/app/floating-ai.tsx` → replaced by `jarvis-panel.tsx` (old file deleted)
 
 ## Phases 2–7 (NOT this turn)
 
 After Phase 1 lands and you've tried it, I'll do these one at a time and check in between each:
-
 - **Phase 2**: food macro estimation, usual meals, mixed-source meals, supplements, missed-habit detection, daily check-in flow, daily review.
 - **Phase 3**: workout NL logging, draft/confirm, active-workout suggestions, smart progression, pain/soreness-adjusted workouts, health metrics panel.
 - **Phase 4**: WHOOP + Apple Health connectors, workout-window matching, conflict handling, pending sync.
@@ -106,11 +94,9 @@ After Phase 1 lands and you've tried it, I'll do these one at a time and check i
 - **Phase 7**: progress photos, body measurements, comparisons.
 
 ## Out of scope (forever, unless you ask)
-
 - Native iOS/Siri integration (PWA only).
 - Always-on wake word.
 - Medical diagnosis — safety rules in tool handlers will only ever return seriousness categories + "seek help" prompts.
 
 ## Approve to proceed
-
 Reply **"go"** and I'll build Phase 1 in the next turn. If you want me to start somewhere else (e.g. voice first, or WHOOP first), say which phase and I'll re-plan.

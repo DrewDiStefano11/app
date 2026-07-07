@@ -10,11 +10,7 @@ const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
 const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
 const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
 const WORKING_GEMINI_MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"] as const;
-const WORKING_GROQ_MODELS = [
-  "qwen/qwen3-32b",
-  "llama-3.1-8b-instant",
-  "llama-3.3-70b-versatile",
-] as const;
+const WORKING_GROQ_MODELS = ["qwen/qwen3-32b", "llama-3.1-8b-instant", "llama-3.3-70b-versatile"] as const;
 type ConnectionStatus = "not_configured" | "testing" | "connected" | "failed";
 type ConnectionResult = {
   ok: boolean;
@@ -52,20 +48,18 @@ function normalizedKeyMode(mode: JarvisSettings["geminiKeyMode"]): "local" | "en
 }
 
 function selectedGeminiModel(model: unknown): JarvisSettings["geminiModel"] {
-  return WORKING_GEMINI_MODELS.includes(model as JarvisSettings["geminiModel"])
-    ? (model as JarvisSettings["geminiModel"])
-    : "gemini-2.5-flash-lite";
+  return WORKING_GEMINI_MODELS.includes(model as JarvisSettings["geminiModel"]) ? model as JarvisSettings["geminiModel"] : "gemini-2.5-flash-lite";
 }
 
 function selectedGroqModel(model: unknown): GroqModel {
-  return WORKING_GROQ_MODELS.includes(model as GroqModel) ? (model as GroqModel) : "qwen/qwen3-32b";
+  return WORKING_GROQ_MODELS.includes(model as GroqModel) ? model as GroqModel : "qwen/qwen3-32b";
 }
 
 function readDiagnostics(): AiDiagnostics[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(AI_DIAGNOSTICS_STORAGE);
-    return raw ? ((JSON.parse(raw) as { calls?: AiDiagnostics[] }).calls ?? []) : [];
+    return raw ? (JSON.parse(raw) as { calls?: AiDiagnostics[] }).calls ?? [] : [];
   } catch {
     return [];
   }
@@ -83,8 +77,7 @@ function modelLabel(model?: string) {
 export function JarvisSettingsCard() {
   const { state, set } = useStore();
   const s = state.jarvisSettings;
-  const upd = (p: Partial<JarvisSettings>) =>
-    set((st) => ({ ...st, jarvisSettings: { ...st.jarvisSettings, ...p } }));
+  const upd = (p: Partial<JarvisSettings>) => set(st => ({ ...st, jarvisSettings: { ...st.jarvisSettings, ...p } }));
   const testConnection = useServerFn(testAiConnection);
   const [groqKeyDraft, setGroqKeyDraft] = useState("");
   const [geminiKeyDraft, setGeminiKeyDraft] = useState("");
@@ -93,9 +86,7 @@ export function JarvisSettingsCard() {
   const [legacyStatus, setLegacyStatus] = useState<ConnectionStatus>("not_configured");
   const [groqStatusText, setGroqStatusText] = useState("Not configured");
   const [geminiStatusText, setGeminiStatusText] = useState("Not configured");
-  const [legacyStatusText, setLegacyStatusText] = useState(
-    "Legacy provider uses LOVABLE_API_KEY on the server.",
-  );
+  const [legacyStatusText, setLegacyStatusText] = useState("Legacy provider uses LOVABLE_API_KEY on the server.");
   const [hasSavedGroqKey, setHasSavedGroqKey] = useState(false);
   const [hasSavedGeminiKey, setHasSavedGeminiKey] = useState(false);
   const [diagnostics, setDiagnostics] = useState<AiDiagnostics[]>([]);
@@ -137,19 +128,11 @@ export function JarvisSettingsCard() {
   useEffect(() => {
     if (groqStatus !== "connected") {
       setGroqStatus("not_configured");
-      setGroqStatusText(
-        hasSavedGroqKey || s.groqUserKeySaved
-          ? "Saved Groq key configured. Test connection when ready."
-          : "Jarvis needs a Groq API key. Add one in Jarvis AI Settings.",
-      );
+      setGroqStatusText(hasSavedGroqKey || s.groqUserKeySaved ? "Saved Groq key configured. Test connection when ready." : "Jarvis needs a Groq API key. Add one in Jarvis AI Settings.");
     }
     if (geminiStatus !== "connected") {
       setGeminiStatus("not_configured");
-      setGeminiStatusText(
-        hasSavedGeminiKey || s.geminiUserKeySaved
-          ? "Saved Gemini backup key configured. Test connection when ready."
-          : "Gemini backup is not configured.",
-      );
+      setGeminiStatusText(hasSavedGeminiKey || s.geminiUserKeySaved ? "Saved Gemini backup key configured. Test connection when ready." : "Gemini backup is not configured.");
     }
   }, [hasSavedGroqKey, hasSavedGeminiKey, s.groqUserKeySaved, s.geminiUserKeySaved]);
 
@@ -159,37 +142,17 @@ export function JarvisSettingsCard() {
     return {
       last,
       total: diagnostics.length,
-      lastMinute: diagnostics.filter((d) => d.timestamp && now - d.timestamp < 60_000).length,
+      lastMinute: diagnostics.filter(d => d.timestamp && now - d.timestamp < 60_000).length,
     };
   }, [diagnostics]);
 
-  const Toggle = ({
-    label,
-    val,
-    onChange,
-    hint,
-    disabled,
-  }: {
-    label: string;
-    val: boolean;
-    onChange: (v: boolean) => void;
-    hint?: string;
-    disabled?: boolean;
-  }) => (
-    <label
-      className={`flex items-start justify-between py-1 gap-3 ${disabled ? "opacity-50" : ""}`}
-    >
+  const Toggle = ({ label, val, onChange, hint, disabled }: { label: string; val: boolean; onChange: (v: boolean) => void; hint?: string; disabled?: boolean }) => (
+    <label className={`flex items-start justify-between py-1 gap-3 ${disabled ? "opacity-50" : ""}`}>
       <div className="flex-1">
         <p className="text-sm font-medium">{label}</p>
         {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
       </div>
-      <input
-        type="checkbox"
-        disabled={disabled}
-        checked={val}
-        onChange={(e) => onChange(e.target.checked)}
-        className="w-5 h-5 accent-[var(--section)] mt-0.5"
-      />
+      <input type="checkbox" disabled={disabled} checked={val} onChange={e => onChange(e.target.checked)} className="w-5 h-5 accent-[var(--section)] mt-0.5" />
     </label>
   );
 
@@ -265,30 +228,24 @@ export function JarvisSettingsCard() {
     const savedGroqKey = readSavedKey(GROQ_KEY_STORAGE);
     const savedGeminiKey = readSavedKey(GEMINI_KEY_STORAGE);
     try {
-      const result = (await testConnection({
-        data: {
-          provider,
-          groqKeyMode,
-          groqModel,
-          userGroqApiKey: draftGroqKey || savedGroqKey || undefined,
-          geminiKeyMode,
-          geminiModel,
-          userGeminiApiKey: draftGeminiKey || savedGeminiKey || undefined,
-        },
-      })) as ConnectionResult;
+      const result = await testConnection({ data: {
+        provider,
+        groqKeyMode,
+        groqModel,
+        userGroqApiKey: draftGroqKey || savedGroqKey || undefined,
+        geminiKeyMode,
+        geminiModel,
+        userGeminiApiKey: draftGeminiKey || savedGeminiKey || undefined,
+      } }) as ConnectionResult;
       if (result.ok) {
         if (provider === "groq") {
           if (draftGroqKey) persistGroqKey(draftGroqKey);
           setGroqStatus("connected");
-          setGroqStatusText(
-            `Connected via Groq ${result.keySource ? `(${result.keySource})` : ""}${result.model ? ` using ${modelLabel(result.model)}` : ""}.`,
-          );
+          setGroqStatusText(`Connected via Groq ${result.keySource ? `(${result.keySource})` : ""}${result.model ? ` using ${modelLabel(result.model)}` : ""}.`);
         } else if (provider === "gemini") {
           if (draftGeminiKey) persistGeminiKey(draftGeminiKey);
           setGeminiStatus("connected");
-          setGeminiStatusText(
-            `Connected via Gemini ${result.keySource ? `(${result.keySource})` : ""}${result.model ? ` using ${modelLabel(result.model)}` : ""}.`,
-          );
+          setGeminiStatusText(`Connected via Gemini ${result.keySource ? `(${result.keySource})` : ""}${result.model ? ` using ${modelLabel(result.model)}` : ""}.`);
         } else {
           setLegacyStatus("connected");
           setLegacyStatusText("Connected to legacy provider.");
@@ -318,43 +275,21 @@ export function JarvisSettingsCard() {
   };
 
   const StatusLine = ({ status, text }: { status: ConnectionStatus; text: string }) => {
-    const StatusIcon =
-      status === "testing"
-        ? Loader2
-        : status === "connected"
-          ? CheckCircle2
-          : status === "failed"
-            ? XCircle
-            : KeyRound;
-    return (
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <StatusIcon size={14} className={status === "testing" ? "animate-spin" : ""} />
-        <span className="capitalize">{status.replace("_", " ")}</span>
-        <span>-</span>
-        <span>{text}</span>
-      </div>
-    );
+    const StatusIcon = status === "testing" ? Loader2 : status === "connected" ? CheckCircle2 : status === "failed" ? XCircle : KeyRound;
+    return <div className="flex items-center gap-2 text-xs text-muted-foreground"><StatusIcon size={14} className={status === "testing" ? "animate-spin" : ""} /><span className="capitalize">{status.replace("_", " ")}</span><span>-</span><span>{text}</span></div>;
   };
 
   return (
     <section>
-      <h3 className="font-semibold mb-2 flex items-center gap-2">
-        <Sparkles size={16} />
-        Jarvis AI
-      </h3>
+      <h3 className="font-semibold mb-2 flex items-center gap-2"><Sparkles size={16} />Jarvis AI</h3>
       <Card className="space-y-4">
-        <Toggle label="Jarvis enabled" val={s.enabled} onChange={(v) => upd({ enabled: v })} />
+        <Toggle label="Jarvis enabled" val={s.enabled} onChange={v => upd({ enabled: v })} />
 
         <div className="space-y-3 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-            AI provider
-          </p>
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">AI provider</p>
           <div>
             <Label>Provider</Label>
-            <Select
-              value={s.aiProvider ?? "groq"}
-              onChange={(e) => upd({ aiProvider: e.target.value as JarvisSettings["aiProvider"] })}
-            >
+            <Select value={s.aiProvider ?? "groq"} onChange={e => upd({ aiProvider: e.target.value as JarvisSettings["aiProvider"] })}>
               <option value="groq">Groq - recommended/default</option>
               <option value="gemini">Gemini - backup</option>
               <option value="legacy-lovable">Legacy/Lovable fallback</option>
@@ -365,150 +300,60 @@ export function JarvisSettingsCard() {
             <p className="text-sm font-semibold">Groq main provider</p>
             <div>
               <Label>Groq model</Label>
-              <Select
-                value={groqModel}
-                onChange={(e) => upd({ groqModel: e.target.value as JarvisSettings["groqModel"] })}
-              >
-                <option value="qwen/qwen3-32b">
-                  Groq Qwen 3 32B - reliable tool calling/default
-                </option>
+              <Select value={groqModel} onChange={e => upd({ groqModel: e.target.value as JarvisSettings["groqModel"] })}>
+                <option value="qwen/qwen3-32b">Groq Qwen 3 32B - reliable tool calling/default</option>
                 <option value="llama-3.1-8b-instant">Groq Llama 3.1 8B Instant - fast chat</option>
-                <option value="llama-3.3-70b-versatile">
-                  Groq Llama 3.3 70B Versatile - stronger reasoning
-                </option>
+                <option value="llama-3.3-70b-versatile">Groq Llama 3.3 70B Versatile - stronger reasoning</option>
               </Select>
             </div>
             <div>
               <Label>Groq key source</Label>
-              <Select
-                value={groqKeyMode}
-                onChange={(e) =>
-                  upd({ groqKeyMode: e.target.value as JarvisSettings["groqKeyMode"] })
-                }
-              >
+              <Select value={groqKeyMode} onChange={e => upd({ groqKeyMode: e.target.value as JarvisSettings["groqKeyMode"] })}>
                 <option value="local">Use saved local key first</option>
                 <option value="environment">Use GROQ_API_KEY first</option>
               </Select>
             </div>
             <div>
               <Label>Groq API key</Label>
-              <Input
-                type="password"
-                autoComplete="off"
-                value={groqKeyDraft}
-                onChange={(e) => setGroqKeyDraft(e.target.value)}
-                placeholder={
-                  hasSavedGroqKey || s.groqUserKeySaved
-                    ? "Saved Groq key configured"
-                    : "Paste Groq API key"
-                }
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                For personal/local use only. Do not commit API keys.
-              </p>
+              <Input type="password" autoComplete="off" value={groqKeyDraft} onChange={e => setGroqKeyDraft(e.target.value)} placeholder={(hasSavedGroqKey || s.groqUserKeySaved) ? "Saved Groq key configured" : "Paste Groq API key"} />
+              <p className="text-xs text-muted-foreground mt-1">For personal/local use only. Do not commit API keys.</p>
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <PrimaryButton type="button" onClick={saveGroqKey} disabled={!groqKeyDraft.trim()}>
-                Save key
-              </PrimaryButton>
-              <GhostButton type="button" onClick={clearGroqKey}>
-                Clear key
-              </GhostButton>
-              <GhostButton
-                type="button"
-                onClick={() => runConnectionTest("groq")}
-                disabled={groqStatus === "testing"}
-              >
-                {groqStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}
-                Test
-              </GhostButton>
+              <PrimaryButton type="button" onClick={saveGroqKey} disabled={!groqKeyDraft.trim()}>Save key</PrimaryButton>
+              <GhostButton type="button" onClick={clearGroqKey}>Clear key</GhostButton>
+              <GhostButton type="button" onClick={() => runConnectionTest("groq")} disabled={groqStatus === "testing"}>{groqStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}Test</GhostButton>
             </div>
             <StatusLine status={groqStatus} text={groqStatusText} />
-            <Toggle
-              label="Auto model routing"
-              val={s.autoModelRouting !== false}
-              onChange={(v) => upd({ autoModelRouting: v })}
-              hint="Uses Qwen for reliable tool calls, with Llama models available for fallback and reasoning."
-            />
-            <Toggle
-              label="Auto fallback when model fails"
-              val={s.autoAiFallback !== false}
-              onChange={(v) => upd({ autoAiFallback: v })}
-              hint="Fallback happens before any app mutation runs."
-            />
-            <Toggle
-              label="Allow Gemini fallback"
-              val={Boolean(s.allowGeminiFallback)}
-              onChange={(v) => upd({ allowGeminiFallback: v })}
-              hint="Off by default to avoid silently using low Gemini quota."
-            />
+            <Toggle label="Auto model routing" val={s.autoModelRouting !== false} onChange={v => upd({ autoModelRouting: v })} hint="Uses Qwen for reliable tool calls, with Llama models available for fallback and reasoning." />
+            <Toggle label="Auto fallback when model fails" val={s.autoAiFallback !== false} onChange={v => upd({ autoAiFallback: v })} hint="Fallback happens before any app mutation runs." />
+            <Toggle label="Allow Gemini fallback" val={Boolean(s.allowGeminiFallback)} onChange={v => upd({ allowGeminiFallback: v })} hint="Off by default to avoid silently using low Gemini quota." />
           </div>
 
           <div className="rounded-2xl border border-border bg-[var(--surface-2)] p-3 space-y-3">
             <p className="text-sm font-semibold">Gemini backup</p>
-            <p className="text-xs text-muted-foreground">
-              Gemini is kept for backup text, image-food estimation, and future multimodal features.
-              Free quota can be limited.
-            </p>
+            <p className="text-xs text-muted-foreground">Gemini is kept for backup text, image-food estimation, and future multimodal features. Free quota can be limited.</p>
             <div>
               <Label>Gemini model</Label>
-              <Select
-                value={geminiModel}
-                onChange={(e) =>
-                  upd({ geminiModel: e.target.value as JarvisSettings["geminiModel"] })
-                }
-              >
+              <Select value={geminiModel} onChange={e => upd({ geminiModel: e.target.value as JarvisSettings["geminiModel"] })}>
                 <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
-                <option value="gemini-2.5-flash-lite">
-                  Gemini 2.5 Flash-Lite - low free daily quota for this project
-                </option>
+                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash-Lite - low free daily quota for this project</option>
               </Select>
             </div>
             <div>
               <Label>Gemini key source</Label>
-              <Select
-                value={geminiKeyMode}
-                onChange={(e) =>
-                  upd({ geminiKeyMode: e.target.value as JarvisSettings["geminiKeyMode"] })
-                }
-              >
+              <Select value={geminiKeyMode} onChange={e => upd({ geminiKeyMode: e.target.value as JarvisSettings["geminiKeyMode"] })}>
                 <option value="local">Use saved local key first</option>
                 <option value="environment">Use GEMINI_API_KEY or GOOGLE_API_KEY first</option>
               </Select>
             </div>
             <div>
               <Label>Gemini API key</Label>
-              <Input
-                type="password"
-                autoComplete="off"
-                value={geminiKeyDraft}
-                onChange={(e) => setGeminiKeyDraft(e.target.value)}
-                placeholder={
-                  hasSavedGeminiKey || s.geminiUserKeySaved
-                    ? "Saved Gemini key configured"
-                    : "Paste Gemini API key"
-                }
-              />
+              <Input type="password" autoComplete="off" value={geminiKeyDraft} onChange={e => setGeminiKeyDraft(e.target.value)} placeholder={(hasSavedGeminiKey || s.geminiUserKeySaved) ? "Saved Gemini key configured" : "Paste Gemini API key"} />
             </div>
             <div className="grid grid-cols-3 gap-2">
-              <PrimaryButton
-                type="button"
-                onClick={saveGeminiKey}
-                disabled={!geminiKeyDraft.trim()}
-              >
-                Save key
-              </PrimaryButton>
-              <GhostButton type="button" onClick={clearGeminiKey}>
-                Clear key
-              </GhostButton>
-              <GhostButton
-                type="button"
-                onClick={() => runConnectionTest("gemini")}
-                disabled={geminiStatus === "testing"}
-              >
-                {geminiStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}
-                Test
-              </GhostButton>
+              <PrimaryButton type="button" onClick={saveGeminiKey} disabled={!geminiKeyDraft.trim()}>Save key</PrimaryButton>
+              <GhostButton type="button" onClick={clearGeminiKey}>Clear key</GhostButton>
+              <GhostButton type="button" onClick={() => runConnectionTest("gemini")} disabled={geminiStatus === "testing"}>{geminiStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}Test</GhostButton>
             </div>
             <StatusLine status={geminiStatus} text={geminiStatusText} />
           </div>
@@ -516,291 +361,116 @@ export function JarvisSettingsCard() {
           {s.aiProvider === "legacy-lovable" && (
             <div className="rounded-2xl border border-border bg-[var(--surface-2)] p-3 space-y-2">
               <p className="text-sm font-medium">Legacy/Lovable fallback</p>
-              <p className="text-xs text-muted-foreground">
-                Uses server-side LOVABLE_API_KEY only. Keep this as fallback only.
-              </p>
-              <GhostButton
-                type="button"
-                onClick={() => runConnectionTest("legacy-lovable")}
-                disabled={legacyStatus === "testing"}
-              >
-                {legacyStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}
-                Test legacy connection
-              </GhostButton>
+              <p className="text-xs text-muted-foreground">Uses server-side LOVABLE_API_KEY only. Keep this as fallback only.</p>
+              <GhostButton type="button" onClick={() => runConnectionTest("legacy-lovable")} disabled={legacyStatus === "testing"}>{legacyStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}Test legacy connection</GhostButton>
               <StatusLine status={legacyStatus} text={legacyStatusText} />
             </div>
           )}
         </div>
 
         <div className="space-y-2 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-            Model diagnostics
-          </p>
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Model diagnostics</p>
           <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span>Current provider</span>
-            <span>{s.aiProvider ?? "groq"}</span>
-            <span>Selected model</span>
-            <span>
-              {modelLabel((s.aiProvider ?? "groq") === "gemini" ? geminiModel : groqModel)}
-            </span>
-            <span>Actual last model</span>
-            <span>{modelLabel(diagSummary.last?.actualModel)}</span>
-            <span>Auto-routed</span>
-            <span>{diagSummary.last?.routed ? "yes" : "no"}</span>
-            <span>Fallback</span>
-            <span>{diagSummary.last?.fallback ? "yes" : "no"}</span>
-            <span>Fallback reason</span>
-            <span>{diagSummary.last?.fallbackReason ?? "none"}</span>
-            <span>AI calls this session</span>
-            <span>{diagSummary.total}</span>
-            <span>AI calls last minute</span>
-            <span>{diagSummary.lastMinute}</span>
-            <span>Last call type</span>
-            <span>{diagSummary.last?.callType ?? "none"}</span>
-            <span>Last status/error</span>
-            <span>{diagSummary.last?.status ?? diagSummary.last?.errorCategory ?? "none"}</span>
-            <span>Last request</span>
-            <span>
-              {diagSummary.last?.provider ?? "none"} / {modelLabel(diagSummary.last?.actualModel)}
-            </span>
-            <span>Last input size</span>
-            <span>{diagSummary.last?.inputSize ?? 0}</span>
-            <span>Tools/messages sent</span>
-            <span>
-              {diagSummary.last?.toolsSent ?? 0} / {diagSummary.last?.messagesSent ?? 0}
-            </span>
-            <span>Retry/fallback count</span>
-            <span>
-              {diagSummary.last?.retryCount ?? 0} / {diagSummary.last?.fallbackCount ?? 0}
-            </span>
-            <span>Model cooldowns</span>
-            <span>
-              {diagSummary.last?.fallbackReason
-                ? `${diagSummary.last.fallbackReason} on prior model`
-                : "none visible"}
-            </span>
+            <span>Current provider</span><span>{s.aiProvider ?? "groq"}</span>
+            <span>Selected model</span><span>{modelLabel((s.aiProvider ?? "groq") === "gemini" ? geminiModel : groqModel)}</span>
+            <span>Actual last model</span><span>{modelLabel(diagSummary.last?.actualModel)}</span>
+            <span>Auto-routed</span><span>{diagSummary.last?.routed ? "yes" : "no"}</span>
+            <span>Fallback</span><span>{diagSummary.last?.fallback ? "yes" : "no"}</span>
+            <span>Fallback reason</span><span>{diagSummary.last?.fallbackReason ?? "none"}</span>
+            <span>AI calls this session</span><span>{diagSummary.total}</span>
+            <span>AI calls last minute</span><span>{diagSummary.lastMinute}</span>
+            <span>Last call type</span><span>{diagSummary.last?.callType ?? "none"}</span>
+            <span>Last status/error</span><span>{diagSummary.last?.status ?? diagSummary.last?.errorCategory ?? "none"}</span>
+            <span>Last request</span><span>{diagSummary.last?.provider ?? "none"} / {modelLabel(diagSummary.last?.actualModel)}</span>
+            <span>Last input size</span><span>{diagSummary.last?.inputSize ?? 0}</span>
+            <span>Tools/messages sent</span><span>{diagSummary.last?.toolsSent ?? 0} / {diagSummary.last?.messagesSent ?? 0}</span>
+            <span>Retry/fallback count</span><span>{diagSummary.last?.retryCount ?? 0} / {diagSummary.last?.fallbackCount ?? 0}</span>
+            <span>Model cooldowns</span><span>{diagSummary.last?.fallbackReason ? `${diagSummary.last.fallbackReason} on prior model` : "none visible"}</span>
           </div>
         </div>
 
         <div>
           <Label>Permission level</Label>
-          <Select
-            value={String(s.permission)}
-            onChange={(e) =>
-              upd({ permission: Number(e.target.value) as JarvisSettings["permission"] })
-            }
-          >
+          <Select value={String(s.permission)} onChange={e => upd({ permission: Number(e.target.value) as JarvisSettings["permission"] })}>
             <option value="1">L1 - Suggest only</option>
             <option value="2">L2 - Draft & confirm</option>
             <option value="3">L3 - Auto-log simple items</option>
             <option value="4">L4 - Full app control (with undo)</option>
           </Select>
-          <p className="text-xs text-muted-foreground mt-1">
-            L3 and L4 auto-save clear bodyweight / supplements; uncertain items still ask.
-          </p>
+          <p className="text-xs text-muted-foreground mt-1">L3 and L4 auto-save clear bodyweight / supplements; uncertain items still ask.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Response style</Label>
-            <Select
-              value={s.responseStyle}
-              onChange={(e) =>
-                upd({ responseStyle: e.target.value as JarvisSettings["responseStyle"] })
-              }
-            >
-              <option value="concise">Concise</option>
-              <option value="normal">Normal</option>
-              <option value="detailed">Detailed</option>
+            <Select value={s.responseStyle} onChange={e => upd({ responseStyle: e.target.value as JarvisSettings["responseStyle"] })}>
+              <option value="concise">Concise</option><option value="normal">Normal</option><option value="detailed">Detailed</option>
             </Select>
           </div>
           <div>
             <Label>Personality</Label>
-            <Select
-              value={s.personality}
-              onChange={(e) =>
-                upd({ personality: e.target.value as JarvisSettings["personality"] })
-              }
-            >
-              <option value="friendly">Friendly</option>
-              <option value="coach">Coach</option>
-              <option value="siri">Siri-style</option>
-              <option value="chatgpt">ChatGPT-style</option>
+            <Select value={s.personality} onChange={e => upd({ personality: e.target.value as JarvisSettings["personality"] })}>
+              <option value="friendly">Friendly</option><option value="coach">Coach</option><option value="siri">Siri-style</option><option value="chatgpt">ChatGPT-style</option>
             </Select>
           </div>
         </div>
 
         <div>
           <Label>Proactive suggestions</Label>
-          <Select
-            value={s.proactive}
-            onChange={(e) => upd({ proactive: e.target.value as JarvisSettings["proactive"] })}
-          >
-            <option value="off">Off</option>
-            <option value="low">Low</option>
-            <option value="normal">Normal</option>
-            <option value="high">High</option>
+          <Select value={s.proactive} onChange={e => upd({ proactive: e.target.value as JarvisSettings["proactive"] })}>
+            <option value="off">Off</option><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option>
           </Select>
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-            Auto-log
-          </p>
-          <Toggle
-            label="Auto-log clear supplements"
-            val={s.autoLogSupplements}
-            onChange={(v) => upd({ autoLogSupplements: v })}
-            hint='"Log creatine" saves immediately.'
-          />
-          <Toggle
-            label="Auto-log exact bodyweight"
-            val={s.autoLogBodyweight}
-            onChange={(v) => upd({ autoLogBodyweight: v })}
-          />
-          <Toggle
-            label="Auto-log high-confidence meal estimates"
-            val={s.autoLogMealEstimates}
-            onChange={(v) => upd({ autoLogMealEstimates: v })}
-            hint="Only when Jarvis is confident; vague meals still ask."
-          />
-          <Toggle
-            label="Auto-apply active workout suggestions"
-            val={s.autoApplyActiveWorkoutSuggestions}
-            onChange={(v) => upd({ autoApplyActiveWorkoutSuggestions: v })}
-            hint="When off, Jarvis asks before changing an active workout."
-          />
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Auto-log</p>
+          <Toggle label="Auto-log clear supplements" val={s.autoLogSupplements} onChange={v => upd({ autoLogSupplements: v })} hint='"Log creatine" saves immediately.' />
+          <Toggle label="Auto-log exact bodyweight" val={s.autoLogBodyweight} onChange={v => upd({ autoLogBodyweight: v })} />
+          <Toggle label="Auto-log high-confidence meal estimates" val={s.autoLogMealEstimates} onChange={v => upd({ autoLogMealEstimates: v })} hint="Only when Jarvis is confident; vague meals still ask." />
+          <Toggle label="Auto-apply active workout suggestions" val={s.autoApplyActiveWorkoutSuggestions} onChange={v => upd({ autoApplyActiveWorkoutSuggestions: v })} hint="When off, Jarvis asks before changing an active workout." />
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-            Confirmation
-          </p>
-          <Toggle
-            label="Ask before saving meal estimates"
-            val={s.askBeforeMealEstimates}
-            onChange={(v) => upd({ askBeforeMealEstimates: v })}
-          />
-          <Toggle
-            label="Ask before saving workouts"
-            val={s.askBeforeWorkouts}
-            onChange={(v) => upd({ askBeforeWorkouts: v })}
-          />
-          <Toggle
-            label="Ask before editing active workouts"
-            val={s.askBeforeActiveWorkoutEdits}
-            onChange={(v) => upd({ askBeforeActiveWorkoutEdits: v })}
-          />
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Confirmation</p>
+          <Toggle label="Ask before saving meal estimates" val={s.askBeforeMealEstimates} onChange={v => upd({ askBeforeMealEstimates: v })} />
+          <Toggle label="Ask before saving workouts" val={s.askBeforeWorkouts} onChange={v => upd({ askBeforeWorkouts: v })} />
+          <Toggle label="Ask before editing active workouts" val={s.askBeforeActiveWorkoutEdits} onChange={v => upd({ askBeforeActiveWorkoutEdits: v })} />
         </div>
 
         <div className="border-t border-border pt-3">
           <Label>Food estimate detail</Label>
-          <Select
-            value={s.foodEstimateDetail}
-            onChange={(e) =>
-              upd({ foodEstimateDetail: e.target.value as JarvisSettings["foodEstimateDetail"] })
-            }
-          >
-            <option value="simple">Simple</option>
-            <option value="normal">Normal</option>
-            <option value="detailed">Detailed assumptions</option>
+          <Select value={s.foodEstimateDetail} onChange={e => upd({ foodEstimateDetail: e.target.value as JarvisSettings["foodEstimateDetail"] })}>
+            <option value="simple">Simple</option><option value="normal">Normal</option><option value="detailed">Detailed assumptions</option>
           </Select>
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-            Coaching
-          </p>
-          <Toggle
-            label="Nutrition suggestions"
-            val={s.nutritionSuggestions}
-            onChange={(v) => upd({ nutritionSuggestions: v })}
-          />
-          <Toggle
-            label="Supplement reminders"
-            val={s.supplementReminders}
-            onChange={(v) => upd({ supplementReminders: v })}
-          />
-          <Toggle
-            label="Workout suggestions"
-            val={s.workoutSuggestions}
-            onChange={(v) => upd({ workoutSuggestions: v })}
-          />
-          <Toggle
-            label="Progression suggestions"
-            val={s.progressionSuggestions}
-            onChange={(v) => upd({ progressionSuggestions: v })}
-          />
-          <Toggle
-            label="Pain-based workout warnings"
-            val={s.painBasedWorkoutWarnings}
-            onChange={(v) => upd({ painBasedWorkoutWarnings: v })}
-          />
-          <Toggle
-            label="Save workout template suggestions"
-            val={s.saveWorkoutTemplateSuggestions}
-            onChange={(v) => upd({ saveWorkoutTemplateSuggestions: v })}
-          />
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Coaching</p>
+          <Toggle label="Nutrition suggestions" val={s.nutritionSuggestions} onChange={v => upd({ nutritionSuggestions: v })} />
+          <Toggle label="Supplement reminders" val={s.supplementReminders} onChange={v => upd({ supplementReminders: v })} />
+          <Toggle label="Workout suggestions" val={s.workoutSuggestions} onChange={v => upd({ workoutSuggestions: v })} />
+          <Toggle label="Progression suggestions" val={s.progressionSuggestions} onChange={v => upd({ progressionSuggestions: v })} />
+          <Toggle label="Pain-based workout warnings" val={s.painBasedWorkoutWarnings} onChange={v => upd({ painBasedWorkoutWarnings: v })} />
+          <Toggle label="Save workout template suggestions" val={s.saveWorkoutTemplateSuggestions} onChange={v => upd({ saveWorkoutTemplateSuggestions: v })} />
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-            Memory
-          </p>
-          <Toggle
-            label="Learn from corrections"
-            val={s.learningEnabled}
-            onChange={(v) => upd({ learningEnabled: v })}
-            hint="Jarvis remembers usual meals, portion sizes, dismissed suggestions."
-          />
-          <button
-            onClick={() => set((st) => ({ ...st, jarvisLearning: {} }))}
-            className="text-xs text-destructive"
-          >
-            Clear learned preferences
-          </button>
-          <button
-            onClick={() => set((st) => ({ ...st, jarvisAudit: [] }))}
-            className="text-xs text-destructive block"
-          >
-            Clear Jarvis activity history
-          </button>
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Memory</p>
+          <Toggle label="Learn from corrections" val={s.learningEnabled} onChange={v => upd({ learningEnabled: v })} hint="Jarvis remembers usual meals, portion sizes, dismissed suggestions." />
+          <button onClick={() => set(st => ({ ...st, jarvisLearning: {} }))} className="text-xs text-destructive">Clear learned preferences</button>
+          <button onClick={() => set(st => ({ ...st, jarvisAudit: [] }))} className="text-xs text-destructive block">Clear Jarvis activity history</button>
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-            Reviews
-          </p>
-          <Toggle
-            label="Daily review (ask Jarvis any time)"
-            val={s.dailyReviewEnabled}
-            onChange={(v) => upd({ dailyReviewEnabled: v })}
-            hint="On-demand today. Scheduled push arrives in Phase 5."
-          />
-          <Toggle
-            disabled
-            label="Weekly review (coming Phase 5)"
-            val={s.weeklyReviewEnabled}
-            onChange={(v) => upd({ weeklyReviewEnabled: v })}
-          />
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Reviews</p>
+          <Toggle label="Daily review (ask Jarvis any time)" val={s.dailyReviewEnabled} onChange={v => upd({ dailyReviewEnabled: v })} hint="On-demand today. Scheduled push arrives in Phase 5." />
+          <Toggle disabled label="Weekly review (coming Phase 5)" val={s.weeklyReviewEnabled} onChange={v => upd({ weeklyReviewEnabled: v })} />
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
-            Voice (coming Phase 6)
-          </p>
-          <Toggle
-            disabled
-            label="Voice mode"
-            val={s.voiceModeEnabled}
-            onChange={(v) => upd({ voiceModeEnabled: v })}
-          />
-          <Toggle
-            disabled
-            label="Spoken responses"
-            val={s.spokenResponses}
-            onChange={(v) => upd({ spokenResponses: v })}
-          />
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Voice (coming Phase 6)</p>
+          <Toggle disabled label="Voice mode" val={s.voiceModeEnabled} onChange={v => upd({ voiceModeEnabled: v })} />
+          <Toggle disabled label="Spoken responses" val={s.spokenResponses} onChange={v => upd({ spokenResponses: v })} />
         </div>
       </Card>
     </section>

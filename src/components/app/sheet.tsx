@@ -40,7 +40,9 @@ export function BottomSheet({
       >
         <div className="sheet-header flex min-h-16 items-center justify-between border-b border-white/[0.06] px-5 pb-3 pt-5">
           <div className="sheet-grabber absolute left-1/2 top-2 -translate-x-1/2 h-1 w-10 rounded-full bg-white/25" />
-          <h3 className="sheet-title font-semibold text-lg text-white">{title}</h3>
+          <h3 className="sheet-title font-semibold text-lg text-white">
+            {title}
+          </h3>
           <button
             onClick={onClose}
             className="btn-control grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white press"

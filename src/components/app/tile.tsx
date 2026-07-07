@@ -26,7 +26,8 @@ export function Tile({
         "premium-card tile p-4 sm:p-[1.125rem] animate-tile-in",
         hero && "tile-hero",
         accent && "glow-section",
-        onClick && "press cursor-pointer transition-[transform,border-color,background-color]",
+        onClick &&
+          "press cursor-pointer transition-[transform,border-color,background-color]",
         className,
       )}
     >
@@ -35,7 +36,13 @@ export function Tile({
   );
 }
 
-export function Eyebrow({ children, color }: { children: ReactNode; color?: string }) {
+export function Eyebrow({
+  children,
+  color,
+}: {
+  children: ReactNode;
+  color?: string;
+}) {
   return (
     <span className="eyebrow" style={color ? { color } : undefined}>
       {children}

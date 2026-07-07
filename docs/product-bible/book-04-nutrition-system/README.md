@@ -6,14 +6,14 @@ FitCore's nutrition system should not become a disconnected calorie tracker. It 
 
 ## Files
 
-| File                                                                             | Purpose                                                                                                                                                                    |
-| :------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [01-nutrition-system-overview.md](./01-nutrition-system-overview.md)             | Defines the high-level nutrition system, modules, loop, inputs, outputs, architecture values, and anti-patterns.                                                           |
-| [02-meal-logging-and-food-entry.md](./02-meal-logging-and-food-entry.md)         | Defines food entry methods, quick add, manual search, barcode/label entry, photo logging, voice/text logging, repeated meals, recipes, timing, and logging friction rules. |
-| [03-macro-estimation-and-food-ai.md](./03-macro-estimation-and-food-ai.md)       | Defines AI macro estimation, source transparency, confidence levels, uncertainty language, user corrections, clarifying questions, and food AI anti-patterns.              |
-| [04-nutrition-data-model-philosophy.md](./04-nutrition-data-model-philosophy.md) | Defines implementation-neutral nutrition data requirements, entity concepts, target history, estimated vs confirmed data, corrections, privacy, and data transfer rules.   |
-| [05-body-weight-and-feedback-loops.md](./05-body-weight-and-feedback-loops.md)   | Defines body-weight trend interpretation, nutrition-to-weight feedback loops, goal-phase logic, adjustment caution, and training/recovery connections.                     |
-| [06-nutrition-coaching-and-safety.md](./06-nutrition-coaching-and-safety.md)     | Defines nutrition coaching style, recommendation format, meal suggestions, adherence support, recovery connections, sensitive data handling, and safety boundaries.        |
+| File | Purpose |
+| :--- | :------ |
+| [01-nutrition-system-overview.md](./01-nutrition-system-overview.md) | Defines the high-level nutrition system, modules, loop, inputs, outputs, architecture values, and anti-patterns. |
+| [02-meal-logging-and-food-entry.md](./02-meal-logging-and-food-entry.md) | Defines food entry methods, quick add, manual search, barcode/label entry, photo logging, voice/text logging, repeated meals, recipes, timing, and logging friction rules. |
+| [03-macro-estimation-and-food-ai.md](./03-macro-estimation-and-food-ai.md) | Defines AI macro estimation, source transparency, confidence levels, uncertainty language, user corrections, clarifying questions, and food AI anti-patterns. |
+| [04-nutrition-data-model-philosophy.md](./04-nutrition-data-model-philosophy.md) | Defines implementation-neutral nutrition data requirements, entity concepts, target history, estimated vs confirmed data, corrections, privacy, and data transfer rules. |
+| [05-body-weight-and-feedback-loops.md](./05-body-weight-and-feedback-loops.md) | Defines body-weight trend interpretation, nutrition-to-weight feedback loops, goal-phase logic, adjustment caution, and training/recovery connections. |
+| [06-nutrition-coaching-and-safety.md](./06-nutrition-coaching-and-safety.md) | Defines nutrition coaching style, recommendation format, meal suggestions, adherence support, recovery connections, sensitive data handling, and safety boundaries. |
 
 ## Core Principle
 
@@ -55,10 +55,10 @@ Nutrition should connect to training performance, readiness, recovery, soreness,
 
 Use conservative status labels in Book 4:
 
-| Status        | Meaning                                                                                     |
-| :------------ | :------------------------------------------------------------------------------------------ |
-| Implemented   | Use only when the repository clearly proves the behavior exists.                            |
-| Partial       | Some supporting behavior or documentation exists, but the full requirement is not complete. |
-| Planned       | Desired product behavior that future implementation should support.                         |
-| Future        | Longer-term behavior that depends on broader product maturity.                              |
-| Open Question | A decision, scope boundary, or safety rule needs clarification before implementation.       |
+| Status | Meaning |
+| :----- | :------ |
+| Implemented | Use only when the repository clearly proves the behavior exists. |
+| Partial | Some supporting behavior or documentation exists, but the full requirement is not complete. |
+| Planned | Desired product behavior that future implementation should support. |
+| Future | Longer-term behavior that depends on broader product maturity. |
+| Open Question | A decision, scope boundary, or safety rule needs clarification before implementation. |
