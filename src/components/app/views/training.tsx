@@ -61,7 +61,7 @@ function TodayTab({ onJump }: { onJump: (t: Tab) => void }) {
             <span className="text-xs uppercase tracking-wider text-muted-foreground">Today</span>
             <h2 className="text-2xl font-bold mt-1">{todays.length ? "Trained ✓" : "Ready to lift"}</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              {todays.length ? `${todays.length} workout logged` : planExercises ? `Plan: ${planExercises.name}` : "Pick a template"}
+              {todays.length ? `${todays.length} workout logged` : planExercises ? `Plan: ${planExercises.name}` : "Select a template to start"}
             </p>
           </div>
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "var(--section)" }}>
@@ -70,15 +70,15 @@ function TodayTab({ onJump }: { onJump: (t: Tab) => void }) {
         </div>
         <div className="flex gap-2 mt-4">
           <PrimaryButton onClick={planExercises ? startPlan : () => onJump("workouts")} className="flex-1">
-            <Play size={16} />{planExercises ? "Start today's plan" : "Start workout"}
+            <Play size={16} />{planExercises ? "Start Today's Plan" : "Choose a Template"}
           </PrimaryButton>
-          <GhostButton onClick={startBlank}><Plus size={16} />Blank</GhostButton>
+          <GhostButton onClick={startBlank}><Plus size={16} />New Empty Workout</GhostButton>
         </div>
       </div>
 
       {planExercises && !todays.length && (
         <>
-          <SectionHeader title="Today's assigned workout" />
+          <SectionHeader title="Today's Plan" />
           <Card>
             <p className="font-semibold">{planExercises.name}</p>
             <p className="text-xs text-muted-foreground mt-0.5">{planExercises.exercises.length} exercises • ~{planExercises.durationMin} min</p>
@@ -147,7 +147,7 @@ function TemplatesSection() {
   const active = detail ? WORKOUT_TEMPLATES.find(t => t.id === detail) : null;
   return (
     <>
-      <p className="text-sm text-muted-foreground mb-3">{WORKOUT_TEMPLATES.length} starter templates</p>
+      <p className="text-sm text-muted-foreground mb-3">Pick a template to start ({WORKOUT_TEMPLATES.length} available)</p>
       <div className="space-y-2">
         {WORKOUT_TEMPLATES.map(t => (
           <Card key={t.id} onClick={() => setDetail(t.id)}>
@@ -197,7 +197,7 @@ function CardioSection() {
       <PrimaryButton className="w-full" onClick={() => setOpen(true)}><Plus size={16} />Log cardio</PrimaryButton>
       <SectionHeader title="Recent" />
       {state.cardioEntries.length === 0 ? (
-        <EmptyState icon={<Flame size={22} />} title="No cardio yet" description="Treadmill, bike, stairs — log it here." />
+        <EmptyState icon={<Flame size={22} />} title="No cardio yet" description="Log treadmill, bike, or stairs here." />
       ) : (
         <div className="space-y-2">
           {[...state.cardioEntries].reverse().slice(0, 12).map(c => (
@@ -235,7 +235,7 @@ function HistorySection() {
         {(["all","7d","30d"] as const).map(f => <Chip key={f} active={filter === f} onClick={() => setFilter(f)}>{f}</Chip>)}
       </div>
       {filtered.length === 0 ? (
-        <EmptyState icon={<Clock size={22} />} title="No workouts" description="Completed workouts will appear here." />
+        <EmptyState icon={<Clock size={22} />} title="No workouts" description="Completed workouts will appear here. Start a workout today!" />
       ) : (
         <div className="space-y-2">
           {filtered.map(wk => {
