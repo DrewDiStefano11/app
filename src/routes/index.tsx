@@ -9,7 +9,7 @@ import { TrainingView } from "@/components/app/views/training";
 import { NutritionView } from "@/components/app/views/nutrition";
 import { RecoveryView } from "@/components/app/views/recovery";
 import { ProgressView } from "@/components/app/views/progress";
-import { SettingsView } from "@/components/app/views/settings";
+import { HubView } from "@/components/app/views/hub/hub";
 import { Onboarding } from "@/components/app/views/onboarding";
 import { buildAICoachContext } from "@/lib/fitcore-data";
 import type { SectionId } from "@/lib/types";
@@ -82,7 +82,7 @@ function FitCoreApp() {
     <div className="phone-shell" data-section={section} key={section}>
       <div className="animate-tile-in">
         {settingsOpen ? (
-          <SettingsView onBack={() => setSettingsOpen(false)} />
+          <HubView onBack={() => setSettingsOpen(false)} />
         ) : (
           <>
             {section === "home" && (

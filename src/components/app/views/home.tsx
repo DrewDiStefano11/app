@@ -7,7 +7,7 @@ import {
   Heart,
   Play,
   Plus,
-  Settings as SettingsIcon,
+  Settings,
   Sparkles,
 } from "lucide-react";
 import { AiInsightStrip } from "@/components/app/ai-insight";
@@ -180,9 +180,9 @@ export function HomeView({
         <button
           onClick={onOpenSettings}
           className="home-settings-button press"
-          aria-label="Settings"
+          aria-label="FitCore Hub"
         >
-          <SettingsIcon size={20} />
+          <Settings size={20} />
           <span className="home-settings-dot" />
         </button>
       </header>
