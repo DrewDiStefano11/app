@@ -3,6 +3,15 @@ import { EXERCISES, type MuscleGroup } from "./data";
 
 const DAY = 86400000;
 
+function clampScore(score: number): number {
+  if (!Number.isFinite(score)) return 0;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function sortByCreatedAtThenId<T extends { createdAt: number; id: string }>(entries: T[]): T[] {
+  return [...entries].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+}
+
 export function withinDays(ts: number, days: number) {
   return ts > Date.now() - days * DAY;
 }
@@ -43,8 +52,8 @@ export function nutritionAdherenceScore(state: AppState): number {
     e.p += m.protein;
     days.set(d, e);
   }
-  const targetC = state.nutritionTargets.calories;
-  const targetP = state.nutritionTargets.protein;
+  const targetC = Math.max(1, state.nutritionTargets.calories);
+  const targetP = Math.max(1, state.nutritionTargets.protein);
   let sum = 0;
   let n = 0;
   for (const e of days.values()) {
@@ -53,7 +62,7 @@ export function nutritionAdherenceScore(state: AppState): number {
     sum += cFit * 0.5 + pFit * 0.5;
     n++;
   }
-  return Math.round((sum / Math.max(1, n)) * 100);
+  return clampScore((sum / Math.max(1, n)) * 100);
 }
 
 export function readinessScore(state: AppState): number {
@@ -69,7 +78,7 @@ export function readinessScore(state: AppState): number {
         0,
       ) / check.length
     : 0.7;
-  return Math.round((sleepAvg * 0.5 + checkAvg * 0.5) * 100);
+  return clampScore((sleepAvg * 0.5 + checkAvg * 0.5) * 100);
 }
 
 export function recoveryScore(state: AppState): number {
@@ -79,7 +88,7 @@ export function recoveryScore(state: AppState): number {
   const loadRatio = monthlyAvg > 0 ? Math.min(1.5, recentVol / monthlyAvg) : 0.6;
   const loadComponent = Math.max(0, 100 - (loadRatio - 0.7) * 80);
   const readiness = readinessScore(state);
-  return Math.round(loadComponent * 0.4 + readiness * 0.6);
+  return clampScore(loadComponent * 0.4 + readiness * 0.6);
 }
 
 export function progressScore(state: AppState): number {
@@ -156,7 +165,7 @@ export function momentumScore(state: AppState): MomentumResult {
     factors.push({
       id: "training",
       label: "Training consistency",
-      score: Math.round((adherence * 0.75 + trend * 0.25) * 100),
+      score: clampScore((adherence * 0.75 + trend * 0.25) * 100),
       weight: 35,
       detail: `${recentWorkouts} of ${targetWorkouts} planned workouts in the last 7 days`,
     });
@@ -180,7 +189,7 @@ export function momentumScore(state: AppState): MomentumResult {
     factors.push({
       id: "nutrition",
       label: "Nutrition logging",
-      score: Math.round(
+      score: clampScore(
         (Math.min(1, loggedDays / 7) * 0.6 + Math.min(1, proteinDays / 7) * 0.4) * 100,
       ),
       weight: 25,
@@ -201,7 +210,7 @@ export function momentumScore(state: AppState): MomentumResult {
     factors.push({
       id: "checkins",
       label: "Check-in rhythm",
-      score: Math.round(Math.min(1, touchpoints / 6) * 100),
+      score: clampScore(Math.min(1, touchpoints / 6) * 100),
       weight: 15,
       detail: `${weighIns} weigh-in${weighIns === 1 ? "" : "s"} and ${checkIns} recovery check-in${checkIns === 1 ? "" : "s"} in 14 days`,
     });
@@ -238,7 +247,7 @@ export function momentumScore(state: AppState): MomentumResult {
     factors.push({
       id: "recovery",
       label: "Recovery consistency",
-      score: Math.round(
+      score: clampScore(
         (Math.min(1, (sleepDays + recentChecks.length) / 7) * 0.45 + quality * 0.55) * 100,
       ),
       weight: 15,
@@ -246,7 +255,7 @@ export function momentumScore(state: AppState): MomentumResult {
     });
   }
 
-  const sortedWeights = [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt);
+  const sortedWeights = sortByCreatedAtThenId(state.bodyweightEntries);
   const recentVolume = totalVolumeInRange(state, 14);
   const previousVolume = totalVolumeInRange(state, 28) - recentVolume;
   if (sortedWeights.length >= 2 || previousVolume > 0) {
@@ -267,7 +276,7 @@ export function momentumScore(state: AppState): MomentumResult {
       detail = `Bodyweight moved ${delta >= 0 ? "+" : ""}${delta.toFixed(1)} lb toward your ${state.profile.goal.replace("_", " ")} goal`;
     } else if (previousVolume > 0) {
       const ratio = recentVolume / previousVolume;
-      score = Math.round(Math.max(0, Math.min(100, 55 + (ratio - 1) * 80)));
+      score = clampScore(55 + (ratio - 1) * 80);
       detail = `Training volume is ${ratio >= 1 ? "up" : "down"} ${Math.abs(Math.round((ratio - 1) * 100))}% over the prior 14 days`;
     }
     factors.push({
@@ -291,7 +300,7 @@ export function momentumScore(state: AppState): MomentumResult {
   }
 
   const availableWeight = factors.reduce((sum, factor) => sum + factor.weight, 0);
-  const score = Math.round(
+  const score = clampScore(
     factors.reduce((sum, factor) => sum + factor.score * factor.weight, 0) / availableWeight,
   );
   const strongest = [...factors].sort((a, b) => b.score - a.score)[0];
@@ -458,7 +467,7 @@ export function bestMuscleToTrainToday(state: AppState): string {
 }
 
 export function bodyweightDelta(state: AppState, days: number): number | null {
-  const sorted = [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt);
+  const sorted = sortByCreatedAtThenId(state.bodyweightEntries);
   if (!sorted.length) return null;
   const latest = sorted[sorted.length - 1];
   const cutoff = Date.now() - days * DAY;
