@@ -9,11 +9,11 @@ Book 1 establishes the shared philosophy, roadmap, inventory, and implementation
 | Book    | Name                                                  | Purpose                                                                                                                                                                  | Expected Depth                           |
 | :------ | :---------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------- |
 | Book 1  | Vision, Product Strategy and Documentation Foundation | Defines FitCore's North Star, principles, product scope, phased roadmap, feature inventory, statuses, priorities, lanes, merge rules, and open questions.                | Broad product strategy and coordination. |
-| Book 2  | Architecture and Data Systems                         | Defines data contracts, storage, sync, migrations, provenance, confidence, raw plus structured data patterns, routing, privacy controls, and module boundaries.          | Technical architecture.                  |
-| Book 3  | AI Intelligence and Decision Engine                   | Defines AI memory, recommendations, confidence scoring, explainability, experiments, debate mode, personal knowledge graph, and specialized agents.                      | AI behavior and safety.                  |
-| Book 4  | UX/UI and User Experience                             | Defines navigation, screen hierarchy, design system usage, interaction patterns, accessibility, onboarding, settings, and conversation-first flows.                      | User experience and interface specs.     |
-| Book 5  | Training System                                       | Defines training logs, active workouts, exercise substitutions, programs, progression, readiness-aware changes, equipment context, and advanced performance metrics.     | Training product and algorithms.         |
-| Book 6  | Nutrition System                                      | Defines meal logging, food search, photo estimates, barcode scanning, saved meals, supplements, hydration, grocery planning, macro targets, and nutrition periodization. | Nutrition product and data model.        |
+| Book 2  | [System Architecture, Data Philosophy, and AI Memory](./book-02-system-architecture/README.md) | Defines FitCore's connected system architecture, data philosophy, AI context, memory, and privacy/control principles.                                             | Product-level architecture and AI data principles. |
+| Book 3  | [Training System, Workout Logging, Exercise Intelligence, and Progression Logic](./book-03-training-system/README.md) | Defines FitCore's training system, active workout logging, exercise/set data requirements, progression logic, substitutions, recovery-aware decisions, and training safety principles. | Training product requirements and decision logic. |
+| Book 4  | [Nutrition System, Meal Logging, Macro Estimation, Food AI, and Body-Weight Feedback Loops](./book-04-nutrition-system/README.md) | Defines FitCore's nutrition system, meal logging, macro estimation, food AI, nutrition data philosophy, body-weight feedback loops, and nutrition coaching safety principles. | Nutrition product requirements and decision logic. |
+| Book 5  | [UX/UI and User Experience](./book-05-ux-ui-and-user-experience/README.md) | Defines screen behavior, interaction patterns, visual hierarchy, navigation, accessibility, onboarding, settings, popups/sheets, graph interactions, and assistant UX. | User experience and interface specs.     |
+| Book 6  | Reserved Future Domain                               | Placeholder from the earlier structure. The canonical nutrition system requirements now live in Book 4.                                                        | To be defined by a future Product Bible planning pass. |
 | Book 7  | Recovery, Sleep and Wearables                         | Defines recovery check-ins, sleep intelligence, Apple Health, Apple Watch, Fitbit, WHOOP/Noop, future Garmin/Oura, sensors, readiness, and environmental context.        | Recovery and integration strategy.       |
 | Book 8  | Medical, Genetics and Precision Health                | Defines labs, imaging, documents, medications, conditions, allergies, illness mode, medical safety boundaries, red flags, and future precision health inputs.            | Medical data and safety.                 |
 | Book 9  | Analytics, Insights and Health Twin                   | Defines dashboards, graph explanations, long-term memory, simulations, Health Biography, Health Twin, Personal Operating Manual, and alternate futures.                  | Long-term intelligence.                  |
@@ -23,9 +23,10 @@ Book 1 establishes the shared philosophy, roadmap, inventory, and implementation
 
 - Put broad feature existence, status, phase, and owner lane in Book 1.
 - Put data schemas, storage rules, migrations, and sync behavior in Book 2.
-- Put recommendation logic, confidence, memory, and AI guardrails in Book 3.
-- Put screen behavior, user flows, copy rules, and accessibility in Book 4.
-- Put domain-specific feature specifications in Books 5 through 9.
+- Put training-system requirements, workout logging behavior, exercise/set data requirements, progression logic, substitutions, and training safety principles in Book 3.
+- Put nutrition-system requirements, meal logging behavior, macro estimation, food AI, body-weight feedback loops, and nutrition coaching safety in Book 4.
+- Put screen behavior, interaction patterns, visual hierarchy, navigation, accessibility, assistant UX, user flows, and copy rules in Book 5.
+- Put domain-specific feature specifications in Books 6 through 9.
 - Put test strategy and release safety in Book 10.
 
 If a concept belongs to multiple Books, one Book should own the detailed specification and the others should link to it.
