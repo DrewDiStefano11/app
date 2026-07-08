@@ -97,6 +97,25 @@ test.describe('LocalStorage Compatibility Smoke Coverage', () => {
     await seedFitCoreAppState(page, olderState);
     await page.goto('/');
     await verifyCoreNavigation(page);
+
+    // Assert that the seeded legacy workout and bodyweight data survived hydration
+    await expect.poll(() => page.evaluate(() => {
+      const state = JSON.parse(window.localStorage.getItem('fitcore.v1') || '{}');
+      return {
+        workoutsCount: state.workouts?.length,
+        firstWorkoutId: state.workouts?.[0]?.id,
+        bodyweightCount: state.bodyweightEntries?.length,
+        firstBodyweightId: state.bodyweightEntries?.[0]?.id,
+        // The app should have bumped the version up to the current schema version
+        version: state.version
+      };
+    })).toEqual({
+      workoutsCount: 1,
+      firstWorkoutId: 'w1',
+      bodyweightCount: 1,
+      firstBodyweightId: 'bw1',
+      version: FITCORE_DATA_VERSION
+    });
   });
 
   test('Scenario C — Empty collections', async ({ page }) => {
