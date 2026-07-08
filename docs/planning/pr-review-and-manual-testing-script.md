@@ -29,7 +29,7 @@ This script is to be used for reviewing Jules/Codex PRs before merging. Follow t
 - [ ] This often indicates a UI discrepancy, hydration mismatch, or a timing issue not caught by standard unit tests or linters.
 - [ ] Run the specific failing Playwright test locally using `bun run test:e2e`.
 - [ ] Manually verify the UI flow in question (see Manual Test section below).
-- [ ] *Known Issue Exception:* Ignore the pre-existing TypeError in `src/lib/ai.functions.ts` (`createServerFn(...).validator is not a function`) if it causes random test timeouts unrelated to the UI changes.
+- [ ] Do NOT ignore TypeErrors like `createServerFn(...).validator is not a function` in `src/lib/ai.functions.ts`. This should be treated as a real server-function/API mismatch unless a separate approved baseline issue explicitly tracks it. CI or Playwright failures from that error should not be dismissed as flaky.
 
 ## 6. How to identify over-deletion of functionality
 - [ ] Carefully review the diff for removed code blocks (`-` lines).
