@@ -1,48 +1,68 @@
 import { useState } from "react";
-import { Play, Plus, Clock, Flame, Trash2, Activity, Trophy } from "lucide-react";
+import { Play, Plus, Clock, Flame, Trash2, Trophy, Dumbbell, CalendarDays, BarChart3, ListChecks } from "lucide-react";
 import { useStore, uid, isToday } from "@/lib/store";
 import { WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
 import { weeklyVolumeSeries, muscleMap, MUSCLES } from "@/lib/analytics";
 import type { CardioEntry } from "@/lib/types";
-import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SubTabs, SectionHeader } from "@/components/app/ui";
+import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SectionHeader } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { ActiveWorkoutView } from "@/components/app/active-workout";
 
-type Tab = "today" | "workouts" | "performance";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "today", label: "Today" },
-  { id: "workouts", label: "Workouts" },
-  { id: "performance", label: "Performance" },
-];
-
+type TrainingPanel = "templates" | "cardio" | "history" | "performance" | null;
 export function TrainingView() {
   const { state } = useStore();
-  const [tab, setTab] = useState<Tab>("today");
+  const [panel, setPanel] = useState<TrainingPanel>(null);
+  const [showActiveWorkout, setShowActiveWorkout] = useState(false);
 
-  if (state.activeWorkout) return <ActiveWorkoutView />;
+  if (state.activeWorkout && showActiveWorkout) return <ActiveWorkoutView />;
 
   return (
     <div className="pb-24">
       <PageHeader title="Training" subtitle={`${state.profile.split} • ${state.profile.daysPerWeek}d/wk`} />
-      <SubTabs tabs={TABS} active={tab} onChange={setTab} />
-      {tab === "today" && <TodayTab onJump={setTab} />}
-      {tab === "workouts" && <WorkoutsTab />}
-      {tab === "performance" && <PerformanceTab />}
+      <DailyTrainingView
+        onOpenPanel={setPanel}
+        onOpenActive={() => setShowActiveWorkout(true)}
+      />
+      <BottomSheet open={panel === "templates"} onClose={() => setPanel(null)} title="Programs & templates" height="tall">
+        <TemplatesSection onWorkoutStarted={() => setShowActiveWorkout(true)} />
+      </BottomSheet>
+      <BottomSheet open={panel === "cardio"} onClose={() => setPanel(null)} title="Cardio & sports" height="tall">
+        <CardioSection />
+      </BottomSheet>
+      <BottomSheet open={panel === "history"} onClose={() => setPanel(null)} title="Workout history" height="tall">
+        <HistorySection />
+      </BottomSheet>
+      <BottomSheet open={panel === "performance"} onClose={() => setPanel(null)} title="Performance" height="tall">
+        <PerformanceTab />
+      </BottomSheet>
     </div>
   );
 }
 
-/* ===================== TODAY ===================== */
+/* ===================== DAILY VIEW ===================== */
 
-function TodayTab({ onJump }: { onJump: (t: Tab) => void }) {
+function DailyTrainingView({
+  onOpenPanel,
+  onOpenActive,
+}: {
+  onOpenPanel: (panel: Exclude<TrainingPanel, null>) => void;
+  onOpenActive: () => void;
+}) {
   const { state, set } = useStore();
   const todays = state.workouts.filter(w => isToday(w.startedAt));
   const lastWorkout = state.workouts[state.workouts.length - 1];
   const planExercises = state.workoutTemplates[0]
     ? WORKOUT_TEMPLATES.find(t => t.id === state.workoutTemplates[0].templateId)
     : WORKOUT_TEMPLATES[0];
+  const weekWorkouts = state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000);
+  const weekCardio = state.cardioEntries.filter(c => c.createdAt > Date.now() - 7*86400000);
+  const weekCardioMin = weekCardio.reduce((a, c) => a + c.minutes, 0);
+  const topPR = [...state.prs].sort((a, b) => b.value - a.value)[0];
 
-  const startBlank = () => set(s => ({ ...s, activeWorkout: { id: uid(), name: "Workout", startedAt: Date.now(), exercises: [] } }));
+  const startBlank = () => {
+    set(s => ({ ...s, activeWorkout: { id: uid(), name: "Workout", startedAt: Date.now(), exercises: [] } }));
+    onOpenActive();
+  };
   const startPlan = () => {
     if (!planExercises) return;
     const t = planExercises;
@@ -51,32 +71,60 @@ function TodayTab({ onJump }: { onJump: (t: Tab) => void }) {
       exercises: t.exercises.map(te => ({ id: uid(), exerciseId: te.exerciseId, completed: false,
         sets: Array.from({ length: te.sets }, () => ({ id: uid(), modifier: "normal" as const, completed: false })) })),
     }}));
+    onOpenActive();
   };
 
   return (
-    <div className="px-5">
+    <div className="px-5 space-y-5">
       <div className="card-elev p-5 section-gradient ring-section">
         <div className="flex items-start justify-between">
           <div>
-            <span className="text-xs uppercase tracking-wider text-muted-foreground">Today</span>
-            <h2 className="text-2xl font-bold mt-1">{todays.length ? "Trained ✓" : "Ready to lift"}</h2>
+            <span className="text-xs uppercase tracking-wider text-muted-foreground">Daily view</span>
+            <h2 className="text-2xl font-bold mt-1">{state.activeWorkout ? "Workout in progress" : todays.length ? "Training logged today" : "Ready to train"}</h2>
             <p className="text-sm text-muted-foreground mt-1">
-              {todays.length ? `${todays.length} workout logged` : planExercises ? `Plan: ${planExercises.name}` : "Pick a template"}
+              {state.activeWorkout
+                ? `${state.activeWorkout.name} started ${new Date(state.activeWorkout.startedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+                : todays.length
+                  ? `${todays.length} workout${todays.length === 1 ? "" : "s"} logged today`
+                  : planExercises ? `Plan: ${planExercises.name}` : "Choose a template or start blank."}
             </p>
           </div>
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "var(--section)" }}>
-            <Activity size={22} className="text-white" />
+            <Dumbbell size={22} className="text-white" />
           </div>
         </div>
         <div className="flex gap-2 mt-4">
-          <PrimaryButton onClick={planExercises ? startPlan : () => onJump("workouts")} className="flex-1">
-            <Play size={16} />{planExercises ? "Start today's plan" : "Start workout"}
-          </PrimaryButton>
+          {state.activeWorkout ? (
+            <PrimaryButton onClick={onOpenActive} className="flex-1">
+              <Play size={16} />Resume workout
+            </PrimaryButton>
+          ) : (
+            <PrimaryButton onClick={planExercises ? startPlan : startBlank} className="flex-1">
+              <Play size={16} />{planExercises ? "Start today's plan" : "Start workout"}
+            </PrimaryButton>
+          )}
           <GhostButton onClick={startBlank}><Plus size={16} />Blank</GhostButton>
         </div>
       </div>
 
-      {planExercises && !todays.length && (
+      <section>
+        <SectionHeader title="Quick start" />
+        <div className="grid grid-cols-2 gap-2">
+          <GhostButton onClick={startBlank} className="justify-start">
+            <Plus size={16} />Blank workout
+          </GhostButton>
+          <GhostButton onClick={() => onOpenPanel("templates")} className="justify-start">
+            <ListChecks size={16} />Templates
+          </GhostButton>
+          {state.activeWorkout && (
+            <GhostButton onClick={onOpenActive} className="justify-start col-span-2">
+              <Play size={16} />Resume active workout
+            </GhostButton>
+          )}
+        </div>
+      </section>
+
+      {planExercises && (
         <>
           <SectionHeader title="Today's assigned workout" />
           <Card>
@@ -97,10 +145,30 @@ function TodayTab({ onJump }: { onJump: (t: Tab) => void }) {
         </>
       )}
 
+      {!planExercises && (
+        <>
+          <SectionHeader title="Today's assigned workout" />
+          <EmptyState icon={<CalendarDays size={22} />} title="No plan assigned" description="Pick a starter template or start blank for today's session." />
+        </>
+      )}
+
+      <section>
+        <SectionHeader title="Programs & templates" action={<button onClick={() => onOpenPanel("templates")} className="text-xs font-semibold text-muted-foreground">View all</button>} />
+        <Card onClick={() => onOpenPanel("templates")}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">{WORKOUT_TEMPLATES.length} starter templates</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Choose a plan, preview exercises, or start from a template.</p>
+            </div>
+            <ListChecks size={20} style={{ color: "var(--section)" }} />
+          </div>
+        </Card>
+      </section>
+
       {lastWorkout && (
         <>
           <SectionHeader title="Last workout" />
-          <Card onClick={() => onJump("workouts")}>
+          <Card onClick={() => onOpenPanel("history")}>
             <div className="flex justify-between items-start">
               <div>
                 <p className="font-semibold">{lastWorkout.name}</p>
@@ -111,6 +179,43 @@ function TodayTab({ onJump }: { onJump: (t: Tab) => void }) {
           </Card>
         </>
       )}
+
+      {!lastWorkout && (
+        <>
+          <SectionHeader title="Recent history" />
+          <EmptyState icon={<Clock size={22} />} title="No workout history" description="Finished workouts will show up here with volume and exercise detail." />
+        </>
+      )}
+
+      <section>
+        <SectionHeader title="Cardio & sports" action={<button onClick={() => onOpenPanel("cardio")} className="text-xs font-semibold text-muted-foreground">Open</button>} />
+        <Card onClick={() => onOpenPanel("cardio")}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">{weekCardioMin} min this week</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{weekCardio.length} cardio session{weekCardio.length === 1 ? "" : "s"} logged.</p>
+            </div>
+            <Flame size={20} style={{ color: "var(--section)" }} />
+          </div>
+        </Card>
+      </section>
+
+      <section>
+        <SectionHeader title="Performance & progression" action={<button onClick={() => onOpenPanel("performance")} className="text-xs font-semibold text-muted-foreground">Open</button>} />
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard label="7d workouts" value={weekWorkouts.length} sub={`${state.profile.daysPerWeek} planned`} accent />
+          <StatCard label="PRs" value={state.prs.length} sub={topPR ? exerciseById(topPR.exerciseId)?.name ?? "top lift" : "all time"} />
+        </div>
+        <Card className="mt-3" onClick={() => onOpenPanel("performance")}>
+          <div className="flex items-center gap-3">
+            <BarChart3 size={20} style={{ color: "var(--section)" }} />
+            <div>
+              <p className="font-semibold">Open training analytics</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Volume trend, muscle balance, and personal records remain available.</p>
+            </div>
+          </div>
+        </Card>
+      </section>
     </div>
   );
 }
@@ -133,7 +238,7 @@ function WorkoutsTab() {
   );
 }
 
-function TemplatesSection() {
+function TemplatesSection({ onWorkoutStarted }: { onWorkoutStarted?: () => void }) {
   const { set } = useStore();
   const [detail, setDetail] = useState<string | null>(null);
   const startTemplate = (tid: string) => {
@@ -143,6 +248,7 @@ function TemplatesSection() {
       exercises: t.exercises.map(te => ({ id: uid(), exerciseId: te.exerciseId, completed: false,
         sets: Array.from({ length: te.sets }, () => ({ id: uid(), modifier: "normal" as const, completed: false })) })),
     }}));
+    onWorkoutStarted?.();
   };
   const active = detail ? WORKOUT_TEMPLATES.find(t => t.id === detail) : null;
   return (
