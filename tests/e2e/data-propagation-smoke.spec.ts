@@ -166,12 +166,13 @@ test.describe("Data propagation smoke", () => {
 
     await page.getByRole("button", { name: "Recover", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Recovery" })).toBeVisible();
-    await expect(page.locator("body")).toBeVisible();
+    await expect.poll(async () => (await persistedState(page)).recoveryCheckIns?.[0]?.notes).toBe("Smoke check-in");
 
     await page.reload();
     await expectDashboardReady(page);
 
     await page.getByRole("button", { name: "Recover", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Recovery" })).toBeVisible();
+    await expect.poll(async () => (await persistedState(page)).recoveryCheckIns?.[0]?.notes).toBe("Smoke check-in");
   });
 });
