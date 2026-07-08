@@ -39,7 +39,7 @@ test.describe('Reload Stability Smoke Test', () => {
     await page.getByRole('button', { name: 'Home' }).click();
 
     // 4. Test Recovery section
-    await page.getByRole('button', { name: 'Recover' }).click();
+    await page.getByRole('button', { name: 'Recover', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Recovery' })).toBeVisible();
     await page.reload();
     await expect(
