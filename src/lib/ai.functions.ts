@@ -660,7 +660,7 @@ function parseJsonText(raw: string) {
 }
 
 export const aiChat = createServerFn({ method: "POST" })
-  .validator(chatInputSchema)
+  .inputValidator(chatInputSchema)
   .handler(async ({ data }) => {
     try {
       return await callChatProvider(data);
@@ -671,7 +671,7 @@ export const aiChat = createServerFn({ method: "POST" })
   });
 
 export const testAiConnection = createServerFn({ method: "POST" })
-  .validator(connectionTestInputSchema)
+  .inputValidator(connectionTestInputSchema)
   .handler(async ({ data }) => {
     try {
       const provider = safeProvider(data.provider);
@@ -711,7 +711,7 @@ export const testAiConnection = createServerFn({ method: "POST" })
 
 /** Text-based food macro estimation. Returns structured items + totals. */
 export const estimateFoodFromText = createServerFn({ method: "POST" })
-  .validator(estimateTextInputSchema)
+  .inputValidator(estimateTextInputSchema)
   .handler(async ({ data }) => {
     if (!data.text?.trim()) return { ok: false as const, error: "No food text provided.", code: "malformed_request" as const };
     const detail = data.detail ?? "normal";
@@ -756,7 +756,7 @@ ${data.learnedHints ? `\nUser's known portions/preferences:\n${data.learnedHints
   });
 
 export const estimateMealMacros = createServerFn({ method: "POST" })
-  .validator(estimateInputSchema)
+  .inputValidator(estimateInputSchema)
   .handler(async ({ data }) => {
     if (!data.imageDataUrl?.startsWith("data:image/")) {
       return { ok: false as const, error: "Invalid image. Please retake the photo.", code: "malformed_request" as const };
