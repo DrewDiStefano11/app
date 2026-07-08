@@ -41,7 +41,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
         <section className="space-y-3">
           <div>
             <h3 className="font-semibold flex items-center gap-2"><BrainCircuit size={16} />AI Coach & Goals</h3>
-            <p className="text-xs text-muted-foreground mt-1 mb-2">Manage Jarvis permissions, memory, and your current targets.</p>
+            <p className="text-xs text-muted-foreground mt-1 mb-2">Manage your AI permissions, memory, and training targets.</p>
           </div>
           <div className="space-y-4">
             <JarvisSettingsCard />
@@ -53,7 +53,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
         <section>
           <div>
             <h3 className="font-semibold flex items-center gap-2"><User size={16} />Profile</h3>
-            <p className="text-xs text-muted-foreground mt-1 mb-2">Adjust your metrics and experience level to calibrate Jarvis's workout suggestions.</p>
+            <p className="text-xs text-muted-foreground mt-1 mb-2">Adjust your biometrics and experience level to calibrate training suggestions.</p>
           </div>
           <Card className="space-y-4">
             <div><Label>Goal</Label>
@@ -93,7 +93,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
                   className="w-5 h-5 accent-[var(--section)]" aria-label={`Toggle ${k} reminder`} />
               </label>
             ))}
-            <p className="text-xs text-muted-foreground pt-2">Reminders use browser notifications when granted. The app works without them.</p>
+            <p className="text-xs text-muted-foreground pt-2">Reminders use local browser notifications. The app functions normally without them.</p>
           </Card>
         </section>
 
@@ -103,7 +103,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
             <label className="flex items-center justify-between py-1">
               <div>
                 <p className="text-sm font-medium">Show demo data</p>
-                <p className="text-xs text-muted-foreground">Fills charts and dashboards with sample workouts, meals, sleep and PRs. Your real data is preserved.</p>
+                <p className="text-xs text-muted-foreground">Fills charts with sample data. Your real data remains untouched.</p>
               </div>
               <input type="checkbox" checked={state.demoMode}
                 onChange={e => set(s => ({ ...s, demoMode: e.target.checked }))}
@@ -115,7 +115,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
         <section>
           <div>
             <h3 className="font-semibold flex items-center gap-2"><Database size={16} />Data Management</h3>
-            <p className="text-xs text-muted-foreground mt-1 mb-2">Your data stays strictly on this device. Use backups to save your progress.</p>
+            <p className="text-xs text-muted-foreground mt-1 mb-2">Your data is stored locally. Use backups to secure your progress.</p>
           </div>
           <Card className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
