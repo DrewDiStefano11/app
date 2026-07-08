@@ -39,29 +39,15 @@ test.describe('Recovery check-in validation smoke', () => {
       }, FITCORE_STORAGE_KEY)
     ).toBeGreaterThan(0);
 
-    // Navigate to Recovery section using bottom navigation
-    // Let's try matching part of the label and click the navigation button.
-    const recoveryBtn = page.getByRole('button', { name: /recover/i }).filter({ hasText: /Recovery|Recover/i });
-    try {
-      await recoveryBtn.first().click({ timeout: 5000 });
-    } catch (e) {
-      // Find the button directly from DOM
-      const clicked = await page.evaluate(() => {
-        const buttons = Array.from(document.querySelectorAll('button'));
-        const target = buttons.find(b => b.textContent && (b.textContent.trim().toLowerCase() === 'recovery' || b.textContent.trim().toLowerCase() === 'recover'));
-        if (target) {
-          target.click();
-          return true;
-        }
-        return false;
-      });
-      if (!clicked) {
-        // Last fallback, maybe click the Recover score if we can't find nav
-        const scoreBtn = page.getByRole('button').filter({ hasText: /Recovery/ }).first();
-        await scoreBtn.click();
-      }
+    // Wait for the popup to fully close and nav to be interactable
+    const homeBtn = page.getByRole('button', { name: 'Expand navigation, current section Home' });
+    if (await homeBtn.isVisible()) {
+      await homeBtn.click();
     }
 
+    // Navigate to Recovery section using bottom navigation
+    await page.getByRole('button', { name: 'Recover', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Recovery', exact: true })).toBeVisible();
     await checkFatalErrors(page);
 
     // Reload
