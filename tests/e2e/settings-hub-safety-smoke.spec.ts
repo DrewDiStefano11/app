@@ -14,9 +14,9 @@ test.describe('Settings / Hub Safety Smoke Test', () => {
     await expect(page.getByRole('heading', { name: 'Hub', exact: true })).toBeVisible();
 
     // Confirm major visible settings sections render
-    await expect(page.locator('h3').filter({ hasText: 'AI Coach & Goals' })).toBeVisible();
-    await expect(page.locator('h3').filter({ hasText: /^Profile$/ })).toBeVisible();
-    await expect(page.locator('h3').filter({ hasText: 'Data Management' })).toBeVisible();
+    await expect(page.locator('.section-header').filter({ hasText: 'AI / Jarvis' }).first()).toBeVisible();
+    await expect(page.locator('.section-header').filter({ hasText: 'Profile & Account' }).first()).toBeVisible();
+    await expect(page.locator('.section-header').filter({ hasText: 'Data Management' }).first()).toBeVisible();
 
     // Find "Reset all data" button and click it
     await page.getByRole('button', { name: 'Reset all data' }).click();

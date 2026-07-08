@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Download, Upload, Trash2, Bell, User, BrainCircuit, Database, Info, TestTube2 } from "lucide-react";
+import { Download, Upload, Trash2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import type { Profile } from "@/lib/types";
-import { Card, PageHeader, PrimaryButton, GhostButton, Input, Label, Select } from "@/components/app/ui";
+import { Card, PageHeader, PrimaryButton, GhostButton, Input, Label, Select, SectionHeader } from "@/components/app/ui";
 import { ConfirmDialog } from "@/components/app/sheet";
 import { JarvisSettingsCard } from "@/components/app/jarvis/settings-card";
 import { JarvisActivityCard } from "@/components/app/jarvis/activity-view";
@@ -37,24 +37,25 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
     <div className="pb-6">
       <PageHeader title="Hub" subtitle="Profile, targets, data" action={<button onClick={onBack} className="text-sm text-muted-foreground">Done</button>} />
 
-      <div className="px-5 space-y-5">
-        <section className="space-y-3">
-          <div>
-            <h3 className="font-semibold flex items-center gap-2"><BrainCircuit size={16} />AI Coach & Goals</h3>
-            <p className="text-xs text-muted-foreground mt-1 mb-2">Manage your AI permissions, memory, and training targets.</p>
-          </div>
-          <div className="space-y-4">
-            <JarvisSettingsCard />
-            <GoalsProfileCard />
-            <JarvisActivityCard />
-          </div>
+      <div className="px-5 space-y-6">
+        <section>
+          <SectionHeader title="Profile & Account" />
+          <Card className="space-y-4">
+            <div>
+              <p className="text-sm font-medium mb-1">Local Profile</p>
+              <p className="text-xs text-muted-foreground mb-3">Your data stays on your device. No cloud account required.</p>
+              <Label>Name</Label>
+              <Input
+                value={state.profile.name ?? ""}
+                onChange={e => updateProfile({ name: e.target.value })}
+                placeholder="e.g. ATHLETE"
+              />
+            </div>
+          </Card>
         </section>
 
         <section>
-          <div>
-            <h3 className="font-semibold flex items-center gap-2"><User size={16} />Profile</h3>
-            <p className="text-xs text-muted-foreground mt-1 mb-2">Adjust your biometrics and experience level to calibrate training suggestions.</p>
-          </div>
+          <SectionHeader title="Health Profile" />
           <Card className="space-y-4">
             <div><Label>Goal</Label>
               <Select value={state.profile.goal} onChange={e => updateProfile({ goal: e.target.value as Profile["goal"] })}>
@@ -75,30 +76,33 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
               <div><Label>Bodyweight (lb)</Label><Input inputMode="decimal" value={state.profile.bodyweightLb} onChange={e => updateProfile({ bodyweightLb: Number(e.target.value)||0 })} /></div>
               <div><Label>Target (lb)</Label><Input inputMode="decimal" value={state.profile.targetBodyweightLb} onChange={e => updateProfile({ targetBodyweightLb: Number(e.target.value)||0 })} /></div>
             </div>
+          </Card>
+        </section>
+
+        <section className="space-y-3">
+          <SectionHeader title="App Preferences" />
+          <Card className="space-y-4">
             <div><Label>Units</Label>
               <Select value={state.profile.units} onChange={e => updateProfile({ units: e.target.value as "lb" | "kg" })}>
                 <option value="lb">lb</option><option value="kg">kg</option>
               </Select>
             </div>
           </Card>
-        </section>
 
-        <section>
-          <h3 className="font-semibold mb-2 flex items-center gap-2"><Bell size={16} />Reminders</h3>
           <Card className="space-y-2">
+            <div>
+              <p className="text-sm font-medium">Reminders</p>
+              <p className="text-xs text-muted-foreground mb-2">Reminders use local browser notifications.</p>
+            </div>
             {(["workout","weighIn","lunch"] as const).map(k => (
-              <label key={k} className="flex items-center justify-between py-1">
+              <label key={k} className="flex items-center justify-between py-1 border-t border-border/50 pt-2 mt-1">
                 <span className="text-sm capitalize">{k === "weighIn" ? "Weigh-in 9 PM" : k === "workout" ? "Workout 5 PM" : "Lunch log 12 PM"}</span>
                 <input type="checkbox" checked={state.reminders[k]} onChange={e => set(s => ({ ...s, reminders: { ...s.reminders, [k]: e.target.checked } }))}
                   className="w-5 h-5 accent-[var(--section)]" aria-label={`Toggle ${k} reminder`} />
               </label>
             ))}
-            <p className="text-xs text-muted-foreground pt-2">Reminders use local browser notifications. The app functions normally without them.</p>
           </Card>
-        </section>
 
-        <section>
-          <h3 className="font-semibold mb-2 flex items-center gap-2"><TestTube2 size={16} />Demo data</h3>
           <Card className="space-y-2">
             <label className="flex items-center justify-between py-1">
               <div>
@@ -112,12 +116,17 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
           </Card>
         </section>
 
+        <section className="space-y-3">
+          <SectionHeader title="AI / Jarvis" />
+          <JarvisSettingsCard />
+          <GoalsProfileCard />
+          <JarvisActivityCard />
+        </section>
+
         <section>
-          <div>
-            <h3 className="font-semibold flex items-center gap-2"><Database size={16} />Data Management</h3>
-            <p className="text-xs text-muted-foreground mt-1 mb-2">Your data is stored locally. Use backups to secure your progress.</p>
-          </div>
+          <SectionHeader title="Data Management" />
           <Card className="space-y-3">
+            <p className="text-xs text-muted-foreground">Your data is stored locally. Use backups to secure your progress.</p>
             <div className="grid grid-cols-2 gap-2">
               <GhostButton className="justify-center" onClick={downloadBackup}><Download size={16} />Export</GhostButton>
               <label>
@@ -132,7 +141,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
         </section>
 
         <section>
-          <h3 className="font-semibold mb-2 flex items-center gap-2"><Info size={16} />About</h3>
+          <SectionHeader title="Support, About & Legal" />
           <Card>
             <p className="text-sm">FitCore v1 — your personal fitness command center.</p>
             <p className="text-xs text-muted-foreground mt-2">AI coach: Lovable AI (Gemini). <span className="font-medium text-foreground">Data stays on this device.</span> No accounts, no tracking.</p>
