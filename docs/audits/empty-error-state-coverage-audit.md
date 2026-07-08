@@ -29,10 +29,10 @@ This document provides a docs-only audit of current empty states, loading states
 ## 3. Nutrition
 * **Current empty states found:**
   - `EmptyState` used when no meals are logged.
-* **Current validation/error states found:** Macro validation (e.g., negative numbers) is present but could be more robust in UI feedback.
-* **Missing or weak empty/error states:** No dedicated error state if AI meal parsing fails silently.
-* **Risk level:** Medium (potential for incorrect macros to go unnoticed).
-* **Recommended future implementation PR scope:** Enhance validation feedback for manual meal entry and surface AI parsing errors explicitly.
+* **Current validation/error states found:** Basic HTML5 constraints exist, but macro validation is currently incomplete or weak. Numeric fields can still allow invalid negative values depending on the input path.
+* **Missing or weak empty/error states:** No dedicated error state if AI meal parsing fails silently. Negative value prevention is missing on manual inputs.
+* **Risk level:** Medium (potential for incorrect/negative macros to corrupt daily totals).
+* **Recommended future implementation PR scope:** Enhance validation feedback for manual meal entry (strictly prevent negative numbers) and surface AI parsing errors explicitly. Update both Nutrition view and quick meal logging popups.
 * **Files likely involved:** `src/components/app/views/nutrition.tsx`
 * **Files that should not be touched concurrently:** Parked PRs #34, #14, #2.
 
