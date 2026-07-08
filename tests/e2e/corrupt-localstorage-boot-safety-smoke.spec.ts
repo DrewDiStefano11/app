@@ -58,22 +58,18 @@ test.describe('Corrupt LocalStorage Boot-Safety Smoke Test', () => {
 
   test('should boot safely with missing optional arrays/objects', async ({ page }) => {
     const partialState = {
-      state: {
-        version: 4,
-        onboardingComplete: true,
-        profile: {
-          name: "Tester",
-          gender: "male",
-          heightInches: 70,
-          weightLbs: 180,
-          activityLevel: "active",
-          goal: "build_muscle",
-          goalTargetWeightLbs: 190,
-          goalPaceWeeklyLbs: 0.5,
-          createdAt: Date.now()
-        }
-        // missing workouts, logs, meals, nutritionTargets, sleep, etc.
+      version: 4,
+      onboardingComplete: true,
+      profile: {
+        goal: "strength",
+        experience: "advanced",
+        daysPerWeek: 6,
+        split: "Bro Split",
+        bodyweightLb: 190,
+        targetBodyweightLb: 200,
+        units: "lb"
       }
+      // missing workouts, logs, meals, nutritionTargets, sleep, etc.
     };
     await loadWithState(page, JSON.stringify(partialState));
     await assertStableMainScreen(page);
@@ -82,18 +78,16 @@ test.describe('Corrupt LocalStorage Boot-Safety Smoke Test', () => {
 
   test('should boot safely with extra unknown keys and malformed arrays', async ({ page }) => {
     const weirdState = {
-      state: {
-        version: 4,
-        onboardingComplete: true,
-        future_feature_flag: true,
-        workouts: [{
-          id: 'w1',
-          unknown_field: 'hello',
-          // missing required workout fields
-        }],
-        sleep: null, // Should be an array or object
-        settings: "string instead of object"
-      }
+      version: 4,
+      onboardingComplete: true,
+      future_feature_flag: true,
+      workouts: [{
+        id: 'w1',
+        unknown_field: 'hello',
+        // missing required workout fields
+      }],
+      sleepEntries: null, // Should be an array or object
+      settings: "string instead of object"
     };
     await loadWithState(page, JSON.stringify(weirdState));
     await assertStableMainScreen(page);
@@ -102,11 +96,9 @@ test.describe('Corrupt LocalStorage Boot-Safety Smoke Test', () => {
 
   test('should boot safely when stored state schema version is missing or old', async ({ page }) => {
     const oldState = {
-      state: {
-        // missing version
-        onboardingComplete: true,
-        profile: { name: 'Old User' }
-      }
+      // missing version
+      onboardingComplete: true,
+      profile: { name: 'Old User' }
     };
     await loadWithState(page, JSON.stringify(oldState));
     await assertStableMainScreen(page);
