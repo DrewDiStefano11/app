@@ -106,7 +106,16 @@ function DailyRecoveryView({ onOpenPanel }: { onOpenPanel: (panel: Exclude<Recov
             </div>
           </Card>
         ) : (
-          <EmptyState icon={<ClipboardCheck size={22} />} title="No check-in yet" description="Log energy, soreness, stress, and motivation to refine today's readiness." />
+          <EmptyState
+            icon={<ClipboardCheck size={22} />}
+            title="No check-in yet"
+            description="Log energy, soreness, stress, and motivation to refine today's readiness."
+            action={
+              <GhostButton onClick={() => onOpenPanel("readiness")}>
+                <Heart size={16} />View readiness detail
+              </GhostButton>
+            }
+          />
         )}
       </section>
 
