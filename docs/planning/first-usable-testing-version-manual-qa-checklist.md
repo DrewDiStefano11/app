@@ -18,10 +18,10 @@ This checklist is meant for validating the first usable version of FitCore befor
 
 ## 3. Nutrition
 
-- **What to test manually:** Log a meal via text, verify macronutrients and calories are extracted, and confirm the log appears in the daily summary.
-- **What a pass looks like:** The meal log saves, AI extraction correctly estimates macros, and the daily nutrition totals update.
-- **What a blocker looks like:** Failure to save meals, wildly inaccurate hallucinated data without correction options, or UI blocking the save action.
-- **What can be deferred:** Barcode scanning, comprehensive recipe building, and micronutrient tracking.
+- **What to test manually:** Log a meal manually using standard form inputs for calories and macros, and confirm the log appears in the daily summary.
+- **What a pass looks like:** The manual meal log saves accurately, and the daily nutrition totals update to reflect the new entry.
+- **What a blocker looks like:** Failure to save manual meals, duplicate entries being created upon save, or UI blocking the save action.
+- **What can be deferred:** AI text/photo macro extraction, barcode scanning, comprehensive recipe building, and micronutrient tracking.
 
 ## 4. Recovery
 
