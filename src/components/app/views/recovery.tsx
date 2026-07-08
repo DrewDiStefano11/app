@@ -1,22 +1,17 @@
 import { useState, useMemo } from "react";
-import { Plus, Moon, Heart, Activity } from "lucide-react";
+import { Plus, Moon, Heart, Activity, ClipboardCheck, ShieldCheck, TrendingUp } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import type { FatigueLevel } from "@/lib/types";
 import { muscleMap } from "@/lib/analytics";
 import { BodyHeatmap } from "@/components/app/body-heatmap";
-import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Input, Label, Ring, Textarea, SubTabs, SectionHeader, Chip } from "@/components/app/ui";
+import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Input, Label, Ring, Textarea, SectionHeader, Chip } from "@/components/app/ui";
 import { BottomSheet } from "@/components/app/sheet";
 
 const MUSCLES = ["chest","back","shoulders","biceps","triceps","quads","hamstrings","glutes","calves","core"];
 const LEVELS: FatigueLevel[] = ["fresh","moderate","fatigued","very"];
 const LEVEL_COLOR: Record<FatigueLevel,string> = { fresh: "var(--section)", moderate: "oklch(0.7 0.18 90)", fatigued: "oklch(0.65 0.2 40)", very: "oklch(0.6 0.22 25)" };
 
-type Tab = "readiness" | "muscle" | "trends";
-const TABS: { id: Tab; label: string }[] = [
-  { id: "readiness", label: "Readiness" },
-  { id: "muscle", label: "Muscle Status" },
-  { id: "trends", label: "Trends" },
-];
+type RecoveryPanel = "readiness" | "muscle" | "trends" | null;
 
 function readiness(state: ReturnType<typeof useStore>["state"]) {
   const lastCheck = state.recoveryCheckIns[state.recoveryCheckIns.length - 1];
@@ -28,16 +23,131 @@ function readiness(state: ReturnType<typeof useStore>["state"]) {
 }
 
 export function RecoveryView() {
-  const [tab, setTab] = useState<Tab>("readiness");
+  const [panel, setPanel] = useState<RecoveryPanel>(null);
   const { state } = useStore();
   const { score, parts } = readiness(state);
   return (
     <div className="pb-24">
       <PageHeader title="Recovery" subtitle={parts ? `Readiness ${score}%` : "Add a check-in to start"} />
-      <SubTabs tabs={TABS} active={tab} onChange={setTab} />
-      {tab === "readiness" && <ReadinessTab />}
-      {tab === "muscle" && <MuscleTab />}
-      {tab === "trends" && <TrendsTab />}
+      <DailyRecoveryView onOpenPanel={setPanel} />
+      <BottomSheet open={panel === "readiness"} onClose={() => setPanel(null)} title="Readiness detail" height="tall">
+        <ReadinessTab />
+      </BottomSheet>
+      <BottomSheet open={panel === "muscle"} onClose={() => setPanel(null)} title="Soreness & body map" height="tall">
+        <MuscleTab />
+      </BottomSheet>
+      <BottomSheet open={panel === "trends"} onClose={() => setPanel(null)} title="Recovery trends" height="tall">
+        <TrendsTab />
+      </BottomSheet>
+    </div>
+  );
+}
+
+/* ===================== DAILY VIEW ===================== */
+
+function DailyRecoveryView({ onOpenPanel }: { onOpenPanel: (panel: Exclude<RecoveryPanel, null>) => void }) {
+  const { state } = useStore();
+  const { score, parts } = readiness(state);
+  const [checkOpen, setCheckOpen] = useState(false);
+  const [sleepOpen, setSleepOpen] = useState(false);
+  const lastSleep = state.sleepEntries[state.sleepEntries.length - 1];
+  const lastCheck = state.recoveryCheckIns[state.recoveryCheckIns.length - 1];
+  const weekSleep = state.sleepEntries.filter(s => s.createdAt > Date.now() - 7*86400000);
+  const weekChecks = state.recoveryCheckIns.filter(c => c.createdAt > Date.now() - 7*86400000);
+  const sleepGoal = state.profile.sleepGoalH ?? 8;
+  const avgSleep = weekSleep.length ? (weekSleep.reduce((a, s) => a + s.hours, 0) / weekSleep.length).toFixed(1) : "—";
+  const sore = MUSCLES.filter(m => state.muscleFatigue[m] && state.muscleFatigue[m] !== "fresh");
+
+  const rec = !parts ? "Log sleep or a check-in to build a readiness signal."
+    : score >= 75 ? "Strong recovery signal. Normal or hard training may fit."
+    : score >= 60 ? "Solid recovery. Keep intensity controlled."
+    : score >= 40 ? "Recovery is limited. Consider reducing volume."
+    : "Prioritize rest, mobility, or light cardio.";
+
+  return (
+    <div className="px-5 space-y-5">
+      <div className="card-elev p-5 section-gradient ring-section">
+        <div className="flex items-center gap-4">
+          <Ring value={score} max={100} size={96} label="ready" />
+          <div className="flex-1 min-w-0">
+            <p className="text-xs uppercase tracking-wider text-muted-foreground">Readiness hero</p>
+            <p className="text-3xl font-bold tabular-nums mt-1">{parts ? `${score}%` : "—"}</p>
+            <p className="text-xs text-muted-foreground mt-1">{rec}</p>
+          </div>
+        </div>
+        <div className="flex gap-2 mt-4">
+          <PrimaryButton className="flex-1" onClick={() => setCheckOpen(true)}>
+            <Plus size={16} />Check-in
+          </PrimaryButton>
+          <GhostButton onClick={() => setSleepOpen(true)}>
+            <Moon size={16} />Sleep
+          </GhostButton>
+        </div>
+      </div>
+
+      <section>
+        <SectionHeader title="Sleep summary" action={<button onClick={() => setSleepOpen(true)} className="text-xs font-semibold text-muted-foreground">Log sleep</button>} />
+        <div className="grid grid-cols-2 gap-3">
+          <StatCard label="Last sleep" value={lastSleep ? `${lastSleep.hours}h` : "—"} sub={lastSleep ? `quality ${lastSleep.quality}/10` : "not logged"} accent />
+          <StatCard label="7d avg" value={`${avgSleep}h`} sub={`goal ${sleepGoal}h`} />
+        </div>
+      </section>
+
+      <section>
+        <SectionHeader title="Check-in summary" action={<button onClick={() => setCheckOpen(true)} className="text-xs font-semibold text-muted-foreground">Check in</button>} />
+        {lastCheck ? (
+          <Card onClick={() => onOpenPanel("readiness")}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">{new Date(lastCheck.createdAt).toLocaleDateString()}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Energy {lastCheck.energy}/10 · soreness {lastCheck.soreness}/10 · stress {lastCheck.stress}/10</p>
+              </div>
+              <ClipboardCheck size={20} style={{ color: "var(--section)" }} />
+            </div>
+          </Card>
+        ) : (
+          <EmptyState icon={<ClipboardCheck size={22} />} title="No check-in yet" description="Log energy, soreness, stress, and motivation to refine today's readiness." />
+        )}
+      </section>
+
+      <section>
+        <SectionHeader title="Soreness & body" action={<button onClick={() => onOpenPanel("muscle")} className="text-xs font-semibold text-muted-foreground">Open map</button>} />
+        <Card onClick={() => onOpenPanel("muscle")}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">{sore.length ? `${sore.length} area${sore.length === 1 ? "" : "s"} flagged` : "No sore areas flagged"}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{sore.length ? sore.slice(0, 4).join(", ") : "Body heatmap and quick tap soreness tracking are available."}</p>
+            </div>
+            <Activity size={20} style={{ color: "var(--section)" }} />
+          </div>
+        </Card>
+      </section>
+
+      <section>
+        <SectionHeader title="Recovery trend" action={<button onClick={() => onOpenPanel("trends")} className="text-xs font-semibold text-muted-foreground">View trends</button>} />
+        <Card onClick={() => onOpenPanel("trends")}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">{weekChecks.length} check-in{weekChecks.length === 1 ? "" : "s"} this week</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{weekSleep.length} sleep log{weekSleep.length === 1 ? "" : "s"} available for the trend view.</p>
+            </div>
+            <TrendingUp size={20} style={{ color: "var(--section)" }} />
+          </div>
+        </Card>
+      </section>
+
+      <section>
+        <SectionHeader title="Guidance & safety" />
+        <Card>
+          <div className="flex gap-3">
+            <ShieldCheck size={20} className="shrink-0 mt-0.5" style={{ color: "var(--section)" }} />
+            <p className="text-xs text-muted-foreground">General fitness guidance only. If pain is sharp, unusual, or worsening, stop training and consider a qualified medical professional.</p>
+          </div>
+        </Card>
+      </section>
+
+      <CheckInSheet open={checkOpen} onClose={() => setCheckOpen(false)} />
+      <SleepSheet open={sleepOpen} onClose={() => setSleepOpen(false)} />
     </div>
   );
 }
