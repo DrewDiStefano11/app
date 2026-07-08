@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Camera, Plus, Trash2, Image as ImageIcon, Scale, Target } from "lucide-react";
+import { Camera, Plus, Trash2, Image as ImageIcon, Scale, Target, Sparkles } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import { fitcoreScore, weeklyVolumeSeries, bodyweightDelta } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
@@ -31,32 +31,73 @@ export function ProgressView() {
 function OverviewTab() {
   const { state } = useStore();
   const score = fitcoreScore(state);
+
+  // Bodyweight
   const sortedBw = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
   const bw = state.profile.bodyweightLb;
   const target = state.profile.targetBodyweightLb;
   const dWeek = bodyweightDelta(state, 7) ?? 0;
-  const dMonth = bodyweightDelta(state, 30) ?? 0;
+
+  // Training
+  const vol7d = useMemo(() => weeklyVolumeSeries(state, 7).reduce((a, s) => a + s.volume, 0), [state]);
+  const vol14d = useMemo(() => weeklyVolumeSeries(state, 14).reduce((a, s) => a + s.volume, 0), [state]);
+  const volPrev7d = vol14d - vol7d;
+  const volChange = volPrev7d ? ((vol7d - volPrev7d) / volPrev7d) * 100 : 0;
+
+  // Nutrition
+  const meals7d = state.mealEntries.filter(m => m.createdAt > Date.now() - 7 * 86400000);
+  const avgKcal7d = meals7d.length ? meals7d.reduce((a, m) => a + m.calories, 0) / 7 : 0;
+  const targetKcal = state.nutritionTargets.calories;
+
+  // Recovery
+  const checkins7d = state.recoveryCheckIns.filter(c => c.createdAt > Date.now() - 7 * 86400000);
+  const avgReadiness7d = checkins7d.length ? checkins7d.reduce((a, c) => a + (c.energy + c.motivation + (6 - c.soreness) + (6 - c.stress)) / 20, 0) / checkins7d.length * 100 : 0;
+
   const topGoals = state.goals.filter(g => g.pinned).slice(0, 3);
   const goalList = topGoals.length ? topGoals : state.goals.slice(0, 3);
-  const lastWorkout = state.workouts[state.workouts.length - 1];
+
+  // What Changed Summary
+  const summaryParts = [];
+  if (Math.abs(dWeek) >= 0.5) {
+    summaryParts.push(`Bodyweight ${dWeek > 0 ? "increased" : "decreased"} by ${Math.abs(dWeek).toFixed(1)} lb.`);
+  } else if (sortedBw.length > 1) {
+    summaryParts.push("Bodyweight is stable this week.");
+  }
+
+  if (vol7d > 0 && volPrev7d > 0) {
+    if (Math.abs(volChange) >= 5) {
+      summaryParts.push(`Training volume ${volChange > 0 ? "increased" : "decreased"} ${Math.round(Math.abs(volChange))}%`);
+    } else {
+      summaryParts.push("Training volume is consistent.");
+    }
+  }
+
+  if (meals7d.length > 3) {
+      const diff = avgKcal7d - targetKcal;
+      if (Math.abs(diff) > 150) {
+          summaryParts.push(`Avg calories are ${Math.abs(Math.round(diff))} ${diff > 0 ? "above" : "below"} target.`);
+      } else {
+          summaryParts.push("Nutrition is very close to target.");
+      }
+  }
+
+  const summary = summaryParts.length > 0 ? summaryParts.join(" ") : "Log more workouts and meals to see a summary of your trends.";
 
   return (
     <div className="px-5">
-      <div className="card-elev p-5 section-gradient ring-section">
-        <div className="flex items-center gap-4">
-          <Ring value={score} max={100} size={92} label="score" />
-          <div className="flex-1">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">FitCore score</p>
-            <p className="text-3xl font-bold tabular-nums mt-1">{score}</p>
-            <p className="text-xs text-muted-foreground mt-1">Composite of training, nutrition, recovery, and progress.</p>
-          </div>
-        </div>
-      </div>
+      <SectionHeader title="Weekly Summary" />
+      <Card>
+         <div className="flex gap-3 items-start">
+            <Sparkles className="text-[var(--section)] shrink-0" size={20} />
+            <p className="text-sm">{summary}</p>
+         </div>
+      </Card>
 
-      <div className="grid grid-cols-3 gap-3 mt-4">
-        <StatCard label="Bodyweight" value={`${bw}`} sub="lb" accent />
-        <StatCard label="Δ 7d" value={`${dWeek >= 0 ? "+" : ""}${dWeek.toFixed(1)}`} sub="lb" />
-        <StatCard label="Δ 30d" value={`${dMonth >= 0 ? "+" : ""}${dMonth.toFixed(1)}`} sub="lb" />
+      <div className="grid grid-cols-2 gap-3 mt-4">
+        <StatCard label="Bodyweight Δ" value={`${dWeek >= 0 ? "+" : ""}${dWeek.toFixed(1)}`} sub="lb" accent />
+        <StatCard label="Training Vol Δ" value={`${volChange > 0 ? "+" : ""}${Math.round(volChange)}`} sub="%" accent />
+        <StatCard label="7d Avg Kcal" value={Math.round(avgKcal7d).toString()} sub={`/ ${targetKcal}`} accent />
+        <StatCard label="7d Readiness" value={avgReadiness7d ? `${Math.round(avgReadiness7d)}%` : "—"} sub="avg" accent />
       </div>
 
       <SectionHeader title="Bodyweight trend" />
@@ -89,16 +130,6 @@ function OverviewTab() {
             );
           })}
         </div>
-      )}
-
-      {lastWorkout && (
-        <>
-          <SectionHeader title="Recent activity" />
-          <Card>
-            <p className="font-semibold text-sm">{lastWorkout.name}</p>
-            <p className="text-xs text-muted-foreground">{new Date(lastWorkout.startedAt).toLocaleDateString()} • {lastWorkout.exercises.length} exercises</p>
-          </Card>
-        </>
       )}
     </div>
   );
