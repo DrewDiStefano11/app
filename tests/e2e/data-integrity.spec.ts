@@ -116,6 +116,7 @@ test.describe("FitCore data integrity", () => {
     await page.getByRole("button", { name: /Finish workout/i }).click();
     await page.getByRole("button", { name: /Confirm & save/i }).click();
 
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.getByRole("button", { name: "Fuel", exact: true }).click();
     await page.getByRole("button", { name: /Log meal/i }).first().click();
     await page.getByRole("button", { name: "Custom Entry" }).click();
@@ -126,7 +127,8 @@ test.describe("FitCore data integrity", () => {
     await page.getByText("F", { exact: true }).locator("..").locator("input").fill("20");
     await page.getByRole("button", { name: "Add to Daily Log" }).click();
 
-    await page.getByRole("button", { name: "Recover" }).click();
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.getByRole("button", { name: "Recover", exact: true }).click();
     await page.getByRole("button", { name: "Check-in" }).click();
     await page.getByRole("button", { name: "Save check-in" }).click();
 
