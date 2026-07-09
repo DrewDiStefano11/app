@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
@@ -16,6 +17,9 @@ export function BottomSheet({
   children: ReactNode;
   height?: "auto" | "tall" | "full";
 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (!open) return;
     const orig = document.body.style.overflow;
@@ -62,7 +66,7 @@ export function BottomSheet({
     </div>
   );
 
-  return typeof document !== "undefined"
+  return mounted && typeof document !== "undefined"
     ? createPortal(content, document.body)
     : content;
 }
@@ -84,6 +88,9 @@ export function ConfirmDialog({
   confirmLabel?: string;
   destructive?: boolean;
 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   if (!open) return null;
 
   const content = (
@@ -120,7 +127,7 @@ export function ConfirmDialog({
     </div>
   );
 
-  return typeof document !== "undefined"
+  return mounted && typeof document !== "undefined"
     ? createPortal(content, document.body)
     : content;
 }
