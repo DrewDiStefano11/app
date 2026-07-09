@@ -1,10 +1,10 @@
-import { Page, expect } from '@playwright/test';
+import { Page, expect } from "@playwright/test";
 
 /**
  * FITCORE_STORAGE_KEY: The main localStorage key where the app persists its state.
  * Verified from src/lib/fitcore-data.ts
  */
-export const FITCORE_STORAGE_KEY = 'fitcore.v1';
+export const FITCORE_STORAGE_KEY = "fitcore.v1";
 
 /**
  * FITCORE_DATA_VERSION: The current expected version of the data schema.
@@ -23,9 +23,12 @@ export const FITCORE_MOBILE_VIEWPORTS = {
  * Uses page.addInitScript to ensure the state is present when the app hydrates.
  */
 export async function seedFitCoreAppState(page: Page, state: Record<string, any>) {
-  await page.addInitScript(({ key, value }) => {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  }, { key: FITCORE_STORAGE_KEY, value: state });
+  await page.addInitScript(
+    ({ key, value }) => {
+      window.localStorage.setItem(key, JSON.stringify(value));
+    },
+    { key: FITCORE_STORAGE_KEY, value: state },
+  );
 }
 
 /**
@@ -37,13 +40,13 @@ export async function seedMinimalOnboardedState(page: Page) {
     onboardingComplete: true,
     // Provide minimal profile to avoid hydration errors if the app expects it
     profile: {
-      goal: 'hypertrophy',
-      experience: 'intermediate',
+      goal: "hypertrophy",
+      experience: "intermediate",
       daysPerWeek: 5,
-      split: 'Push / Pull / Legs',
+      split: "Push / Pull / Legs",
       bodyweightLb: 180,
       targetBodyweightLb: 185,
-      units: 'lb',
+      units: "lb",
     },
     // Ensure essential arrays are present
     workouts: [],
@@ -62,7 +65,7 @@ export async function seedMinimalOnboardedState(page: Page) {
  * Navigates to the dashboard and waits for it to be ready.
  */
 export async function gotoDashboard(page: Page) {
-  await page.goto('/');
+  await page.goto("/");
   await expectDashboardReady(page);
 }
 
@@ -72,8 +75,9 @@ export async function gotoDashboard(page: Page) {
 export async function expectDashboardReady(page: Page) {
   // Wait for a stable dashboard element
   await expect(
-    page.getByText('FitCore Today', { exact: true })
-    .or(page.getByText('FitCore Score', { exact: true }))
+    page
+      .getByText("FitCore Today", { exact: true })
+      .or(page.getByText("FitCore Score", { exact: true })),
   ).toBeVisible({ timeout: 10000 });
 }
 

@@ -54,7 +54,13 @@ async function seedReloadableOnboardedState(page: Page) {
           mealEntries: [],
           bodyweightEntries: [],
           goals: [
-            { id: "g1", type: "weekly_workouts", label: "Train 5x per week", target: 5, current: 0 },
+            {
+              id: "g1",
+              type: "weekly_workouts",
+              label: "Train 5x per week",
+              target: 5,
+              current: 0,
+            },
           ],
         }),
       );
@@ -91,28 +97,38 @@ test.describe("Nutrition logging validation smoke", () => {
     await expect(sheet).not.toBeVisible();
     await expectDashboardReady(page);
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.mealEntries?.length ?? 0;
-    }).toBe(1);
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.mealEntries?.length ?? 0;
+      })
+      .toBe(1);
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.mealEntries?.[0]?.name;
-    }).toBe("Validation protein bowl");
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.mealEntries?.[0]?.name;
+      })
+      .toBe("Validation protein bowl");
 
     // The current UI exposes Recent Activity
-    const recentActivity = page.getByText("Recent activity", { exact: true }).locator("xpath=ancestor::div[contains(@class, 'tile')][1]");
+    const recentActivity = page
+      .getByText("Recent activity", { exact: true })
+      .locator("xpath=ancestor::div[contains(@class, 'tile')][1]");
     await expect(recentActivity.getByText("Meal logged", { exact: true })).toBeVisible();
-    await expect(recentActivity.getByText("Validation protein bowl", { exact: true })).toBeVisible();
+    await expect(
+      recentActivity.getByText("Validation protein bowl", { exact: true }),
+    ).toBeVisible();
 
     await page.reload();
     await expectDashboardReady(page);
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.mealEntries?.[0]?.name;
-    }).toBe("Validation protein bowl");
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.mealEntries?.[0]?.name;
+      })
+      .toBe("Validation protein bowl");
   });
 
   test("Scenario B: Empty required fields do not crash", async ({ page }) => {
@@ -137,10 +153,12 @@ test.describe("Nutrition logging validation smoke", () => {
 
     await checkNoFatalErrors(page);
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.mealEntries?.length ?? 0;
-    }).toBe(initialMeals);
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.mealEntries?.length ?? 0;
+      })
+      .toBe(initialMeals);
 
     if (await sheet.isVisible()) {
       await sheet.getByRole("button", { name: "Cancel", exact: true }).click();

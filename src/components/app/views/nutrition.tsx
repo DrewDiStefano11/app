@@ -33,14 +33,17 @@ export function NutritionView() {
   const tg = state.nutritionTargets;
   const remaining = Math.max(0, tg.calories - t.c);
 
-  const supplements = state.supplementLogs ? state.supplementLogs.filter((s) => isToday(s.createdAt)) : [];
+  const supplements = state.supplementLogs
+    ? state.supplementLogs.filter((s) => isToday(s.createdAt))
+    : [];
 
   let statusMsg = "No nutrition logged yet";
   if (today.length > 0) {
     const proteinGap = tg.protein - t.p;
     const calorieGap = tg.calories - t.c;
     if (proteinGap > 30) statusMsg = `Protein still needed (${Math.round(proteinGap)}g short)`;
-    else if (calorieGap > 500) statusMsg = `Calories still needed (${Math.round(calorieGap)} kcal under)`;
+    else if (calorieGap > 500)
+      statusMsg = `Calories still needed (${Math.round(calorieGap)} kcal under)`;
     else statusMsg = "On track";
   }
 
@@ -49,10 +52,18 @@ export function NutritionView() {
       <PageHeader title="Nutrition" subtitle={`${Math.round(remaining)} kcal remaining today`} />
 
       <div className="px-5 space-y-4 mt-2">
-        <Tile hero accent delay={0} className="glow-section p-6 bg-red-500/10 border-red-500/20" style={{ '--section': 'rgb(239 68 68)' } as React.CSSProperties}>
+        <Tile
+          hero
+          accent
+          delay={0}
+          className="glow-section p-6 bg-red-500/10 border-red-500/20"
+          style={{ "--section": "rgb(239 68 68)" } as React.CSSProperties}
+        >
           <div className="flex justify-between items-center mb-4">
             <Eyebrow color="rgb(239 68 68)">Daily Macros</Eyebrow>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 bg-white/5 px-2 py-1 rounded-md">{statusMsg}</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 bg-white/5 px-2 py-1 rounded-md">
+              {statusMsg}
+            </span>
           </div>
           <div className="flex items-center justify-between gap-6">
             <div className="flex flex-col items-center gap-2">
@@ -82,7 +93,10 @@ export function NutritionView() {
         </Tile>
 
         <div className="grid grid-cols-2 gap-3">
-          <PrimaryButton onClick={() => setLogOpen(true)} className="rounded-2xl h-14 bg-red-500 hover:bg-red-600 text-white border-transparent">
+          <PrimaryButton
+            onClick={() => setLogOpen(true)}
+            className="rounded-2xl h-14 bg-red-500 hover:bg-red-600 text-white border-transparent"
+          >
             <Plus size={18} />
             <span>Log Meal</span>
           </PrimaryButton>
@@ -101,18 +115,24 @@ export function NutritionView() {
               <Droplets size={16} className="text-blue-400" />
               <p className="text-xs font-bold uppercase tracking-widest text-white/60">Hydration</p>
             </div>
-            <p className="font-display text-xl text-white">0 <span className="text-sm text-white/40">fl oz</span></p>
+            <p className="font-display text-xl text-white">
+              0 <span className="text-sm text-white/40">fl oz</span>
+            </p>
           </div>
 
           <div className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-center">
             <div className="flex items-center gap-2 mb-2">
               <Pill size={16} className="text-purple-400" />
-              <p className="text-xs font-bold uppercase tracking-widest text-white/60">Supplements</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-white/60">
+                Supplements
+              </p>
             </div>
             {supplements.length > 0 ? (
-               <p className="font-display text-xl text-white">{supplements.length} <span className="text-sm text-white/40">taken</span></p>
+              <p className="font-display text-xl text-white">
+                {supplements.length} <span className="text-sm text-white/40">taken</span>
+              </p>
             ) : (
-               <p className="font-display text-xl text-white/40 italic">None logged</p>
+              <p className="font-display text-xl text-white/40 italic">None logged</p>
             )}
           </div>
         </div>
@@ -125,7 +145,10 @@ export function NutritionView() {
               title="No meals logged yet"
               description="Log your first meal or scan with AI to start tracking."
               action={
-                <PrimaryButton onClick={() => setLogOpen(true)} className="mt-2 bg-red-500 hover:bg-red-600 border-transparent">
+                <PrimaryButton
+                  onClick={() => setLogOpen(true)}
+                  className="mt-2 bg-red-500 hover:bg-red-600 border-transparent"
+                >
                   <Plus size={16} />
                   Log Meal
                 </PrimaryButton>
@@ -152,10 +175,12 @@ export function NutritionView() {
                         })}
                       </span>
                       {m.source === "camera" && (
-                         <>
-                           <span className="w-1 h-1 rounded-full bg-white/10" />
-                           <span className="text-[10px] font-bold text-red-400/80">AI Estimated</span>
-                         </>
+                        <>
+                          <span className="w-1 h-1 rounded-full bg-white/10" />
+                          <span className="text-[10px] font-bold text-red-400/80">
+                            AI Estimated
+                          </span>
+                        </>
                       )}
                     </div>
                   </div>
@@ -230,7 +255,6 @@ function MacroBar({
     </div>
   );
 }
-
 
 function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { state, set } = useStore();

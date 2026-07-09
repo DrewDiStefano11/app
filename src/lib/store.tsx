@@ -1,7 +1,26 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { defaultState, defaultPersonalization, defaultJarvisSettings, type AppState, type Personalization } from "./types";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import {
+  defaultState,
+  defaultPersonalization,
+  defaultJarvisSettings,
+  type AppState,
+  type Personalization,
+} from "./types";
 import { buildDemoState } from "./demo-data";
-import { loadFitCoreData, migrateFitCoreDataIfNeeded, parseFitCoreImport, saveFitCoreData } from "./fitcore-data";
+import {
+  loadFitCoreData,
+  migrateFitCoreDataIfNeeded,
+  parseFitCoreImport,
+  saveFitCoreData,
+} from "./fitcore-data";
 
 function load(): AppState {
   if (typeof window === "undefined") return defaultState;
@@ -18,19 +37,39 @@ function migrateAppState(parsed: Partial<AppState>, base: AppState = defaultStat
     ...defaultPersonalization,
     ...base.personalization,
     ...(parsed.personalization ?? {}),
-    units: { ...defaultPersonalization.units!, ...base.personalization.units, ...(parsed.personalization?.units ?? {}) },
-    reminders: { ...defaultPersonalization.reminders!, ...base.personalization.reminders, ...(parsed.personalization?.reminders ?? {}) },
-    defaultGraphModes: { ...defaultPersonalization.defaultGraphModes!, ...base.personalization.defaultGraphModes, ...(parsed.personalization?.defaultGraphModes ?? {}) },
+    units: {
+      ...defaultPersonalization.units!,
+      ...base.personalization.units,
+      ...(parsed.personalization?.units ?? {}),
+    },
+    reminders: {
+      ...defaultPersonalization.reminders!,
+      ...base.personalization.reminders,
+      ...(parsed.personalization?.reminders ?? {}),
+    },
+    defaultGraphModes: {
+      ...defaultPersonalization.defaultGraphModes!,
+      ...base.personalization.defaultGraphModes,
+      ...(parsed.personalization?.defaultGraphModes ?? {}),
+    },
   };
   return migrateFitCoreDataIfNeeded({
     ...defaultState,
     ...base,
     ...parsed,
     profile: { ...defaultState.profile, ...base.profile, ...(parsed.profile ?? {}) },
-    nutritionTargets: { ...defaultState.nutritionTargets, ...base.nutritionTargets, ...(parsed.nutritionTargets ?? {}) },
+    nutritionTargets: {
+      ...defaultState.nutritionTargets,
+      ...base.nutritionTargets,
+      ...(parsed.nutritionTargets ?? {}),
+    },
     personalization,
     reminders: { ...defaultState.reminders, ...base.reminders, ...(parsed.reminders ?? {}) },
-    jarvisSettings: { ...defaultJarvisSettings, ...base.jarvisSettings, ...(parsed.jarvisSettings ?? {}) },
+    jarvisSettings: {
+      ...defaultJarvisSettings,
+      ...base.jarvisSettings,
+      ...(parsed.jarvisSettings ?? {}),
+    },
   });
 }
 
@@ -63,11 +102,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // Every manual and Jarvis mutation passes through this boundary. Normalizing
   // here keeps all screens, summaries, history, and recovery signals connected.
-  const set = useCallback((u: Updater) => setState(s => {
-    const next = migrateFitCoreDataIfNeeded(u(s));
-    saveFitCoreData(next);
-    return next;
-  }), []);
+  const set = useCallback(
+    (u: Updater) =>
+      setState((s) => {
+        const next = migrateFitCoreDataIfNeeded(u(s));
+        saveFitCoreData(next);
+        return next;
+      }),
+    [],
+  );
   const reset = useCallback(() => {
     const next = migrateFitCoreDataIfNeeded(defaultState);
     saveFitCoreData(next);
@@ -78,18 +121,26 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     try {
       const parsed = parseFitCoreImport(text);
       if (!parsed) return false;
-      setState(current => {
+      setState((current) => {
         const next = migrateAppState(parsed, current);
         saveFitCoreData(next);
         return next;
       });
       return true;
-    } catch { return false; }
+    } catch {
+      return false;
+    }
   }, []);
 
-  const view = useMemo(() => state.demoMode ? migrateFitCoreDataIfNeeded(buildDemoState(state)) : state, [state]);
+  const view = useMemo(
+    () => (state.demoMode ? migrateFitCoreDataIfNeeded(buildDemoState(state)) : state),
+    [state],
+  );
 
-  const value = useMemo(() => ({ state, view, set, reset, exportJson, importJson }), [state, view, set, reset, exportJson, importJson]);
+  const value = useMemo(
+    () => ({ state, view, set, reset, exportJson, importJson }),
+    [state, view, set, reset, exportJson, importJson],
+  );
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
@@ -104,7 +155,9 @@ export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().to
 export const e1RM = (weight: number, reps: number) => Math.round(weight * (1 + reps / 30));
 
 export function todayStart() {
-  const d = new Date(); d.setHours(0,0,0,0); return d.getTime();
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
 }
 
 export function isToday(ts: number) {
