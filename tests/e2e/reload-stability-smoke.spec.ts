@@ -62,10 +62,10 @@ test.describe('Reload Stability Smoke Test', () => {
 
     // 6. Test Settings (Hub) section
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Hub' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
     await page.reload();
     await expect(
-      page.getByRole('heading', { name: 'Hub' })
+      page.getByRole('heading', { name: 'Settings' })
         .or(page.getByText('FitCore Score', { exact: true }))
     ).toBeVisible();
   });

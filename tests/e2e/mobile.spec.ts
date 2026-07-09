@@ -49,7 +49,7 @@ test.describe('Mobile Smoke Test', () => {
 
   test('should open settings without horizontal overflow', async ({ page }) => {
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Hub' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
     await checkOverflow(page);
   });
 });

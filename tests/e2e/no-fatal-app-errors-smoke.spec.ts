@@ -86,13 +86,13 @@ test.describe('App Smoke Test - No Fatal Errors', () => {
 
     // Navigate to Hub/Settings
     await page.getByRole('button', { name: 'Settings', exact: true }).or(page.locator('button[aria-label="Settings"]')).or(page.locator('button[aria-label="Hub"]')).click();
-    await expect(page.getByRole('heading', { name: 'Hub' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
     await checkFatalTexts(page);
     expect(pageErrors.length).toBe(0);
 
     // Close Hub
     await page.getByRole('button', { name: 'Done' }).click();
-    await expect(page.getByRole('heading', { name: 'Hub' })).not.toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).not.toBeVisible();
 
     // Reload stability test
     await page.getByRole('button', { name: 'Train' }).click();

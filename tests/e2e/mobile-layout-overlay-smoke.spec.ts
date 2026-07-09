@@ -54,12 +54,12 @@ test.describe('Mobile Layout and Overlay Smoke Test', () => {
     await page.getByRole('button', { name: 'Home' }).click();
     await expect(page.getByText('FitCore Score', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Hub' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
     await checkFatalErrors(page);
 
     // Close Settings
     await page.getByRole('button', { name: 'Done' }).click();
-    await expect(page.getByRole('heading', { name: 'Hub' })).not.toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).not.toBeVisible();
   });
 
   test('should open and close home quick action overlays without trapping user', async ({ page }) => {
