@@ -126,6 +126,12 @@ test.describe("FitCore data integrity", () => {
     await page.getByText("F", { exact: true }).locator("..").locator("input").fill("20");
     await page.getByRole("button", { name: "Add to Daily Log" }).click();
 
+    // The bottom nav might be collapsed after filling out a long form, so uncollapse it if necessary
+    const expandNavButton = page.getByRole('button', { name: /Expand navigation/i });
+    if (await expandNavButton.isVisible()) {
+      await expandNavButton.click();
+    }
+
     await page.getByRole("button", { name: "Recover" }).click();
     await page.getByRole("button", { name: "Check-in" }).click();
     await page.getByRole("button", { name: "Save check-in" }).click();
