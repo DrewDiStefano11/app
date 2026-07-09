@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, Upload, Trash2 } from "lucide-react";
+import { Download, Upload, Trash2, Bell, User, BrainCircuit, Database, Info, TestTube2 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import type { Profile } from "@/lib/types";
 import { Card, PageHeader, PrimaryButton, GhostButton, Input, Label, Select, SectionHeader } from "@/components/app/ui";
