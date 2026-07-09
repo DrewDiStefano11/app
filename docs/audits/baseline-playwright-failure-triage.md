@@ -28,7 +28,7 @@ This occurs immediately after the meal logging flow is completed in the "Fuel" (
 - **Desktop vs mobile behavior:** Yes, on desktop viewports, if the window is short enough to allow scrolling in the Nutrition view, the scroll listener will collapse the navigation. On mobile, this is expected behavior, but E2E tests often run with a fixed desktop height or run without verifying the collapsed state.
 - **Nutrition flow leaving navigation collapsed:** Yes, filling out the custom entry form in the Fuel tab scrolls the viewport, leaving the nav collapsed.
 - **Ambiguous button labels:** No, the selector `name: "Recover"` is explicit and accurate, the element is simply hidden.
-- **Test selector brittleness:** Yes, the test is brittle because it implicitly assumes the bottom navigation is always expanded, failing to check for the collapsed state or using the resilient dispatch event alternative.
+- **Test selector brittleness:** Yes, the test is brittle because it implicitly assumes the bottom navigation is always expanded, failing to check for the collapsed state.
 - **App shell behavior:** Yes, the app shell's scroll-based collapse logic works as intended but creates a race condition/hidden state for linear test flows.
 
 ## Files Involved
@@ -55,9 +55,12 @@ This occurs immediately after the meal logging flow is completed in the "Fuel" (
 If the runtime `BottomNav` collapse logic is disabled or altered to "fix" the test, it would degrade the mobile user experience (by permanently wasting vertical screen space) and potentially create merge conflicts with any other PRs dependent on the standard shell behavior. Modifying the layout or scroll bounds of the Nutrition tab might break responsive design.
 
 ### Recommended future fix task with narrow file scope
-Update the specific test in `tests/e2e/data-integrity.spec.ts` to stabilize the navigation step. Before calling `.click()` on bottom navigation buttons, the test should either:
-1. Check if the expand navigation button (e.g., `page.getByRole('button', { name: /Expand navigation/ })`) is visible and click it first.
-2. OR, dispatch the custom navigation event as documented in memory: `await page.evaluate(() => window.dispatchEvent(new CustomEvent('fitcore:nav', { detail: 'recovery' })));`.
+The future fix should likely be one of the following:
+1. **A tests-only fix that navigates through real visible UI controls and stable accessible selectors:** This is the recommended approach. The test in `tests/e2e/data-integrity.spec.ts` should be updated to stabilize the navigation step. Before calling `.click()` on bottom navigation buttons, the test should check if the expand navigation button (e.g., `page.getByRole('button', { name: /Expand navigation/ })`) is visible and click it first, or simulate a scroll-to-top to expand the menu naturally.
+2. **A targeted app-shell/navigation fix:** This should only be done if the runtime navigation itself is actually broken or its collapse logic is determined to be a UX defect rather than intended behavior.
+3. **A delayed fix:** After current runtime UI PRs settle, if there is file overlap risk (e.g., if we decide to change the app shell behavior).
+
+*Note: Do not attempt to fix this by dispatching fake navigation events (like `fitcore:nav`). Existing app navigation does not listen for `fitcore:nav`; those events are nonfunctional in the app and only dispatched by older tests. The fix must use actual supported navigation behavior.*
 
 ### Recommended validation commands for the future fix
 ```bash
