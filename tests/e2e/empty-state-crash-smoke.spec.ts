@@ -80,7 +80,7 @@ test.describe('Empty State Crash Smoke Test', () => {
     await expect(page.getByRole('heading', { name: 'Nutrition' })).toBeVisible();
 
     // Navigate to Recovery
-    await page.getByRole('button', { name: 'Recover' }).click();
+    await page.getByRole('button', { name: 'Recover', exact: true }).click();
     await assertNoFatalErrors(page);
     await expect(page.getByRole('heading', { name: 'Recovery' })).toBeVisible();
 

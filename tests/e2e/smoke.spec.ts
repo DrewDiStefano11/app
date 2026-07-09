@@ -66,7 +66,7 @@ test.describe('App Smoke Test', () => {
     await expect(page.getByRole('heading', { name: 'Nutrition' })).toBeVisible();
 
     // Navigate to Recovery
-    await page.getByRole('button', { name: 'Recover' }).click();
+    await page.getByRole('button', { name: 'Recover', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Recovery' })).toBeVisible();
 
     // Navigate to Progress
