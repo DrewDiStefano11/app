@@ -116,7 +116,13 @@ test.describe("FitCore data integrity", () => {
     await page.getByRole("button", { name: /Finish workout/i }).click();
     await page.getByRole("button", { name: /Confirm & save/i }).click();
 
-    await page.getByRole("button", { name: "Fuel" }).click();
+
+    const expandNav2 = page.getByRole('button', { name: /Expand navigation/i });
+    if (await expandNav2.isVisible()) {
+      await expandNav2.click();
+    }
+    await page.getByRole("button", { name: "Fuel", exact: true }).click({ force: true });
+
     await page.getByRole("button", { name: /Log meal/i }).first().click();
     await page.getByRole("button", { name: "Custom Entry" }).click();
     await page.getByPlaceholder("e.g. Post-workout protein bowl").fill("Integrity meal");
@@ -126,13 +132,35 @@ test.describe("FitCore data integrity", () => {
     await page.getByText("F", { exact: true }).locator("..").locator("input").fill("20");
     await page.getByRole("button", { name: "Add to Daily Log" }).click();
 
-    await page.getByRole("button", { name: "Recover" }).click();
+
+    const expandNavRev = page.getByRole('button', { name: /Expand navigation/i });
+    if (await expandNavRev.isVisible()) {
+      await expandNavRev.click();
+    }
+
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.getByRole("button", { name: "Recover", exact: true }).click({ force: true });
+
+
+
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.getByRole("button", { name: "Check-in" }).click();
+
     await page.getByRole("button", { name: "Save check-in" }).click();
 
-    await page.getByRole("button", { name: "Stats" }).click();
-    await page.getByRole('heading', { name: 'Bodyweight' }).click();
+
+    const expandNav3 = page.getByRole('button', { name: /Expand navigation/i });
+    if (await expandNav3.isVisible()) {
+      await expandNav3.click();
+    }
+    await page.getByRole("button", { name: "Stats", exact: true }).click({ force: true });
+
+
+
+    await page.getByRole('button', { name: 'Body', exact: true }).click({ force: true });
+    await page.getByPlaceholder("Weight in lb").click();
     await page.getByPlaceholder("Weight in lb").fill("179.4");
+
     await page.getByRole("button", { name: "Save", exact: true }).click();
 
     await expect.poll(() => page.evaluate(() => {

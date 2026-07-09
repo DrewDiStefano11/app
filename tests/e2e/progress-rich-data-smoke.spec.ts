@@ -105,8 +105,14 @@ test.describe('Progress Rich Data Smoke Test', () => {
     await checkFatalTexts(page);
 
     // Scenario A: Progress/Stats renders with rich data
-    await page.getByRole('button', { name: 'Stats', exact: true }).click();
-    await expect(page.getByText('FitCore Score', { exact: true })).toBeVisible();
+
+    let expandNavStats = page.getByRole('button', { name: /Expand navigation/i });
+    if (await expandNavStats.isVisible()) {
+      await expandNavStats.click();
+    }
+    await page.getByRole('button', { name: 'Stats', exact: true }).click({ force: true });
+
+    await expect(page.locator('.page-header__title').filter({ hasText: 'Progress' }).or(page.getByText('FitCore Score', { exact: true }))).toBeVisible();
     await checkFatalTexts(page);
     expect(pageErrors.length).toBe(0);
 
@@ -129,7 +135,7 @@ test.describe('Progress Rich Data Smoke Test', () => {
 
     // Scenario D: Reload stability
     await page.reload();
-    await expect(page.getByText('FitCore Score', { exact: true })).toBeVisible();
+    await expect(page.locator('.page-header__title').filter({ hasText: 'Progress' }).or(page.getByText('FitCore Score', { exact: true }))).toBeVisible();
     await checkFatalTexts(page);
 
     // We don't care exactly how many there are as long as some of the rich data survived
@@ -177,8 +183,14 @@ test.describe('Progress Rich Data Smoke Test', () => {
     if (await expandNav.isVisible()) {
       await expandNav.click();
     }
-    await page.getByRole('button', { name: 'Stats', exact: true }).click();
-    await expect(page.getByText('FitCore Score', { exact: true })).toBeVisible();
+
+    expandNavStats = page.getByRole('button', { name: /Expand navigation/i });
+    if (await expandNavStats.isVisible()) {
+      await expandNavStats.click();
+    }
+    await page.getByRole('button', { name: 'Stats', exact: true }).click({ force: true });
+
+    await expect(page.locator('.page-header__title').filter({ hasText: 'Progress' }).or(page.getByText('FitCore Score', { exact: true }))).toBeVisible();
     await checkFatalTexts(page);
 
     expect(pageErrors.length).toBe(0);

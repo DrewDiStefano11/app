@@ -1,16 +1,5 @@
 import { useState, useMemo } from "react";
-import {
-  Camera,
-  Plus,
-  Trash2,
-  Image as ImageIcon,
-  Scale,
-  Target,
-  Sparkles,
-  ChevronRight,
-  Activity,
-  Calendar,
-} from "lucide-react";
+import { Camera, Plus, Trash2, Image as ImageIcon, Scale, Target, Sparkles } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import { fitcoreScore, weeklyVolumeSeries, bodyweightDelta } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
@@ -23,18 +12,40 @@ import {
   Label,
   Input,
   Select,
+  SubTabs,
   SectionHeader,
   Chip,
+  Ring,
 } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 
-export function ProgressView() {
-  const [sheet, setSheet] = useState<"bodyweight" | "photos" | "analytics" | "goals" | null>(null);
+type Tab = "overview" | "body" | "analytics";
+const TABS: { id: Tab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "body", label: "Body" },
+  { id: "analytics", label: "Analytics" },
+];
 
+export function ProgressView() {
+  const [tab, setTab] = useState<Tab>("overview");
+  return (
+    <div className="pb-24">
+      <PageHeader title="Progress" subtitle="Your trends and milestones" />
+      <SubTabs tabs={TABS} active={tab} onChange={setTab} />
+      {tab === "overview" && <OverviewTab />}
+      {tab === "body" && <BodyTab />}
+      {tab === "analytics" && <AnalyticsTab />}
+    </div>
+  );
+}
+
+/* ===================== OVERVIEW ===================== */
+
+function OverviewTab() {
   const { state } = useStore();
   const score = fitcoreScore(state);
 
-  // Bodyweight summary
+  // Bodyweight
   const sortedBw = useMemo(
     () => [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt),
     [state.bodyweightEntries],
@@ -43,7 +54,7 @@ export function ProgressView() {
   const target = state.profile.targetBodyweightLb;
   const dWeek = bodyweightDelta(state, 7) ?? 0;
 
-  // Training summary
+  // Training
   const vol7d = useMemo(
     () => weeklyVolumeSeries(state, 7).reduce((a, s) => a + s.volume, 0),
     [state],
@@ -55,12 +66,12 @@ export function ProgressView() {
   const volPrev7d = vol14d - vol7d;
   const volChange = volPrev7d ? ((vol7d - volPrev7d) / volPrev7d) * 100 : 0;
 
-  // Nutrition summary
+  // Nutrition
   const meals7d = state.mealEntries.filter((m) => m.createdAt > Date.now() - 7 * 86400000);
   const avgKcal7d = meals7d.length ? meals7d.reduce((a, m) => a + m.calories, 0) / 7 : 0;
   const targetKcal = state.nutritionTargets.calories;
 
-  // Recovery summary
+  // Recovery
   const checkins7d = state.recoveryCheckIns.filter((c) => c.createdAt > Date.now() - 7 * 86400000);
   const avgReadiness7d = checkins7d.length
     ? (checkins7d.reduce(
@@ -70,6 +81,9 @@ export function ProgressView() {
         checkins7d.length) *
       100
     : 0;
+
+  const topGoals = state.goals.filter((g) => g.pinned).slice(0, 3);
+  const goalList = topGoals.length ? topGoals : state.goals.slice(0, 3);
 
   // What Changed Summary
   const summaryParts = [];
@@ -108,177 +122,114 @@ export function ProgressView() {
       : "Log more workouts and meals to see a summary of your trends.";
 
   return (
-    <div className="pb-24">
-      <PageHeader title="Progress" subtitle="Your trends and milestones" />
+    <div className="px-5">
+      <SectionHeader title="Weekly Summary" />
+      <Card>
+        <div className="flex gap-3 items-start">
+          <Sparkles className="text-[var(--section)] shrink-0" size={20} />
+          <p className="text-sm">{summary}</p>
+        </div>
+      </Card>
 
-      <div className="px-5 space-y-4">
-        <section aria-label="Summary">
-          <Card className="bg-[var(--section)] text-white !border-transparent">
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-xs uppercase font-bold tracking-wider text-white/70">
-                FitCore Score
-              </span>
-              <Activity size={18} className="text-white/70" />
-            </div>
-            <div className="text-5xl font-bold tabular-nums mb-4">{score}</div>
-            <div className="flex gap-3 items-start bg-black/20 p-3 rounded-lg">
-              <Sparkles className="text-[var(--success)] shrink-0" size={18} />
-              <p className="text-sm text-white/90 leading-tight">{summary}</p>
-            </div>
-          </Card>
-
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <StatCard
-              label="Bodyweight Δ"
-              value={`${dWeek >= 0 ? "+" : ""}${dWeek.toFixed(1)}`}
-              sub="lb"
-              accent
-            />
-            <StatCard
-              label="Training Vol Δ"
-              value={`${volChange > 0 ? "+" : ""}${Math.round(volChange)}`}
-              sub="%"
-              accent
-            />
-            <StatCard
-              label="7d Avg Kcal"
-              value={Math.round(avgKcal7d).toString()}
-              sub={`/ ${targetKcal}`}
-              accent
-            />
-            <StatCard
-              label="7d Readiness"
-              value={avgReadiness7d ? `${Math.round(avgReadiness7d)}%` : "—"}
-              sub="avg"
-              accent
-            />
-          </div>
-        </section>
-
-        <SectionHeader title="Deep Dives" />
-        <section aria-label="Deep Dives" className="space-y-2">
-          <Card
-            onClick={() => setSheet("bodyweight")}
-            className="flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-[var(--section)]">
-                <Scale size={20} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-base">Bodyweight</h3>
-                <p className="text-xs text-muted-foreground">
-                  {bw} lb current · target {target}
-                </p>
-              </div>
-            </div>
-            <ChevronRight
-              size={20}
-              className="text-muted-foreground group-active:translate-x-1 transition-transform"
-            />
-          </Card>
-
-          <Card
-            onClick={() => setSheet("analytics")}
-            className="flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-[var(--section)]">
-                <Activity size={20} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-base">Analytics</h3>
-                <p className="text-xs text-muted-foreground">Volume trends & bodyweight charts</p>
-              </div>
-            </div>
-            <ChevronRight
-              size={20}
-              className="text-muted-foreground group-active:translate-x-1 transition-transform"
-            />
-          </Card>
-
-          <Card
-            onClick={() => setSheet("photos")}
-            className="flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-[var(--section)]">
-                <Camera size={20} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-base">Photos</h3>
-                <p className="text-xs text-muted-foreground">
-                  {state.progressPhotos.length} photos logged
-                </p>
-              </div>
-            </div>
-            <ChevronRight
-              size={20}
-              className="text-muted-foreground group-active:translate-x-1 transition-transform"
-            />
-          </Card>
-
-          <Card
-            onClick={() => setSheet("goals")}
-            className="flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[var(--surface-2)] flex items-center justify-center text-[var(--section)]">
-                <Target size={20} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-base">Goals</h3>
-                <p className="text-xs text-muted-foreground">{state.goals.length} active goals</p>
-              </div>
-            </div>
-            <ChevronRight
-              size={20}
-              className="text-muted-foreground group-active:translate-x-1 transition-transform"
-            />
-          </Card>
-        </section>
+      <div className="grid grid-cols-2 gap-3 mt-4">
+        <StatCard
+          label="Bodyweight Δ"
+          value={`${dWeek >= 0 ? "+" : ""}${dWeek.toFixed(1)}`}
+          sub="lb"
+          accent
+        />
+        <StatCard
+          label="Training Vol Δ"
+          value={`${volChange > 0 ? "+" : ""}${Math.round(volChange)}`}
+          sub="%"
+          accent
+        />
+        <StatCard
+          label="7d Avg Kcal"
+          value={Math.round(avgKcal7d).toString()}
+          sub={`/ ${targetKcal}`}
+          accent
+        />
+        <StatCard
+          label="7d Readiness"
+          value={avgReadiness7d ? `${Math.round(avgReadiness7d)}%` : "—"}
+          sub="avg"
+          accent
+        />
       </div>
 
-      <BottomSheet
-        open={sheet === "bodyweight"}
-        onClose={() => setSheet(null)}
-        title="Bodyweight"
-        height="tall"
-      >
-        <WeightSection />
-      </BottomSheet>
+      <SectionHeader title="Bodyweight trend" />
+      <Card>
+        {sortedBw.length < 2 ? (
+          <EmptyState
+            icon={<Scale size={22} />}
+            title="Not enough data"
+            description="Log at least 2 weigh-ins to see your trend."
+          />
+        ) : (
+          <Sparkline points={sortedBw.map((b) => b.weightLb)} unit=" lb" />
+        )}
+        <p className="text-xs text-muted-foreground mt-2">
+          Target {target} lb ({target - bw >= 0 ? "+" : ""}
+          {(target - bw).toFixed(1)} to go)
+        </p>
+      </Card>
 
-      <BottomSheet
-        open={sheet === "analytics"}
-        onClose={() => setSheet(null)}
-        title="Analytics"
-        height="tall"
-      >
-        <AnalyticsSection />
-      </BottomSheet>
-
-      <BottomSheet
-        open={sheet === "photos"}
-        onClose={() => setSheet(null)}
-        title="Progress Photos"
-        height="tall"
-      >
-        <PhotosSection />
-      </BottomSheet>
-
-      <BottomSheet
-        open={sheet === "goals"}
-        onClose={() => setSheet(null)}
-        title="Goals"
-        height="tall"
-      >
-        <GoalsSection />
-      </BottomSheet>
+      <SectionHeader title="Current goals" />
+      {goalList.length === 0 ? (
+        <EmptyState
+          icon={<Target size={22} />}
+          title="No pinned goals"
+          description="Pin goals on the home Goals panel to track them here."
+        />
+      ) : (
+        <div className="space-y-2">
+          {goalList.map((g) => {
+            const pct = Math.min(100, (g.current / Math.max(0.01, g.target)) * 100);
+            return (
+              <Card key={g.id}>
+                <div className="flex justify-between items-baseline mb-2">
+                  <p className="font-medium text-sm">{g.label}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">
+                    {Math.round(g.current)}/{g.target}
+                  </p>
+                </div>
+                <div
+                  className="h-1.5 rounded-full overflow-hidden"
+                  style={{ background: "var(--surface-2)" }}
+                >
+                  <div
+                    className="h-full"
+                    style={{ width: `${pct}%`, background: "var(--section)" }}
+                  />
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-/* ===================== BODYWEIGHT ===================== */
+/* ===================== BODY ===================== */
+
+function BodyTab() {
+  const [sub, setSub] = useState<"weight" | "photos">("weight");
+  return (
+    <div className="px-5">
+      <div className="flex gap-2 mb-3">
+        <Chip active={sub === "weight"} aria-label="Weight tab" onClick={() => setSub("weight")}>
+          Weight
+        </Chip>
+        <Chip active={sub === "photos"} aria-label="Photos tab" onClick={() => setSub("photos")}>
+          Photos
+        </Chip>
+      </div>
+      {sub === "weight" ? <WeightSection /> : <PhotosSection />}
+    </div>
+  );
+}
 
 function WeightSection() {
   const { state, set } = useStore();
@@ -315,15 +266,15 @@ function WeightSection() {
   };
 
   return (
-    <div className="pb-8">
-      <div className="grid grid-cols-3 gap-3 mb-6">
+    <>
+      <div className="grid grid-cols-3 gap-3 mb-4">
         <StatCard label="Wk avg" value={weekAvg} sub="lb" accent />
         <StatCard label="Δ 7d" value={`${dWeek >= 0 ? "+" : ""}${dWeek.toFixed(1)}`} sub="lb" />
         <StatCard label="Δ 30d" value={`${dMonth >= 0 ? "+" : ""}${dMonth.toFixed(1)}`} sub="lb" />
       </div>
 
-      <SectionHeader title="Log new weigh-in" />
-      <div className="flex gap-2 mb-8">
+      <SectionHeader title="Log new" />
+      <div className="flex gap-2">
         <Input
           className="flex-1"
           inputMode="decimal"
@@ -348,20 +299,19 @@ function WeightSection() {
             .slice(0, 15)
             .map((e) => (
               <Card key={e.id}>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between">
                   <div>
                     <p className="font-semibold tabular-nums">{e.weightLb} lb</p>
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Calendar size={10} />
+                    <p className="text-xs text-muted-foreground">
                       {new Date(e.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                   <button
                     aria-label="Delete weigh-in"
                     onClick={() => setConfirmDel(e.id)}
-                    className="text-muted-foreground p-2 -mr-2"
+                    className="text-muted-foreground"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={14} />
                   </button>
                 </div>
               </Card>
@@ -383,11 +333,9 @@ function WeightSection() {
         confirmLabel="Delete"
         destructive
       />
-    </div>
+    </>
   );
 }
-
-/* ===================== PHOTOS ===================== */
 
 function PhotosSection() {
   const { state, set } = useStore();
@@ -395,12 +343,12 @@ function PhotosSection() {
   const [view, setView] = useState<ProgressPhoto | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   return (
-    <div className="pb-8">
-      <PrimaryButton className="w-full mb-6" onClick={() => setOpen(true)}>
+    <>
+      <PrimaryButton className="w-full" onClick={() => setOpen(true)}>
         <Plus size={16} />
         Add photo
       </PrimaryButton>
-
+      <SectionHeader title="Timeline" />
       {state.progressPhotos.length === 0 ? (
         <EmptyState
           icon={<Camera size={22} />}
@@ -417,7 +365,7 @@ function PhotosSection() {
               className="aspect-[3/4] rounded-xl overflow-hidden bg-[var(--surface-2)] relative active:scale-[0.98]"
             >
               <img src={p.dataUrl} alt={p.view} className="w-full h-full object-cover" />
-              <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 px-1.5 py-0.5 rounded text-white">
+              <span className="absolute bottom-1 left-1 text-[10px] bg-black/60 px-1.5 py-0.5 rounded">
                 {p.view}
               </span>
             </button>
@@ -472,20 +420,19 @@ function PhotosSection() {
         confirmLabel="Delete"
         destructive
       />
-    </div>
+    </>
   );
 }
 
 /* ===================== ANALYTICS ===================== */
 
-function AnalyticsSection() {
+function AnalyticsTab() {
   const { state } = useStore();
   const [range, setRange] = useState<"14d" | "30d">("14d");
   const days = range === "14d" ? 14 : 30;
   const series = weeklyVolumeSeries(state, days);
   const total = series.reduce((a, s) => a + s.volume, 0);
   const max = Math.max(1, ...series.map((s) => s.volume));
-
   const sortedBw = useMemo(
     () => [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt),
     [state.bodyweightEntries],
@@ -493,8 +440,8 @@ function AnalyticsSection() {
   const bwInRange = sortedBw.filter((b) => b.createdAt > Date.now() - days * 86400000);
 
   return (
-    <div className="pb-8">
-      <div className="flex gap-2 mb-6">
+    <div className="px-5">
+      <div className="flex gap-2 mb-3">
         {(["14d", "30d"] as const).map((r) => (
           <Chip
             key={r}
@@ -515,12 +462,12 @@ function AnalyticsSection() {
           description="Complete workouts to see volume trends."
         />
       ) : (
-        <Card className="mb-6">
+        <Card>
           <div className="flex items-end gap-1 h-28">
             {series.map((s, i) => (
               <div
                 key={i}
-                className="flex-1 rounded-t transition-all"
+                className="flex-1 rounded-t"
                 style={{
                   height: `${(s.volume / max) * 100}%`,
                   background: "var(--section)",
@@ -548,16 +495,8 @@ function AnalyticsSection() {
           <Sparkline points={bwInRange.map((b) => b.weightLb)} unit=" lb" />
         </Card>
       )}
-    </div>
-  );
-}
 
-/* ===================== GOALS ===================== */
-
-function GoalsSection() {
-  const { state } = useStore();
-  return (
-    <div className="pb-8 space-y-2">
+      <SectionHeader title="Goal progress" />
       {state.goals.length === 0 ? (
         <EmptyState
           icon={<Target size={22} />}
@@ -565,26 +504,28 @@ function GoalsSection() {
           description="Add goals on the home Goals panel."
         />
       ) : (
-        state.goals.map((g) => {
-          const pct = Math.min(100, (g.current / Math.max(0.01, g.target)) * 100);
-          return (
-            <Card key={g.id}>
-              <div className="flex justify-between items-baseline mb-2">
-                <p className="font-medium text-sm">{g.label}</p>
-                <p className="text-xs text-muted-foreground tabular-nums">{Math.round(pct)}%</p>
-              </div>
-              <div
-                className="h-1.5 rounded-full overflow-hidden"
-                style={{ background: "var(--surface-2)" }}
-              >
+        <div className="space-y-2">
+          {state.goals.map((g) => {
+            const pct = Math.min(100, (g.current / Math.max(0.01, g.target)) * 100);
+            return (
+              <Card key={g.id}>
+                <div className="flex justify-between items-baseline mb-2">
+                  <p className="font-medium text-sm">{g.label}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">{Math.round(pct)}%</p>
+                </div>
                 <div
-                  className="h-full"
-                  style={{ width: `${pct}%`, background: "var(--section)" }}
-                />
-              </div>
-            </Card>
-          );
-        })
+                  className="h-1.5 rounded-full overflow-hidden"
+                  style={{ background: "var(--surface-2)" }}
+                >
+                  <div
+                    className="h-full"
+                    style={{ width: `${pct}%`, background: "var(--section)" }}
+                  />
+                </div>
+              </Card>
+            );
+          })}
+        </div>
       )}
     </div>
   );
