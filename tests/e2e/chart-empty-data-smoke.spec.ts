@@ -81,7 +81,7 @@ test.describe('Progress Chart Empty Data Smoke', () => {
 
     // App should still render safely despite other arrays being empty
     // Go into Analytics tab specifically to find "Bodyweight vs time"
-    await page.getByRole('button', { name: 'Analytics' }).click();
+    await page.getByRole('tab', { name: 'Analytics', exact: true }).click();
 
     await expect(page.getByRole('heading', { name: 'Bodyweight vs time', exact: true }).first()).toBeVisible();
   });
