@@ -1,4 +1,4 @@
-import { type ButtonHTMLAttributes, type ReactNode } from "react";
+import { type ButtonHTMLAttributes, type ReactNode, useState } from "react";
 import { cn } from "@/lib/utils";
 
 export function Card({
@@ -72,6 +72,79 @@ export function StatCard({
         <span className="stat-card__helper text-xs text-muted-foreground">
           {sub}
         </span>
+      )}
+    </Card>
+  );
+}
+
+export function CompactMetricCard({
+  title,
+  value,
+  subtitle,
+  icon,
+}: {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col rounded-xl border border-white/10 bg-white/[0.02] p-3 text-left">
+      <div className="mb-2 flex items-center gap-2 text-white/50">
+        {icon && <span className="shrink-0">{icon}</span>}
+        <span className="text-[10px] font-bold uppercase tracking-wider">{title}</span>
+      </div>
+      <div className="font-semibold text-lg text-white leading-none">{value}</div>
+      {subtitle && <div className="mt-1 text-xs text-white/45">{subtitle}</div>}
+    </div>
+  );
+}
+
+export function ExpandableCard({
+  title,
+  subtitle,
+  children,
+  defaultExpanded = false,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  defaultExpanded?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+
+  return (
+    <Card className="p-0 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex w-full items-center justify-between p-4 sm:p-[1.125rem] text-left transition-colors hover:bg-white/[0.02]"
+        aria-expanded={expanded}
+      >
+        <div>
+          <h4 className="font-semibold text-sm">{title}</h4>
+          {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
+        </div>
+        <div className="text-white/50">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={cn("transition-transform duration-300", expanded ? "rotate-180" : "")}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
+      </button>
+      {expanded && (
+        <div className="border-t border-white/10 p-4 sm:p-[1.125rem] bg-white/[0.01]">
+          {children}
+        </div>
       )}
     </Card>
   );
@@ -349,7 +422,7 @@ export function SubTabs<T extends string>({
   return (
     <div className="px-5 pb-3">
       <div
-        className="segmented-control flex gap-1 p-1 rounded-full bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar backdrop-blur-sm"
+        className="segmented-control flex flex-nowrap gap-1 overflow-x-auto overflow-y-hidden no-scrollbar p-1 rounded-[1.25rem] bg-white/[0.04] border border-white/10 backdrop-blur-sm"
         role="tablist"
         aria-label="Section navigation"
       >
@@ -362,7 +435,7 @@ export function SubTabs<T extends string>({
               aria-selected={isActive}
               onClick={() => onChange(t.id)}
               className={cn(
-                "btn-control relative px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-300",
+                "btn-control relative shrink-0 min-w-[75px] px-3 py-2 rounded-[1rem] text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-300 text-center",
                 isActive ? "text-white" : "text-white/45 hover:text-white/70",
               )}
               style={
@@ -396,8 +469,8 @@ export function PlannedFeatureCard({
   actionLabel?: string;
 }) {
   return (
-    <Card className="border-dashed border-white/15 bg-white/[0.035]">
-      <div className="flex items-start justify-between gap-3">
+    <Card className="border-dashed border-white/15 bg-white/[0.02] opacity-75 pointer-events-none">
+      <div className="flex items-start justify-between gap-3 opacity-80">
         <div className="min-w-0">
           <p className="font-semibold">{title}</p>
           <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
@@ -410,7 +483,7 @@ export function PlannedFeatureCard({
         <button
           type="button"
           disabled
-          className="mt-4 min-h-10 w-full rounded-[var(--radius-small)] border border-border bg-white/[0.035] px-4 py-2 text-sm font-semibold text-muted-foreground opacity-70"
+          className="mt-4 min-h-10 w-full rounded-[var(--radius-small)] border border-border bg-white/[0.035] px-4 py-2 text-sm font-semibold text-muted-foreground opacity-50"
         >
           {actionLabel}
         </button>
