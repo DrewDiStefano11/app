@@ -1,5 +1,16 @@
 # Current PR Queue Status Audit
 
+## PR 159: Recheck Recovery Daily View layout
+* **PR Type:** unknown (no-op)
+* **Current changed files:** 0 files changed
+* **File scope expected:** No
+* **Current mergeability:** null
+* **Current check status:** Unknown
+* **Current unresolved review thread/blocker status:** None
+* **Recommendation:** close
+* **Exact reason for the recommendation:** This PR has 0 changed files and overlaps with the active Recovery area work.
+* **Suggested next action:** Close this as a no-op duplicate PR. Active Recovery runtime work should continue through PR #129 instead.
+
 ## PR 158: Restore CodeQL workflow
 * **PR Type:** workflow-only
 * **Current changed files:**
@@ -76,6 +87,7 @@
 5. **PR 148** (Needs major file-scope cleanup or recreation)
 
 ### PRs that must not merge yet
+* PR 159 (0 files changed, duplicate work - should be closed)
 * PR 158 (Failing checks)
 * PR 148 (Unexpected file scope, failing checks, unresolved blockers, no manual UI review)
 * PR 146 (Unexpected file scope, unresolved blockers)
@@ -93,7 +105,7 @@
 * PR 158
 
 ### Areas where no new work should be started yet
-* Recovery Daily View layout (Blocked by PR 129)
+* Recovery Daily View layout (Blocked by PR 129. Do not use PR 159)
 * Progress/Stats Daily View layout (Blocked by PR 148)
 * Daily View / Deep Dive toggle implementation (Per policy, do not recommend yet)
 * Broad state/schema/storage work (Per policy, do not recommend yet)
