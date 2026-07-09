@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -25,7 +26,7 @@ export function BottomSheet({
   }, [open]);
 
   if (!open) return null;
-  return (
+  return createPortal(
     <div className="sheet-root fixed inset-0 z-50 flex items-end justify-center">
       <div
         className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in"
@@ -57,7 +58,8 @@ export function BottomSheet({
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -79,7 +81,7 @@ export function ConfirmDialog({
   destructive?: boolean;
 }) {
   if (!open) return null;
-  return (
+  return createPortal(
     <div className="sheet-root fixed inset-0 z-50 flex items-center justify-center p-6">
       <div
         className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md"
@@ -110,6 +112,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

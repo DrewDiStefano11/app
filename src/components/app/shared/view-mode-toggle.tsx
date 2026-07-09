@@ -7,27 +7,21 @@ type ViewModeToggleProps = {
   className?: string;
 };
 
-const OPTIONS: { mode: LayoutMode; label: string; helper: string }[] = [
-  { mode: "daily", label: "Daily View", helper: "Quick summary for today." },
-  { mode: "deepDive", label: "Deep Dive", helper: "Expanded detail across your tabs." },
+const OPTIONS: { mode: LayoutMode; label: string }[] = [
+  { mode: "daily", label: "Daily View" },
+  { mode: "deepDive", label: "Deep Dive" },
 ];
 
 export function ViewModeToggle({ mode, onModeChange, className }: ViewModeToggleProps) {
   return (
     <section
       className={cn(
-        "rounded-[var(--radius-card)] border border-border bg-white/[0.045] p-3 shadow-[var(--shadow-card)]",
+        "rounded-[var(--radius-card)] border border-border bg-white/[0.045] p-1 shadow-[var(--shadow-card)]",
         className,
       )}
       aria-label="FitCore display mode"
     >
-      <div className="mb-2 flex items-center justify-between gap-3 px-1">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-white/45">
-          Display Mode
-        </p>
-        <p className="text-[10px] font-semibold text-white/35">Switch detail level</p>
-      </div>
-      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Daily View or Deep Dive">
+      <div className="flex" role="group" aria-label="Daily View or Deep Dive">
         {OPTIONS.map((option) => {
           const selected = mode === option.mode;
           return (
@@ -37,16 +31,13 @@ export function ViewModeToggle({ mode, onModeChange, className }: ViewModeToggle
               aria-pressed={selected}
               onClick={() => onModeChange(option.mode)}
               className={cn(
-                "btn-control press min-h-[58px] rounded-2xl border px-3 py-2 text-left transition-[background-color,border-color,transform]",
+                "btn-control press flex-1 min-h-[36px] rounded-xl px-3 py-1.5 text-center transition-[background-color,color]",
                 selected
-                  ? "border-[var(--section)] bg-[var(--section-soft)] text-white"
-                  : "border-border bg-black/10 text-white/55 hover:bg-white/[0.06] hover:text-white/75",
+                  ? "bg-[var(--section)] text-white shadow-sm"
+                  : "text-white/55 hover:text-white/75",
               )}
             >
-              <span className="block text-sm font-bold leading-tight">{option.label}</span>
-              <span className="mt-1 block text-[10px] leading-snug text-white/45">
-                {option.helper}
-              </span>
+              <span className="block text-xs font-bold leading-tight">{option.label}</span>
             </button>
           );
         })}
