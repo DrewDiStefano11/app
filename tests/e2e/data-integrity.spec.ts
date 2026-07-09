@@ -175,7 +175,12 @@ test.describe("FitCore data integrity", () => {
     await page.getByRole("button", { name: "Save check-in" }).click();
 
     await clickBottomNav(page, "Stats");
-    await page.getByText("Body", { exact: true }).click();
+
+    // In Daily View, weigh in is direct. In Deep Dive, we must go to Body.
+    if (await page.getByRole('button', { name: 'Deep Dive' }).isVisible()) {
+        await page.getByRole('button', { name: 'Deep Dive' }).click();
+        await page.getByRole('tab', { name: 'Body', exact: true }).click();
+    }
     await page.getByPlaceholder("Weight in lb").fill("179.4");
     await page.getByRole("button", { name: "Save", exact: true }).click();
 
