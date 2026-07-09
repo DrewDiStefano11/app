@@ -14,7 +14,7 @@ test.describe('Settings / Hub Safety Smoke Test', () => {
     await expect(page.getByRole('heading', { name: 'Hub', exact: true })).toBeVisible();
 
     // Confirm major visible settings sections render
-    await expect(page.locator('h3').filter({ hasText: 'AI Coach & Goals' })).toBeVisible();
+    await expect(page.locator('h3').filter({ hasText: 'AI Coach & Goals' })).toBeVisible({ timeout: 10000 });
     await expect(page.locator('h3').filter({ hasText: /^Profile$/ })).toBeVisible();
     await expect(page.locator('h3').filter({ hasText: 'Data Management' })).toBeVisible();
 

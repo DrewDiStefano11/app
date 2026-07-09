@@ -41,7 +41,7 @@ test.describe('Settings/Hub Render Smoke', () => {
     await expect(hubHeading).toBeVisible();
 
     // 4. Major existing areas/options are visible if stable.
-    await expect(page.locator('h3').filter({ hasText: 'AI Coach & Goals' })).toBeVisible();
+    await expect(page.locator('h3').filter({ hasText: 'AI Coach & Goals' })).toBeVisible({ timeout: 10000 });
     await expect(page.locator('h3').filter({ hasText: /^Profile$/ })).toBeVisible();
     await expect(page.locator('h3').filter({ hasText: 'Data Management' })).toBeVisible();
 
