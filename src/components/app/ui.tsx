@@ -348,12 +348,18 @@ export function SubTabs<T extends string>({
 }) {
   return (
     <div className="px-5 pb-3">
-      <div className="segmented-control flex gap-1 p-1 rounded-full bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar backdrop-blur-sm">
+      <div
+        className="segmented-control flex gap-1 p-1 rounded-full bg-white/[0.04] border border-white/10 overflow-x-auto no-scrollbar backdrop-blur-sm"
+        role="tablist"
+        aria-label="Section navigation"
+      >
         {tabs.map((t) => {
           const isActive = t.id === active;
           return (
             <button
               key={t.id}
+              role="tab"
+              aria-selected={isActive}
               onClick={() => onChange(t.id)}
               className={cn(
                 "btn-control relative px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-300",
@@ -375,6 +381,41 @@ export function SubTabs<T extends string>({
         })}
       </div>
     </div>
+  );
+}
+
+export function PlannedFeatureCard({
+  title,
+  description,
+  status = "Coming later",
+  actionLabel,
+}: {
+  title: string;
+  description: string;
+  status?: "Coming later" | "Planned" | "Not connected yet" | "Presentational only";
+  actionLabel?: string;
+}) {
+  return (
+    <Card className="border-dashed border-white/15 bg-white/[0.035]">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-semibold">{title}</p>
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{description}</p>
+        </div>
+        <span className="shrink-0 rounded-full border border-border bg-[var(--surface-2)] px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {status}
+        </span>
+      </div>
+      {actionLabel && (
+        <button
+          type="button"
+          disabled
+          className="mt-4 min-h-10 w-full rounded-[var(--radius-small)] border border-border bg-white/[0.035] px-4 py-2 text-sm font-semibold text-muted-foreground opacity-70"
+        >
+          {actionLabel}
+        </button>
+      )}
+    </Card>
   );
 }
 

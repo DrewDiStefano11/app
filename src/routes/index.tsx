@@ -12,6 +12,7 @@ import { ProgressView } from "@/components/app/views/progress";
 import { SettingsView } from "@/components/app/views/settings";
 import { Onboarding } from "@/components/app/views/onboarding";
 import { buildAICoachContext } from "@/lib/fitcore-data";
+import type { LayoutMode } from "@/components/app/layout-primitives";
 import type { SectionId } from "@/lib/types";
 
 export const Route = createFileRoute("/")({
@@ -51,6 +52,7 @@ function FitCoreApp() {
   const { state, view } = useStore();
   const [section, setSection] = useState<SectionId>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>("daily");
 
   const hasActiveWorkout = !!state.activeWorkout;
 
@@ -82,7 +84,7 @@ function FitCoreApp() {
     <div className="phone-shell" data-section={section} key={section}>
       <div className="animate-tile-in">
         {settingsOpen ? (
-          <SettingsView onBack={() => setSettingsOpen(false)} />
+          <SettingsView onBack={() => setSettingsOpen(false)} layoutMode={layoutMode} />
         ) : (
           <>
             {section === "home" && (
@@ -90,14 +92,16 @@ function FitCoreApp() {
                 <HomeView
                   onNavigate={(s) => setSection(s)}
                   onOpenSettings={() => setSettingsOpen(true)}
+                  layoutMode={layoutMode}
+                  onLayoutModeChange={setLayoutMode}
                 />
                 <RecentActivity />
               </>
             )}
-            {section === "training" && <TrainingView />}
-            {section === "nutrition" && <NutritionView />}
-            {section === "recovery" && <RecoveryView />}
-            {section === "progress" && <ProgressView />}
+            {section === "training" && <TrainingView layoutMode={layoutMode} />}
+            {section === "nutrition" && <NutritionView layoutMode={layoutMode} />}
+            {section === "recovery" && <RecoveryView layoutMode={layoutMode} />}
+            {section === "progress" && <ProgressView layoutMode={layoutMode} />}
           </>
         )}
       </div>

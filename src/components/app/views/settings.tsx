@@ -2,7 +2,8 @@ import { useState, type ReactNode } from "react";
 import { Bell, BrainCircuit, ChevronDown, Database, Download, Info, TestTube2, Trash2, Upload, User } from "lucide-react";
 import { useStore } from "@/lib/store";
 import type { Profile } from "@/lib/types";
-import { Card, GhostButton, Input, Label, PageHeader, Select } from "@/components/app/ui";
+import type { LayoutMode } from "@/components/app/layout-primitives";
+import { Card, GhostButton, Input, Label, PageHeader, Select, SubTabs } from "@/components/app/ui";
 import { ConfirmDialog } from "@/components/app/sheet";
 import { JarvisSettingsCard } from "@/components/app/jarvis/settings-card";
 import { JarvisActivityCard } from "@/components/app/jarvis/activity-view";
@@ -19,6 +20,29 @@ type HubSectionId =
   | "safety"
   | "coach"
   | "about";
+
+type SettingsSubtab = "profile" | "preferences" | "privacy" | "aiMemory" | "integrations" | "notifications" | "exportDelete" | "about";
+const SETTINGS_TABS: { id: SettingsSubtab; label: string }[] = [
+  { id: "profile", label: "Profile" },
+  { id: "preferences", label: "Preferences" },
+  { id: "privacy", label: "Data & Privacy" },
+  { id: "aiMemory", label: "AI Memory" },
+  { id: "integrations", label: "Integrations" },
+  { id: "notifications", label: "Notifications" },
+  { id: "exportDelete", label: "Export / Delete" },
+  { id: "about", label: "About / Support" },
+];
+
+const SETTINGS_TAB_TO_HUB: Record<SettingsSubtab, HubSectionId> = {
+  profile: "profile",
+  preferences: "preferences",
+  privacy: "privacy",
+  aiMemory: "jarvis",
+  integrations: "integrations",
+  notifications: "preferences",
+  exportDelete: "data",
+  about: "about",
+};
 
 type HubCardProps = {
   id: HubSectionId;
@@ -106,10 +130,11 @@ function FutureRows({ rows }: { rows: { label: string; detail: string; status: s
   );
 }
 
-export function SettingsView({ onBack }: { onBack: () => void }) {
+export function SettingsView({ onBack, layoutMode = "daily" }: { onBack: () => void; layoutMode?: LayoutMode }) {
   const { state, set, reset, exportJson, importJson } = useStore();
   const [confirmReset, setConfirmReset] = useState(false);
   const [importMsg, setImportMsg] = useState("");
+  const [activeSubtab, setActiveSubtab] = useState<SettingsSubtab>("profile");
   const [expanded, setExpanded] = useState<Record<HubSectionId, boolean>>({
     profile: true,
     jarvis: false,
@@ -125,6 +150,11 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
 
   const updateProfile = (p: Partial<Profile>) => set(s => ({ ...s, profile: { ...s.profile, ...p } }));
   const toggleSection = (id: HubSectionId) => setExpanded(s => ({ ...s, [id]: !s[id] }));
+  const changeSubtab = (id: SettingsSubtab) => {
+    setActiveSubtab(id);
+    const hubId = SETTINGS_TAB_TO_HUB[id];
+    setExpanded(s => ({ ...s, [hubId]: true }));
+  };
 
   const downloadBackup = () => {
     const blob = new Blob([exportJson()], { type: "application/json" });
@@ -146,7 +176,8 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="pb-28">
-      <PageHeader title="Hub" subtitle="Profile, targets, data" action={<button onClick={onBack} className="text-sm text-muted-foreground">Done</button>} />
+      <PageHeader title="Hub" subtitle={`Profile, targets, data - ${layoutMode === "deepDive" ? "Deep Dive" : "Daily View"}`} action={<button onClick={onBack} className="text-sm text-muted-foreground">Done</button>} />
+      <SubTabs tabs={SETTINGS_TABS} active={activeSubtab} onChange={changeSubtab} />
 
       <div className="mx-auto max-w-3xl px-5">
         <section className="rounded-[var(--radius-card)] border border-border bg-[linear-gradient(135deg,var(--surface-2),transparent)] p-5 shadow-[var(--shadow-card)] sm:p-6">

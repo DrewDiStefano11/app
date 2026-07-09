@@ -3,34 +3,45 @@ import { Camera, Plus, Trash2, Image as ImageIcon, Scale, Target, Sparkles } fro
 import { useStore, uid } from "@/lib/store";
 import { fitcoreScore, weeklyVolumeSeries, bodyweightDelta } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
-import { Card, StatCard, PageHeader, PrimaryButton, EmptyState, Label, Input, Select, SubTabs, SectionHeader, Chip, Ring } from "@/components/app/ui";
+import type { LayoutMode } from "@/components/app/layout-primitives";
+import { Card, StatCard, PageHeader, PrimaryButton, EmptyState, Label, Input, Select, SubTabs, SectionHeader, Chip, Ring, PlannedFeatureCard } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 
-type Tab = "overview" | "body" | "analytics";
+type Tab = "overview" | "bodyweight" | "photos" | "measurements" | "analytics" | "goals" | "history";
 const TABS: { id: Tab; label: string }[] = [
   { id: "overview", label: "Overview" },
-  { id: "body", label: "Body" },
+  { id: "bodyweight", label: "Body" },
+  { id: "photos", label: "Photos" },
+  { id: "measurements", label: "Measurements" },
   { id: "analytics", label: "Analytics" },
+  { id: "goals", label: "Goals" },
+  { id: "history", label: "History" },
 ];
 
-export function ProgressView() {
+export function ProgressView({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
   const [tab, setTab] = useState<Tab>("overview");
+  const isDeepDive = layoutMode === "deepDive";
   return (
     <div className="pb-24">
-      <PageHeader title="Progress" subtitle="Your trends and milestones" />
+      <PageHeader title="Progress" subtitle={`Your trends and milestones - ${isDeepDive ? "Deep Dive" : "Daily View"}`} />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} />
-      {tab === "overview" && <OverviewTab />}
-      {tab === "body" && <BodyTab />}
+      {tab === "overview" && <OverviewTab layoutMode={layoutMode} />}
+      {tab === "bodyweight" && <div className="px-5"><WeightSection /></div>}
+      {tab === "photos" && <div className="px-5"><PhotosSection /></div>}
+      {tab === "measurements" && <MeasurementsTab />}
       {tab === "analytics" && <AnalyticsTab />}
+      {tab === "goals" && <GoalsTab />}
+      {tab === "history" && <ProgressHistoryTab />}
     </div>
   );
 }
 
 /* ===================== OVERVIEW ===================== */
 
-function OverviewTab() {
+function OverviewTab({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
   const { state } = useStore();
   const score = fitcoreScore(state);
+  const isDeepDive = layoutMode === "deepDive";
 
   // Bodyweight
   const sortedBw = useMemo(() => [...state.bodyweightEntries].sort((a,b) => a.createdAt - b.createdAt), [state.bodyweightEntries]);
@@ -99,6 +110,15 @@ function OverviewTab() {
         <StatCard label="7d Avg Kcal" value={Math.round(avgKcal7d).toString()} sub={`/ ${targetKcal}`} accent />
         <StatCard label="7d Readiness" value={avgReadiness7d ? `${Math.round(avgReadiness7d)}%` : "—"} sub="avg" accent />
       </div>
+
+      {isDeepDive && (
+        <Card className="mt-4">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Deep Dive detail</p>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Progress combines bodyweight, training volume, nutrition adherence, readiness, goals, and photos using existing logged data only.
+          </p>
+        </Card>
+      )}
 
       <SectionHeader title="Bodyweight trend" />
       <Card>
@@ -318,6 +338,93 @@ function AnalyticsTab() {
               </Card>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MeasurementsTab() {
+  return (
+    <div className="px-5 space-y-4">
+      <PlannedFeatureCard
+        title="Body measurements"
+        status="Coming later"
+        description="Track waist, chest, arms, legs, and other body measurements here once the feature is connected."
+        actionLabel="Measurements coming later"
+      />
+    </div>
+  );
+}
+
+function GoalsTab() {
+  const { state } = useStore();
+  return (
+    <div className="px-5 space-y-4">
+      <SectionHeader title="Goals" />
+      {state.goals.length === 0 ? (
+        <EmptyState icon={<Target size={22} />} title="No goals" description="Add or pin goals on the home Goals panel to track them here." />
+      ) : (
+        <div className="space-y-2">
+          {state.goals.map(g => {
+            const pct = Math.min(100, (g.current / Math.max(0.01, g.target)) * 100);
+            return (
+              <Card key={g.id}>
+                <div className="flex justify-between items-baseline mb-2">
+                  <p className="font-medium text-sm">{g.label}</p>
+                  <p className="text-xs text-muted-foreground tabular-nums">{Math.round(g.current)}/{g.target}</p>
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--surface-2)" }}>
+                  <div className="h-full" style={{ width: `${pct}%`, background: "var(--section)" }} />
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+      <PlannedFeatureCard
+        title="Smart goal recommendations"
+        status="Planned"
+        description="Future recommendations will appear here after they are connected to real progress data."
+      />
+    </div>
+  );
+}
+
+function ProgressHistoryTab() {
+  const { state } = useStore();
+  const events = [
+    ...state.bodyweightEntries.map(entry => ({
+      id: `bw-${entry.id}`,
+      label: `${entry.weightLb} lb weigh-in`,
+      date: entry.createdAt,
+      meta: "Bodyweight",
+    })),
+    ...state.progressPhotos.map(photo => ({
+      id: `photo-${photo.id}`,
+      label: `${photo.view} progress photo`,
+      date: photo.createdAt,
+      meta: "Photo",
+    })),
+  ].sort((a, b) => b.date - a.date);
+  return (
+    <div className="px-5 space-y-4">
+      <SectionHeader title="Progress history" />
+      {events.length === 0 ? (
+        <EmptyState icon={<Scale size={22} />} title="No progress history" description="Weigh-ins and progress photos will appear here." />
+      ) : (
+        <div className="space-y-2">
+          {events.slice(0, 20).map(event => (
+            <Card key={event.id}>
+              <div className="flex justify-between gap-3">
+                <div>
+                  <p className="font-medium text-sm">{event.label}</p>
+                  <p className="text-xs text-muted-foreground">{event.meta}</p>
+                </div>
+                <p className="text-xs text-muted-foreground">{new Date(event.date).toLocaleDateString()}</p>
+              </div>
+            </Card>
+          ))}
         </div>
       )}
     </div>
