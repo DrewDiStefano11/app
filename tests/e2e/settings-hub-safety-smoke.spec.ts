@@ -14,9 +14,11 @@ test.describe('Settings / Hub Safety Smoke Test', () => {
     await expect(page.getByRole('heading', { name: 'Hub', exact: true })).toBeVisible();
 
     // Confirm major visible settings sections render
-    await expect(page.locator('h3').filter({ hasText: 'AI Coach & Goals' })).toBeVisible();
-    await expect(page.locator('h3').filter({ hasText: /^Profile$/ })).toBeVisible();
-    await expect(page.locator('h3').filter({ hasText: 'Data Management' })).toBeVisible();
+    await expect(page.locator('button').filter({ hasText: 'Profile & Goals' })).toBeVisible();
+    await expect(page.locator('button').filter({ hasText: 'Data Management' })).toBeVisible();
+
+    // Open Data Management accordion to reveal reset button
+    await page.locator('button').filter({ hasText: 'Data Management' }).click();
 
     // Find "Reset all data" button and click it
     await page.getByRole('button', { name: 'Reset all data' }).click();
