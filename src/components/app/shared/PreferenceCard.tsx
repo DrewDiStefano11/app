@@ -1,6 +1,5 @@
 import React from "react";
 import { cn } from "@/lib/utils";
-import { Card } from "@/components/app/ui";
 
 export interface PreferenceCardProps {
   title: string;
@@ -26,8 +25,9 @@ export function PreferenceCard({
   className,
 }: PreferenceCardProps) {
   return (
-    <Card
+    <div
       className={cn(
+        "premium-card card-elev p-4 sm:p-[1.125rem]",
         "flex flex-col gap-4",
         // Status classes
         disabled && "opacity-50 pointer-events-none",
@@ -99,6 +99,6 @@ export function PreferenceCard({
           {footer}
         </div>
       )}
-    </Card>
+    </div>
   );
 }
