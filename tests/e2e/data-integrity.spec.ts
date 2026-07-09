@@ -116,6 +116,11 @@ test.describe("FitCore data integrity", () => {
     await page.getByRole("button", { name: /Finish workout/i }).click();
     await page.getByRole("button", { name: /Confirm & save/i }).click();
 
+    const expandBtn2 = page.getByRole('button', { name: 'Expand navigation, current section Home' });
+    if (await expandBtn2.isVisible()) {
+      await expandBtn2.click();
+    }
+
     await page.getByRole("button", { name: "Fuel" }).click();
     await page.getByRole("button", { name: /Log meal/i }).first().click();
     await page.getByRole("button", { name: "Custom Entry" }).click();
@@ -126,7 +131,14 @@ test.describe("FitCore data integrity", () => {
     await page.getByText("F", { exact: true }).locator("..").locator("input").fill("20");
     await page.getByRole("button", { name: "Add to Daily Log" }).click();
 
-    await page.getByRole("button", { name: "Recover" }).click();
+    const expandBtn3 = page.getByRole('button', { name: 'Expand navigation, current section Fuel' });
+    if (await expandBtn3.isVisible()) {
+      await expandBtn3.click();
+    } else {
+      await page.evaluate(() => window.scrollTo(0, 0));
+    }
+
+    await page.getByRole("button", { name: 'Recover', exact: true }).click();
     await page.getByRole("button", { name: "Check-in" }).click();
     await page.getByRole("button", { name: "Save check-in" }).click();
 
