@@ -43,7 +43,7 @@ test.describe('Settings/Hub Render Smoke', () => {
     // 4. Major existing areas/options are visible if stable.
     await expect(page.getByText('Jarvis / AI', { exact: true })).toBeVisible();
     await expect(page.getByText('Profile & Goals', { exact: true })).toBeVisible();
-    await expect(page.getByText('Data Management', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Data Management', { exact: true })).toBeVisible();
 
     await checkFatalErrors();
 

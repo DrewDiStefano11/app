@@ -16,10 +16,10 @@ test.describe('Settings / Hub Safety Smoke Test', () => {
     // Confirm major visible settings sections render
     await expect(page.getByText('Jarvis / AI', { exact: true })).toBeVisible();
     await expect(page.getByText('Profile & Goals', { exact: true })).toBeVisible();
-    await expect(page.getByText('Data Management', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('Data Management', { exact: true })).toBeVisible();
 
     // Find "Reset all data" button and click it
-    await page.getByRole('button', { name: 'Data Management' }).click();
+    await page.getByText('Data Management', { exact: true }).click();
     await page.getByRole('button', { name: 'Reset all data' }).click();
 
     // Assert the confirmation dialog appears
