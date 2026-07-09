@@ -419,17 +419,10 @@ export function SubTabs<T extends string>({
   active: T;
   onChange: (id: T) => void;
 }) {
-  const isCompact = tabs.length <= 4;
   return (
     <div className="px-5 pb-3">
       <div
-        className={cn(
-          "segmented-control p-1 rounded-[1.25rem] bg-white/[0.04] border border-white/10 backdrop-blur-sm",
-          isCompact
-            ? "grid gap-1"
-            : "flex gap-1 overflow-x-auto no-scrollbar",
-        )}
-        style={isCompact ? { gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` } : undefined}
+        className="segmented-control flex flex-nowrap gap-1 overflow-x-auto overflow-y-hidden no-scrollbar p-1 rounded-[1.25rem] bg-white/[0.04] border border-white/10 backdrop-blur-sm"
         role="tablist"
         aria-label="Section navigation"
       >
@@ -442,8 +435,7 @@ export function SubTabs<T extends string>({
               aria-selected={isActive}
               onClick={() => onChange(t.id)}
               className={cn(
-                "btn-control relative px-2 py-2 rounded-[1rem] text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-300 text-center",
-                isCompact ? "w-full" : "flex-shrink-0 min-w-[75px]",
+                "btn-control relative shrink-0 min-w-[75px] px-3 py-2 rounded-[1rem] text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all duration-300 text-center",
                 isActive ? "text-white" : "text-white/45 hover:text-white/70",
               )}
               style={
