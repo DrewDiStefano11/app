@@ -116,7 +116,7 @@ test.describe("FitCore data integrity", () => {
     await page.getByRole("button", { name: /Finish workout/i }).click();
     await page.getByRole("button", { name: /Confirm & save/i }).click();
 
-    await page.getByRole("button", { name: "Fuel" }).click();
+    await page.getByRole("button", { name: "Fuel", exact: true }).click();
     await page.getByRole("button", { name: /Log meal/i }).first().click();
     await page.getByRole("button", { name: "Custom Entry" }).click();
     await page.getByPlaceholder("e.g. Post-workout protein bowl").fill("Integrity meal");
