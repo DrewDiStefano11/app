@@ -122,18 +122,42 @@ test.describe("FitCore data integrity", () => {
     });
   });
 
+  const clickBottomNav = async (page: any, targetName: string) => {
+    const nav = page.getByRole("navigation", { name: "Primary navigation" });
+    const targetBtn = nav.getByRole("button", { name: targetName, exact: true });
+
+    if (await targetBtn.isVisible()) {
+      try {
+        await targetBtn.click({ timeout: 2000 });
+        return;
+      } catch (e) {
+        // Fall through to expansion attempt
+      }
+    }
+
+    const expandBtn = nav.getByRole("button", { name: /Expand navigation/i });
+    if (await expandBtn.isVisible()) {
+      try {
+        await expandBtn.click({ timeout: 2000 });
+      } catch (e) {
+        // Expand button might have detached, ignore and retry target
+      }
+    }
+    await targetBtn.click();
+  };
+
   test("manual workout, meal, check-in, and weigh-in survive a full reload", async ({ page }) => {
     await page.evaluate(() => {
       localStorage.setItem("fitcore.v1", JSON.stringify({ onboardingComplete: true }));
     });
     await page.reload();
 
-    await page.getByRole("button", { name: "Train" }).click();
+    await clickBottomNav(page, "Train");
     await page.getByRole("button", { name: /Start today's plan/i }).click();
     await page.getByRole("button", { name: /Finish workout/i }).click();
     await page.getByRole("button", { name: /Confirm & save/i }).click();
 
-    await page.getByRole("button", { name: "Fuel" }).click();
+    await clickBottomNav(page, "Fuel");
     await page
       .getByRole("button", { name: /Log meal/i })
       .first()
@@ -146,15 +170,11 @@ test.describe("FitCore data integrity", () => {
     await page.getByText("F", { exact: true }).locator("..").locator("input").fill("20");
     await page.getByRole("button", { name: "Add to Daily Log" }).click();
 
-    const expandNavBtn = page.getByRole("button", { name: /Expand navigation/i });
-    if (await expandNavBtn.isVisible()) {
-      await expandNavBtn.click();
-    }
-    await page.getByRole("button", { name: "Recover", exact: true }).click();
+    await clickBottomNav(page, "Recover");
     await page.getByRole("button", { name: "Check-in" }).click();
     await page.getByRole("button", { name: "Save check-in" }).click();
 
-    await page.getByRole("button", { name: "Stats" }).click();
+    await clickBottomNav(page, "Stats");
     await page.getByText("Body", { exact: true }).click();
     await page.getByPlaceholder("Weight in lb").fill("179.4");
     await page.getByRole("button", { name: "Save", exact: true }).click();
