@@ -1,0 +1,24 @@
+<<<<<<< SEARCH
+    // We can locate the button containing the X icon inside the header.
+    // However, clicking outside (the backdrop) is safer and accessible via UI
+    await page.locator('.sheet-backdrop').first().click();
+    await expect(templatesHeading).not.toBeVisible();
+
+    // 2. Cardio & sports
+    await page.getByText('min this week').click();
+    const cardioHeading = page.locator('.sheet-title', { hasText: 'Cardio & sports' });
+    await expect(cardioHeading).toBeVisible();
+    await page.locator('.sheet-backdrop').first().click();
+    await expect(cardioHeading).not.toBeVisible();
+=======
+    // We can locate the button containing the X icon inside the header.
+    await page.locator('.sheet-header button').first().click();
+    await expect(templatesHeading).not.toBeVisible();
+
+    // 2. Cardio & sports
+    await page.getByText('min this week').click();
+    const cardioHeading = page.locator('.sheet-title', { hasText: 'Cardio & sports' });
+    await expect(cardioHeading).toBeVisible();
+    await page.locator('.sheet-header button').first().click();
+    await expect(cardioHeading).not.toBeVisible();
+>>>>>>> REPLACE

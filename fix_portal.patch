@@ -1,0 +1,70 @@
+<<<<<<< SEARCH
+import { useEffect, type ReactNode } from "react";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
+=======
+import { useEffect, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+  if (!open) return null;
+  return (
+    <div className="sheet-root fixed inset-0 z-50 flex items-end justify-center">
+=======
+  if (!open) return null;
+
+  const content = (
+    <div className="sheet-root fixed inset-0 z-50 flex items-end justify-center">
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ConfirmDialog({
+=======
+        </div>
+      </div>
+    </div>
+  );
+
+  return typeof document !== "undefined"
+    ? createPortal(content, document.body)
+    : content;
+}
+
+export function ConfirmDialog({
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+  if (!open) return null;
+  return (
+    <div className="sheet-root fixed inset-0 z-50 flex items-center justify-center p-6">
+=======
+  if (!open) return null;
+
+  const content = (
+    <div className="sheet-root fixed inset-0 z-50 flex items-center justify-center p-6">
+>>>>>>> REPLACE
+<<<<<<< SEARCH
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+=======
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return typeof document !== "undefined"
+    ? createPortal(content, document.body)
+    : content;
+}
+>>>>>>> REPLACE
