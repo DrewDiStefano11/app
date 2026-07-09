@@ -3,6 +3,7 @@ import { Plus, Trash2, Utensils, Camera, Sparkles, Droplets, Pill } from "lucide
 import { useStore, uid, isToday } from "@/lib/store";
 import { FOODS, MEAL_TEMPLATES, mealTotals } from "@/lib/data";
 import type { MealEntry } from "@/lib/types";
+import type { LayoutMode } from "@/components/app/layout-primitives";
 import {
   PageHeader,
   PrimaryButton,
@@ -14,16 +15,30 @@ import {
   Select,
   Ring,
   SectionHeader,
+  SubTabs,
+  PlannedFeatureCard,
 } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { Tile, Eyebrow } from "@/components/app/tile";
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
+type NutritionSubtab = "overview" | "log" | "macros" | "foods" | "hydration" | "trends" | "history";
+const NUTRITION_TABS: { id: NutritionSubtab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "log", label: "Log Meal" },
+  { id: "macros", label: "Macros" },
+  { id: "foods", label: "Foods" },
+  { id: "hydration", label: "Hydration" },
+  { id: "trends", label: "Trends" },
+  { id: "history", label: "History" },
+];
 
-export function NutritionView() {
+export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
   const { state, set } = useStore();
   const [logOpen, setLogOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [tab, setTab] = useState<NutritionSubtab>("overview");
+  const isDeepDive = layoutMode === "deepDive";
 
   const today = state.mealEntries.filter((m) => isToday(m.createdAt));
   const t = today.reduce(
@@ -46,9 +61,10 @@ export function NutritionView() {
 
   return (
     <div className="pb-24">
-      <PageHeader title="Nutrition" subtitle={`${Math.round(remaining)} kcal remaining today`} />
+      <PageHeader title="Nutrition" subtitle={`${Math.round(remaining)} kcal remaining today - ${isDeepDive ? "Deep Dive" : "Daily View"}`} />
+      <SubTabs tabs={NUTRITION_TABS} active={tab} onChange={setTab} />
 
-      <div className="px-5 space-y-4 mt-2">
+      {tab === "overview" && <div className="px-5 space-y-4 mt-2">
         <Tile hero accent delay={0} className="glow-section p-6 bg-red-500/10 border-red-500/20" style={{ '--section': 'rgb(239 68 68)' } as React.CSSProperties}>
           <div className="flex justify-between items-center mb-4">
             <Eyebrow color="rgb(239 68 68)">Daily Macros</Eyebrow>
@@ -94,6 +110,19 @@ export function NutritionView() {
             <span>Photo Meal</span>
           </GhostButton>
         </div>
+
+        {isDeepDive && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/45">Meals logged</p>
+              <p className="mt-1 font-display text-2xl text-white">{today.length}</p>
+            </div>
+            <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/45">Remaining</p>
+              <p className="mt-1 font-display text-2xl text-white">{Math.round(remaining)}</p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-center">
@@ -179,7 +208,82 @@ export function NutritionView() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
+
+      {tab === "log" && (
+        <div className="px-5 space-y-4">
+          <CardLikeLogMeal onLog={() => setLogOpen(true)} />
+          <PlannedFeatureCard
+            title="Barcode and recipe import"
+            status="Coming later"
+            description="This subtab keeps the meal logging home ready for future scan, recipe, and import flows without pretending they are active."
+          />
+        </div>
+      )}
+
+      {tab === "macros" && (
+        <div className="px-5 space-y-4">
+          <SectionHeader title="Macro detail" />
+          <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
+            <MacroBar label="Protein" value={t.p} target={tg.protein} unit="g" color="rgb(239 68 68)" />
+            <div className="mt-4"><MacroBar label="Carbs" value={t.cb} target={tg.carbs} unit="g" color="rgb(245 158 11)" /></div>
+            <div className="mt-4"><MacroBar label="Fat" value={t.f} target={tg.fat} unit="g" color="rgb(34 197 94)" /></div>
+            {isDeepDive && (
+              <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+                Macro totals are calculated from meals logged today. Targets come from the existing nutrition target state.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === "foods" && (
+        <div className="px-5 space-y-4">
+          <PlannedFeatureCard
+            title="Food database"
+            status="Planned"
+            description="Saved foods and search live inside the current Log Meal sheet today. This subtab is reserved for a fuller food database."
+          />
+        </div>
+      )}
+
+      {tab === "hydration" && (
+        <div className="px-5 space-y-4">
+          <PlannedFeatureCard
+            title="Hydration tracker"
+            status="Not connected yet"
+            description="Hydration will appear here once real hydration state exists. No water totals are fabricated."
+          />
+        </div>
+      )}
+
+      {tab === "trends" && (
+        <div className="px-5 space-y-4">
+          <PlannedFeatureCard
+            title="Nutrition trends"
+            status="Coming later"
+            description="Calorie and macro trends will appear after trend analytics are connected to logged meals."
+          />
+        </div>
+      )}
+
+      {tab === "history" && (
+        <div className="px-5 space-y-4">
+          <SectionHeader title="Meal history" />
+          {state.mealEntries.length === 0 ? (
+            <EmptyState icon={<Utensils size={22} />} title="No meal history" description="Logged meals will appear here for review." />
+          ) : (
+            <div className="space-y-3">
+              {[...state.mealEntries].reverse().slice(0, 12).map((m) => (
+                <div key={m.id} className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="font-semibold text-white">{m.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{new Date(m.createdAt).toLocaleString()} - {Math.round(m.calories)} kcal</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <LogMealSheet open={logOpen} onClose={() => setLogOpen(false)} />
       <ConfirmDialog
@@ -194,6 +298,21 @@ export function NutritionView() {
         confirmLabel="Delete"
         destructive
       />
+    </div>
+  );
+}
+
+function CardLikeLogMeal({ onLog }: { onLog: () => void }) {
+  return (
+    <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-5">
+      <p className="text-xs font-bold uppercase tracking-widest text-white/45">Log Meal</p>
+      <h2 className="mt-1 text-xl font-bold text-white">Add today's nutrition</h2>
+      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+        Use the existing meal templates, foods library, custom entry, or AI photo estimate entry point.
+      </p>
+      <PrimaryButton onClick={onLog} className="mt-4 w-full rounded-2xl bg-red-500 hover:bg-red-600">
+        <Plus size={16} />Log Meal
+      </PrimaryButton>
     </div>
   );
 }

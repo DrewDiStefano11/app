@@ -23,6 +23,8 @@ import { ReadinessDetailSheet } from "@/components/app/popups/readiness-popup";
 import { FitcoreScoreSheet } from "@/components/app/popups/score-popup";
 import { StartWorkoutSheet } from "@/components/app/popups/start-workout-popup";
 import { VolumeDetailSheet } from "@/components/app/popups/volume-popup";
+import type { LayoutMode } from "@/components/app/layout-primitives";
+import { ViewModeToggle } from "@/components/app/shared/view-mode-toggle";
 import { Eyebrow, Tile } from "@/components/app/tile";
 import {
   bestMuscleToTrainToday,
@@ -61,9 +63,13 @@ type Popup =
 export function HomeView({
   onNavigate,
   onOpenSettings,
+  layoutMode,
+  onLayoutModeChange,
 }: {
   onNavigate: (section: SectionId) => void;
   onOpenSettings: () => void;
+  layoutMode: LayoutMode;
+  onLayoutModeChange: (mode: LayoutMode) => void;
 }) {
   const { view, state } = useStore();
   const name = (state.profile as { name?: string }).name ?? "ATHLETE";
@@ -120,6 +126,7 @@ export function HomeView({
   const completedToday = dailyTargets.filter(Boolean).length;
   const previousCompleted = useRef(completedToday);
   const [celebrating, setCelebrating] = useState(false);
+  const isDeepDive = layoutMode === "deepDive";
 
   useEffect(() => {
     if (completedToday <= previousCompleted.current) {
@@ -188,6 +195,8 @@ export function HomeView({
       </header>
 
       <div className="space-y-4 px-4">
+        <ViewModeToggle mode={layoutMode} onModeChange={onLayoutModeChange} />
+
         <section className="home-orbit-hero" aria-label="FitCore status">
           <span
             className={`home-score-connector home-score-connector--${strongestOrbit}`}
@@ -255,6 +264,34 @@ export function HomeView({
             />
           </div>
         </section>
+
+        {isDeepDive && (
+          <section className="premium-card rounded-[var(--radius-card)] border border-[var(--section)]/25 bg-[linear-gradient(135deg,var(--section-soft),transparent_70%)] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <Eyebrow color="var(--section)">Deep Dive Context</Eyebrow>
+                <p className="mt-2 text-sm leading-relaxed text-white/72">
+                  Expanded mode keeps the same tabs and surfaces more supporting detail across
+                  Training, Fuel, Recovery, Progress, and Hub.
+                </p>
+              </div>
+              <span className="rounded-full border border-[var(--section)]/30 bg-[var(--section-soft)] px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white/70">
+                App-wide
+              </span>
+            </div>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {scoreDrivers.map((driver) => (
+                <div key={driver.label} className="rounded-2xl border border-white/10 bg-black/15 p-3">
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-white/35">
+                    {driver.label}
+                  </p>
+                  <p className="mt-1 text-lg font-bold tabular-nums text-white">{driver.value}%</p>
+                  <p className="text-[10px] text-white/35">{driverTone(driver.value)}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className={`home-today-section${celebrating ? " is-celebrating" : ""}`}>
           <div className="home-section-heading">
