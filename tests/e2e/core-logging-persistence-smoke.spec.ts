@@ -6,9 +6,7 @@ import {
 } from "./helpers/fitcore-test-state";
 
 async function expectRecentActivity(page: Page, label: string, detail?: string) {
-  const recentActivity = page
-    .getByText("Recent activity", { exact: true })
-    .locator("xpath=ancestor::div[contains(@class, 'tile')][1]");
+  const recentActivity = page.getByText("Recent activity", { exact: true }).locator("xpath=ancestor::div[contains(@class, 'tile')][1]");
   await expect(recentActivity.getByText(label, { exact: true })).toBeVisible();
   if (detail) {
     await expect(recentActivity.getByText(detail, { exact: true })).toBeVisible();
@@ -49,13 +47,7 @@ async function seedReloadableOnboardedState(page: Page) {
           mealEntries: [],
           bodyweightEntries: [],
           goals: [
-            {
-              id: "g1",
-              type: "weekly_workouts",
-              label: "Train 5x per week",
-              target: 5,
-              current: 0,
-            },
+            { id: "g1", type: "weekly_workouts", label: "Train 5x per week", target: 5, current: 0 },
           ],
         }),
       );
@@ -83,9 +75,7 @@ test.describe("Core logging persistence smoke", () => {
     await sheet.getByText("F (g)", { exact: true }).locator("..").locator("input").fill("12");
     await sheet.getByRole("button", { name: "Save meal", exact: true }).click();
 
-    await expect
-      .poll(async () => (await persistedState(page)).mealEntries?.[0]?.name)
-      .toBe("Smoke protein bowl");
+    await expect.poll(async () => (await persistedState(page)).mealEntries?.[0]?.name).toBe("Smoke protein bowl");
 
     await page.reload();
     await expectDashboardReady(page);
@@ -100,9 +90,7 @@ test.describe("Core logging persistence smoke", () => {
     await sheet.getByRole("spinbutton").first().fill("181.6");
     await sheet.getByRole("button", { name: "Save weigh-in", exact: true }).click();
 
-    await expect
-      .poll(async () => (await persistedState(page)).bodyweightEntries?.[0]?.weightLb)
-      .toBe(181.6);
+    await expect.poll(async () => (await persistedState(page)).bodyweightEntries?.[0]?.weightLb).toBe(181.6);
 
     await page.reload();
     await expectDashboardReady(page);

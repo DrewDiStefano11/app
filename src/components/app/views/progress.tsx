@@ -23,47 +23,68 @@ import {
   Select,
   SectionHeader,
   Chip,
+  SubTabs,
 } from "@/components/app/ui";
+import { LayoutModeToggle, type LayoutMode } from "@/components/app/layout-primitives";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 
 type ProgressPanel = "bodyweight" | "photos" | "analytics" | null;
 
 export function ProgressView() {
   const [panel, setPanel] = useState<ProgressPanel>(null);
+  const [mode, setMode] = useState<LayoutMode>("daily");
+  const [deepDiveTab, setDeepDiveTab] = useState<"Analytics" | "Body" | "Goals" | "Insights">(
+    "Analytics",
+  );
   const { state } = useStore();
   const score = fitcoreScore(state);
 
   return (
     <div className="pb-24">
-      <PageHeader title="Progress" subtitle="Your trends and milestones" />
-      <DailyProgressView onOpenPanel={setPanel} score={score} />
+      <PageHeader title="Progress" />
+      <div className="px-5 pt-2 pb-4">
+        <LayoutModeToggle mode={mode} onChange={setMode} />
+      </div>
 
-      <BottomSheet
-        open={panel === "bodyweight"}
-        onClose={() => setPanel(null)}
-        title="Bodyweight log"
-        height="tall"
-      >
-        <WeightSection />
-      </BottomSheet>
+      {mode === "daily" ? (
+        <DailyProgressView onOpenPanel={setPanel} score={score} />
+      ) : (
+        <DeepDiveProgressView
+          activeTab={deepDiveTab}
+          onChangeTab={setDeepDiveTab}
+          onOpenPanel={setPanel}
+          score={score}
+        />
+      )}
 
-      <BottomSheet
-        open={panel === "photos"}
-        onClose={() => setPanel(null)}
-        title="Progress photos"
-        height="tall"
-      >
-        <PhotosSection />
-      </BottomSheet>
-
-      <BottomSheet
-        open={panel === "analytics"}
-        onClose={() => setPanel(null)}
-        title="Training analytics"
-        height="tall"
-      >
-        <AnalyticsSection />
-      </BottomSheet>
+      {mode === "daily" && (
+        <>
+          <BottomSheet
+            open={panel === "bodyweight"}
+            onClose={() => setPanel(null)}
+            title="Bodyweight log"
+            height="tall"
+          >
+            <WeightSection />
+          </BottomSheet>
+          <BottomSheet
+            open={panel === "photos"}
+            onClose={() => setPanel(null)}
+            title="Photo timeline"
+            height="tall"
+          >
+            <PhotosSection />
+          </BottomSheet>
+          <BottomSheet
+            open={panel === "analytics"}
+            onClose={() => setPanel(null)}
+            title="Training analytics"
+            height="tall"
+          >
+            <AnalyticsSection />
+          </BottomSheet>
+        </>
+      )}
     </div>
   );
 }
@@ -231,7 +252,7 @@ function DailyProgressView({
 
       <section>
         <SectionHeader
-          title="Progress photos"
+          title="Photo timeline"
           action={
             <button
               onClick={() => onOpenPanel("photos")}
@@ -750,5 +771,61 @@ function PhotoSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
         </PrimaryButton>
       </div>
     </BottomSheet>
+  );
+}
+
+function DeepDiveProgressView({
+  activeTab,
+  onChangeTab,
+  onOpenPanel,
+  score,
+}: {
+  activeTab: string;
+  onChangeTab: (tab: any) => void;
+  onOpenPanel: (panel: ProgressPanel) => void;
+  score: number;
+}) {
+  const TABS = [
+    { id: "Analytics", label: "Analytics" },
+    { id: "Body", label: "Body" },
+    { id: "Goals", label: "Goals" },
+    { id: "Insights", label: "Insights" },
+  ];
+
+  return (
+    <div>
+      <SubTabs tabs={TABS} active={activeTab} onChange={onChangeTab} />
+      {activeTab === "Analytics" && (
+        <div className="px-5 mt-4">
+          <SectionHeader title="Deep Dive: Analytics" />
+          <AnalyticsSection />
+        </div>
+      )}
+      {activeTab === "Body" && (
+        <div className="px-5 mt-4">
+          <SectionHeader title="Deep Dive: Body" />
+          <WeightSection />
+          <div className="mt-6">
+            <PhotosSection />
+          </div>
+        </div>
+      )}
+      {activeTab === "Goals" && (
+        <div className="px-5 mt-4">
+          <SectionHeader title="Deep Dive: Goals" />
+          <Card>
+            <p className="text-sm text-muted-foreground">Goals deep dive is coming later.</p>
+          </Card>
+        </div>
+      )}
+      {activeTab === "Insights" && (
+        <div className="px-5 mt-4">
+          <SectionHeader title="Deep Dive: Insights" />
+          <Card>
+            <p className="text-sm text-muted-foreground">Insights and Coach trends coming later.</p>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 }

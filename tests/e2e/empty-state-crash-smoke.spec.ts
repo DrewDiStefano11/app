@@ -1,5 +1,5 @@
-import { test, expect, Page } from "@playwright/test";
-import { seedFitCoreAppState, FITCORE_DATA_VERSION } from "./helpers/fitcore-test-state";
+import { test, expect, Page } from '@playwright/test';
+import { seedFitCoreAppState, FITCORE_DATA_VERSION } from './helpers/fitcore-test-state';
 
 // Fatal error texts to assert against
 const FATAL_TEXTS = [
@@ -13,13 +13,13 @@ const emptyState = {
   version: FITCORE_DATA_VERSION,
   onboardingComplete: true,
   profile: {
-    goal: "hypertrophy",
-    experience: "intermediate",
+    goal: 'hypertrophy',
+    experience: 'intermediate',
     daysPerWeek: 5,
-    split: "Push / Pull / Legs",
+    split: 'Push / Pull / Legs',
     bodyweightLb: 180,
     targetBodyweightLb: 185,
-    units: "lb",
+    units: 'lb',
   },
   workouts: [],
   activeWorkout: null,
@@ -38,12 +38,7 @@ const emptyState = {
   aiMessages: [],
   reminders: { workout: true, weighIn: true, lunch: false },
   demoMode: false,
-  jarvisSettings: {
-    allowLogging: true,
-    enableVoice: false,
-    confirmActions: true,
-    autoCorrection: true,
-  },
+  jarvisSettings: { allowLogging: true, enableVoice: false, confirmActions: true, autoCorrection: true },
   jarvisAudit: [],
   jarvisLearning: { memory: [], entities: [], feedback: [] },
   userGoalsProfile: { weekly: [], longTerm: [] },
@@ -51,10 +46,10 @@ const emptyState = {
   dismissedSuggestions: [],
 };
 
-test.describe("Empty State Crash Smoke Test", () => {
+test.describe('Empty State Crash Smoke Test', () => {
   test.beforeEach(async ({ page }) => {
     await seedFitCoreAppState(page, emptyState);
-    await page.goto("/");
+    await page.goto('/');
   });
 
   async function assertNoFatalErrors(page: Page) {
@@ -62,66 +57,56 @@ test.describe("Empty State Crash Smoke Test", () => {
       await expect(page.getByText(text, { exact: false })).toHaveCount(0);
     }
     // Also make sure the shell exists
-    await expect(page.locator(".phone-shell")).toBeVisible();
+    await expect(page.locator('.phone-shell')).toBeVisible();
   }
 
-  test("A. Minimal empty state: Home renders without fatal error", async ({ page }) => {
+  test('A. Minimal empty state: Home renders without fatal error', async ({ page }) => {
     await assertNoFatalErrors(page);
     // Home screen
-    await expect(
-      page
-        .getByText("FitCore Today", { exact: true })
-        .or(page.getByText("FitCore Score", { exact: true })),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('FitCore Today', { exact: true }).or(page.getByText('FitCore Score', { exact: true }))).toBeVisible({ timeout: 10000 });
   });
 
-  test("B & C. Navigate through main sections and verify no crash with empty data", async ({
-    page,
-  }) => {
+  test('B & C. Navigate through main sections and verify no crash with empty data', async ({ page }) => {
     await assertNoFatalErrors(page);
 
     // Navigate to Training
-    await page.getByRole("button", { name: "Train" }).click();
+    await page.getByRole('button', { name: 'Train' }).click();
     await assertNoFatalErrors(page);
-    await expect(page.getByRole("heading", { name: "Training" })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Training' })).toBeVisible();
 
     // Navigate to Nutrition
-    await page.getByRole("button", { name: "Fuel" }).click();
+    await page.getByRole('button', { name: 'Fuel' }).click();
     await assertNoFatalErrors(page);
-    await expect(page.getByRole("heading", { name: "Nutrition" })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Nutrition' })).toBeVisible();
 
     // Navigate to Recovery
-    await page.getByRole("button", { name: "Recover" }).click();
+    await page.getByRole('button', { name: 'Recover' }).click();
     await assertNoFatalErrors(page);
-    await expect(page.getByRole("heading", { name: "Recovery" })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Recovery' })).toBeVisible();
 
     // Navigate to Progress
-    await page.getByRole("button", { name: "Stats" }).click();
+    await page.getByRole('button', { name: 'Stats' }).click();
     await assertNoFatalErrors(page);
-    await expect(page.getByRole("heading", { name: "Progress", exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Progress' })).toBeVisible();
 
     // Navigate to Settings/Hub
     // First navigate back to Home
-    await page.getByRole("button", { name: "Home" }).click();
+    await page.getByRole('button', { name: 'Home' }).click();
     // Then click settings
-    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await assertNoFatalErrors(page);
-    await expect(page.getByRole("heading", { name: "Hub" })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Hub' })).toBeVisible();
   });
 
-  test("D. Reload on empty state view still renders safely", async ({ page }) => {
+  test('D. Reload on empty state view still renders safely', async ({ page }) => {
     // Navigate to Training, which is heavily data-dependent
-    await page.getByRole("button", { name: "Train" }).click();
+    await page.getByRole('button', { name: 'Train' }).click();
 
     await page.reload();
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState('networkidle');
 
     await assertNoFatalErrors(page);
     // Since section is stored in React state, reloading resets to Home
-    await expect(
-      page
-        .getByText("FitCore Today", { exact: true })
-        .or(page.getByText("FitCore Score", { exact: true })),
-    ).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('FitCore Today', { exact: true }).or(page.getByText('FitCore Score', { exact: true }))).toBeVisible({ timeout: 10000 });
   });
 });
