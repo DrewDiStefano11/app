@@ -53,11 +53,27 @@ The following workflows should explicitly define `permissions: { contents: read 
 
 ## Expected Merge-Blocking Checks
 
+Status of checks (build, typecheck, Playwright, Dependency Review, CodeQL) should be evaluated based on actual workflow behavior.
+
+### Currently Merge-Blocking Checks
+
 The following checks are expected to be mandatory before a PR can be merged:
 
-- CI build/lint/formatting passes (`ci.yml`)
+- CI build passes (`ci.yml`)
 - Playwright tests pass (`playwright.yml`)
 - Dependency review passes without vulnerable packages (`dependency-review.yml`)
+
+### Currently Non-Blocking Informational Checks
+
+- Linting (`ci.yml`)
+- Formatting / Prettier (`ci.yml`)
+
+_Note: Lint and formatting steps are currently set to `continue-on-error: true` in `ci.yml`. They must not be treated as mandatory blockers while this configuration is in place._
+
+### Recommended Future Merge Gates
+
+- **Workflow Hardening:** Recommend removing `continue-on-error: true` from lint and formatting steps in `ci.yml` once baseline issues are resolved, making them mandatory merge-blocking checks.
+- CodeQL analysis should be verified to pass as a merge gate once properly restored or configured.
 
 ## High-Risk Workflow Files
 
