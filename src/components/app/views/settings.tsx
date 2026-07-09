@@ -48,16 +48,24 @@ function StatusChip({ children, tone = "default" }: { children: ReactNode; tone?
 }
 
 function HubCard({ id, title, description, status, icon, expanded, onToggle, children }: HubCardProps) {
+  const isActive = status === "Active";
+  const isDestructive = status === "Destructive";
+  const cardTone = isActive
+    ? "border-[var(--section)]/35 bg-[linear-gradient(180deg,var(--section-soft),transparent_54%)]"
+    : isDestructive
+      ? "border-destructive/35 bg-[linear-gradient(180deg,rgba(239,68,68,0.08),transparent_54%)]"
+      : "bg-[linear-gradient(180deg,rgba(255,255,255,0.035),transparent_58%)]";
+
   return (
-    <Card className="overflow-hidden p-0">
+    <Card className={`overflow-hidden p-0 ${cardTone}`}>
       <button
         type="button"
         onClick={() => onToggle(id)}
         aria-expanded={expanded}
-        className="flex min-h-[76px] w-full items-start gap-3 px-4 py-4 text-left sm:px-5"
+        className="flex min-h-[82px] w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-white/[0.025] sm:px-5"
       >
         {icon && (
-          <span className="mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-[var(--surface-2)] text-muted-foreground">
+          <span className={`mt-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-2xl ${isActive ? "bg-[var(--section-soft)] text-foreground" : isDestructive ? "bg-destructive/10 text-destructive" : "bg-[var(--surface-2)] text-muted-foreground"}`}>
             {icon}
           </span>
         )}
@@ -74,7 +82,7 @@ function HubCard({ id, title, description, status, icon, expanded, onToggle, chi
         />
       </button>
       {expanded && (
-        <div className="border-t border-border px-4 py-4 sm:px-5">
+        <div className="border-t border-border px-4 py-5 sm:px-5">
           {children}
         </div>
       )}
@@ -158,7 +166,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
           </div>
         </section>
 
-        <div className="mt-5 space-y-3">
+        <div className="mt-6 space-y-4">
           <HubCard
             id="profile"
             title="Profile & Goals"
@@ -262,7 +270,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
             id="health"
             title="Health Profile"
             description="Planned place for health context that may guide training later."
-            status="Coming later"
+            status="Presentational only"
             icon={<User size={18} />}
             expanded={expanded.health}
             onToggle={toggleSection}
@@ -280,7 +288,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
             id="privacy"
             title="Privacy & Data Control"
             description="Local-data posture and planned privacy attach points."
-            status="Local"
+            status="Presentational only"
             icon={<Database size={18} />}
             expanded={expanded.privacy}
             onToggle={toggleSection}
@@ -326,7 +334,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
             id="integrations"
             title="Integrations & Devices"
             description="Planned home for future connected health and device sources."
-            status="Not connected"
+            status="Presentational only"
             icon={<Database size={18} />}
             expanded={expanded.integrations}
             onToggle={toggleSection}
@@ -343,7 +351,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
             id="safety"
             title="Safety / Medical"
             description="Presentational placeholder for future safety profile ideas."
-            status="Coming later"
+            status="Presentational only"
             icon={<Info size={18} />}
             expanded={expanded.safety}
             onToggle={toggleSection}
@@ -360,7 +368,7 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
             id="coach"
             title="Coach / Pro / Business"
             description="Future surface for coaching, clinics, teams, or premium workflows."
-            status="Planned"
+            status="Presentational only"
             icon={<BrainCircuit size={18} />}
             expanded={expanded.coach}
             onToggle={toggleSection}
@@ -386,6 +394,13 @@ export function SettingsView({ onBack }: { onBack: () => void }) {
               <p className="text-xs leading-relaxed text-muted-foreground">AI coach: Lovable AI (Gemini). <span className="font-medium text-foreground">Data stays on this device.</span> No accounts, no tracking.</p>
             </div>
           </HubCard>
+
+          <div className="rounded-[var(--radius-card)] border border-border bg-[var(--surface-2)] p-4 text-center">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">End of Hub</p>
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Current controls are active above. Planned cards are visual placeholders until their features are actually connected.
+            </p>
+          </div>
         </div>
       </div>
 
