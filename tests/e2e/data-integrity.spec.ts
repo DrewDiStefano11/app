@@ -131,7 +131,7 @@ test.describe("FitCore data integrity", () => {
     await page.getByRole("button", { name: "Save check-in" }).click();
 
     await page.getByRole("button", { name: "Stats" }).click();
-    await page.getByText("Body", { exact: true }).click();
+    await page.getByRole('heading', { name: 'Bodyweight' }).click();
     await page.getByPlaceholder("Weight in lb").fill("179.4");
     await page.getByRole("button", { name: "Save", exact: true }).click();
 

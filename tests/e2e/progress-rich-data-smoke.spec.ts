@@ -106,7 +106,7 @@ test.describe('Progress Rich Data Smoke Test', () => {
 
     // Scenario A: Progress/Stats renders with rich data
     await page.getByRole('button', { name: 'Stats', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Progress' }).or(page.getByText('FitCore Score', { exact: true }))).toBeVisible();
+    await expect(page.getByText('FitCore Score', { exact: true })).toBeVisible();
     await checkFatalTexts(page);
     expect(pageErrors.length).toBe(0);
 
@@ -129,7 +129,7 @@ test.describe('Progress Rich Data Smoke Test', () => {
 
     // Scenario D: Reload stability
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Progress' }).or(page.getByText('FitCore Score', { exact: true }))).toBeVisible();
+    await expect(page.getByText('FitCore Score', { exact: true })).toBeVisible();
     await checkFatalTexts(page);
 
     // We don't care exactly how many there are as long as some of the rich data survived
@@ -178,7 +178,7 @@ test.describe('Progress Rich Data Smoke Test', () => {
       await expandNav.click();
     }
     await page.getByRole('button', { name: 'Stats', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Progress' }).or(page.getByText('FitCore Score', { exact: true }))).toBeVisible();
+    await expect(page.getByText('FitCore Score', { exact: true })).toBeVisible();
     await checkFatalTexts(page);
 
     expect(pageErrors.length).toBe(0);
