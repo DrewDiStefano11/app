@@ -1,8 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 
-const MAX_DECIMALS = 20;
-const FALLBACK = "—";
-
 export function CountUp({
   value,
   duration = 900,
@@ -17,83 +14,38 @@ export function CountUp({
   className?: string;
 }) {
   const [display, setDisplay] = useState(0);
-  const displayRef = useRef(0);
-
-  // Normalize value
-  const isValueFinite = typeof value === "number" && Number.isFinite(value);
-  const safeValue = isValueFinite ? value : null;
-
-  // Normalize duration
-  const isDurationFinite = typeof duration === "number" && Number.isFinite(duration);
-  const safeDuration = isDurationFinite && duration > 0 ? duration : 0;
-
-  // Normalize delay
-  const isDelayFinite = typeof delay === "number" && Number.isFinite(delay);
-  const safeDelay = isDelayFinite && delay > 0 ? delay : 0;
-
-  // Normalize decimals
-  let safeDecimals = 0;
-  if (typeof decimals === "number" && Number.isFinite(decimals) && decimals > 0) {
-    safeDecimals = Math.min(MAX_DECIMALS, Math.floor(decimals));
-  }
+  const startRef = useRef<number | null>(null);
+  const fromRef = useRef(0);
 
   useEffect(() => {
-    if (safeValue === null) return;
-
-    let isReducedMotion = false;
-    if (typeof window !== "undefined" && window.matchMedia) {
-      isReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    }
-
-    const startValue = displayRef.current;
-
-    if (isReducedMotion || safeDuration === 0 || startValue === safeValue) {
-      setDisplay(safeValue);
-      displayRef.current = safeValue;
+    fromRef.current = display;
+    startRef.current = null;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setDisplay(value);
       return;
     }
-
     let raf = 0;
     let timer = 0;
-    let startTime: number | null = null;
-
     const step = (t: number) => {
-      if (startTime === null) startTime = t;
-      const p = Math.min(1, Math.max(0, (t - startTime) / safeDuration));
-
-      if (p >= 1) {
-        setDisplay(safeValue);
-        displayRef.current = safeValue;
-      } else {
-        const eased = 1 - Math.pow(1 - p, 3);
-        const nextValue = startValue + (safeValue - startValue) * eased;
-        setDisplay(nextValue);
-        displayRef.current = nextValue;
-        raf = requestAnimationFrame(step);
-      }
+      if (startRef.current == null) startRef.current = t;
+      const p = Math.min(1, (t - startRef.current) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      setDisplay(fromRef.current + (value - fromRef.current) * eased);
+      if (p < 1) raf = requestAnimationFrame(step);
     };
-
-    if (safeDelay > 0) {
-      timer = window.setTimeout(() => {
-        raf = requestAnimationFrame(step);
-      }, safeDelay);
-    } else {
+    timer = window.setTimeout(() => {
       raf = requestAnimationFrame(step);
-    }
-
+    }, delay);
     return () => {
-      if (timer) window.clearTimeout(timer);
-      if (raf) cancelAnimationFrame(raf);
+      window.clearTimeout(timer);
+      cancelAnimationFrame(raf);
     };
-  }, [safeValue, safeDuration, safeDelay]);
-
-  if (safeValue === null) {
-    return <span className={`tabular-nums${className ? " " + className : ""}`}>{FALLBACK}</span>;
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, duration, delay]);
 
   return (
-    <span className={`tabular-nums${className ? " " + className : ""}`}>
-      {safeDecimals === 0 ? Math.round(display).toLocaleString() : display.toFixed(safeDecimals)}
+    <span className={`tabular-nums ${className ?? ""}`}>
+      {decimals === 0 ? Math.round(display).toLocaleString() : display.toFixed(decimals)}
     </span>
   );
 }

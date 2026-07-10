@@ -22,19 +22,22 @@ import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { Tile, Eyebrow } from "@/components/app/tile";
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
-type NutritionSubtab = "macros" | "quality" | "timing" | "insights";
+type NutritionSubtab = "overview" | "log" | "macros" | "foods" | "hydration" | "trends" | "history";
 const NUTRITION_TABS: { id: NutritionSubtab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "log", label: "Log Meal" },
   { id: "macros", label: "Macros" },
-  { id: "quality", label: "Quality" },
-  { id: "timing", label: "Timing" },
-  { id: "insights", label: "Insights" },
+  { id: "foods", label: "Foods" },
+  { id: "hydration", label: "Hydration" },
+  { id: "trends", label: "Trends" },
+  { id: "history", label: "History" },
 ];
 
 export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
   const { state, set } = useStore();
   const [logOpen, setLogOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const [tab, setTab] = useState<NutritionSubtab>("macros");
+  const [tab, setTab] = useState<NutritionSubtab>("overview");
   const isDeepDive = layoutMode === "deepDive";
 
   const today = state.mealEntries.filter((m) => isToday(m.createdAt));
@@ -45,192 +48,43 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
   const tg = state.nutritionTargets;
   const remaining = Math.max(0, tg.calories - t.c);
 
-  const supplements = state.supplementLogs
-    ? state.supplementLogs.filter((s) => isToday(s.createdAt))
-    : [];
+  const supplements = state.supplementLogs ? state.supplementLogs.filter((s) => isToday(s.createdAt)) : [];
 
   let statusMsg = "No nutrition logged yet";
   if (today.length > 0) {
     const proteinGap = tg.protein - t.p;
     const calorieGap = tg.calories - t.c;
     if (proteinGap > 30) statusMsg = `Protein still needed (${Math.round(proteinGap)}g short)`;
-    else if (calorieGap > 500)
-      statusMsg = `Calories still needed (${Math.round(calorieGap)} kcal under)`;
+    else if (calorieGap > 500) statusMsg = `Calories still needed (${Math.round(calorieGap)} kcal under)`;
     else statusMsg = "On track";
   }
 
   return (
     <div className="pb-24">
-      <PageHeader
-        title="Nutrition"
-        subtitle={`${Math.round(remaining)} kcal remaining today - ${isDeepDive ? "Deep Dive" : "Daily View"}`}
-      />
-      {isDeepDive && <SubTabs tabs={NUTRITION_TABS} active={tab} onChange={setTab} />}
+      <PageHeader title="Nutrition" subtitle={`${Math.round(remaining)} kcal remaining today - ${isDeepDive ? "Deep Dive" : "Daily View"}`} />
+      <SubTabs tabs={NUTRITION_TABS} active={tab} onChange={setTab} />
 
-      {!isDeepDive && (
-        <div className="px-5 space-y-4 mt-2">
-          <Tile
-            hero
-            accent
-            delay={0}
-            className="glow-section p-6 bg-green-500/10 border-green-500/20"
-            style={{ "--section": "rgb(34 197 94)" } as React.CSSProperties}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <Eyebrow color="rgb(34 197 94)">Daily Macros</Eyebrow>
-              <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 bg-white/5 px-2 py-1 rounded-md">
-                {statusMsg}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-6">
-              <div className="flex flex-col items-center gap-2">
-                <Ring value={t.c} max={tg.calories} size={96} label="kcal" />
-                <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">
-                  {Math.round((t.c / Math.max(1, tg.calories)) * 100)}% Goal
-                </p>
-              </div>
-              <div className="flex-1 space-y-3">
-                <MacroBar
-                  label="Protein"
-                  value={t.p}
-                  target={tg.protein}
-                  unit="g"
-                  color="rgb(34 197 94)"
-                />
-                <MacroBar
-                  label="Carbs"
-                  value={t.cb}
-                  target={tg.carbs}
-                  unit="g"
-                  color="rgb(245 158 11)"
-                />
-                <MacroBar label="Fat" value={t.f} target={tg.fat} unit="g" color="rgb(34 197 94)" />
-              </div>
-            </div>
-          </Tile>
-
-          <div className="grid grid-cols-1 gap-3">
-            <PrimaryButton
-              onClick={() => setLogOpen(true)}
-              className="w-full rounded-2xl h-14 bg-green-500 hover:bg-green-600 text-white border-transparent"
-            >
-              <Plus size={18} />
-              <span>Log Meal</span>
-            </PrimaryButton>
+      {tab === "overview" && <div className="px-5 space-y-4 mt-2">
+        <Tile hero accent delay={0} className="glow-section p-6 bg-red-500/10 border-red-500/20" style={{ '--section': 'rgb(239 68 68)' } as React.CSSProperties}>
+          <div className="flex justify-between items-center mb-4">
+            <Eyebrow color="rgb(239 68 68)">Daily Macros</Eyebrow>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 bg-white/5 px-2 py-1 rounded-md">{statusMsg}</span>
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-center">
-              <div className="flex items-center gap-2 mb-2">
-                <Droplets size={16} className="text-blue-400" />
-                <p className="text-xs font-bold uppercase tracking-widest text-white/60">
-                  Hydration
-                </p>
-              </div>
-              <p className="font-display text-xl text-white">
-                0 <span className="text-sm text-white/40">fl oz</span>
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex flex-col items-center gap-2">
+              <Ring value={t.c} max={tg.calories} size={96} label="kcal" />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+                {Math.round((t.c / Math.max(1, tg.calories)) * 100)}% Goal
               </p>
             </div>
-
-            <div className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-center">
-              <div className="flex items-center gap-2 mb-2">
-                <Pill size={16} className="text-purple-400" />
-                <p className="text-xs font-bold uppercase tracking-widest text-white/60">
-                  Supplements
-                </p>
-              </div>
-              {supplements.length > 0 ? (
-                <p className="font-display text-xl text-white">
-                  {supplements.length} <span className="text-sm text-white/40">taken</span>
-                </p>
-              ) : (
-                <p className="font-display text-xl text-white/40 italic">None logged</p>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <SectionHeader title="Meals Today" />
-            {today.length === 0 ? (
-              <EmptyState
-                icon={<Utensils size={22} />}
-                title="No meals logged yet"
-                description="Log your first meal or scan with AI to start tracking."
-                action={
-                  <PrimaryButton
-                    onClick={() => setLogOpen(true)}
-                    className="mt-2 bg-green-500 hover:bg-green-600 border-transparent"
-                  >
-                    <Plus size={16} />
-                    Log Meal
-                  </PrimaryButton>
-                }
+            <div className="flex-1 space-y-3">
+              <MacroBar
+                label="Protein"
+                value={t.p}
+                target={tg.protein}
+                unit="g"
+                color="rgb(239 68 68)"
               />
-            ) : (
-              <div className="space-y-3">
-                {today.map((m) => (
-                  <div
-                    key={m.id}
-                    className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between group transition-all active:scale-[0.98]"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-white truncate">{m.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-                          {m.type}
-                        </span>
-                        <span className="w-1 h-1 rounded-full bg-white/10" />
-                        <span className="text-[10px] font-bold text-white/40">
-                          {new Date(m.createdAt).toLocaleTimeString([], {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        {m.source === "camera" && (
-                          <>
-                            <span className="w-1 h-1 rounded-full bg-white/10" />
-                            <span className="text-[10px] font-bold text-green-400/80">
-                              AI Estimated
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right px-3">
-                      <p className="font-display text-xl leading-none tabular-nums text-white">
-                        {Math.round(m.calories)}
-                      </p>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mt-1">
-                        P{Math.round(m.protein)} C{Math.round(m.carbs)} F{Math.round(m.fat)}
-                      </p>
-                    </div>
-                    <button
-                      aria-label="Delete meal"
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white/20 hover:text-green-400 hover:bg-green-500/10 transition-colors"
-                      onClick={() => setConfirmDel(m.id)}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {isDeepDive && tab === "macros" && (
-        <div className="px-5 space-y-4 mt-2">
-          <SectionHeader title="Macro detail" />
-          <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
-            <MacroBar
-              label="Protein"
-              value={t.p}
-              target={tg.protein}
-              unit="g"
-              color="rgb(34 197 94)"
-            />
-            <div className="mt-4">
               <MacroBar
                 label="Carbs"
                 value={t.cb}
@@ -238,104 +92,196 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                 unit="g"
                 color="rgb(245 158 11)"
               />
-            </div>
-            <div className="mt-4">
               <MacroBar label="Fat" value={t.f} target={tg.fat} unit="g" color="rgb(34 197 94)" />
             </div>
-            <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-              Macro totals are calculated from meals logged today. Targets come from the existing
-              nutrition target state.
-            </p>
+          </div>
+        </Tile>
+
+        <div className="grid grid-cols-2 gap-3">
+          <PrimaryButton onClick={() => setLogOpen(true)} className="rounded-2xl h-14 bg-red-500 hover:bg-red-600 text-white border-transparent">
+            <Plus size={18} />
+            <span>Log Meal</span>
+          </PrimaryButton>
+          <GhostButton
+            onClick={() => window.dispatchEvent(new CustomEvent("fitcore:open-ai"))}
+            className="rounded-2xl h-14 border-white/10 bg-white/5 hover:bg-white/10"
+          >
+            <Camera size={18} className="text-red-400" />
+            <span>Photo Meal</span>
+          </GhostButton>
+        </div>
+
+        {isDeepDive && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/45">Meals logged</p>
+              <p className="mt-1 font-display text-2xl text-white">{today.length}</p>
+            </div>
+            <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/45">Remaining</p>
+              <p className="mt-1 font-display text-2xl text-white">{Math.round(remaining)}</p>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-2">
+              <Droplets size={16} className="text-blue-400" />
+              <p className="text-xs font-bold uppercase tracking-widest text-white/60">Hydration</p>
+            </div>
+            <p className="font-display text-xl text-white">0 <span className="text-sm text-white/40">fl oz</span></p>
           </div>
 
+          <div className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-center">
+            <div className="flex items-center gap-2 mb-2">
+              <Pill size={16} className="text-purple-400" />
+              <p className="text-xs font-bold uppercase tracking-widest text-white/60">Supplements</p>
+            </div>
+            {supplements.length > 0 ? (
+               <p className="font-display text-xl text-white">{supplements.length} <span className="text-sm text-white/40">taken</span></p>
+            ) : (
+               <p className="font-display text-xl text-white/40 italic">None logged</p>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <SectionHeader title="Meals Today" />
+          {today.length === 0 ? (
+            <EmptyState
+              icon={<Utensils size={22} />}
+              title="No meals logged yet"
+              description="Log your first meal or scan with AI to start tracking."
+              action={
+                <PrimaryButton onClick={() => setLogOpen(true)} className="mt-2 bg-red-500 hover:bg-red-600 border-transparent">
+                  <Plus size={16} />
+                  Log Meal
+                </PrimaryButton>
+              }
+            />
+          ) : (
+            <div className="space-y-3">
+              {today.map((m) => (
+                <div
+                  key={m.id}
+                  className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between group transition-all active:scale-[0.98]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-white truncate">{m.name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
+                        {m.type}
+                      </span>
+                      <span className="w-1 h-1 rounded-full bg-white/10" />
+                      <span className="text-[10px] font-bold text-white/40">
+                        {new Date(m.createdAt).toLocaleTimeString([], {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      {m.source === "camera" && (
+                         <>
+                           <span className="w-1 h-1 rounded-full bg-white/10" />
+                           <span className="text-[10px] font-bold text-red-400/80">AI Estimated</span>
+                         </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right px-3">
+                    <p className="font-display text-xl leading-none tabular-nums text-white">
+                      {Math.round(m.calories)}
+                    </p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mt-1">
+                      P{Math.round(m.protein)} C{Math.round(m.carbs)} F{Math.round(m.fat)}
+                    </p>
+                  </div>
+                  <button
+                    aria-label="Delete meal"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white/20 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                    onClick={() => setConfirmDel(m.id)}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>}
+
+      {tab === "log" && (
+        <div className="px-5 space-y-4">
+          <CardLikeLogMeal onLog={() => setLogOpen(true)} />
           <PlannedFeatureCard
-            title="Macro Trends"
-            status="Planned"
-            description="Toggleable graphs showing Calories, Protein, Carbs, and Fat over time will be integrated here once macro-over-time trend data is supported."
+            title="Barcode and recipe import"
+            status="Coming later"
+            description="This subtab keeps the meal logging home ready for future scan, recipe, and import flows without pretending they are active."
           />
         </div>
       )}
 
-      {isDeepDive && tab === "quality" && (
-        <div className="px-5 space-y-4 mt-2">
-          <SectionHeader title="Nutrition Quality" />
-          <PlannedFeatureCard
-            title="Food Quality Score"
-            status="Not connected yet"
-            description="Overall food quality, meal balance, and micronutrient analysis will appear here."
-          />
-          <PlannedFeatureCard
-            title="Hydration tracker"
-            status="Not connected yet"
-            description="Hydration will appear here once real hydration state exists. No water totals are fabricated."
-          />
-          <PlannedFeatureCard
-            title="Food database & Library"
-            status="Planned"
-            description="Food library, saved foods, and common foods."
-          />
-          <PlannedFeatureCard
-            title="Fiber & Micronutrients"
-            status="Coming later"
-            description="Deep analysis of fiber and micronutrients."
-          />
-          <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col justify-center">
-            <div className="flex items-center gap-2 mb-2">
-              <Pill size={16} className="text-purple-400" />
-              <p className="text-xs font-bold uppercase tracking-widest text-white/60">
-                Supplements
+      {tab === "macros" && (
+        <div className="px-5 space-y-4">
+          <SectionHeader title="Macro detail" />
+          <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
+            <MacroBar label="Protein" value={t.p} target={tg.protein} unit="g" color="rgb(239 68 68)" />
+            <div className="mt-4"><MacroBar label="Carbs" value={t.cb} target={tg.carbs} unit="g" color="rgb(245 158 11)" /></div>
+            <div className="mt-4"><MacroBar label="Fat" value={t.f} target={tg.fat} unit="g" color="rgb(34 197 94)" /></div>
+            {isDeepDive && (
+              <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+                Macro totals are calculated from meals logged today. Targets come from the existing nutrition target state.
               </p>
-            </div>
-            {supplements.length > 0 ? (
-              <p className="font-display text-xl text-white">
-                {supplements.length} <span className="text-sm text-white/40">taken</span>
-              </p>
-            ) : (
-              <p className="font-display text-xl text-white/40 italic">None logged</p>
             )}
           </div>
         </div>
       )}
 
-      {isDeepDive && tab === "timing" && (
-        <div className="px-5 space-y-4 mt-2">
-          <SectionHeader title="Timing & Windows" />
+      {tab === "foods" && (
+        <div className="px-5 space-y-4">
           <PlannedFeatureCard
-            title="Meal Timing"
-            status="Coming later"
-            description="Meal timing timeline, fasting/eating window analysis, and late-night eating patterns will appear here once supported."
-          />
-          <PlannedFeatureCard
-            title="Workout Nutrition"
+            title="Food database"
             status="Planned"
-            description="Pre-workout and post-workout fuel analysis and its effect on training."
+            description="Saved foods and search live inside the current Log Meal sheet today. This subtab is reserved for a fuller food database."
           />
         </div>
       )}
 
-      {isDeepDive && tab === "insights" && (
-        <div className="px-5 space-y-4 mt-2">
-          <SectionHeader title="Insights & Relationships" />
+      {tab === "hydration" && (
+        <div className="px-5 space-y-4">
           <PlannedFeatureCard
-            title="Nutrition vs Weight"
+            title="Hydration tracker"
+            status="Not connected yet"
+            description="Hydration will appear here once real hydration state exists. No water totals are fabricated."
+          />
+        </div>
+      )}
+
+      {tab === "trends" && (
+        <div className="px-5 space-y-4">
+          <PlannedFeatureCard
+            title="Nutrition trends"
             status="Coming later"
-            description="Correlation between macro adherence and bodyweight trends."
+            description="Calorie and macro trends will appear after trend analytics are connected to logged meals."
           />
-          <PlannedFeatureCard
-            title="Nutrition vs Performance"
-            status="Coming later"
-            description="Correlation between nutrition (e.g. carbs) and training performance."
-          />
-          <PlannedFeatureCard
-            title="Nutrition vs Recovery"
-            status="Coming later"
-            description="How food quality, hydration, and meal timing affect readiness and recovery."
-          />
-          <PlannedFeatureCard
-            title="Education & Suggestions"
-            status="Planned"
-            description="Explanations on why macros, micronutrients, and timing matter for your specific goals."
-          />
+        </div>
+      )}
+
+      {tab === "history" && (
+        <div className="px-5 space-y-4">
+          <SectionHeader title="Meal history" />
+          {state.mealEntries.length === 0 ? (
+            <EmptyState icon={<Utensils size={22} />} title="No meal history" description="Logged meals will appear here for review." />
+          ) : (
+            <div className="space-y-3">
+              {[...state.mealEntries].reverse().slice(0, 12).map((m) => (
+                <div key={m.id} className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <p className="font-semibold text-white">{m.name}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{new Date(m.createdAt).toLocaleString()} - {Math.round(m.calories)} kcal</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -362,15 +308,10 @@ function CardLikeLogMeal({ onLog }: { onLog: () => void }) {
       <p className="text-xs font-bold uppercase tracking-widest text-white/45">Log Meal</p>
       <h2 className="mt-1 text-xl font-bold text-white">Add today's nutrition</h2>
       <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-        Use the existing meal templates, foods library, custom entry, or AI photo estimate entry
-        point.
+        Use the existing meal templates, foods library, custom entry, or AI photo estimate entry point.
       </p>
-      <PrimaryButton
-        onClick={onLog}
-        className="mt-4 w-full rounded-2xl bg-green-500 hover:bg-green-600"
-      >
-        <Plus size={16} />
-        Log Meal
+      <PrimaryButton onClick={onLog} className="mt-4 w-full rounded-2xl bg-red-500 hover:bg-red-600">
+        <Plus size={16} />Log Meal
       </PrimaryButton>
     </div>
   );
@@ -409,6 +350,7 @@ function MacroBar({
   );
 }
 
+
 function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { state, set } = useStore();
   const [mode, setMode] = useState<"templates" | "foods" | "custom">("templates");
@@ -424,50 +366,15 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
     set((s) => ({ ...s, mealEntries: [...s.mealEntries, m] }));
     onClose();
   };
-
   const filteredFoods = FOODS.filter(
     (f) => !search || f.name.toLowerCase().includes(search.toLowerCase()),
   );
-
   const recentNames = Array.from(
     new Set([...state.mealEntries].reverse().map((m) => m.name)),
   ).slice(0, 6);
 
   return (
     <BottomSheet open={open} onClose={onClose} title="Log Meal" height="tall">
-      <div className="grid grid-cols-2 gap-3 mb-6 px-1 mt-2">
-        <div
-          className="p-3 rounded-2xl bg-gradient-to-br from-[var(--section-soft)] to-transparent border border-[var(--section-soft)] flex items-center justify-between group press transition-all cursor-pointer"
-          onClick={() => window.dispatchEvent(new CustomEvent("fitcore:open-ai"))}
-        >
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-green-500/20 flex items-center justify-center text-green-400">
-              <Camera size={16} />
-            </div>
-            <div>
-              <p className="font-bold text-white text-xs">Photo Log</p>
-              <p className="text-[9px] text-white/50 font-bold uppercase tracking-wider">
-                AI Estimate
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between opacity-50 pointer-events-none">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-white/40">
-              <Sparkles size={16} />
-            </div>
-            <div>
-              <p className="font-bold text-white text-xs">Barcode</p>
-              <p className="text-[9px] text-white/40 font-bold uppercase tracking-wider">
-                Coming soon
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <div className="flex gap-2 mb-5 overflow-x-auto no-scrollbar">
         <Chip active={mode === "templates"} onClick={() => setMode("templates")}>
           Templates
@@ -482,6 +389,24 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
 
       {mode === "templates" && (
         <div className="mb-4">
+          <div
+            className="p-4 rounded-2xl bg-gradient-to-br from-[var(--section-soft)] to-transparent border border-[var(--section-soft)] mb-4 flex items-center justify-between group press transition-all"
+            onClick={() => window.dispatchEvent(new CustomEvent("fitcore:open-ai"))}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[var(--section)] flex items-center justify-center text-white shadow-lg">
+                <Sparkles size={20} />
+              </div>
+              <div>
+                <p className="font-bold text-white text-sm">Scan with FitCore AI</p>
+                <p className="text-[10px] text-white/50 font-bold uppercase tracking-wider">
+                  Instant photo estimation
+                </p>
+              </div>
+            </div>
+            <Camera size={18} className="text-white/40 group-hover:text-white transition-colors" />
+          </div>
+
           {recentNames.length > 0 && (
             <div className="mb-6">
               <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mb-3 ml-1">
@@ -660,7 +585,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
                   inputMode="numeric"
                   value={p}
                   onChange={(e) => setP(e.target.value)}
-                  className="bg-white/5 border-white/10 rounded-xl h-11 text-center font-bold text-green-400"
+                  className="bg-white/5 border-white/10 rounded-xl h-11 text-center font-bold text-red-400"
                 />
               </div>
               <div className="space-y-1.5">
