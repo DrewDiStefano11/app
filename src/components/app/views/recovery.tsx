@@ -2,20 +2,25 @@ import { useState, useMemo } from "react";
 import { Plus, Moon, Heart, Activity } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import type { FatigueLevel } from "@/lib/types";
+import type { LayoutMode } from "@/components/app/layout-primitives";
 import { muscleMap } from "@/lib/analytics";
 import { BodyHeatmap } from "@/components/app/body-heatmap";
-import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Input, Label, Ring, Textarea, SubTabs, SectionHeader, Chip } from "@/components/app/ui";
+import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Input, Label, Ring, Textarea, SubTabs, SectionHeader, Chip, PlannedFeatureCard } from "@/components/app/ui";
 import { BottomSheet } from "@/components/app/sheet";
 
 const MUSCLES = ["chest","back","shoulders","biceps","triceps","quads","hamstrings","glutes","calves","core"];
 const LEVELS: FatigueLevel[] = ["fresh","moderate","fatigued","very"];
 const LEVEL_COLOR: Record<FatigueLevel,string> = { fresh: "var(--section)", moderate: "oklch(0.7 0.18 90)", fatigued: "oklch(0.65 0.2 40)", very: "oklch(0.6 0.22 25)" };
 
-type Tab = "readiness" | "muscle" | "trends";
+type Tab = "overview" | "readiness" | "sleep" | "muscle" | "checkin" | "trends" | "safety";
 const TABS: { id: Tab; label: string }[] = [
+  { id: "overview", label: "Overview" },
   { id: "readiness", label: "Readiness" },
-  { id: "muscle", label: "Muscle Status" },
+  { id: "sleep", label: "Sleep" },
+  { id: "muscle", label: "Soreness / Body" },
+  { id: "checkin", label: "Check-In" },
   { id: "trends", label: "Trends" },
+  { id: "safety", label: "Safety" },
 ];
 
 function readiness(state: ReturnType<typeof useStore>["state"]) {
@@ -27,24 +32,29 @@ function readiness(state: ReturnType<typeof useStore>["state"]) {
   return { score: parts ? Math.round(total / parts) : 0, parts };
 }
 
-export function RecoveryView() {
-  const [tab, setTab] = useState<Tab>("readiness");
+export function RecoveryView({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
+  const [tab, setTab] = useState<Tab>("overview");
   const { state } = useStore();
   const { score, parts } = readiness(state);
+  const isDeepDive = layoutMode === "deepDive";
   return (
     <div className="pb-24">
-      <PageHeader title="Recovery" subtitle={parts ? `Readiness ${score}%` : "Add a check-in to start"} />
+      <PageHeader title="Recovery" subtitle={`${parts ? `Readiness ${score}%` : "Add a check-in to start"} - ${isDeepDive ? "Deep Dive" : "Daily View"}`} />
       <SubTabs tabs={TABS} active={tab} onChange={setTab} />
+      {tab === "overview" && <ReadinessTab layoutMode={layoutMode} />}
       {tab === "readiness" && <ReadinessTab />}
+      {tab === "sleep" && <SleepSubtab />}
       {tab === "muscle" && <MuscleTab />}
+      {tab === "checkin" && <CheckInSubtab />}
       {tab === "trends" && <TrendsTab />}
+      {tab === "safety" && <SafetySubtab />}
     </div>
   );
 }
 
 /* ===================== READINESS ===================== */
 
-function ReadinessTab() {
+function ReadinessTab({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
   const { state } = useStore();
   const { score, parts } = readiness(state);
   const [checkOpen, setCheckOpen] = useState(false);
@@ -54,6 +64,7 @@ function ReadinessTab() {
   const weekSleep = state.sleepEntries.filter(s => s.createdAt > Date.now() - 7*86400000);
   const avgSleep = weekSleep.length ? (weekSleep.reduce((a, s) => a + s.hours, 0) / weekSleep.length).toFixed(1) : "—";
   const sleepGoal = state.profile.sleepGoalH ?? 8;
+  const isDeepDive = layoutMode === "deepDive";
 
   const rec = !parts ? "Add a check-in or sleep entry to get a recommendation."
     : score >= 75 ? "Great recovery — train hard today."
@@ -83,6 +94,15 @@ function ReadinessTab() {
         <StatCard label="7d avg" value={`${avgSleep}h`} sub={`goal ${sleepGoal}h`} />
         <StatCard label="Steps" value={state.profile.stepGoal ?? "—"} sub="goal" />
       </div>
+
+      {isDeepDive && (
+        <Card className="mt-4">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Why this matters</p>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Readiness uses the latest sleep and check-in data already logged in FitCore. Wearable signals will appear only after real device integrations exist.
+          </p>
+        </Card>
+      )}
 
       {lastCheck && (
         <>
@@ -169,6 +189,62 @@ function MuscleTab() {
       </div>
 
       <FatigueSheet open={fatigueOpen} onClose={() => setFatigueOpen(false)} />
+    </div>
+  );
+}
+
+function SleepSubtab() {
+  const { state } = useStore();
+  const [sleepOpen, setSleepOpen] = useState(false);
+  const lastSleep = state.sleepEntries[state.sleepEntries.length - 1];
+  const weekSleep = state.sleepEntries.filter(s => s.createdAt > Date.now() - 7*86400000);
+  const avgSleep = weekSleep.length ? (weekSleep.reduce((a, s) => a + s.hours, 0) / weekSleep.length).toFixed(1) : "--";
+  return (
+    <div className="px-5 space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard label="Last sleep" value={lastSleep ? `${lastSleep.hours}h` : "--"} sub={lastSleep ? `q ${lastSleep.quality}/10` : "no entry"} accent />
+        <StatCard label="7d avg" value={`${avgSleep}h`} sub={`${weekSleep.length} entries`} />
+      </div>
+      <PrimaryButton className="w-full" onClick={() => setSleepOpen(true)}><Moon size={16} />Log sleep</PrimaryButton>
+      <PlannedFeatureCard
+        title="Sleep trend analytics"
+        status="Coming later"
+        description="Deeper sleep timing and quality trends will appear here once enough real sleep entries exist."
+      />
+      <SleepSheet open={sleepOpen} onClose={() => setSleepOpen(false)} />
+    </div>
+  );
+}
+
+function CheckInSubtab() {
+  const { state } = useStore();
+  const [checkOpen, setCheckOpen] = useState(false);
+  const lastCheck = state.recoveryCheckIns[state.recoveryCheckIns.length - 1];
+  return (
+    <div className="px-5 space-y-4">
+      <PrimaryButton className="w-full" onClick={() => setCheckOpen(true)}><Plus size={16} />Check In</PrimaryButton>
+      {lastCheck ? (
+        <Card>
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Latest check-in</p>
+          <p className="mt-2 text-sm text-muted-foreground">{new Date(lastCheck.createdAt).toLocaleString()}</p>
+          <p className="mt-2 text-sm">Energy {lastCheck.energy}/10 - Soreness {lastCheck.soreness}/10 - Stress {lastCheck.stress}/10 - Motivation {lastCheck.motivation}/10</p>
+        </Card>
+      ) : (
+        <EmptyState icon={<Heart size={22} />} title="No check-ins yet" description="Your daily check-in history will appear here." />
+      )}
+      <CheckInSheet open={checkOpen} onClose={() => setCheckOpen(false)} />
+    </div>
+  );
+}
+
+function SafetySubtab() {
+  return (
+    <div className="px-5 space-y-4">
+      <PlannedFeatureCard
+        title="Recovery safety guidance"
+        status="Presentational only"
+        description="Future injury and red-flag guidance will live here. FitCore does not diagnose conditions or replace medical care."
+      />
     </div>
   );
 }

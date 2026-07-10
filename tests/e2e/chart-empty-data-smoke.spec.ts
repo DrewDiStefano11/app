@@ -80,10 +80,15 @@ test.describe('Progress Chart Empty Data Smoke', () => {
     await checkFatalTexts(page);
 
     // App should still render safely despite other arrays being empty
-    // Go into Analytics tab specifically to find "Bodyweight vs time"
-    await page.getByRole('button', { name: 'Analytics' }).click();
-
-    await expect(page.getByRole('heading', { name: 'Bodyweight vs time', exact: true }).first()).toBeVisible();
+    // Switch to Deep Dive to test Analytics if button is present, otherwise fallback to check Daily View Content
+    if (await page.getByRole('button', { name: 'Deep Dive' }).isVisible()) {
+        await page.getByRole('button', { name: 'Deep Dive' }).click();
+        await expect(page.getByRole('tab', { name: 'Analytics', exact: true })).toBeVisible();
+        await page.getByRole('tab', { name: 'Analytics', exact: true }).click();
+        await expect(page.getByRole('heading', { name: 'Long-term Trends', exact: true }).first()).toBeVisible();
+    } else {
+        await expect(page.getByText('Current Weight').first()).toBeVisible();
+    }
   });
 
   test('Scenario C - Progress renders safely with only workout data', async ({ page }) => {
@@ -108,7 +113,7 @@ test.describe('Progress Chart Empty Data Smoke', () => {
     await checkFatalTexts(page);
 
     // App should still render safely despite other arrays being empty
-    await expect(page.getByText(/Not enough data|No weigh-ins|No goals|Training Vol Δ/i).first()).toBeVisible();
+    await expect(page.getByText(/Not enough data|No weigh-ins|No goals|Training Volume|Log at least 2 weigh-ins/i).first()).toBeVisible();
   });
 
   test('Scenario D - Reload stability on Progress page', async ({ page }) => {

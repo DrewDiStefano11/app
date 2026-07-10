@@ -4,25 +4,47 @@ import { useStore, uid, isToday } from "@/lib/store";
 import { WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
 import { weeklyVolumeSeries, muscleMap, MUSCLES } from "@/lib/analytics";
 import type { CardioEntry } from "@/lib/types";
-import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SectionHeader } from "@/components/app/ui";
+import type { LayoutMode } from "@/components/app/layout-primitives";
+import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SectionHeader, SubTabs, PlannedFeatureCard } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { ActiveWorkoutView } from "@/components/app/active-workout";
 
 type TrainingPanel = "templates" | "cardio" | "history" | "performance" | null;
-export function TrainingView() {
+type TrainingSubtab = "overview" | "active" | "log" | "exercises" | "programs" | "performance" | "history";
+const TRAINING_TABS: { id: TrainingSubtab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "active", label: "Active Workout" },
+  { id: "log", label: "Log Workout" },
+  { id: "exercises", label: "Exercises" },
+  { id: "programs", label: "Programs" },
+  { id: "performance", label: "Performance" },
+  { id: "history", label: "History" },
+];
+export function TrainingView({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
   const { state } = useStore();
   const [panel, setPanel] = useState<TrainingPanel>(null);
   const [showActiveWorkout, setShowActiveWorkout] = useState(false);
+  const [tab, setTab] = useState<TrainingSubtab>("overview");
 
   if (state.activeWorkout && showActiveWorkout) return <ActiveWorkoutView />;
 
   return (
     <div className="pb-24">
       <PageHeader title="Training" subtitle={`${state.profile.split} • ${state.profile.daysPerWeek}d/wk`} />
-      <DailyTrainingView
-        onOpenPanel={setPanel}
-        onOpenActive={() => setShowActiveWorkout(true)}
-      />
+      <SubTabs tabs={TRAINING_TABS} active={tab} onChange={setTab} />
+      {tab === "overview" && (
+        <DailyTrainingView
+          layoutMode={layoutMode}
+          onOpenPanel={setPanel}
+          onOpenActive={() => setShowActiveWorkout(true)}
+        />
+      )}
+      {tab === "active" && <ActiveWorkoutSubtab onOpenActive={() => setShowActiveWorkout(true)} />}
+      {tab === "log" && <LogWorkoutSubtab onOpenTemplates={() => setPanel("templates")} onOpenActive={() => setShowActiveWorkout(true)} />}
+      {tab === "exercises" && <ExercisesSubtab />}
+      {tab === "programs" && <div className="px-5"><TemplatesSection onWorkoutStarted={() => setShowActiveWorkout(true)} /></div>}
+      {tab === "performance" && <PerformanceTab />}
+      {tab === "history" && <div className="px-5"><HistorySection /></div>}
       <BottomSheet open={panel === "templates"} onClose={() => setPanel(null)} title="Programs & templates" height="tall">
         <TemplatesSection onWorkoutStarted={() => setShowActiveWorkout(true)} />
       </BottomSheet>
@@ -42,9 +64,11 @@ export function TrainingView() {
 /* ===================== DAILY VIEW ===================== */
 
 function DailyTrainingView({
+  layoutMode,
   onOpenPanel,
   onOpenActive,
 }: {
+  layoutMode: LayoutMode;
   onOpenPanel: (panel: Exclude<TrainingPanel, null>) => void;
   onOpenActive: () => void;
 }) {
@@ -58,6 +82,7 @@ function DailyTrainingView({
   const weekCardio = state.cardioEntries.filter(c => c.createdAt > Date.now() - 7*86400000);
   const weekCardioMin = weekCardio.reduce((a, c) => a + c.minutes, 0);
   const topPR = [...state.prs].sort((a, b) => b.value - a.value)[0];
+  const isDeepDive = layoutMode === "deepDive";
 
   const startBlank = () => {
     set(s => ({ ...s, activeWorkout: { id: uid(), name: "Workout", startedAt: Date.now(), exercises: [] } }));
@@ -206,6 +231,12 @@ function DailyTrainingView({
           <StatCard label="7d workouts" value={weekWorkouts.length} sub={`${state.profile.daysPerWeek} planned`} accent />
           <StatCard label="PRs" value={state.prs.length} sub={topPR ? exerciseById(topPR.exerciseId)?.name ?? "top lift" : "all time"} />
         </div>
+        {isDeepDive && (
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <StatCard label="Cardio min" value={weekCardioMin} sub={`${weekCardio.length} sessions`} />
+            <StatCard label="History" value={state.workouts.length} sub="completed workouts" />
+          </div>
+        )}
         <Card className="mt-3" onClick={() => onOpenPanel("performance")}>
           <div className="flex items-center gap-3">
             <BarChart3 size={20} style={{ color: "var(--section)" }} />
@@ -216,6 +247,75 @@ function DailyTrainingView({
           </div>
         </Card>
       </section>
+    </div>
+  );
+}
+
+function ActiveWorkoutSubtab({ onOpenActive }: { onOpenActive: () => void }) {
+  const { state } = useStore();
+  return (
+    <div className="px-5 space-y-4">
+      {state.activeWorkout ? (
+        <Card className="ring-section">
+          <p className="text-xs uppercase tracking-wider text-muted-foreground">Active Workout</p>
+          <h2 className="mt-1 text-2xl font-bold">{state.activeWorkout.name}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Started {new Date(state.activeWorkout.startedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })} - {state.activeWorkout.exercises.length} exercises
+          </p>
+          <PrimaryButton className="mt-4 w-full" onClick={onOpenActive}>
+            <Play size={16} />Resume workout
+          </PrimaryButton>
+        </Card>
+      ) : (
+        <EmptyState icon={<Play size={22} />} title="No active workout" description="Start from a blank workout or a template, then this subtab becomes your live session home." />
+      )}
+    </div>
+  );
+}
+
+function LogWorkoutSubtab({
+  onOpenTemplates,
+  onOpenActive,
+}: {
+  onOpenTemplates: () => void;
+  onOpenActive: () => void;
+}) {
+  const { set } = useStore();
+  const startBlank = () => {
+    set(s => ({ ...s, activeWorkout: { id: uid(), name: "Workout", startedAt: Date.now(), exercises: [] } }));
+    onOpenActive();
+  };
+  return (
+    <div className="px-5 space-y-4">
+      <Card className="ring-section">
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">Log Workout</p>
+        <h2 className="mt-1 text-xl font-bold">Start a session or use a template</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Existing workout logging opens the same active workout flow. Display mode changes do not reset logged data.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <PrimaryButton onClick={startBlank}><Plus size={16} />Blank</PrimaryButton>
+          <GhostButton onClick={onOpenTemplates}><ListChecks size={16} />Templates</GhostButton>
+        </div>
+      </Card>
+      <PlannedFeatureCard
+        title="Advanced workout import"
+        status="Planned"
+        description="Past workout import and richer set notes will live here once they are connected."
+      />
+    </div>
+  );
+}
+
+function ExercisesSubtab() {
+  return (
+    <div className="px-5 space-y-4">
+      <PlannedFeatureCard
+        title="Exercise library"
+        status="Coming later"
+        description="Exercise details, equipment, muscle groups, and substitutions are reserved for this subtab. Current template exercises remain available in Programs."
+        actionLabel="Library coming later"
+      />
     </div>
   );
 }
