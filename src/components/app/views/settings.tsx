@@ -321,7 +321,7 @@ export function SettingsView({
                       {
                         label: "Equipment / Gym access",
                         detail: "Planned placeholder for location tracking.",
-                        status: "Coming later",
+                        status: "Planned",
                       },
                     ]}
                   />
@@ -342,12 +342,12 @@ export function SettingsView({
                     {
                       label: "Injuries / Limitations",
                       detail: "Planned context for training limitations and active pain areas.",
-                      status: "Not connected yet",
+                      status: "Planned",
                     },
                     {
                       label: "Allergies",
                       detail: "Future profile note area. No medical advice or alerts are active.",
-                      status: "Coming later",
+                      status: "Planned",
                     },
                     {
                       label: "Medications",
@@ -357,7 +357,7 @@ export function SettingsView({
                     {
                       label: "Surgeries",
                       detail: "Placeholder for future safety context.",
-                      status: "Coming later",
+                      status: "Planned",
                     },
                     {
                       label: "Conditions",
@@ -367,7 +367,7 @@ export function SettingsView({
                     {
                       label: "Blood type",
                       detail: "Placeholder for later support.",
-                      status: "Coming later",
+                      status: "Planned",
                     },
                   ]}
                 />
@@ -393,12 +393,12 @@ export function SettingsView({
                       label: "Red-flag safety context",
                       detail:
                         "Future safety profile concept only. You will control what is saved and used.",
-                      status: "Not connected yet",
+                      status: "Planned",
                     },
                     {
                       label: "Safety notes",
                       detail: "Planned placeholder for custom safety notes.",
-                      status: "Coming later",
+                      status: "Planned",
                     },
                   ]}
                 />
@@ -433,7 +433,7 @@ export function SettingsView({
                       {
                         label: "Calories / Macros display",
                         detail: "Planned customization for macro goals display.",
-                        status: "Coming later",
+                        status: "Planned",
                       },
                     ]}
                   />
@@ -538,12 +538,12 @@ export function SettingsView({
                     {
                       label: "Do Not Disturb / Quiet hours",
                       detail: "Planned feature to delay notifications.",
-                      status: "Coming later",
+                      status: "Planned",
                     },
                     {
                       label: "Busy detection",
                       detail: "Planned feature to suppress alerts during workouts.",
-                      status: "Not connected yet",
+                      status: "Planned",
                     },
                     {
                       label: "Display mode preference",
@@ -610,12 +610,12 @@ export function SettingsView({
                       {
                         label: "Why do you know this?",
                         detail: "Planned UI to show source data behind AI conclusions.",
-                        status: "Coming later",
+                        status: "Planned",
                       },
                       {
                         label: "Data used for insights",
                         detail: "Planned connected logs and metrics view.",
-                        status: "Coming later",
+                        status: "Planned",
                       },
                     ]}
                   />
@@ -646,7 +646,7 @@ export function SettingsView({
                     {
                       label: "Local-only sensitive data",
                       detail: "Planned extra locks for medical/genetics/photos/conversations.",
-                      status: "Coming later",
+                      status: "Planned",
                     },
                   ]}
                 />
@@ -725,13 +725,13 @@ export function SettingsView({
                       label: "Apple Watch",
                       detail:
                         "Planned support for HRV, resting heart rate, sleep, steps, calories, respiratory rate, and workout detection.",
-                      status: "Not connected",
+                      status: "Planned",
                     },
                     {
                       label: "Whoop",
                       detail:
                         "Planned support for recovery, strain, sleep, HRV, RHR, and respiratory rate.",
-                      status: "Not connected",
+                      status: "Planned",
                     },
                     {
                       label: "Food apps & Database",
@@ -767,13 +767,13 @@ export function SettingsView({
                     {
                       label: "Gym / PT Clinic Mode",
                       detail: "Planned business dashboard and client professional review.",
-                      status: "Coming later",
+                      status: "Planned",
                     },
                     {
                       label: "Premium / Pro",
                       detail:
                         "Presentational placeholder only; no subscription or payment logic is active.",
-                      status: "Not connected yet",
+                      status: "Planned",
                     },
                   ]}
                 />
@@ -808,7 +808,7 @@ export function SettingsView({
                     {
                       label: "Privacy & About",
                       detail: "Planned full privacy policy.",
-                      status: "Coming later",
+                      status: "Planned",
                     },
                     { label: "Terms", detail: "Planned terms of service.", status: "Planned" },
                   ]}

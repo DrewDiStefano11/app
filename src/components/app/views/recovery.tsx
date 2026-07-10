@@ -307,12 +307,12 @@ function HealthTab() {
       <div className="grid grid-cols-2 gap-3">
         <PlannedFeatureCard
           title="Muscular Strain"
-          status="Placeholder"
+          status="Planned"
           description="Muscle and body load relationships."
         />
         <PlannedFeatureCard
           title="Cardio Strain"
-          status="Placeholder"
+          status="Planned"
           description="Heart-rate and system load."
         />
       </div>
@@ -466,28 +466,28 @@ function BodyTab() {
       <div className="grid grid-cols-2 gap-3 pb-2">
         <PlannedFeatureCard
           title="Pain Flags"
-          status="Placeholder"
+          status="Planned"
           description="Injury red-flag checklist."
         />
         <PlannedFeatureCard
           title="Fatigue Trend"
-          status="Placeholder"
+          status="Planned"
           description="Fatigue vs consistency."
         />
         <PlannedFeatureCard
           title="Mobility"
-          status="Placeholder"
+          status="Planned"
           description="Mobility tracking over time."
         />
         <PlannedFeatureCard
           title="Injury Notes"
-          status="Placeholder"
+          status="Planned"
           description="Active injury logging."
         />
       </div>
       <PlannedFeatureCard
         title="Soreness vs Volume"
-        status="Placeholder"
+        status="Planned"
         description="Compare muscle soreness to training volume load."
       />
 
@@ -536,24 +536,16 @@ function SleepDeepDiveTab() {
       <div className="grid grid-cols-2 gap-3">
         <PlannedFeatureCard
           title="Sleep Stages"
-          status="Placeholder"
+          status="Planned"
           description="Needs wearable sync."
         />
-        <PlannedFeatureCard
-          title="Sleep Debt"
-          status="Placeholder"
-          description="Needs more data."
-        />
+        <PlannedFeatureCard title="Sleep Debt" status="Planned" description="Needs more data." />
         <PlannedFeatureCard
           title="Consistency"
-          status="Placeholder"
+          status="Planned"
           description="Bedtime/wake time consistency."
         />
-        <PlannedFeatureCard
-          title="Wake Time"
-          status="Placeholder"
-          description="Average wake time."
-        />
+        <PlannedFeatureCard title="Wake Time" status="Planned" description="Average wake time." />
       </div>
 
       <PrimaryButton className="w-full" onClick={() => setSleepOpen(true)}>
@@ -573,28 +565,28 @@ function InsightsTab() {
       <SectionHeader title="Deep Dive Insights" />
       <PlannedFeatureCard
         title="Recovery AI Coach"
-        status="Coming later"
+        status="Planned"
         description="Personalized recovery suggestions and pattern detection."
       />
       <div className="grid grid-cols-2 gap-3">
         <PlannedFeatureCard
           title="HRV vs Performance"
-          status="Placeholder"
+          status="Planned"
           description="Correlation tracking."
         />
         <PlannedFeatureCard
           title="Strain vs Recovery"
-          status="Placeholder"
+          status="Planned"
           description="Load impact insights."
         />
         <PlannedFeatureCard
           title="Sleep vs Readiness"
-          status="Placeholder"
+          status="Planned"
           description="Correlation tracking."
         />
         <PlannedFeatureCard
           title="Stress vs Sleep"
-          status="Placeholder"
+          status="Planned"
           description="Correlation tracking."
         />
       </div>
@@ -602,7 +594,7 @@ function InsightsTab() {
       <SectionHeader title="Education & Safety" />
       <PlannedFeatureCard
         title="Metric Explanations"
-        status="Placeholder"
+        status="Planned"
         description="Learn what HRV, strain, and sleep debt mean for your body."
       />
       <PlannedFeatureCard
