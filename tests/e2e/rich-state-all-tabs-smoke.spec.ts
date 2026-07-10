@@ -151,7 +151,7 @@ test.describe("Rich state all-tabs smoke", () => {
     await page.getByRole("button", { name: "Home", exact: true }).click();
     // Settings/Hub (Scenario B continued)
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Hub' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
     await assertNoFatalErrors(page);
 
     // Scenario E — No stuck overlay / no blocked navigation

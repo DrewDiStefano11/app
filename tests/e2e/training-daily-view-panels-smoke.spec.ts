@@ -55,41 +55,42 @@ test.describe("Training Daily View Smoke", () => {
     // Scenario C — Secondary panels/sheets open and close safely
     // 1. Programs & templates
     // Click on the Card or "View all" button next to "Programs & templates"
-    await page
-      .getByRole("button", { name: /view all/i })
-      .click();
+    await page.getByRole("button", { name: /view all/i }).click();
 
-    // Scope all sheet assertions to the active/current sheet.
-    const sheet = page.locator(".sheet-root").last();
-    await expect(sheet).toBeVisible();
-    await expect(sheet.locator(".sheet-title")).toContainText(/programs.*templates/i);
+    const templatesHeading = page.locator(".sheet-title", { hasText: "Programs & templates" });
+    await expect(templatesHeading).toBeVisible();
 
-    // Fallback only if the close button is not accessible yet.
-    await sheet.locator(".sheet-backdrop").click({ position: { x: 10, y: 10 } });
-    await expect(sheet).toBeHidden();
+    // The BottomSheet uses an X icon for closing, which now has aria-label="Close"
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(templatesHeading).not.toBeVisible();
+    await expect(page.locator(".sheet-root")).not.toBeVisible();
 
     // 2. Cardio & sports
     await page.getByRole("button", { name: /^open$/i, exact: true }).click();
-    const cardioSheet = page.locator(".sheet-root").last();
-    await expect(cardioSheet).toBeVisible();
-    await expect(cardioSheet.locator(".sheet-title")).toContainText(/Cardio & sports/i);
-    await cardioSheet.locator(".sheet-backdrop").click({ position: { x: 10, y: 10 } });
-    await expect(cardioSheet).toBeHidden();
 
-    // Confirm bottom navigation still works afterward (verify Train button is either already visible or navigation is expandable)
+    const cardioHeading = page.locator(".sheet-title", { hasText: "Cardio & sports" });
+    await expect(cardioHeading).toBeVisible();
+
+    await page.getByRole("button", { name: "Close", exact: true }).click();
+    await expect(cardioHeading).not.toBeVisible();
+    await expect(page.locator(".sheet-root")).not.toBeVisible();
+
+    // Confirm bottom navigation still works afterward by actually clicking a different tab
     const expandNavAgain = page.getByRole("button", { name: "Expand navigation" });
     if (await expandNavAgain.isVisible()) {
-      // Don't click it again if it's struggling to stabilize, just assert the shell exists.
-      // E2E test workaround: Sometimes the navigation gets stuck in a semi-stable state after bottom sheets close.
+      await expandNavAgain.click();
     }
 
-    // We check if either the Train button is in the DOM or the train command bar is visible
-    await expect(
-      page
-        .locator("nav")
-        .getByRole("button", { name: "Train", exact: true })
-        .or(page.getByRole("button", { name: /Expand navigation/ })),
-    ).toBeVisible();
+    await page.getByRole("button", { name: "Recover", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Recovery", exact: true })).toBeVisible();
+
+    const expandNavBack = page.getByRole("button", { name: "Expand navigation" });
+    if (await expandNavBack.isVisible()) {
+      await expandNavBack.click();
+    }
+
+    await page.getByRole("button", { name: "Train", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Training", exact: true })).toBeVisible();
 
     // Scenario D — Blank workout / active workout path is safe
     await page.getByText("Blank workout", { exact: true }).click();

@@ -133,8 +133,10 @@ test.describe("Data propagation smoke", () => {
     try {
         await expect(page.getByText("181.6").first()).toBeVisible({ timeout: 2000 });
     } catch {
-        // Fallback to click body
-        await page.getByText("Body", { exact: true }).click();
+        if (await page.getByRole('button', { name: 'Deep Dive' }).isVisible()) {
+             await page.getByRole('button', { name: 'Deep Dive' }).click();
+             await page.getByRole('tab', { name: 'Body', exact: true }).click();
+        }
         await expect(page.getByText("181.6").first()).toBeVisible();
     }
 
@@ -146,7 +148,10 @@ test.describe("Data propagation smoke", () => {
     try {
         await expect(page.getByText("181.6").first()).toBeVisible({ timeout: 2000 });
     } catch {
-        await page.getByText("Body", { exact: true }).click();
+        if (await page.getByRole('button', { name: 'Deep Dive' }).isVisible()) {
+             await page.getByRole('button', { name: 'Deep Dive' }).click();
+             await page.getByRole('tab', { name: 'Body', exact: true }).click();
+        }
         await expect(page.getByText("181.6").first()).toBeVisible();
     }
   });

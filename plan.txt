@@ -1,2 +1,0 @@
-#201 already incorporates the fixes for strict-mode failure `getByRole("button", { name: /open/i })` resolving to two elements. It changed to `/^open$/i`. It also removes dead components.
-I will check if #201 passes tests successfully on my side. If it does, I will update #201, pushing directly and resolving the user's issue.

@@ -113,9 +113,9 @@ test.describe('App Smoke Test', () => {
     await page.reload();
 
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Hub' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
     await page.getByRole('button', { name: 'Done' }).click();
-    await expect(page.getByRole('heading', { name: 'Hub' })).not.toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).not.toBeVisible();
   });
 
   test('should render AI launcher', async ({ page }) => {

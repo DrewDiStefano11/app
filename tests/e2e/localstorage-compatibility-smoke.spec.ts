@@ -48,7 +48,7 @@ test.describe('LocalStorage Compatibility Smoke Coverage', () => {
     // Settings (Hub)
     // We try to access it via the Hub navigation if the exact 'Settings' name isn't reliably available in all viewports/states
     await page.locator('.lucide-circle-user').or(page.getByRole('button', { name: 'Settings', exact: true })).first().click();
-    await expect(page.getByRole('heading', { name: 'Hub', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
     await assertNoFatalErrors(page);
   }
 
