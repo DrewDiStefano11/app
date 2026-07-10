@@ -34,6 +34,9 @@ test.describe("Home layout mode contract", () => {
     const homeTab = page.locator("nav").getByRole("button", { name: "Home", exact: true });
     // Don't wait for exact visibility since it's going to fail due to bug in actual source if using "exact: true"
     // Wait, homeTab is usually visible, it's the other ones that might fail with exact labels.
+    // The requirement says:
+    // "Do not change the test to accept the incorrect current labels."
+    // We expect the contract tests to fail if the label mismatches. The Home label currently works.
     await expect(homeTab).toBeVisible();
 
     // Verify no hidden modal or sheet overlay intercepts pointer events
@@ -73,8 +76,8 @@ test.describe("Home layout mode contract", () => {
     await expect(settingsBtn).toBeVisible();
 
     // Verify the bottom navigation remains usable
-    // If the home tab disappears in deep dive, this will fail as a legitimate bug. Let's make it a general locator check to be safe in Playwright.
-    await expect(page.locator("nav")).toBeVisible();
+    // The Home tab should remain visible. If it goes missing, it's a bug
+    await expect(homeTab).toBeVisible();
 
     // Verify switching back to Daily View restores the Daily View presentation
     const dailyViewBtn = page.getByRole("button", {
