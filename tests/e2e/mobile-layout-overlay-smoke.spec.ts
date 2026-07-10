@@ -31,7 +31,7 @@ test.describe('Mobile Layout and Overlay Smoke Test', () => {
 
     // Navigate to Training
     await page.getByRole('button', { name: 'Train', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Training' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Training', exact: true })).toBeVisible();
     await checkFatalErrors(page);
 
     // Navigate to Nutrition

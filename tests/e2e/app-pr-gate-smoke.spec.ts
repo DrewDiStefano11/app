@@ -34,7 +34,7 @@ test.describe('App PR Gate Smoke', () => {
 
     // C. Main navigation
     const sections = [
-      { name: 'Training', navButton: 'Train', heading: 'Training' },
+      { name: 'Training', navButton: 'Train', heading: 'Training', exactHeading: true },
       { name: 'Nutrition', navButton: 'Fuel', heading: 'Nutrition' },
       { name: 'Recovery', navButton: 'Recover', heading: 'Recovery', exactNav: true },
       { name: 'Progress', navButton: 'Stats', heading: 'Progress' }
@@ -42,7 +42,7 @@ test.describe('App PR Gate Smoke', () => {
 
     for (const section of sections) {
       await page.getByRole('button', { name: section.navButton, exact: section.exactNav }).click();
-      await expect(page.getByRole('heading', { name: section.heading })).toBeVisible();
+      await expect(page.getByRole('heading', { name: section.heading, exact: section.exactHeading })).toBeVisible();
       expect(pageErrors.length).toBe(0);
     }
 
@@ -62,10 +62,10 @@ test.describe('App PR Gate Smoke', () => {
     // D. Reload stability
     // Reload from a major section (Training)
     await page.getByRole('button', { name: 'Train' }).click();
-    await expect(page.getByRole('heading', { name: 'Training' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Training', exact: true })).toBeVisible();
     await page.reload();
     await expect(
-      page.getByRole('heading', { name: 'Training' })
+      page.getByRole('heading', { name: 'Training', exact: true })
         .or(homeIndicator)
     ).toBeVisible();
     expect(pageErrors.length).toBe(0);
