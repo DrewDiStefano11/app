@@ -302,7 +302,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
           <SectionHeader title="Timing & Windows" />
           <PlannedFeatureCard
             title="Meal Timing"
-            status="Needs more logged data"
+            status="Coming later"
             description="Meal timing timeline, fasting/eating window analysis, and late-night eating patterns will appear here once supported."
           />
           <PlannedFeatureCard
@@ -419,6 +419,11 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
   const [c, setC] = useState("");
   const [fat, setFat] = useState("");
   const [search, setSearch] = useState("");
+
+  const addMeal = (m: MealEntry) => {
+    set((s) => ({ ...s, mealEntries: [...s.mealEntries, m] }));
+    onClose();
+  };
 
   const filteredFoods = FOODS.filter(
     (f) => !search || f.name.toLowerCase().includes(search.toLowerCase()),
