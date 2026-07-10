@@ -27,12 +27,76 @@ export type WearableRecordType =
   | "body_fat_percentage"
   | "unknown";
 
+export type CanonicalUnit =
+  | "bpm"
+  | "ms"
+  | "count"
+  | "kcal"
+  | "celsius"
+  | "percentage"
+  | "meters"
+  | "lb"
+  | "rpm"
+  | "unknown";
+
+export type UnitCategory =
+  | "weight"
+  | "distance"
+  | "temperature"
+  | "energy"
+  | "duration"
+  | "percentage"
+  | "heart_rate"
+  | "respiratory_rate"
+  | "steps";
+
 export type SleepStage = "awake" | "light" | "deep" | "rem" | "unknown";
 
 export interface SleepStageRecord {
   stage: SleepStage;
   start: number; // timestamp ms
   end: number; // timestamp ms
+}
+
+export interface SleepSessionPayload {
+  stages?: SleepStageRecord[];
+  totalDurationMs?: number;
+  hasOverlap?: boolean;
+}
+
+export interface WorkoutSessionPayload {
+  workoutType: string;
+  duration?: number;
+  distance?: number;
+  calories?: number;
+  averageHeartRate?: number;
+}
+
+export type RecordPayload = SleepSessionPayload | WorkoutSessionPayload | Record<string, unknown> | undefined;
+
+export type RejectionReason =
+  | "non_finite_value"
+  | "unsupported_unit"
+  | "incompatible_unit"
+  | "below_minimum"
+  | "above_maximum"
+  | "invalid_timestamp"
+  | "end_before_start"
+  | "stage_outside_session"
+  | "malformed_payload"
+  | "unsupported_record_type"
+  | "missing_record_id"
+  | "missing_value_and_payload";
+
+export interface RejectedRecord {
+  record: unknown; // Need to use unknown because raw input can be anything
+  reason: RejectionReason;
+  message?: string;
+}
+
+export interface WarningRecord {
+  record: NormalizedRecord;
+  warning: string;
 }
 
 export type ResolutionType =
@@ -44,11 +108,34 @@ export type ResolutionType =
   | "revoke-existing";
 
 export interface DeduplicationResolution {
+  kind: "duplicate";
   type: ResolutionType;
-  existingId?: string;
-  incomingId?: string;
+  recordType: WearableRecordType;
+  existingId: string;
+  incomingId: string;
+  droppedRecordIds?: string[];
   mergedRecord?: NormalizedRecord;
   reason: string;
+  manualProtectionApplied?: boolean;
+  directProviderPreferenceApplied?: boolean;
+}
+
+export interface WearableConflict {
+  kind: "conflict";
+  involvedIds: string[];
+  recordType: WearableRecordType;
+  conflictType: "overlapping_session" | "material_difference";
+  overlapMs?: number;
+  reason: string;
+  recommendedAction: "keep_both" | "review" | "merge_manually";
+}
+
+export type DuplicateEvaluation = DeduplicationResolution | WearableConflict | null;
+
+export interface DeduplicationResult {
+  records: NormalizedRecord[];
+  resolutions: DeduplicationResolution[];
+  conflicts: WearableConflict[];
 }
 
 export interface NormalizedRecord {
@@ -65,8 +152,8 @@ export interface NormalizedRecord {
 
   // Value & Unit
   value?: number;
-  payload?: any; // For structured payloads like sleep stages or workout data
-  canonicalUnit: string;
+  payload?: RecordPayload;
+  canonicalUnit: CanonicalUnit;
   originalUnit: string;
   originalValue?: number;
 
@@ -78,16 +165,8 @@ export interface NormalizedRecord {
   confidence?: "high" | "medium" | "low" | "unknown";
   confirmation?: "confirmed" | "unconfirmed" | "not-required";
   provenance: "direct" | "aggregator" | "manual" | "unknown";
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 
   // State
   revoked?: boolean; // if source record was deleted/revoked
 }
-
-export type UnitCategory =
-  | "weight"
-  | "distance"
-  | "temperature"
-  | "energy"
-  | "duration"
-  | "percentage";
