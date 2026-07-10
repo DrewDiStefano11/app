@@ -265,11 +265,12 @@ export function SettingsView({
                       <Label>Bodyweight (lb)</Label>
                       <Input
                         inputMode="decimal"
+                        aria-label="Bodyweight in pounds"
                         value={bwBuf}
                         onChange={(e) => setBwBuf(e.target.value)}
                         onBlur={() => {
                           const val = Number(bwBuf);
-                          if (!isNaN(val) && val > 0) {
+                          if (Number.isFinite(val) && val > 0) {
                             updateProfile({ bodyweightLb: val });
                           } else {
                             setBwBuf(state.profile.bodyweightLb.toString());
@@ -315,11 +316,12 @@ export function SettingsView({
                       <Label>Days/week</Label>
                       <Input
                         type="number"
+                        aria-label="Training days per week"
                         value={dpwBuf}
                         onChange={(e) => setDpwBuf(e.target.value)}
                         onBlur={() => {
                           const val = Number(dpwBuf);
-                          if (!isNaN(val) && val >= 0) {
+                          if (Number.isFinite(val) && Number.isInteger(val) && val >= 1 && val <= 7) {
                             updateProfile({ daysPerWeek: val });
                           } else {
                             setDpwBuf(state.profile.daysPerWeek.toString());
