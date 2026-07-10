@@ -115,7 +115,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
               className="w-full rounded-2xl h-14 bg-green-500 hover:bg-green-600 text-white border-transparent"
             >
               <Plus size={18} />
-              <span>Log Food</span>
+              <span>Log Meal</span>
             </PrimaryButton>
           </div>
 
@@ -359,7 +359,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
 function CardLikeLogMeal({ onLog }: { onLog: () => void }) {
   return (
     <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-5">
-      <p className="text-xs font-bold uppercase tracking-widest text-white/45">Log Food</p>
+      <p className="text-xs font-bold uppercase tracking-widest text-white/45">Log Meal</p>
       <h2 className="mt-1 text-xl font-bold text-white">Add today's nutrition</h2>
       <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
         Use the existing meal templates, foods library, custom entry, or AI photo estimate entry
@@ -429,7 +429,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
   ).slice(0, 6);
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Log Food" height="tall">
+    <BottomSheet open={open} onClose={onClose} title="Log Meal" height="tall">
       <div className="grid grid-cols-2 gap-3 mb-6 px-1 mt-2">
         <div
           className="p-3 rounded-2xl bg-gradient-to-br from-[var(--section-soft)] to-transparent border border-[var(--section-soft)] flex items-center justify-between group press transition-all cursor-pointer"
