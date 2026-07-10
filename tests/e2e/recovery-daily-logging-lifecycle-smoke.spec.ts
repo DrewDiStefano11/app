@@ -24,16 +24,14 @@ test.describe("Recovery daily logging lifecycle smoke", () => {
 
   test("Full Recovery logging lifecycle", async ({ page }) => {
     // Navigate using robust bottom nav
-    const expandNavBtn = page.getByRole("button", { name: "Expand navigation", exact: false });
-    const recoveryNavBtn = page
-      .locator("nav")
-      .getByRole("button", { name: "Recover", exact: true });
+    const expandNavBtn = page.getByRole("button", { name: /Expand navigation/i });
+    const recoveryNavBtn = page.getByRole("button", { name: "Recover", exact: true });
 
     // We scroll top to ensure bottom nav is visible or we expand it.
     await page.evaluate(() => window.scrollTo(0, 0));
-    try {
-      await expandNavBtn.click({ timeout: 1000 });
-    } catch {}
+    if (await expandNavBtn.isVisible()) {
+      await expandNavBtn.click();
+    }
     await recoveryNavBtn.click();
 
     // 1. Open Recovery Daily View.
@@ -52,7 +50,6 @@ test.describe("Recovery daily logging lifecycle smoke", () => {
     await expect(checkInSheet).toBeVisible();
 
     // 5. One valid check-in saves exactly once.
-    // Check-in constraints are enforced by UI 1-10 range inputs so we only test valid paths.
     await checkInSheet.getByRole("textbox").fill("Valid check-in");
 
     // 6. Rapid duplicate submission creates no second record.
@@ -71,6 +68,13 @@ test.describe("Recovery daily logging lifecycle smoke", () => {
       return state.recoveryCheckIns?.length ?? 0;
     }, FITCORE_STORAGE_KEY);
     expect(checkInsLength).toBe(1);
+
+    // Reopen and save another to verify guard was reset
+    await page.getByRole("button", { name: "Check-in", exact: true }).click();
+    await expect(checkInSheet).toBeVisible();
+    await checkInSheet.getByRole("textbox").fill("Second check-in");
+    await checkInSheet.getByRole("button", { name: "Save check-in", exact: true }).click();
+    await expect(checkInSheet).not.toBeVisible();
 
     // 9. Open Sleep. Avoid duplicate buttons by scoping or exactly matching
     await page.getByRole("button", { name: "Sleep", exact: true }).click();
@@ -124,11 +128,26 @@ test.describe("Recovery daily logging lifecycle smoke", () => {
         .getByText("8.5h", { exact: true }),
     ).toBeVisible();
 
+    // Reopen and save another to verify guard was reset
+    await page.getByRole("button", { name: "Sleep", exact: true }).click();
+    await expect(sleepSheet).toBeVisible();
+    await sleepSheet.locator('input[inputmode="decimal"]').fill("9");
+    await sleepSheet.getByRole("button", { name: "Save sleep", exact: true }).click();
+    await expect(sleepSheet).not.toBeVisible();
+
+    // Check that we updated the new sleep to 9h
+    await expect(
+      page
+        .locator(".stat-card__label", { hasText: "Last sleep" })
+        .locator("..")
+        .getByText("9h", { exact: true }),
+    ).toBeVisible();
+
     const sleepLength = await page.evaluate((key) => {
       const state = JSON.parse(localStorage.getItem(key) || "{}");
       return state.sleepEntries?.length ?? 0;
     }, FITCORE_STORAGE_KEY);
-    expect(sleepLength).toBe(1);
+    expect(sleepLength).toBe(2);
 
     // 20. Body Status sheet opens using an accessible control.
     await page.getByText("Body Status", { exact: true }).click();
@@ -163,10 +182,10 @@ test.describe("Recovery daily logging lifecycle smoke", () => {
 
     // 24. Deep Dive contains exactly Health, Sleep, Body, Insights.
     await page.evaluate(() => window.scrollTo(0, 0));
-    try {
-      await expandNavBtn.click({ timeout: 1000 });
-    } catch {}
-    await page.locator("nav").getByRole("button", { name: "Home", exact: true }).click();
+    if (await expandNavBtn.isVisible()) {
+      await expandNavBtn.click();
+    }
+    await page.getByRole("button", { name: "Home", exact: true }).click();
 
     // Toggle Deep Dive on the Home view using the exact toggle button.
     const deepDiveBtn = page.getByRole("button", { name: "Deep Dive", exact: true });
@@ -174,43 +193,21 @@ test.describe("Recovery daily logging lifecycle smoke", () => {
       await deepDiveBtn.click();
     } else {
       // App mode toggle is visible on Home for Deep Dive vs Daily View
-      // Let's fallback to setting layoutMode in localstorage if it's not present.
-      await page.evaluate((key) => {
-        const state = JSON.parse(localStorage.getItem(key) || "{}");
-        if (!state.settings) state.settings = {};
-        state.settings.layoutMode = "deepDive";
-
-        if (state.profile) {
-          state.profile.layoutMode = "deepDive";
-        }
-        localStorage.setItem(key, JSON.stringify(state));
-      }, FITCORE_STORAGE_KEY);
-      await page.reload();
+      // Fallback
+      const dailyViewBtn = page.getByRole("button", { name: "Daily View", exact: true });
+      if (await dailyViewBtn.isVisible()) {
+        await dailyViewBtn.click();
+      }
     }
 
-    try {
-      await expandNavBtn.click({ timeout: 1000 });
-    } catch {}
-    await page.locator("nav").getByRole("button", { name: "Recover", exact: true }).click();
+    if (await expandNavBtn.isVisible()) {
+      await expandNavBtn.click();
+    }
+    await page.getByRole("button", { name: "Recover", exact: true }).click();
 
     const tabs = page.getByRole("tablist").getByRole("tab");
 
-    // Check if tabs exist, if not set layout mode and reload again to ensure it takes
-    if ((await tabs.count()) === 0) {
-      await page.evaluate((key) => {
-        const state = JSON.parse(localStorage.getItem(key) || "{}");
-        if (!state.settings) state.settings = {};
-        state.settings.layoutMode = "deepDive";
-        if (state.profile) state.profile.layoutMode = "deepDive";
-        localStorage.setItem(key, JSON.stringify(state));
-      }, FITCORE_STORAGE_KEY);
-      await page.reload();
-      try {
-        await expandNavBtn.click({ timeout: 1000 });
-      } catch {}
-      await page.locator("nav").getByRole("button", { name: "Recover", exact: true }).click();
-    }
-
+    // Wait for the tabs to render, some views require explicit toggle check
     await expect(tabs).toHaveCount(4);
     await expect(page.getByRole("tab", { name: "Health", exact: true })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Sleep", exact: true })).toBeVisible();
@@ -226,7 +223,7 @@ test.describe("Recovery daily logging lifecycle smoke", () => {
       page
         .locator(".stat-card__label", { hasText: "Sleep avg" })
         .locator("..")
-        .getByText("8.5h", { exact: true }),
+        .getByText("8.8h", { exact: true }), // avg of 8.5 and 9
     ).toBeVisible();
 
     // 27. Muscle state appears in Body.
@@ -241,20 +238,20 @@ test.describe("Recovery daily logging lifecycle smoke", () => {
     ).toBeVisible();
 
     // 28. Home navigation works.
-    try {
-      await expandNavBtn.click({ timeout: 1000 });
-    } catch {}
-    await page.locator("nav").getByRole("button", { name: "Home", exact: true }).click();
+    if (await expandNavBtn.isVisible()) {
+      await expandNavBtn.click();
+    }
+    await page.getByRole("button", { name: "Home", exact: true }).click();
 
     // 29. Home is confirmed using Settings and Command Center.
     await expect(page.getByRole("button", { name: "Settings", exact: true })).toBeVisible();
     await expect(page.getByText("Command Center", { exact: true })).toBeVisible();
 
     // 30. Returning to Recovery preserves all saved values.
-    try {
-      await expandNavBtn.click({ timeout: 1000 });
-    } catch {}
-    await page.locator("nav").getByRole("button", { name: "Recover", exact: true }).click();
+    if (await expandNavBtn.isVisible()) {
+      await expandNavBtn.click();
+    }
+    await page.getByRole("button", { name: "Recover", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Recovery", exact: true })).toBeVisible();
 
     await expect(tabs).toHaveCount(4);
@@ -265,14 +262,11 @@ test.describe("Recovery daily logging lifecycle smoke", () => {
       page
         .locator(".stat-card__label", { hasText: "Sleep avg" })
         .locator("..")
-        .getByText("8.5h", { exact: true }),
+        .getByText("8.8h", { exact: true }),
     ).toBeVisible();
 
     // 31. No invisible overlay remains.
-    const backdrop = page.locator(".sheet-backdrop");
-    if ((await backdrop.count()) > 0) {
-      await expect(backdrop.nth(0)).not.toBeVisible();
-    }
+    await expect(page.locator(".sheet-backdrop")).not.toBeVisible();
 
     // 32. No fatal page or console errors occur.
     await checkFatalErrors(page);

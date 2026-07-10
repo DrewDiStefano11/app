@@ -688,40 +688,43 @@ function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => void })
   const submit = () => {
     if (inFlight.current) return;
     inFlight.current = true;
-    if (
-      typeof energy !== "number" || !Number.isFinite(energy) || energy < 1 || energy > 10 ||
-      typeof soreness !== "number" || !Number.isFinite(soreness) || soreness < 1 || soreness > 10 ||
-      typeof stress !== "number" || !Number.isFinite(stress) || stress < 1 || stress > 10 ||
-      typeof motivation !== "number" || !Number.isFinite(motivation) || motivation < 1 || motivation > 10
-    ) {
-      setError("All values must be a valid number between 1 and 10.");
+    try {
+      if (
+        typeof energy !== "number" || !Number.isFinite(energy) || energy < 1 || energy > 10 ||
+        typeof soreness !== "number" || !Number.isFinite(soreness) || soreness < 1 || soreness > 10 ||
+        typeof stress !== "number" || !Number.isFinite(stress) || stress < 1 || stress > 10 ||
+        typeof motivation !== "number" || !Number.isFinite(motivation) || motivation < 1 || motivation > 10
+      ) {
+        setError("All values must be a valid number between 1 and 10.");
+        return;
+      }
+
+      setError(null);
+
+      set((s) => ({
+        ...s,
+        recoveryCheckIns: [
+          ...s.recoveryCheckIns,
+          {
+            id: uid(),
+            energy,
+            soreness,
+            stress,
+            motivation,
+            notes: notes || undefined,
+            createdAt: Date.now(),
+          },
+        ],
+      }));
+      setNotes("");
+      setEnergy(7);
+      setSoreness(3);
+      setStress(3);
+      setMotivation(8);
+      onClose();
+    } finally {
       inFlight.current = false;
-      return;
     }
-
-    setError(null);
-
-    set((s) => ({
-      ...s,
-      recoveryCheckIns: [
-        ...s.recoveryCheckIns,
-        {
-          id: uid(),
-          energy,
-          soreness,
-          stress,
-          motivation,
-          notes: notes || undefined,
-          createdAt: Date.now(),
-        },
-      ],
-    }));
-    setNotes("");
-    setEnergy(7);
-    setSoreness(3);
-    setStress(3);
-    setMotivation(8);
-    onClose();
   };
   return (
     <BottomSheet open={open} onClose={onClose} title="Daily check-in">
@@ -763,34 +766,36 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const submit = () => {
     if (inFlight.current) return;
     inFlight.current = true;
-    const h = Number(hours);
-    if (!hours || !Number.isFinite(h) || h <= 0 || h > 24) {
-      setError("Please enter a valid number of sleep hours.");
-      inFlight.current = false;
-      return;
-    }
-    if (typeof quality !== "number" || !Number.isFinite(quality) || quality < 1 || quality > 10) {
-      setError("Sleep quality must be between 1 and 10.");
-      inFlight.current = false;
-      return;
-    }
+    try {
+      const h = Number(hours);
+      if (!hours || !Number.isFinite(h) || h <= 0 || h > 24) {
+        setError("Please enter a valid number of sleep hours.");
+        return;
+      }
+      if (typeof quality !== "number" || !Number.isFinite(quality) || quality < 1 || quality > 10) {
+        setError("Sleep quality must be between 1 and 10.");
+        return;
+      }
 
-    setError(null);
-    const notes = [bed && `Bed ${bed}`, wake && `Wake ${wake}`].filter(Boolean).join(" • ");
-    set((s) => ({
-      ...s,
-      sleepEntries: [
-        ...s.sleepEntries,
-        { id: uid(), hours: h, quality, notes: notes || undefined, createdAt: Date.now() },
-      ],
-    }));
+      setError(null);
+      const notes = [bed && `Bed ${bed}`, wake && `Wake ${wake}`].filter(Boolean).join(" • ");
+      set((s) => ({
+        ...s,
+        sleepEntries: [
+          ...s.sleepEntries,
+          { id: uid(), hours: h, quality, notes: notes || undefined, createdAt: Date.now() },
+        ],
+      }));
 
-    // reset form on successful save
-    setHours("7.5");
-    setQuality(7);
-    setBed("");
-    setWake("");
-    onClose();
+      // reset form on successful save
+      setHours("7.5");
+      setQuality(7);
+      setBed("");
+      setWake("");
+      onClose();
+    } finally {
+      inFlight.current = false;
+    }
   };
   return (
     <BottomSheet open={open} onClose={onClose} title="Log sleep">
