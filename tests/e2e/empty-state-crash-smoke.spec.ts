@@ -95,7 +95,7 @@ test.describe('Empty State Crash Smoke Test', () => {
     // Then click settings
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await assertNoFatalErrors(page);
-    await expect(page.getByRole('heading', { name: 'Hub' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
   });
 
   test('D. Reload on empty state view still renders safely', async ({ page }) => {

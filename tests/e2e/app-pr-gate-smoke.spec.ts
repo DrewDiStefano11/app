@@ -51,7 +51,7 @@ test.describe('App PR Gate Smoke', () => {
 
     // Settings or Hub
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Hub' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
     expect(pageErrors.length).toBe(0);
 
     // Close Hub and return to Home

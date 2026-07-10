@@ -37,13 +37,19 @@ test.describe('Settings/Hub Render Smoke', () => {
     await page.getByLabel('Settings').click();
 
     // 3. Settings/Hub screen renders.
-    const hubHeading = page.getByRole('heading', { name: 'Hub', exact: true });
+    const hubHeading = page.getByRole('heading', { name: 'Settings', exact: true });
     await expect(hubHeading).toBeVisible();
 
     // 4. Major existing areas/options are visible if stable.
-    await expect(page.getByText('Jarvis / AI', { exact: true })).toBeVisible();
-    await expect(page.getByText('Profile & Goals', { exact: true })).toBeVisible();
-    await expect(page.getByText('Data Management', { exact: true })).toBeVisible();
+    // Now in data tab
+    await page.getByRole('tab', { name: 'Data' }).click();
+    await expect(page.getByText('Jarvis / AI Memory', { exact: true })).toBeVisible();
+    // In profile tab
+    await page.getByRole('tab', { name: 'Profile' }).click();
+    await expect(page.getByText('Basic Profile', { exact: true })).toBeVisible();
+    // In data tab
+    await page.getByRole('tab', { name: 'Data' }).click();
+    await expect(page.getByText('Data Management', { exact: true }).first()).toBeVisible();
 
     await checkFatalErrors();
 
