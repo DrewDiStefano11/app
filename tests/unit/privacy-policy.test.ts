@@ -94,24 +94,32 @@ describe('Privacy Policy Engine', () => {
     expect((policy as Record<string, unknown>).unknownField).toBeUndefined();
   });
 
-  test('Every reasonVisibility mode is enforced correctly', () => {
-    const hiddenPolicy = getEffectivePolicy('progress_photos'); // defaults to hidden
-    expect(hiddenPolicy.reasonVisibility).toBe('hidden');
-    const expHidden = explainWhyYouKnowThis('progress_photos', 'manual', {}, true, true);
-    expect(expHidden.source).toBe('hidden');
-    expect(expHidden.explanation).toContain('hidden');
+  test('Every reasonVisibility mode is enforced correctly, and is separate from source visibility', () => {
+    const overrideSourceAlwaysReasonHidden = { sourceVisibility: 'always', reasonVisibility: 'hidden' };
+    const expHiddenReason = explainWhyYouKnowThis('basic_profile', 'manual', overrideSourceAlwaysReasonHidden, true, true);
+    // Source should be visible, reason should be hidden
+    expect(expHiddenReason.source).toBe('manual');
+    expect(expHiddenReason.explanation).toContain('hidden');
+    expect(expHiddenReason.allowedRules.length).toBe(0); // Rules are hidden
 
-    const requestPolicy = getEffectivePolicy('medical_history'); // defaults to on-request
-    expect(requestPolicy.reasonVisibility).toBe('on-request');
-    const expReqLocked = explainWhyYouKnowThis('medical_history', 'manual', {}, true, false);
+    const overrideSourceHiddenReasonAlways = { sourceVisibility: 'hidden', reasonVisibility: 'always' };
+    const expHiddenSource = explainWhyYouKnowThis('basic_profile', 'manual', overrideSourceHiddenReasonAlways, true, true);
+    // Source should be hidden, reason should be visible
+    expect(expHiddenSource.source).toBe('hidden');
+    expect(expHiddenSource.explanation).toContain('enabled');
+    expect(expHiddenSource.allowedRules.length).toBeGreaterThan(0);
+
+    // On-request test
+    const overrideOnRequest = { sourceVisibility: 'on-request', reasonVisibility: 'on-request' };
+    const expReqLocked = explainWhyYouKnowThis('basic_profile', 'manual', overrideOnRequest, true, false);
     expect(expReqLocked.source).toBe('hidden');
-    const expReqUnlocked = explainWhyYouKnowThis('medical_history', 'manual', {}, true, true);
-    expect(expReqUnlocked.source).toBe('manual');
+    expect(expReqLocked.explanation).toContain('unlock');
+    expect(expReqLocked.allowedRules.length).toBe(0);
 
-    const alwaysPolicy = getEffectivePolicy('basic_profile'); // defaults to always
-    expect(alwaysPolicy.reasonVisibility).toBe('always');
-    const expAlways = explainWhyYouKnowThis('basic_profile', 'manual', {}, false, false);
-    expect(expAlways.source).toBe('manual');
+    const expReqUnlocked = explainWhyYouKnowThis('basic_profile', 'manual', overrideOnRequest, true, true);
+    expect(expReqUnlocked.source).toBe('manual');
+    expect(expReqUnlocked.explanation).toContain('enabled');
+    expect(expReqUnlocked.allowedRules.length).toBeGreaterThan(0);
   });
 
   test('Explanation path requires consent when normal decision does', () => {
@@ -133,8 +141,10 @@ describe('Privacy Policy Engine', () => {
 
   test('Explanation path requires unlock when normal decision does', () => {
     const category: DataCategory = 'medical_history'; // Requires unlock
-    const decisionLocked = decideDataUse(category, 'display_source', {}, true, false);
-    const explanationLocked = explainWhyYouKnowThis(category, 'manual', {}, true, false);
+    // Force reason visibility so that we get rules back to assert on
+    const override = { reasonVisibility: 'always' };
+    const decisionLocked = decideDataUse(category, 'display_source', override, true, false);
+    const explanationLocked = explainWhyYouKnowThis(category, 'manual', override, true, false);
     expect(decisionLocked.allowed).toBe(false);
     expect(explanationLocked.source).toBe('hidden');
     expect(explanationLocked.deniedRules).toContain('sensitive_unlock_required');
@@ -145,33 +155,78 @@ describe('Privacy Policy Engine', () => {
     expect(exp.source).toBe('hidden');
   });
 
-  test('Export include/exclude behavior and reasons', () => {
-    const plan = generateExportPlan({
+  test('Export include/exclude behavior and reasons, locked items deny', () => {
+    // Generate without unlock
+    const planLocked = generateExportPlan({
       basic_profile: { exportAllowed: false }
-    });
-    expect(plan.included).not.toContain('basic_profile');
-    expect(plan.excluded).toContain('basic_profile');
-    expect(plan.exclusionReasons['basic_profile']).toBe('Export is disabled');
-    expect(plan.included).toContain('medical_history');
+    }, undefined, true, false);
+    expect(planLocked.included).not.toContain('basic_profile');
+    expect(planLocked.excluded).toContain('basic_profile');
+    expect(planLocked.exclusionReasons['basic_profile']).toBe('Export is disabled');
+    // Medical history requires unlock, so it should be excluded in locked plan
+    expect(planLocked.included).not.toContain('medical_history');
+
+    // Generate with unlock
+    const planUnlocked = generateExportPlan({}, undefined, true, true);
+    expect(planUnlocked.included).toContain('medical_history');
   });
 
   test('Unknown-category handling in export plan', () => {
-    const plan = generateExportPlan({}, ['basic_profile', 'unknown_cat']);
+    const plan = generateExportPlan({}, ['basic_profile', 'unknown_cat'], true, true);
     expect(plan.included).toContain('basic_profile');
     expect(plan.excluded).toContain('unknown_cat' as DataCategory);
     expect(plan.exclusionReasons['unknown_cat']).toBe('Unknown category denied for export.');
   });
 
+  test('Memory requires consent where configured', () => {
+    const override = { memoryAllowed: true };
+    const cat = 'medical_history'; // Has requiresExplicitConsent
+
+    // Test decision Memory
+    const decisionNoConsent = decideDataUse(cat, 'remember', override, false, true);
+    expect(decisionNoConsent.allowed).toBe(false);
+    expect(decisionNoConsent.reason).toContain('consent required');
+
+    const decisionConsentWithMem = decideDataUse(cat, 'remember', override, true, true);
+    expect(decisionConsentWithMem.allowed).toBe(true);
+  });
+
+  test('Locked sensitive data is excluded from AI category enumeration', () => {
+    const catsLocked = getCategoriesForAI({}, true, false);
+    expect(catsLocked).not.toContain('medical_history');
+
+    const catsUnlocked = getCategoriesForAI({ medical_history: { aiUseAllowed: true } }, true, true);
+    expect(catsUnlocked).toContain('medical_history');
+  });
+
+  test('Deletion policy is respected', () => {
+    const decisionNotAllowed = decideDataUse('basic_profile', 'delete', { deletionAllowed: false });
+    expect(decisionNotAllowed.allowed).toBe(false);
+
+    const decisionAllowed = decideDataUse('basic_profile', 'delete', { deletionAllowed: true });
+    expect(decisionAllowed.allowed).toBe(true);
+  });
+
   test('Deletion confirmation and sensitive-unlock requirements', () => {
-    const plan = generateDeletionPlan();
+    // Basic profile is deletable
+    const plan = generateDeletionPlan({ basic_profile: { deletionAllowed: false } });
+
+    // basic_profile should be completely omitted from the plan
     const basic = plan.find(p => p.category === 'basic_profile');
+    expect(basic).toBeUndefined();
+
     const med = plan.find(p => p.category === 'medical_history');
-
-    expect(basic?.requiresConfirmation).toBe(false);
-    expect(basic?.requiresSensitiveUnlock).toBe(false);
-
     expect(med?.requiresConfirmation).toBe(true);
     expect(med?.requiresSensitiveUnlock).toBe(true);
+  });
+
+  test('Disabled category forbids source visibility in explanation', () => {
+     // A category that normally allows source
+     const expEnabled = explainWhyYouKnowThis('basic_profile', 'manual', {}, true, true);
+     expect(expEnabled.source).toBe('manual');
+
+     const expDisabled = explainWhyYouKnowThis('basic_profile', 'manual', { enabled: false }, true, true);
+     expect(expDisabled.source).toBe('hidden'); // disabled category blocks source display
   });
 
   test('Deterministic result ordering', () => {
