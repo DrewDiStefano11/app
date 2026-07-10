@@ -70,7 +70,7 @@ test.describe('Keyboard and Focus Accessibility Smoke', () => {
     // --- Scenario C: Escape closes a simple overlay if currently supported ---
     // Open Settings/Hub overlay
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    const hubHeading = page.getByRole('heading', { name: 'Hub' });
+    const hubHeading = page.getByRole('heading', { name: 'Settings' });
     await expect(hubHeading).toBeVisible();
 
     // Press Escape
