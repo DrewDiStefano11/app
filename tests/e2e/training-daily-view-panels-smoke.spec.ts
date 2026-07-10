@@ -50,14 +50,19 @@ test.describe('Training Daily View Smoke', () => {
     // The BottomSheet uses an X icon for closing, which is not strictly labeled with aria-label="Close"
     // We can locate the button containing the X icon inside the header.
     // However, clicking outside (the backdrop) is safer and accessible via UI
-    await page.locator('.sheet-backdrop').first().click();
+    const firstActiveSheet = page.locator('.sheet-root').last();
+    const firstCloseBtn = firstActiveSheet.locator('.sheet-header').getByRole('button');
+    await firstCloseBtn.click();
     await expect(templatesHeading).not.toBeVisible();
 
     // 2. Cardio & sports
     await page.getByText('min this week').click();
     const cardioHeading = page.locator('.sheet-title', { hasText: 'Cardio & sports' });
     await expect(cardioHeading).toBeVisible();
-    await page.locator('.sheet-backdrop').first().click();
+
+    const secondActiveSheet = page.locator('.sheet-root').last();
+    const secondCloseBtn = secondActiveSheet.locator('.sheet-header').getByRole('button');
+    await secondCloseBtn.click();
     await expect(cardioHeading).not.toBeVisible();
 
     // Confirm bottom navigation still works afterward (verify Train button is either already visible or navigation is expandable)
