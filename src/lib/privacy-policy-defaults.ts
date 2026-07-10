@@ -42,7 +42,7 @@ export interface PrivacyPolicy {
 
 export type PartialPrivacyPolicy = Partial<PrivacyPolicy>;
 
-export const DEFAULT_PRIVACY_POLICIES: Record<DataCategory, PrivacyPolicy> = {
+const _DEFAULT_PRIVACY_POLICIES: Record<DataCategory, PrivacyPolicy> = {
   basic_profile: {
     enabled: true,
     memoryAllowed: true,
@@ -338,3 +338,15 @@ export const DEFAULT_PRIVACY_POLICIES: Record<DataCategory, PrivacyPolicy> = {
     reasonVisibility: "always",
   },
 };
+
+export function getImmutableDefaultPolicy(category: DataCategory): PrivacyPolicy {
+  return { ..._DEFAULT_PRIVACY_POLICIES[category] };
+}
+
+export function getAllImmutableDefaultPolicies(): Record<DataCategory, PrivacyPolicy> {
+  const cloned = {} as Record<DataCategory, PrivacyPolicy>;
+  for (const key of Object.keys(_DEFAULT_PRIVACY_POLICIES) as DataCategory[]) {
+    cloned[key] = { ..._DEFAULT_PRIVACY_POLICIES[key] };
+  }
+  return cloned;
+}

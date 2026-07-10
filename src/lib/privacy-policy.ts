@@ -1,8 +1,9 @@
 import {
   DataCategory,
-  DEFAULT_PRIVACY_POLICIES,
   PartialPrivacyPolicy,
   PrivacyPolicy,
+  getImmutableDefaultPolicy,
+  getAllImmutableDefaultPolicies,
 } from "./privacy-policy-defaults";
 
 export type DataUseAction =
@@ -29,26 +30,58 @@ export interface DataUseDecision {
 
 export interface WhyDoYouKnowThisModel {
   category: DataCategory;
-  source: DataSource;
-  allowedRules: string[];
+  categoryLabel: string;
+  source: DataSource | "hidden";
+  isSourceVisible: boolean;
   isLocalOnly: boolean;
+  mayBeInAiContext: boolean;
   mayBeRemembered: boolean;
   mayBeSynced: boolean;
-  mayBeInAiContext: boolean;
-  requiresConfirmation: boolean;
+  requiresExplicitConsent: boolean;
+  requiresSensitiveUnlock: boolean;
+  userSuppliedConsent: boolean;
+  userSuppliedUnlock: boolean;
+  allowedRules: string[];
+  deniedRules: string[];
+  explanation: string;
 }
+
+const CATEGORY_LABELS: Record<DataCategory, string> = {
+  basic_profile: "Basic Profile",
+  goals: "Goals",
+  training_history: "Training History",
+  active_workout: "Active Workout",
+  nutrition_history: "Nutrition History",
+  recovery_check_ins: "Recovery Check-ins",
+  sleep: "Sleep",
+  bodyweight: "Bodyweight",
+  body_measurements: "Body Measurements",
+  medical_history: "Medical History",
+  allergies: "Allergies",
+  medications: "Medications",
+  conditions: "Conditions",
+  surgeries: "Surgeries",
+  emergency_contacts: "Emergency Contacts",
+  progress_photos: "Progress Photos",
+  conversations: "Conversations",
+  ai_memories: "AI Memories",
+  wearable_data: "Wearable Data",
+  location: "Location",
+  imported_records: "Imported Records"
+};
 
 export function isValidCategory(category: string): category is DataCategory {
-  return Object.prototype.hasOwnProperty.call(DEFAULT_PRIVACY_POLICIES, category);
+  return category in CATEGORY_LABELS;
 }
 
-export function validateOverride(category: DataCategory, override: any): PartialPrivacyPolicy {
+export function validateOverride(category: DataCategory, override: unknown): PartialPrivacyPolicy {
   if (!override || typeof override !== "object" || Array.isArray(override)) {
     return {};
   }
 
-  const defaultPolicy = DEFAULT_PRIVACY_POLICIES[category];
+  const defaultPolicy = getImmutableDefaultPolicy(category);
   const safeOverride: PartialPrivacyPolicy = {};
+  const recordOverride = override as Record<string, unknown>;
 
   const allowedKeys: (keyof PrivacyPolicy)[] = [
     "enabled",
@@ -66,48 +99,41 @@ export function validateOverride(category: DataCategory, override: any): Partial
   ];
 
   for (const key of allowedKeys) {
-    if (Object.prototype.hasOwnProperty.call(override, key)) {
-      const val = override[key];
+    if (Object.prototype.hasOwnProperty.call(recordOverride, key)) {
+      const val = recordOverride[key];
 
-      // Enforce strict type checks
       if (typeof defaultPolicy[key] === "boolean" && typeof val === "boolean") {
-        safeOverride[key] = val as any;
-      } else if (key === "retentionMode" && ["persistent", "session-only", "reduced-history", "disabled"].includes(val)) {
-        safeOverride[key] = val as any;
-      } else if (key === "sourceVisibility" && ["always", "on-request", "hidden"].includes(val)) {
-        safeOverride[key] = val as any;
-      } else if (key === "reasonVisibility" && ["always", "on-request", "hidden"].includes(val)) {
-        safeOverride[key] = val as any;
+        // @ts-expect-error TypeScript doesn't narrow key/val correlation
+        safeOverride[key] = val;
+      } else if (key === "retentionMode" && typeof val === "string" && ["persistent", "session-only", "reduced-history", "disabled"].includes(val)) {
+        // @ts-expect-error TypeScript doesn't narrow key/val correlation
+        safeOverride[key] = val;
+      } else if (key === "sourceVisibility" && typeof val === "string" && ["always", "on-request", "hidden"].includes(val)) {
+        // @ts-expect-error TypeScript doesn't narrow key/val correlation
+        safeOverride[key] = val;
+      } else if (key === "reasonVisibility" && typeof val === "string" && ["always", "on-request", "hidden"].includes(val)) {
+        // @ts-expect-error TypeScript doesn't narrow key/val correlation
+        safeOverride[key] = val;
       }
     }
   }
 
-  // Safety constraint: Cannot weaken non-overridable constraints
   if (defaultPolicy.requiresSensitiveUnlock) {
     safeOverride.requiresSensitiveUnlock = true;
   }
   if (defaultPolicy.requiresExplicitConsent) {
     safeOverride.requiresExplicitConsent = true;
   }
-  if (defaultPolicy.localOnly) {
-    // If it's localOnly by default (like active_workout, imported_records, medical stuff), we enforce it.
-    // Wait, the instructions don't strictly say it can't ever be changed by user,
-    // but they say "Reject or safely normalize attempts to weaken non-overridable safety constraints."
-    // Let's enforce it for sensitive categories or if default is localOnly and explicitConsent is required.
-    // Actually, localOnly=true by default is a strong privacy guard for imported/medical data.
-    // Let's just ensure if it's sensitive, we don't weaken `requiresSensitiveUnlock` and `requiresExplicitConsent`.
-  }
 
   return safeOverride;
 }
 
-export function getEffectivePolicy(category: DataCategory, override: any = {}): PrivacyPolicy {
-  const defaultPolicy = DEFAULT_PRIVACY_POLICIES[category];
+export function getEffectivePolicy(category: DataCategory, override: unknown = {}): PrivacyPolicy {
+  const defaultPolicy = getImmutableDefaultPolicy(category);
   const validOverride = validateOverride(category, override);
 
   const effective = { ...defaultPolicy, ...validOverride };
 
-  // Conflict resolution
   if (!effective.enabled) {
     effective.memoryAllowed = false;
     effective.aiUseAllowed = false;
@@ -120,19 +146,13 @@ export function getEffectivePolicy(category: DataCategory, override: any = {}): 
     effective.cloudSyncAllowed = false;
   }
 
-  if (effective.requiresExplicitConsent && !effective.localOnly) {
-    // Note: in a real system we'd check if consent was given,
-    // but at the policy engine level we just ensure the policy states it requires consent.
-    // If a sensitive category requires consent and cloudSyncAllowed is requested, we ensure requiresExplicitConsent is respected.
-  }
-
   return effective;
 }
 
 export function decideDataUse(
   category: DataCategory,
   action: DataUseAction,
-  override: any = {},
+  override: unknown = {},
   hasConsent: boolean = false,
   isUnlocked: boolean = false
 ): DataUseDecision {
@@ -188,9 +208,6 @@ export function decideDataUse(
       return { allowed: true, reason: "Export allowed", rule: "export_allowed" };
 
     case "delete":
-      // Deletion permission must never make deletion impossible
-      // If requiresSensitiveUnlock, we might say it's allowed but requires stronger confirmation, handled in UI.
-      // Here we always allow delete.
       return { allowed: true, reason: "Deletion is always allowed", rule: "deletion_always_allowed" };
 
     case "display_source":
@@ -210,46 +227,68 @@ export function decideDataUse(
 export function explainWhyYouKnowThis(
   category: DataCategory,
   source: DataSource,
-  override: any = {},
+  override: unknown = {},
   hasConsent: boolean = false,
   isUnlocked: boolean = false
 ): WhyDoYouKnowThisModel {
   const policy = getEffectivePolicy(category, override);
 
+  let explanation = "";
+  if (policy.reasonVisibility === "hidden") {
+    explanation = "Data usage explanation is hidden by privacy rules.";
+  } else if (policy.reasonVisibility === "on-request" && !isUnlocked) {
+    explanation = "Data usage explanation requires sensitive unlock.";
+  } else {
+    explanation = `Data in category ${CATEGORY_LABELS[category]} is currently ${policy.enabled ? 'enabled' : 'disabled'}.`;
+  }
+
+  const isSourceVisible = policy.reasonVisibility === "always" || (policy.reasonVisibility === "on-request" && isUnlocked);
+
   const rules: string[] = [];
-  if (policy.enabled) rules.push("category_enabled");
-  if (policy.memoryAllowed) rules.push("memory_allowed");
-  if (policy.aiUseAllowed) rules.push("ai_use_allowed");
-  if (policy.localOnly) rules.push("local_only");
+  const deniedRules: string[] = [];
+
+  if (policy.enabled) rules.push("category_enabled"); else deniedRules.push("category_disabled");
+  if (policy.memoryAllowed) rules.push("memory_allowed"); else deniedRules.push("memory_disabled");
+  if (policy.aiUseAllowed) rules.push("ai_use_allowed"); else deniedRules.push("ai_use_disabled");
+  if (policy.localOnly) rules.push("local_only"); else rules.push("cloud_capable");
+  if (policy.requiresExplicitConsent) {
+    if (hasConsent) rules.push("consent_granted"); else deniedRules.push("consent_required");
+  }
+  if (policy.requiresSensitiveUnlock) {
+    if (isUnlocked) rules.push("sensitive_unlocked"); else deniedRules.push("sensitive_unlock_required");
+  }
 
   return {
     category,
-    source,
-    allowedRules: rules,
+    categoryLabel: CATEGORY_LABELS[category],
+    source: isSourceVisible ? source : "hidden",
+    isSourceVisible,
     isLocalOnly: policy.localOnly,
-    mayBeRemembered: policy.enabled && policy.memoryAllowed && policy.retentionMode !== "disabled",
-    mayBeSynced: policy.enabled && !policy.localOnly && policy.cloudSyncAllowed && (!policy.requiresExplicitConsent || hasConsent),
-    mayBeInAiContext: policy.enabled && policy.aiUseAllowed && (!policy.requiresExplicitConsent || hasConsent),
-    requiresConfirmation: policy.requiresSensitiveUnlock || policy.requiresExplicitConsent
+    mayBeInAiContext: decideDataUse(category, "ai_context", override, hasConsent, isUnlocked).allowed,
+    mayBeRemembered: decideDataUse(category, "remember", override, hasConsent, isUnlocked).allowed,
+    mayBeSynced: decideDataUse(category, "sync", override, hasConsent, isUnlocked).allowed,
+    requiresExplicitConsent: policy.requiresExplicitConsent,
+    requiresSensitiveUnlock: policy.requiresSensitiveUnlock,
+    userSuppliedConsent: hasConsent,
+    userSuppliedUnlock: isUnlocked,
+    allowedRules: rules,
+    deniedRules,
+    explanation,
   };
 }
 
-// Bulk operations
 export function getDefaultPolicies(): Record<DataCategory, PrivacyPolicy> {
-  return { ...DEFAULT_PRIVACY_POLICIES };
+  return getAllImmutableDefaultPolicies();
 }
 
 export function applyOverrides(
-  overrides: Partial<Record<DataCategory, any>>
+  overrides: Record<string, unknown>
 ): Record<DataCategory, PrivacyPolicy> {
   const result = {} as Record<DataCategory, PrivacyPolicy>;
-
-  const categories = Object.keys(DEFAULT_PRIVACY_POLICIES) as DataCategory[];
-  // Deterministic output order
+  const categories = Object.keys(getAllImmutableDefaultPolicies()) as DataCategory[];
   categories.sort().forEach((cat) => {
     result[cat] = getEffectivePolicy(cat, overrides[cat]);
   });
-
   return result;
 }
 
@@ -257,21 +296,21 @@ export function resetCategory(category: DataCategory): PrivacyPolicy {
   if (!isValidCategory(category)) {
     throw new Error(`Unknown category: ${category}`);
   }
-  return { ...DEFAULT_PRIVACY_POLICIES[category] };
+  return getImmutableDefaultPolicy(category);
 }
 
 export function resetAll(): Record<DataCategory, PrivacyPolicy> {
   const result = {} as Record<DataCategory, PrivacyPolicy>;
-  const categories = Object.keys(DEFAULT_PRIVACY_POLICIES) as DataCategory[];
+  const categories = Object.keys(getAllImmutableDefaultPolicies()) as DataCategory[];
   categories.sort().forEach((cat) => {
-    result[cat] = { ...DEFAULT_PRIVACY_POLICIES[cat] };
+    result[cat] = getImmutableDefaultPolicy(cat);
   });
   return result;
 }
 
-export function getCategoriesForAI(overrides: Partial<Record<DataCategory, any>> = {}, hasConsent: boolean = false): DataCategory[] {
+export function getCategoriesForAI(overrides: Record<string, unknown> = {}, hasConsent: boolean = false): DataCategory[] {
   const allowed: DataCategory[] = [];
-  const categories = Object.keys(DEFAULT_PRIVACY_POLICIES) as DataCategory[];
+  const categories = Object.keys(getAllImmutableDefaultPolicies()) as DataCategory[];
   categories.sort().forEach((cat) => {
     const decision = decideDataUse(cat, "ai_context", overrides[cat], hasConsent, true);
     if (decision.allowed) {
@@ -281,9 +320,9 @@ export function getCategoriesForAI(overrides: Partial<Record<DataCategory, any>>
   return allowed;
 }
 
-export function getCategoriesForExport(overrides: Partial<Record<DataCategory, any>> = {}): DataCategory[] {
+export function getCategoriesForExport(overrides: Record<string, unknown> = {}): DataCategory[] {
   const allowed: DataCategory[] = [];
-  const categories = Object.keys(DEFAULT_PRIVACY_POLICIES) as DataCategory[];
+  const categories = Object.keys(getAllImmutableDefaultPolicies()) as DataCategory[];
   categories.sort().forEach((cat) => {
     const decision = decideDataUse(cat, "export", overrides[cat], true, true);
     if (decision.allowed) {
@@ -295,18 +334,19 @@ export function getCategoriesForExport(overrides: Partial<Record<DataCategory, a
 
 export function getCategoriesRequiringConsent(): DataCategory[] {
   const required: DataCategory[] = [];
-  const categories = Object.keys(DEFAULT_PRIVACY_POLICIES) as DataCategory[];
+  const policies = getAllImmutableDefaultPolicies();
+  const categories = Object.keys(policies) as DataCategory[];
   categories.sort().forEach((cat) => {
-    if (DEFAULT_PRIVACY_POLICIES[cat].requiresExplicitConsent) {
+    if (policies[cat].requiresExplicitConsent) {
       required.push(cat);
     }
   });
   return required;
 }
 
-export function getLocalOnlyCategories(overrides: Partial<Record<DataCategory, any>> = {}): DataCategory[] {
+export function getLocalOnlyCategories(overrides: Record<string, unknown> = {}): DataCategory[] {
   const localOnly: DataCategory[] = [];
-  const categories = Object.keys(DEFAULT_PRIVACY_POLICIES) as DataCategory[];
+  const categories = Object.keys(getAllImmutableDefaultPolicies()) as DataCategory[];
   categories.sort().forEach((cat) => {
     const policy = getEffectivePolicy(cat, overrides[cat]);
     if (policy.localOnly) {
@@ -316,30 +356,76 @@ export function getLocalOnlyCategories(overrides: Partial<Record<DataCategory, a
   return localOnly;
 }
 
-export function generateDeletionPlan(overrides: Partial<Record<DataCategory, any>> = {}): { category: DataCategory, requiresConfirmation: boolean }[] {
-  const plan: { category: DataCategory, requiresConfirmation: boolean }[] = [];
-  const categories = Object.keys(DEFAULT_PRIVACY_POLICIES) as DataCategory[];
+export interface DeletionPlanEntry {
+  category: string;
+  requiresConfirmation: boolean;
+  requiresSensitiveUnlock: boolean;
+  reason: string;
+}
+
+export function generateDeletionPlan(overrides: Record<string, unknown> = {}): DeletionPlanEntry[] {
+  const plan: DeletionPlanEntry[] = [];
+
+  // Handle known categories
+  const categories = Object.keys(getAllImmutableDefaultPolicies()) as DataCategory[];
   categories.sort().forEach((cat) => {
     const policy = getEffectivePolicy(cat, overrides[cat]);
     plan.push({
       category: cat,
-      requiresConfirmation: policy.requiresSensitiveUnlock || policy.requiresExplicitConsent
+      requiresConfirmation: policy.requiresSensitiveUnlock || policy.requiresExplicitConsent,
+      requiresSensitiveUnlock: policy.requiresSensitiveUnlock,
+      reason: policy.requiresSensitiveUnlock ? "Sensitive unlock required to confirm deletion." : "Standard deletion confirmation."
     });
   });
+
+  // Handle unknown categories passed in overrides deterministically
+  const knownKeys = new Set(categories);
+  const unknownKeys = Object.keys(overrides).filter(k => !knownKeys.has(k as DataCategory)).sort();
+  unknownKeys.forEach(cat => {
+    plan.push({
+      category: cat,
+      requiresConfirmation: true, // Fail-safe
+      requiresSensitiveUnlock: true, // Fail-safe
+      reason: "Unknown category treated with maximum safety restrictions."
+    });
+  });
+
   return plan;
 }
 
-export function generateExportPlan(overrides: Partial<Record<DataCategory, any>> = {}): { included: DataCategory[], excluded: DataCategory[] } {
+export interface ExportPlan {
+  included: DataCategory[];
+  excluded: DataCategory[];
+  exclusionReasons: Record<string, string>;
+}
+
+export function generateExportPlan(overrides: Record<string, unknown> = {}, requestCategories?: string[]): ExportPlan {
   const included: DataCategory[] = [];
   const excluded: DataCategory[] = [];
-  const categories = Object.keys(DEFAULT_PRIVACY_POLICIES) as DataCategory[];
-  categories.sort().forEach((cat) => {
+  const exclusionReasons: Record<string, string> = {};
+
+  const defaultPolicies = getAllImmutableDefaultPolicies();
+  let categoriesToEvaluate = Object.keys(defaultPolicies) as DataCategory[];
+
+  if (requestCategories) {
+    categoriesToEvaluate = requestCategories.filter(isValidCategory);
+
+    // Explicitly reject unknown requested categories
+    requestCategories.filter(c => !isValidCategory(c)).sort().forEach(cat => {
+      excluded.push(cat as DataCategory); // Add to excluded list even if invalid, to report denial
+      exclusionReasons[cat] = "Unknown category denied for export.";
+    });
+  }
+
+  categoriesToEvaluate.sort().forEach((cat) => {
     const decision = decideDataUse(cat, "export", overrides[cat], true, true);
     if (decision.allowed) {
       included.push(cat);
     } else {
       excluded.push(cat);
+      exclusionReasons[cat] = decision.reason;
     }
   });
-  return { included, excluded };
+
+  return { included, excluded, exclusionReasons };
 }
