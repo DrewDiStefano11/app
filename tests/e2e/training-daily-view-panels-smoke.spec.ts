@@ -54,16 +54,21 @@ test.describe("Training Daily View Smoke", () => {
     await expect(templatesHeading).toBeVisible();
 
     // The BottomSheet uses an X icon for closing, which is not strictly labeled with aria-label="Close"
-    // Clicking the backdrop sometimes intercepts pointer events from children expanding or animating.
-    // Escape key reliably dismisses properly configured portals/sheets.
-    await page.keyboard.press("Escape");
+    // Clicking the backdrop safely using coordinate off-center to avoid hitting children elements.
+    await page
+      .locator(".sheet-backdrop")
+      .first()
+      .click({ force: true, position: { x: 10, y: 10 } });
     await expect(templatesHeading).not.toBeVisible();
 
     // 2. Cardio & sports
     await page.getByText("min this week").click();
     const cardioHeading = page.locator(".sheet-title", { hasText: "Cardio & sports" });
     await expect(cardioHeading).toBeVisible();
-    await page.keyboard.press("Escape");
+    await page
+      .locator(".sheet-backdrop")
+      .first()
+      .click({ force: true, position: { x: 10, y: 10 } });
     await expect(cardioHeading).not.toBeVisible();
 
     // Confirm bottom navigation still works afterward (verify Train button is either already visible or navigation is expandable)
