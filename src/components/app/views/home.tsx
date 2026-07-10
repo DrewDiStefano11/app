@@ -742,7 +742,7 @@ function HomeDeepDive({
           Apple Watch & Whoop data will sync here for deeper readiness explanations.
         </p>
         <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white/30">
-          Coming Later
+          Planned
         </div>
       </section>
 
@@ -757,7 +757,7 @@ function HomeDeepDive({
           You will be able to add, remove, and reorder dashboard cards later.
         </p>
         <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white/30">
-          Placeholder
+          Planned
         </div>
       </section>
     </div>
