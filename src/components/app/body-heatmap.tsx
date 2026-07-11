@@ -14,73 +14,73 @@ const REGIONS: Region[] = [
     id: "shoulders",
     label: "Shoulders",
     side: "front",
-    d: "M27 48 C28 38 34 34 42 37 C42 44 39 50 34 55 C30 55 27 53 27 48 Z M73 48 C72 38 66 34 58 37 C58 44 61 50 66 55 C70 55 73 53 73 48 Z",
+    d: "M26 46 C27 38 34 35 42 37 C42 45 39 52 34 56 C29 55 26 52 26 46 Z M74 46 C73 38 66 35 58 37 C58 45 61 52 66 56 C71 55 74 52 74 46 Z",
   },
   {
     id: "chest",
     label: "Chest",
     side: "front",
-    d: "M37 47 C42 44 47 44 49 47 L49 69 C44 71 39 68 36 63 Z M63 47 C58 44 53 44 51 47 L51 69 C56 71 61 68 64 63 Z",
+    d: "M37 47 C41 43 47 44 50 48 L50 68 C45 71 39 67 36 62 Z M63 47 C59 43 53 44 50 48 L50 68 C55 71 61 67 64 62 Z",
   },
   {
     id: "biceps",
     label: "Biceps",
     side: "front",
-    d: "M25 58 C29 55 34 58 35 65 L33 82 C30 87 25 84 24 79 Z M75 58 C71 55 66 58 65 65 L67 82 C70 87 75 84 76 79 Z",
+    d: "M24 57 C29 54 34 57 35 65 L33 82 C29 86 24 83 23 78 Z M76 57 C71 54 66 57 65 65 L67 82 C71 86 76 83 77 78 Z",
   },
   {
     id: "core",
     label: "Core",
     side: "front",
-    d: "M39 70 C43 72 47 72 50 70 C53 72 57 72 61 70 L59 101 C55 105 45 105 41 101 Z",
+    d: "M39 69 C43 73 47 73 50 69 C53 73 57 73 61 69 L59 101 C54 106 46 106 41 101 Z",
   },
   {
     id: "quads",
     label: "Quads",
     side: "front",
-    d: "M37 111 C40 106 47 107 49 112 L46 151 C44 157 38 155 36 149 Z M63 111 C60 106 53 107 51 112 L54 151 C56 157 62 155 64 149 Z",
+    d: "M37 111 C42 105 48 107 49 113 L47 151 C44 157 37 156 36 148 Z M63 111 C58 105 52 107 51 113 L53 151 C56 157 63 156 64 148 Z",
   },
   {
     id: "calves",
     label: "Calves",
     side: "front",
-    d: "M37 158 C41 154 46 158 47 164 L45 187 C42 192 38 188 37 181 Z M63 158 C59 154 54 158 53 164 L55 187 C58 192 62 188 63 181 Z",
+    d: "M36 158 C41 153 46 158 47 165 L45 187 C41 192 37 188 36 181 Z M64 158 C59 153 54 158 53 165 L55 187 C59 192 63 188 64 181 Z",
   },
   {
     id: "back",
     label: "Back",
     side: "back",
-    d: "M36 47 C41 43 46 44 50 48 C54 44 59 43 64 47 L63 78 C60 91 55 99 50 101 C45 99 40 91 37 78 Z",
+    d: "M35 46 C41 41 46 43 50 48 C54 43 59 41 65 46 L63 78 C60 92 55 101 50 102 C45 101 40 92 37 78 Z",
   },
   {
     id: "triceps",
     label: "Triceps",
     side: "back",
-    d: "M25 58 C29 55 34 58 35 64 L33 84 C30 88 25 85 24 79 Z M75 58 C71 55 66 58 65 64 L67 84 C70 88 75 85 76 79 Z",
+    d: "M24 57 C29 54 34 57 35 65 L33 83 C29 87 24 84 23 78 Z M76 57 C71 54 66 57 65 65 L67 83 C71 87 76 84 77 78 Z",
   },
   {
     id: "shoulders-back",
     label: "Rear Delts",
     side: "back",
-    d: "M27 48 C28 38 34 34 42 37 C42 44 39 50 34 55 C30 55 27 53 27 48 Z M73 48 C72 38 66 34 58 37 C58 44 61 50 66 55 C70 55 73 53 73 48 Z",
+    d: "M26 46 C27 38 34 35 42 37 C42 45 39 52 34 56 C29 55 26 52 26 46 Z M74 46 C73 38 66 35 58 37 C58 45 61 52 66 56 C71 55 74 52 74 46 Z",
   },
   {
     id: "glutes",
     label: "Glutes",
     side: "back",
-    d: "M38 101 C42 98 47 99 50 103 L49 124 C44 129 38 126 36 119 Z M62 101 C58 98 53 99 50 103 L51 124 C56 129 62 126 64 119 Z",
+    d: "M38 100 C43 96 48 97 50 103 L49 123 C44 129 37 127 36 118 Z M62 100 C57 96 52 97 50 103 L51 123 C56 129 63 127 64 118 Z",
   },
   {
     id: "hamstrings",
     label: "Hamstrings",
     side: "back",
-    d: "M37 127 C41 123 47 125 49 130 L46 157 C43 161 38 158 36 152 Z M63 127 C59 123 53 125 51 130 L54 157 C57 161 62 158 64 152 Z",
+    d: "M37 127 C42 122 47 125 49 131 L46 156 C42 161 37 159 36 151 Z M63 127 C58 122 53 125 51 131 L54 156 C58 161 63 159 64 151 Z",
   },
   {
     id: "calves-back",
     label: "Calves",
     side: "back",
-    d: "M37 159 C41 154 46 158 47 165 L45 187 C42 192 38 188 37 181 Z M63 159 C59 154 54 158 53 165 L55 187 C58 192 62 188 63 181 Z",
+    d: "M36 158 C41 153 46 158 47 165 L45 187 C41 192 37 188 36 181 Z M64 158 C59 153 54 158 53 165 L55 187 C59 192 63 188 64 181 Z",
   },
 ];
 
@@ -100,28 +100,31 @@ const REGION_MUSCLE: Record<string, string> = {
 };
 
 const SILHOUETTE =
-  "M50 6 C42 6 38 12 39 20 C40 26 43 30 47 31 L47 34 C42 34 38 34 34 35 C27 37 23 43 21 53 L18 78 C17 87 21 92 27 94 L32 91 L34 106 C35 117 34 136 35 153 L36 181 C36 192 40 196 46 193 L49 160 L50 126 L51 160 L54 193 C60 196 64 192 64 181 L65 153 C66 136 65 117 66 106 L68 91 L73 94 C79 92 83 87 82 78 L79 53 C77 43 73 37 66 35 C62 34 58 34 53 34 L53 31 C57 30 60 26 61 20 C62 12 58 6 50 6 Z";
+  "M50 6 C42 6 38 12 39 20 C40 26 43 30 47 31 L47 34 C41 34 37 35 34 36 C27 38 22 44 20 54 L17 79 C16 88 20 93 27 94 L31 92 L33 107 C34 118 33 137 34 154 L35 182 C35 193 40 197 46 193 L49 161 L50 126 L51 161 L54 193 C60 197 65 193 65 182 L66 154 C67 137 66 118 67 107 L69 92 L73 94 C80 93 84 88 83 79 L80 54 C78 44 73 38 66 36 C63 35 59 34 53 34 L53 31 C57 30 60 26 61 20 C62 12 58 6 50 6 Z";
 
 const DETAIL_LINES: Record<"front" | "back", string[]> = {
   front: [
-    "M38 48 Q50 55 62 48",
+    "M37 47 Q50 54 63 47",
     "M50 48 L50 101",
-    "M43 78 L57 78 M42 88 L58 88",
-    "M39 112 Q44 121 47 149 M61 112 Q56 121 53 149",
-    "M39 165 Q43 171 45 185 M61 165 Q57 171 55 185",
+    "M42 78 L58 78 M41 89 L59 89",
+    "M38 112 Q44 122 47 150 M62 112 Q56 122 53 150",
+    "M38 165 Q42 172 44 186 M62 165 Q58 172 56 186",
   ],
   back: [
-    "M38 48 Q50 58 62 48",
+    "M37 47 Q50 57 63 47",
     "M50 47 L50 101",
-    "M39 63 Q50 72 61 63",
-    "M38 106 Q44 114 49 122 M62 106 Q56 114 51 122",
-    "M39 133 Q44 143 46 156 M61 133 Q56 143 54 156",
+    "M38 63 Q50 73 62 63",
+    "M37 106 Q44 115 49 123 M63 106 Q56 115 51 123",
+    "M38 133 Q43 144 46 157 M62 133 Q57 144 54 157",
   ],
 };
 
 function colorFor(intensity: number, mode: HeatMode): string {
   const value = Math.max(0, Math.min(1, intensity));
   if (value < 0.01) return "rgb(148 163 184 / 0.13)";
+  if (mode === "strength") {
+    return `rgb(59 130 246 / ${0.22 + value * 0.72})`;
+  }
   if (mode === "recovery") {
     const green = Math.round(80 + value * 160);
     const red = Math.round(220 - value * 180);
@@ -193,6 +196,7 @@ export function BodyHeatmap({
         const muscle = REGION_MUSCLE[region.id];
         const value = values[muscle] ?? 0;
         const isSelected = selected === muscle;
+        const interactive = typeof onSelect === "function";
         return (
           <path
             key={region.id}
@@ -202,19 +206,31 @@ export function BodyHeatmap({
             strokeWidth={isSelected ? 1.35 : 0.55}
             filter={isSelected ? `url(#${gradientId}-selected)` : undefined}
             className="body-heatmap-region"
-            role="button"
-            tabIndex={0}
-            aria-label={`${region.label}, ${Math.round(value * 100)} percent intensity`}
-            onClick={(event) => {
-              event.stopPropagation();
-              select(muscle);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                select(muscle);
-              }
-            }}
+            role={interactive ? "button" : undefined}
+            tabIndex={interactive ? 0 : undefined}
+            aria-label={
+              interactive
+                ? `${region.label}, ${Math.round(value * 100)} percent intensity`
+                : undefined
+            }
+            onClick={
+              interactive
+                ? (event) => {
+                    event.stopPropagation();
+                    select(muscle);
+                  }
+                : undefined
+            }
+            onKeyDown={
+              interactive
+                ? (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      select(muscle);
+                    }
+                  }
+                : undefined
+            }
           />
         );
       })}
