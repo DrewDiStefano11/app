@@ -10,59 +10,52 @@ import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { ActiveWorkoutView } from "@/components/app/active-workout";
 
 type TrainingPanel = "templates" | "cardio" | "history" | "performance" | null;
-
-
-type DeepDiveSubtab = "performance" | "strength" | "library" | "insights";
-const DEEP_DIVE_TABS: { id: DeepDiveSubtab; label: string }[] = [
+type TrainingSubtab = "overview" | "active" | "log" | "exercises" | "programs" | "performance" | "history";
+const TRAINING_TABS: { id: TrainingSubtab; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "active", label: "Active Workout" },
+  { id: "log", label: "Log Workout" },
+  { id: "exercises", label: "Exercises" },
+  { id: "programs", label: "Programs" },
   { id: "performance", label: "Performance" },
-  { id: "strength", label: "Strength" },
-  { id: "library", label: "Library" },
-  { id: "insights", label: "Insights" },
+  { id: "history", label: "History" },
 ];
-
 export function TrainingView({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
   const { state } = useStore();
   const [panel, setPanel] = useState<TrainingPanel>(null);
   const [showActiveWorkout, setShowActiveWorkout] = useState(false);
-  const [tab, setTab] = useState<DeepDiveSubtab>("performance");
+  const [tab, setTab] = useState<TrainingSubtab>("overview");
 
   if (state.activeWorkout && showActiveWorkout) return <ActiveWorkoutView />;
 
   return (
     <div className="pb-24">
       <PageHeader title="Training" subtitle={`${state.profile.split} • ${state.profile.daysPerWeek}d/wk`} />
-      {layoutMode === "deepDive" && <SubTabs tabs={DEEP_DIVE_TABS} active={tab} onChange={setTab} />}
-
-      {layoutMode === "daily" ? (
+      <SubTabs tabs={TRAINING_TABS} active={tab} onChange={setTab} />
+      {tab === "overview" && (
         <DailyTrainingView
           layoutMode={layoutMode}
           onOpenPanel={setPanel}
           onOpenActive={() => setShowActiveWorkout(true)}
         />
-      ) : (
-        <>
-          {tab === "performance" && <PerformanceTab />}
-          {tab === "strength" && <StrengthTab />}
-          {tab === "library" && <div className="px-5"><TemplatesSection onWorkoutStarted={() => setShowActiveWorkout(true)} /></div>}
-          {tab === "insights" && <InsightsTab />}
-        </>
       )}
-
+      {tab === "active" && <ActiveWorkoutSubtab onOpenActive={() => setShowActiveWorkout(true)} />}
+      {tab === "log" && <LogWorkoutSubtab onOpenTemplates={() => setPanel("templates")} onOpenActive={() => setShowActiveWorkout(true)} />}
+      {tab === "exercises" && <ExercisesSubtab />}
+      {tab === "programs" && <div className="px-5"><TemplatesSection onWorkoutStarted={() => setShowActiveWorkout(true)} /></div>}
+      {tab === "performance" && <PerformanceTab />}
+      {tab === "history" && <div className="px-5"><HistorySection /></div>}
       <BottomSheet open={panel === "templates"} onClose={() => setPanel(null)} title="Programs & templates" height="tall">
-        <TemplatesSection onWorkoutStarted={() => { setShowActiveWorkout(true); setPanel(null); }} />
-        <div className="mt-4"><GhostButton onClick={() => setPanel(null)} aria-label="Close programs panel" className="w-full">Close</GhostButton></div>
+        <TemplatesSection onWorkoutStarted={() => setShowActiveWorkout(true)} />
       </BottomSheet>
       <BottomSheet open={panel === "cardio"} onClose={() => setPanel(null)} title="Cardio & sports" height="tall">
         <CardioSection />
-        <div className="mt-4"><GhostButton onClick={() => setPanel(null)} aria-label="Close cardio panel" className="w-full">Close</GhostButton></div>
       </BottomSheet>
       <BottomSheet open={panel === "history"} onClose={() => setPanel(null)} title="Workout history" height="tall">
         <HistorySection />
-        <div className="mt-4"><GhostButton onClick={() => setPanel(null)} aria-label="Close history panel" className="w-full">Close</GhostButton></div>
       </BottomSheet>
       <BottomSheet open={panel === "performance"} onClose={() => setPanel(null)} title="Performance" height="tall">
         <PerformanceTab />
-        <div className="mt-4"><GhostButton onClick={() => setPanel(null)} aria-label="Close performance panel" className="w-full">Close</GhostButton></div>
       </BottomSheet>
     </div>
   );
@@ -489,48 +482,6 @@ function HistorySection() {
         onConfirm={() => { set(s => ({ ...s, workouts: s.workouts.filter(x => x.id !== confirmDel) })); setConfirmDel(null); setDetail(null); }}
         title="Delete workout?" message="This can't be undone." confirmLabel="Delete" destructive />
     </>
-  );
-}
-
-
-/* ===================== DEEP DIVE TABS ===================== */
-function StrengthTab() {
-  const { state } = useStore();
-  const allPRs = [...state.prs].sort((a,b) => b.value - a.value);
-  return (
-    <div className="px-5">
-      <SectionHeader title="Strength & Personal Records" />
-      {allPRs.length === 0 ? (
-        <EmptyState icon={<Trophy size={22} />} title="No PRs yet" description="Finish workouts with weight + reps logged." />
-      ) : (
-        <div className="space-y-2">
-          {allPRs.map(p => (
-            <Card key={p.id}>
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-semibold text-sm">{exerciseById(p.exerciseId)?.name}</p>
-                  <p className="text-xs text-muted-foreground">{p.weight}lb × {p.reps}</p>
-                </div>
-                <p className="font-bold tabular-nums" style={{ color: "var(--section)" }}>{p.value}</p>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function InsightsTab() {
-  return (
-    <div className="px-5">
-      <SectionHeader title="Training Insights" />
-      <PlannedFeatureCard
-        title="Educational Content"
-        status="Planned"
-        description="Honest available insights and educational content will appear here based on your training history."
-      />
-    </div>
   );
 }
 
