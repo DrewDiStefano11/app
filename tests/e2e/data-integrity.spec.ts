@@ -164,10 +164,10 @@ test.describe("FitCore data integrity", () => {
       .click();
     await page.getByRole("button", { name: "Custom Entry" }).click();
     await page.getByPlaceholder("e.g. Post-workout protein bowl").fill("Integrity meal");
-    await page.getByText("Kcal", { exact: true }).locator("..").locator("input").fill("650");
-    await page.getByText("P", { exact: true }).locator("..").locator("input").fill("45");
-    await page.getByText("C", { exact: true }).locator("..").locator("input").fill("70");
-    await page.getByText("F", { exact: true }).locator("..").locator("input").fill("20");
+    await page.getByRole("textbox", { name: "Kcal" }).fill("650");
+    await page.getByRole("textbox", { name: "Protein" }).fill("45");
+    await page.getByRole("textbox", { name: "Carbohydrates" }).fill("70");
+    await page.getByRole("textbox", { name: "Fat" }).fill("20");
     await page.getByRole("button", { name: "Add to Daily Log" }).click();
 
     await clickBottomNav(page, "Recover");
