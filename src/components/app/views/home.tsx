@@ -344,63 +344,51 @@ function HomeDailyView({
           </span>
         </div>
         <div className="home-today-grid">
-          <Tile
-            delay={80}
+          <button
+            type="button"
+            aria-label="Open Body Heat Map details"
             onClick={() => setPopup("heatmap")}
-            className="home-section-card home-section-card--muscle"
+            className="home-section-card home-section-card--muscle tile animate-tile-in press text-left"
+            style={{ animationDelay: "80ms" }}
           >
             <div className="flex h-full flex-col">
               <Eyebrow color="rgb(74 222 128)">
                 Muscle {heatMode === "load" ? "Load" : heatMode} ·{" "}
                 {heatMode === "strength" ? "30d" : heatMode === "recovery" ? "3d" : "7d"}
               </Eyebrow>
-              <div className="mt-2 flex flex-1 items-end justify-between gap-2">
-                <div className="min-w-0 pb-1">
-                  <h2 className="font-display text-[1.7rem] uppercase leading-none">
+              <div className="mt-1 flex flex-1 items-center justify-between gap-1">
+                <div className="min-w-0">
+                  <h2 className="font-display text-[1.5rem] uppercase leading-none">
                     {topLoaded(loadMap)}
                   </h2>
-                  <p className="mt-1 font-display text-xl uppercase text-white/35">
+                  <p className="mt-0.5 font-display text-lg uppercase text-white/35">
                     {heatMode === "recovery"
                       ? "Most recovered"
                       : heatMode === "imbalance"
                         ? "Biggest gap"
                         : "Most worked"}
                   </p>
-                  <p className="mt-3 text-[11px] text-white/50">
+                  <p className="mt-1 text-[10px] text-white/50">
                     Best today:{" "}
                     <span className="font-bold capitalize text-white">{bestMuscle}</span>
                   </p>
                 </div>
-                <div className="home-muscle-map">
+                <div
+                  className="home-muscle-map"
+                  style={{ width: "220px", flexBasis: "220px", height: "220px" }}
+                >
                   <div className="home-muscle-figure">
-                    <BodyHeatmap
-                      values={loadMap}
-                      mode={heatMode}
-                      compact
-                      side="front"
-                      selected={selectedMuscle}
-                      onSelect={selectMuscle}
-                    />
+                    <BodyHeatmap values={loadMap} mode={heatMode} compact side="front" />
                     <span>Front</span>
                   </div>
                   <div className="home-muscle-figure">
-                    <BodyHeatmap
-                      values={loadMap}
-                      mode={heatMode}
-                      compact
-                      side="back"
-                      selected={selectedMuscle}
-                      onSelect={selectMuscle}
-                    />
+                    <BodyHeatmap values={loadMap} mode={heatMode} compact side="back" />
                     <span>Back</span>
                   </div>
                 </div>
               </div>
-              <span className="mt-2 text-[9px] font-bold uppercase tracking-wider text-white/35">
-                Tap to expand →
-              </span>
             </div>
-          </Tile>
+          </button>
 
           <Tile
             delay={120}
