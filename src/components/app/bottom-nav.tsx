@@ -5,9 +5,9 @@ import { cn } from "@/lib/utils";
 
 const items: { id: SectionId; label: string; Icon: typeof Dumbbell }[] = [
   { id: "home", label: "Home", Icon: Home },
-  { id: "training", label: "Train", Icon: Dumbbell },
-  { id: "nutrition", label: "Fuel", Icon: Apple },
-  { id: "recovery", label: "Recover", Icon: Heart },
+  { id: "training", label: "Training", Icon: Dumbbell },
+  { id: "nutrition", label: "Fuel/Nutrition", Icon: Apple },
+  { id: "recovery", label: "Recovery", Icon: Heart },
   { id: "progress", label: "Stats", Icon: TrendingUp },
 ];
 

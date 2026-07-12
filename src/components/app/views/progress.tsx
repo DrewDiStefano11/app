@@ -56,7 +56,7 @@ export function ProgressView({ layoutMode = "daily" }: { layoutMode?: LayoutMode
   return (
     <div className="pb-24" style={{ "--section": "var(--gold)" } as any}>
       <PageHeader
-        title="Progress"
+        title="Stats"
         subtitle={`Your trends and milestones - ${isDeepDive ? "Deep Dive" : "Daily View"}`}
       />
       {!isDeepDive ? (
