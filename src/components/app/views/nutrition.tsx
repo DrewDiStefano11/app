@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, Utensils, Camera, Sparkles, Droplets, Pill } from "lucide-react";
 import { useStore, uid, isToday } from "@/lib/store";
 import { FOODS, MEAL_TEMPLATES, mealTotals } from "@/lib/data";
@@ -48,6 +48,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
   const supplements = state.supplementLogs
     ? state.supplementLogs.filter((s) => isToday(s.createdAt))
     : [];
+  const hasSupplementArray = Array.isArray(state.supplementLogs);
 
   let statusMsg = "No nutrition logged yet";
   if (today.length > 0) {
@@ -127,9 +128,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                   Hydration
                 </p>
               </div>
-              <p className="font-display text-xl text-white">
-                0 <span className="text-sm text-white/40">fl oz</span>
-              </p>
+              <p className="font-display text-xl text-white/40 italic">Not connected</p>
             </div>
 
             <div className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col justify-center">
@@ -143,8 +142,10 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                 <p className="font-display text-xl text-white">
                   {supplements.length} <span className="text-sm text-white/40">taken</span>
                 </p>
-              ) : (
+              ) : hasSupplementArray ? (
                 <p className="font-display text-xl text-white/40 italic">None logged</p>
+              ) : (
+                <p className="font-display text-xl text-white/40 italic">Not connected</p>
               )}
             </div>
           </div>
@@ -290,8 +291,10 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
               <p className="font-display text-xl text-white">
                 {supplements.length} <span className="text-sm text-white/40">taken</span>
               </p>
-            ) : (
+            ) : hasSupplementArray ? (
               <p className="font-display text-xl text-white/40 italic">None logged</p>
+            ) : (
+              <p className="font-display text-xl text-white/40 italic">Not connected</p>
             )}
           </div>
         </div>
@@ -419,10 +422,34 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
   const [c, setC] = useState("");
   const [fat, setFat] = useState("");
   const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+
+  useEffect(() => {
+    if (open) {
+      setName("");
+      setCal("");
+      setP("");
+      setC("");
+      setFat("");
+      setError(null);
+      inFlight.current = false;
+    }
+  }, [open]);
 
   const addMeal = (m: MealEntry) => {
-    set((s) => ({ ...s, mealEntries: [...s.mealEntries, m] }));
-    onClose();
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      set((s) => ({ ...s, mealEntries: [...s.mealEntries, m] }));
+      onClose();
+      // The lock will reset via the `useEffect` when `open` becomes false,
+      // or if it throws. We do not set it to false here so we don't clear it
+      // in the same tick if we are closing the sheet.
+    } catch (e) {
+      inFlight.current = false;
+      throw e;
+    }
   };
 
   const filteredFoods = FOODS.filter(
@@ -683,26 +710,54 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
               </div>
             </div>
           </div>
+          {error && (
+            <p role="alert" className="text-red-400 text-sm font-medium">
+              {error}
+            </p>
+          )}
           <div className="pt-4">
             <PrimaryButton
               className="w-full rounded-xl h-14 shadow-lg text-lg"
-              disabled={!name || !cal}
+              disabled={inFlight.current}
               onClick={() => {
+                if (!name.trim()) {
+                  setError("Meal name is required.");
+                  return;
+                }
+                const parsedCal = Number(cal);
+                if (cal.trim() === "" || !Number.isFinite(parsedCal) || parsedCal < 0) {
+                  setError("Please enter valid, non-negative calories.");
+                  return;
+                }
+
+                const parseMacro = (val: string) => {
+                  if (val.trim() === "") return 0;
+                  const n = Number(val);
+                  if (!Number.isFinite(n) || n < 0) return null;
+                  return n;
+                };
+
+                const parsedP = parseMacro(p);
+                const parsedC = parseMacro(c);
+                const parsedF = parseMacro(fat);
+
+                if (parsedP === null || parsedC === null || parsedF === null) {
+                  setError("Macros must be valid, non-negative numbers.");
+                  return;
+                }
+
+                setError(null);
+
                 addMeal({
                   id: uid(),
-                  name,
+                  name: name.trim(),
                   type,
-                  calories: Number(cal) || 0,
-                  protein: Number(p) || 0,
-                  carbs: Number(c) || 0,
-                  fat: Number(fat) || 0,
+                  calories: parsedCal,
+                  protein: parsedP,
+                  carbs: parsedC,
+                  fat: parsedF,
                   createdAt: Date.now(),
                 });
-                setName("");
-                setCal("");
-                setP("");
-                setC("");
-                setFat("");
               }}
             >
               Add to Daily Log
