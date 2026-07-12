@@ -172,6 +172,8 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                 {today.map((m) => (
                   <div
                     key={m.id}
+                    role="region"
+                    aria-label={`Meal: ${m.name}`}
                     className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between group transition-all active:scale-[0.98]"
                   >
                     <div className="min-w-0 flex-1">
@@ -649,8 +651,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
         <div className="space-y-5 pt-2">
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Meal Name</Label>
+              <Label htmlFor="custom-meal-name">Meal Name</Label>
               <Input
+                id="custom-meal-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Post-workout protein bowl"
@@ -658,8 +661,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Meal Type</Label>
+              <Label htmlFor="custom-meal-type">Meal Type</Label>
               <Select
+                id="custom-meal-type"
                 value={type}
                 onChange={(e) => setType(e.target.value)}
                 className="bg-white/5 border-white/10 rounded-xl h-12 capitalize font-bold"
@@ -673,8 +677,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
             </div>
             <div className="grid grid-cols-4 gap-3">
               <div className="space-y-1.5">
-                <Label>Kcal</Label>
+                <Label htmlFor="custom-meal-kcal">Kcal</Label>
                 <Input
+                  id="custom-meal-kcal"
                   inputMode="numeric"
                   value={cal}
                   onChange={(e) => setCal(e.target.value)}
@@ -682,8 +687,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>P</Label>
+                <Label htmlFor="custom-meal-p">Protein</Label>
                 <Input
+                  id="custom-meal-p"
                   inputMode="numeric"
                   value={p}
                   onChange={(e) => setP(e.target.value)}
@@ -691,8 +697,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>C</Label>
+                <Label htmlFor="custom-meal-c">Carbohydrates</Label>
                 <Input
+                  id="custom-meal-c"
                   inputMode="numeric"
                   value={c}
                   onChange={(e) => setC(e.target.value)}
@@ -700,8 +707,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>F</Label>
+                <Label htmlFor="custom-meal-f">Fat</Label>
                 <Input
+                  id="custom-meal-f"
                   inputMode="numeric"
                   value={fat}
                   onChange={(e) => setFat(e.target.value)}

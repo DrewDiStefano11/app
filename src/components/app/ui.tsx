@@ -402,9 +402,9 @@ export function Textarea(
   );
 }
 
-export function Label({ children }: { children: ReactNode }) {
+export function Label({ children, htmlFor, ...props }: { children: ReactNode } & React.LabelHTMLAttributes<HTMLLabelElement>) {
   return (
-    <label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">
+    <label htmlFor={htmlFor} className="text-xs uppercase tracking-wider text-muted-foreground font-semibold" {...props}>
       {children}
     </label>
   );

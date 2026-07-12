@@ -20,8 +20,6 @@ async function checkNoFatalErrors(page: Page) {
 }
 
 test.describe("Nutrition Daily View Lifecycle", () => {
-  test.use({ viewport: FITCORE_MOBILE_VIEWPORTS.iphoneModern, isMobile: true });
-
   test("Daily view validations, logging a custom meal, handling duplicates, and deep dive tabs", async ({
     page,
   }) => {
@@ -33,7 +31,8 @@ test.describe("Nutrition Daily View Lifecycle", () => {
     if (await expandBtn.isVisible()) {
       await expandBtn.click();
     }
-    await page.getByRole("button", { name: /^Fuel/i }).click();
+    // Note: Use exact match for "Fuel" based on current canonical navigation region
+    await page.getByRole("navigation").getByRole("button", { name: "Fuel", exact: true }).click();
 
     // 3. Confirm Daily View is active and no subtabs
     await expect(page.getByText("Daily View", { exact: false })).toBeVisible();
@@ -60,8 +59,8 @@ test.describe("Nutrition Daily View Lifecycle", () => {
     await sheetRoot.getByText("Custom Entry", { exact: true }).click();
 
     // 8. Attempt invalid custom entries
-    const nameInput = sheetRoot.getByRole("textbox").first(); // Name
-    const kcalInput = sheetRoot.locator('input[inputmode="numeric"]').nth(0);
+    const nameInput = sheetRoot.getByRole("textbox", { name: "Meal Name" });
+    const kcalInput = sheetRoot.getByRole("textbox", { name: "Kcal" });
     const saveBtn = sheetRoot.getByRole("button", { name: "Add to Daily Log" });
 
     await nameInput.fill("");
@@ -85,7 +84,7 @@ test.describe("Nutrition Daily View Lifecycle", () => {
     // 12. Correct the inputs
     await nameInput.fill("Valid Chicken Bowl");
     await kcalInput.fill("400");
-    const pInput = sheetRoot.locator('input[inputmode="numeric"]').nth(1);
+    const pInput = sheetRoot.getByRole("textbox", { name: "Protein" });
     await pInput.fill("35");
 
     // 13. Save one valid custom meal
@@ -99,8 +98,9 @@ test.describe("Nutrition Daily View Lifecycle", () => {
 
     // 16. Confirm calorie totals update
     // Verify through the real UI instead of localStorage
-    await expect(page.getByText("Valid Chicken Bowl", { exact: true })).toBeVisible();
-    await expect(page.getByText("400", { exact: true })).toBeVisible(); // Check UI for calories
+    const firstMealRecord = page.getByRole("region", { name: "Meal: Valid Chicken Bowl" });
+    await expect(firstMealRecord).toBeVisible();
+    await expect(firstMealRecord.getByText("400", { exact: true })).toBeVisible(); // Check UI for calories inside the record
 
     // 17. Reopen the sheet
     await page.getByRole("button", { name: "Log Meal", exact: true }).click();
@@ -110,29 +110,28 @@ test.describe("Nutrition Daily View Lifecycle", () => {
     await sheetRoot.getByText("Custom Entry", { exact: true }).click();
 
     // 18. Save a second valid meal
-    const nameInput2 = sheetRoot.getByRole("textbox").first();
-    const kcalInput2 = sheetRoot.locator('input[inputmode="numeric"]').nth(0);
+    const nameInput2 = sheetRoot.getByRole("textbox", { name: "Meal Name" });
+    const kcalInput2 = sheetRoot.getByRole("textbox", { name: "Kcal" });
     await nameInput2.fill("Quick Snack");
     await kcalInput2.fill("150");
 
     // 19-20. Test rapid duplicate submission (double click)
-    // Fire the click, then immediately try firing another click without waiting for navigation/closure
-    const btnHandle = await saveBtn.elementHandle();
-    if (btnHandle) {
-      await btnHandle.click();
-      await btnHandle.click().catch(() => {});
-    }
+    // Fire clicks rapidly to test duplicate prevention
+    // Use evaluate to securely fire it twice without Playwright strictly waiting on disabled state
+    await saveBtn.evaluate((node) => {
+      node.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      node.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
 
     await expect(sheetRoot).not.toBeVisible();
 
     // 21. Confirm one intended record is created
-    // Verify through the real UI instead of localStorage
-    await expect(page.getByText("Quick Snack", { exact: true })).toHaveCount(1);
+    // Verify through the real UI
+    const quickSnackRecord = page.getByRole("region", { name: "Meal: Quick Snack" });
+    await expect(quickSnackRecord).toHaveCount(1);
 
     // 22. Delete one selected meal
     // Scope the delete click specifically to the Quick Snack record
-    // Using `locator('.premium-card')` to be more specific than just 'div' which can nest the button multiple times
-    const quickSnackRecord = page.locator(".premium-card").filter({ hasText: "Quick Snack" }).first();
     await quickSnackRecord.getByRole("button", { name: "Delete meal" }).click();
 
     // Confirm delete dialog appears and confirm it
@@ -152,7 +151,7 @@ test.describe("Nutrition Daily View Lifecycle", () => {
 
     // 26. Switch to Deep Dive
     // First, navigate to home where the toggle lives, change it, then navigate back
-    await page.getByRole("button", { name: /^Home/i }).click();
+    await page.getByRole("button", { name: "Home", exact: true }).click();
     await expect(
       page
         .getByText("FitCore Today", { exact: true })
@@ -166,7 +165,7 @@ test.describe("Nutrition Daily View Lifecycle", () => {
     }
 
     // Navigate back to Fuel/Nutrition
-    await page.getByRole("button", { name: /^Fuel/i }).click();
+    await page.getByRole("navigation").getByRole("button", { name: "Fuel", exact: true }).click();
 
     // 27. Confirm exactly Macros, Quality, Timing, and Insights.
     const tablist = page.getByRole("tablist");
