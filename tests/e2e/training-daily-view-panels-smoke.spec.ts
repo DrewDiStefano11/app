@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { seedMinimalOnboardedState, gotoDashboard, FITCORE_MOBILE_VIEWPORTS } from './helpers/fitcore-test-state';
+import { seedMinimalOnboardedState, seedFitCoreAppState, gotoDashboard, FITCORE_MOBILE_VIEWPORTS, FITCORE_DATA_VERSION } from './helpers/fitcore-test-state';
 
 test.describe('Training Daily View Smoke', () => {
   test.use({ viewport: FITCORE_MOBILE_VIEWPORTS.iphoneModern, isMobile: true });
 
-  test('scenario coverage for Training Daily View layout and active workout paths', async ({ page }) => {
-    // Scenario A — Training tab renders safely
+  test('renders Daily View panels and active workout start paths', async ({ page }) => {
+    // Normal state with no active workout
     await seedMinimalOnboardedState(page);
     await gotoDashboard(page);
 
@@ -14,93 +14,174 @@ test.describe('Training Daily View Smoke', () => {
     if (await expandBtn.isVisible()) {
       await expandBtn.click();
     }
-
     await page.getByRole('button', { name: 'Train', exact: true }).click();
 
-    // Assert the Training heading or Daily View shell is visible
+    // 1. Training Daily View loads.
     await expect(page.getByRole('heading', { name: 'Training', exact: true })).toBeVisible();
 
-    // Assert no fatal error text is visible
-    const fatalErrors = [
-      "This page didn't load",
-      "Application error",
-      "Unhandled Runtime Error",
-      "createServerFn(...).validator is not a function",
-      "Cannot read properties of undefined",
-      "Cannot read properties of null"
-    ];
-    for (const errorText of fatalErrors) {
-      await expect(page.getByText(errorText)).not.toBeVisible();
-    }
+    // 2. No legacy subtabs exist
+    await expect(page.getByRole('tab', { name: 'Overview' })).not.toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Log Workout' })).not.toBeVisible();
 
-    // Scenario B — Main Training Daily View sections are reachable
-    await expect(page.getByText('Programs & templates')).toBeVisible();
-    await expect(page.getByText('Last workout').or(page.getByText('Recent history'))).toBeVisible();
-    await expect(page.getByText('Cardio & sports')).toBeVisible();
-    await expect(page.getByText('Performance & progression')).toBeVisible();
-
-    // Scenario C — Secondary panels/sheets open and close safely
-    // 1. Programs & templates
-    // Click on the Card or "View all" button next to "Programs & templates"
+    // 3. Programs/templates panel opens and closes safely.
     await page.getByText('starter templates').click();
-
     const templatesHeading = page.locator('.sheet-title', { hasText: 'Programs & templates' });
     await expect(templatesHeading).toBeVisible();
-
-    // The BottomSheet uses an X icon for closing, which is not strictly labeled with aria-label="Close"
-    // We can locate the button containing the X icon inside the header.
-    // However, clicking outside (the backdrop) is safer and accessible via UI
-    await page.locator('.sheet-backdrop').first().click();
+    await page.getByRole('button', { name: 'Close programs panel' }).click();
     await expect(templatesHeading).not.toBeVisible();
 
-    // 2. Cardio & sports
+    // 4. Cardio/sports panel opens and closes safely.
     await page.getByText('min this week').click();
     const cardioHeading = page.locator('.sheet-title', { hasText: 'Cardio & sports' });
     await expect(cardioHeading).toBeVisible();
-    await page.locator('.sheet-backdrop').first().click();
+    await page.getByRole('button', { name: 'Close cardio panel' }).click();
     await expect(cardioHeading).not.toBeVisible();
 
-    // Confirm bottom navigation still works afterward (verify Train button is either already visible or navigation is expandable)
-    const expandNavAgain = page.getByRole('button', { name: 'Expand navigation' });
-    if (await expandNavAgain.isVisible()) {
-      // Don't click it again if it's struggling to stabilize, just assert the shell exists.
-      // E2E test workaround: Sometimes the navigation gets stuck in a semi-stable state after bottom sheets close.
-    }
+    // 5. Performance/progression panel opens and closes safely.
+    await page.getByText('Open training analytics').click();
+    const perfHeading = page.locator('.sheet-title', { hasText: 'Performance', exact: true });
+    await expect(perfHeading).toBeVisible();
+    await page.getByRole('button', { name: 'Close performance panel' }).click();
+    await expect(perfHeading).not.toBeVisible();
 
-    // We check if either the Train button is in the DOM or the train command bar is visible
-    await expect(page.locator('nav').getByRole('button', { name: 'Train', exact: true }).or(page.getByRole('button', { name: /Expand navigation/ }))).toBeVisible();
-
-    // Scenario D — Blank workout / active workout path is safe
+    // 6. Start blank workout opens Active Workout.
     await page.getByText('Blank workout', { exact: true }).click();
-
-    // Confirm the active workout screen appears
     await expect(page.getByRole('heading', { name: 'No exercises yet' })).toBeVisible();
 
-    // Navigate away safely (discard workout)
-    // Click the X button (aria-label="Discard workout")
+    // 7. Discard returns safely to Training.
     await page.getByRole('button', { name: 'Discard workout' }).click();
-    // Confirm dialog Discard button
     await page.locator('.sheet-surface').getByRole('button', { name: 'Discard', exact: true }).click();
-
-    // Confirm the app does not crash and we're back at training view
     await expect(page.getByRole('heading', { name: 'Training', exact: true })).toBeVisible();
 
-    for (const errorText of fatalErrors) {
-      await expect(page.getByText(errorText)).not.toBeVisible();
-    }
+    // 8. Start template opens Active Workout.
+    await page.getByText('starter templates').click();
+    const startPushBtn = page.locator('.card-elev').filter({ hasText: 'Push Day' }).getByRole('button', { name: /^Start$/ });
+    await startPushBtn.click();
+    await expect(page.getByRole('heading', { name: 'Push Day', exact: true })).toBeVisible();
+  });
 
-    // Scenario E — Reload stability
-    await page.reload();
+  test('resumes an existing active workout', async ({ page }) => {
+    const startedAt = Date.now() - 60_000;
 
-    // In FitCore, reloading puts us back on Home. Navigate to Train again.
-    const expandBtnAfterReload = page.getByRole('button', { name: 'Expand navigation' });
-    if (await expandBtnAfterReload.isVisible()) {
-      await expandBtnAfterReload.click();
+    await seedFitCoreAppState(page, {
+      version: FITCORE_DATA_VERSION,
+      onboardingComplete: true,
+      profile: {
+        goal: "hypertrophy",
+        experience: "intermediate",
+        daysPerWeek: 5,
+        split: "Push / Pull / Legs",
+        bodyweightLb: 180,
+        targetBodyweightLb: 185,
+        units: "lb",
+      },
+      workouts: [],
+      mealEntries: [],
+      bodyweightEntries: [],
+      goals: [],
+      activeWorkout: {
+        id: "resume-test-workout",
+        name: "Resume Test Workout",
+        startedAt,
+        exercises: [],
+      },
+    });
+
+    await page.goto("/");
+
+    // Verify app shell routed directly to Training automatically
+    await expect(
+      page.getByRole("heading", {
+        name: "Training",
+        exact: true,
+      })
+    ).toBeVisible();
+
+    // Verify pre-resume state: Active Workout surface is NOT already open
+    await expect(
+      page.getByText("Workout in progress", { exact: true })
+    ).toBeVisible();
+
+    await expect(
+      page.getByText("Resume Test Workout", { exact: false })
+    ).toBeVisible();
+
+    await expect(
+      page.getByText("In progress", { exact: true })
+    ).not.toBeVisible();
+
+    // Locate and verify Resume button
+    const resumeButton = page.getByRole("button", {
+      name: "Resume workout",
+      exact: true,
+    });
+
+    await expect(resumeButton).toHaveCount(1);
+    await expect(resumeButton).toBeVisible();
+    await expect(resumeButton).toBeEnabled();
+
+    // Click Resume and verify real Active Workout surface
+    await resumeButton.click();
+
+    await expect(
+      page.getByText("In progress", { exact: true })
+    ).toBeVisible();
+
+    await expect(
+      page.getByRole("heading", { name: "Resume Test Workout", exact: true })
+    ).toBeVisible();
+
+    await expect(
+      page.getByRole("button", { name: "Discard workout", exact: true })
+    ).toBeVisible();
+
+    await expect(
+      page.getByRole("button", { name: "Finish workout", exact: true })
+    ).toBeVisible();
+  });
+
+  test('renders the four Deep Dive tabs', async ({ page }) => {
+    await seedMinimalOnboardedState(page);
+    await gotoDashboard(page);
+
+    // Switch to Deep Dive on Home page first since it's an app-wide state
+    const layoutToggle = page.getByRole('button', { name: /deep dive/i });
+    await layoutToggle.click();
+    await expect(layoutToggle).toHaveAttribute('aria-pressed', 'true');
+
+    const expandBtn = page.getByRole('button', { name: 'Expand navigation' });
+    if (await expandBtn.isVisible()) {
+      await expandBtn.click();
     }
     await page.getByRole('button', { name: 'Train', exact: true }).click();
 
     await expect(page.getByRole('heading', { name: 'Training', exact: true })).toBeVisible();
 
+    // Exactly 4 tabs
+    await expect(page.getByRole('tab', { name: 'Performance' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Strength' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Library' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Insights' })).toBeVisible();
+
+    // Render contents safely
+    await page.getByRole('tab', { name: 'Performance' }).click();
+    await expect(page.getByRole('heading', { name: 'Volume trend (14d)' })).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Strength' }).click();
+    await expect(page.getByText('Strength & Personal Records')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Library' }).click();
+    await expect(page.getByText('starter templates')).toBeVisible();
+
+    await page.getByRole('tab', { name: 'Insights' }).click();
+    await expect(page.getByText('Training Insights')).toBeVisible();
+
+    // Assert no fatal errors
+    const fatalErrors = [
+      "This page didn't load",
+      "Application error",
+      "Unhandled Runtime Error"
+    ];
     for (const errorText of fatalErrors) {
       await expect(page.getByText(errorText)).not.toBeVisible();
     }

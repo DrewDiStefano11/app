@@ -72,7 +72,11 @@ export interface WorkoutSessionPayload {
   averageHeartRate?: number;
 }
 
-export type RecordPayload = SleepSessionPayload | WorkoutSessionPayload | Record<string, unknown> | undefined;
+export type RecordPayload =
+  | SleepSessionPayload
+  | WorkoutSessionPayload
+  | Record<string, unknown>
+  | undefined;
 
 export type RejectionReason =
   | "non_finite_value"
