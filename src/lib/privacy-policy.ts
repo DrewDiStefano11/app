@@ -83,21 +83,6 @@ export function validateOverride(category: DataCategory, override: unknown): Par
   const safeOverride: PartialPrivacyPolicy = {};
   const recordOverride = override as Record<string, unknown>;
 
-  const allowedKeys: (keyof PrivacyPolicy)[] = [
-    "enabled",
-    "memoryAllowed",
-    "aiUseAllowed",
-    "localOnly",
-    "cloudSyncAllowed",
-    "exportAllowed",
-    "deletionAllowed",
-    "requiresSensitiveUnlock",
-    "requiresExplicitConsent",
-    "retentionMode",
-    "sourceVisibility",
-    "reasonVisibility",
-  ];
-
   if (typeof recordOverride.enabled === "boolean") safeOverride.enabled = recordOverride.enabled;
   if (typeof recordOverride.memoryAllowed === "boolean") safeOverride.memoryAllowed = recordOverride.memoryAllowed;
   if (typeof recordOverride.aiUseAllowed === "boolean") safeOverride.aiUseAllowed = recordOverride.aiUseAllowed;
@@ -125,6 +110,9 @@ export function validateOverride(category: DataCategory, override: unknown): Par
   }
   if (defaultPolicy.requiresExplicitConsent) {
     safeOverride.requiresExplicitConsent = true;
+  }
+  if (defaultPolicy.localOnly) {
+    safeOverride.localOnly = true;
   }
 
   return safeOverride;

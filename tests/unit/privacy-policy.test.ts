@@ -251,16 +251,57 @@ describe('Privacy Policy Engine', () => {
   });
 
   test('Explicit consent true and false', () => {
+    // We cannot override localOnly for medical_history anymore since it defaults to true
+    // So sync will always fail. We test explicit consent with ai_context instead where localOnly does not inherently block it.
     const cat = 'medical_history'; // explicit consent is true by default
-    const falseConsent = decideDataUse(cat, 'sync', {}, false, true);
-    const trueConsent = decideDataUse(cat, 'sync', { localOnly: false, cloudSyncAllowed: true }, true, true);
+
+    const override = { aiUseAllowed: true };
+    const falseConsent = decideDataUse(cat, 'ai_context', override, false, true);
+    const trueConsent = decideDataUse(cat, 'ai_context', override, true, true);
 
     expect(falseConsent.allowed).toBe(false);
     expect(trueConsent.allowed).toBe(true);
   });
 
+  test('Active workout explicitly adheres to required sensitive/consent defaults', () => {
+    const defaultPol = getEffectivePolicy('active_workout');
+    expect(defaultPol.localOnly).toBe(true);
+    expect(defaultPol.cloudSyncAllowed).toBe(false);
+    expect(defaultPol.requiresSensitiveUnlock).toBe(true);
+    expect(defaultPol.requiresExplicitConsent).toBe(true);
+    expect(defaultPol.memoryAllowed).toBe(false);
+    expect(defaultPol.retentionMode).toBe('session-only');
+
+    const decisionNoConsent = decideDataUse('active_workout', 'ai_context', {}, false, true);
+    expect(decisionNoConsent.allowed).toBe(false);
+
+    const decisionLocked = decideDataUse('active_workout', 'display_source', {}, true, false);
+    expect(decisionLocked.allowed).toBe(false);
+  });
+
+  test('Imported records explicitly adheres to required sensitive/consent defaults', () => {
+    const defaultPol = getEffectivePolicy('imported_records');
+    expect(defaultPol.localOnly).toBe(true);
+    expect(defaultPol.cloudSyncAllowed).toBe(false);
+    expect(defaultPol.requiresSensitiveUnlock).toBe(true);
+    expect(defaultPol.requiresExplicitConsent).toBe(true);
+
+    const decisionNoConsent = decideDataUse('imported_records', 'ai_context', {}, false, true);
+    expect(decisionNoConsent.allowed).toBe(false);
+
+    const decisionLocked = decideDataUse('imported_records', 'display_source', {}, true, false);
+    expect(decisionLocked.allowed).toBe(false);
+  });
+
+  test('Local-only sync protection cannot be weakened via override', () => {
+    // active_workout is localOnly: true by default
+    const pol = getEffectivePolicy('active_workout', { localOnly: false, cloudSyncAllowed: true });
+    expect(pol.localOnly).toBe(true);
+    expect(pol.cloudSyncAllowed).toBe(false);
+  });
+
   test('Conflicting override combinations', () => {
-    // Local-only plus cloud-sync override conflict
+    // Local-only plus cloud-sync override conflict (using a category not local-only by default to test basic merge conflicts)
     const pol1 = getEffectivePolicy('basic_profile', { localOnly: true, cloudSyncAllowed: true });
     expect(pol1.localOnly).toBe(true);
     expect(pol1.cloudSyncAllowed).toBe(false); // cloud sync should be disabled due to localOnly
