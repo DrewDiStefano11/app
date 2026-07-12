@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import {
   Bell,
   BrainCircuit,
@@ -90,6 +90,7 @@ function HubCard({
         type="button"
         onClick={() => onToggle(id)}
         aria-expanded={expanded}
+        aria-label={`Toggle ${title}`}
         className="flex min-h-[82px] w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-white/[0.025] sm:px-5"
       >
         {icon && (
@@ -162,6 +163,17 @@ export function SettingsView({
     data: true,
     integrations: true,
   });
+
+  const [bwBuf, setBwBuf] = useState(state.profile.bodyweightLb.toString());
+  const [dpwBuf, setDpwBuf] = useState(state.profile.daysPerWeek.toString());
+
+  useEffect(() => {
+    setBwBuf(state.profile.bodyweightLb.toString());
+  }, [state.profile.bodyweightLb]);
+
+  useEffect(() => {
+    setDpwBuf(state.profile.daysPerWeek.toString());
+  }, [state.profile.daysPerWeek]);
 
   const updateProfile = (p: Partial<Profile>) =>
     set((s) => ({ ...s, profile: { ...s.profile, ...p } }));
@@ -253,10 +265,17 @@ export function SettingsView({
                       <Label>Bodyweight (lb)</Label>
                       <Input
                         inputMode="decimal"
-                        value={state.profile.bodyweightLb}
-                        onChange={(e) =>
-                          updateProfile({ bodyweightLb: Number(e.target.value) || 0 })
-                        }
+                        aria-label="Bodyweight in pounds"
+                        value={bwBuf}
+                        onChange={(e) => setBwBuf(e.target.value)}
+                        onBlur={() => {
+                          const val = Number(bwBuf);
+                          if (Number.isFinite(val) && val > 0) {
+                            updateProfile({ bodyweightLb: val });
+                          } else {
+                            setBwBuf(state.profile.bodyweightLb.toString());
+                          }
+                        }}
                       />
                     </div>
                     <div>
@@ -297,10 +316,22 @@ export function SettingsView({
                       <Label>Days/week</Label>
                       <Input
                         type="number"
-                        value={state.profile.daysPerWeek}
-                        onChange={(e) =>
-                          updateProfile({ daysPerWeek: Number(e.target.value) || 0 })
-                        }
+                        aria-label="Training days per week"
+                        value={dpwBuf}
+                        onChange={(e) => setDpwBuf(e.target.value)}
+                        onBlur={() => {
+                          const val = Number(dpwBuf);
+                          if (
+                            Number.isFinite(val) &&
+                            Number.isInteger(val) &&
+                            val >= 1 &&
+                            val <= 7
+                          ) {
+                            updateProfile({ daysPerWeek: val });
+                          } else {
+                            setDpwBuf(state.profile.daysPerWeek.toString());
+                          }
+                        }}
                       />
                     </div>
                     <div>
@@ -682,12 +713,21 @@ export function SettingsView({
                         type="file"
                         accept="application/json"
                         className="hidden"
-                        onChange={(e) => handleImport(e.target.files?.[0] ?? null)}
+                        aria-label="Import backup file"
+                        onChange={(e) => {
+                          handleImport(e.target.files?.[0] ?? null);
+                          e.target.value = "";
+                        }}
                       />
                     </label>
                   </div>
                   {importMsg && (
-                    <p className="text-xs text-center" style={{ color: "var(--section)" }}>
+                    <p
+                      role="status"
+                      aria-live="polite"
+                      className="text-xs text-center"
+                      style={{ color: "var(--section)" }}
+                    >
                       {importMsg}
                     </p>
                   )}
@@ -832,7 +872,10 @@ export function SettingsView({
       <ConfirmDialog
         open={confirmReset}
         onClose={() => setConfirmReset(false)}
-        onConfirm={reset}
+        onConfirm={() => {
+          reset();
+          setConfirmReset(false);
+        }}
         title="Reset all data?"
         message="This permanently erases workouts, meals, recovery, photos and PRs."
         confirmLabel="Reset"
