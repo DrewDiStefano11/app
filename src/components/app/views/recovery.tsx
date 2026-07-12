@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Plus, Moon, Heart, Activity } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import type { FatigueLevel } from "@/lib/types";
@@ -682,7 +682,37 @@ function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => void })
   const [stress, setStress] = useState(3);
   const [motivation, setMotivation] = useState(8);
   const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+
   const submit = () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    if (
+      typeof energy !== "number" ||
+      !Number.isFinite(energy) ||
+      energy < 1 ||
+      energy > 10 ||
+      typeof soreness !== "number" ||
+      !Number.isFinite(soreness) ||
+      soreness < 1 ||
+      soreness > 10 ||
+      typeof stress !== "number" ||
+      !Number.isFinite(stress) ||
+      stress < 1 ||
+      stress > 10 ||
+      typeof motivation !== "number" ||
+      !Number.isFinite(motivation) ||
+      motivation < 1 ||
+      motivation > 10
+    ) {
+      setError("All values must be a valid number between 1 and 10.");
+      inFlight.current = false;
+      return;
+    }
+
+    setError(null);
+
     set((s) => ({
       ...s,
       recoveryCheckIns: [
@@ -699,20 +729,61 @@ function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => void })
       ],
     }));
     setNotes("");
+    setEnergy(7);
+    setSoreness(3);
+    setStress(3);
+    setMotivation(8);
     onClose();
   };
   return (
     <BottomSheet open={open} onClose={onClose} title="Daily check-in">
       <div className="space-y-4">
-        <Slider label="Energy" value={energy} onChange={setEnergy} />
-        <Slider label="Soreness" value={soreness} onChange={setSoreness} />
-        <Slider label="Stress" value={stress} onChange={setStress} />
-        <Slider label="Motivation" value={motivation} onChange={setMotivation} />
+        <Slider
+          label="Energy"
+          value={energy}
+          onChange={(v) => {
+            setEnergy(v);
+            setError(null);
+          }}
+        />
+        <Slider
+          label="Soreness"
+          value={soreness}
+          onChange={(v) => {
+            setSoreness(v);
+            setError(null);
+          }}
+        />
+        <Slider
+          label="Stress"
+          value={stress}
+          onChange={(v) => {
+            setStress(v);
+            setError(null);
+          }}
+        />
+        <Slider
+          label="Motivation"
+          value={motivation}
+          onChange={(v) => {
+            setMotivation(v);
+            setError(null);
+          }}
+        />
         <div>
           <Label>Notes</Label>
           <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
         </div>
-        <PrimaryButton className="w-full" onClick={submit}>
+        {error && (
+          <p className="text-sm text-red-500 font-medium" role="alert" id="checkin-error">
+            {error}
+          </p>
+        )}
+        <PrimaryButton
+          className="w-full"
+          onClick={submit}
+          aria-describedby={error ? "checkin-error" : undefined}
+        >
           Save check-in
         </PrimaryButton>
       </div>
@@ -726,9 +797,25 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [quality, setQuality] = useState(7);
   const [bed, setBed] = useState("");
   const [wake, setWake] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const inFlight = useRef(false);
+
   const submit = () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
     const h = Number(hours);
-    if (!h) return;
+    if (!hours || !Number.isFinite(h) || h <= 0 || h > 24) {
+      setError("Please enter a valid number of sleep hours.");
+      inFlight.current = false;
+      return;
+    }
+    if (typeof quality !== "number" || !Number.isFinite(quality) || quality < 1 || quality > 10) {
+      setError("Sleep quality must be between 1 and 10.");
+      inFlight.current = false;
+      return;
+    }
+
+    setError(null);
     const notes = [bed && `Bed ${bed}`, wake && `Wake ${wake}`].filter(Boolean).join(" • ");
     set((s) => ({
       ...s,
@@ -737,6 +824,12 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
         { id: uid(), hours: h, quality, notes: notes || undefined, createdAt: Date.now() },
       ],
     }));
+
+    // reset form on successful save
+    setHours("7.5");
+    setQuality(7);
+    setBed("");
+    setWake("");
     onClose();
   };
   return (
@@ -745,7 +838,15 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Hours</Label>
-            <Input inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} />
+            <Input
+              inputMode="decimal"
+              value={hours}
+              onChange={(e) => {
+                setHours(e.target.value);
+                setError(null);
+              }}
+              aria-invalid={!!error && error.includes("hours")}
+            />
           </div>
           <div>
             <div className="flex justify-between">
@@ -757,7 +858,10 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
               min={1}
               max={10}
               value={quality}
-              onChange={(e) => setQuality(Number(e.target.value))}
+              onChange={(e) => {
+                setQuality(Number(e.target.value));
+                setError(null);
+              }}
               className="w-full accent-[var(--section)] mt-1"
             />
           </div>
@@ -772,7 +876,16 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
             <Input value={wake} onChange={(e) => setWake(e.target.value)} placeholder="7:00 AM" />
           </div>
         </div>
-        <PrimaryButton className="w-full" onClick={submit}>
+        {error && (
+          <p className="text-sm text-red-500 font-medium" role="alert" id="sleep-error">
+            {error}
+          </p>
+        )}
+        <PrimaryButton
+          className="w-full"
+          onClick={submit}
+          aria-describedby={error ? "sleep-error" : undefined}
+        >
           Save sleep
         </PrimaryButton>
       </div>
