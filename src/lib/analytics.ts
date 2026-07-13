@@ -203,6 +203,43 @@ export {
 } from "./analytics/fitcore-analytics-insights";
 
 export {
+  EVIDENCE_ATTRIBUTION_ROLES,
+  EVIDENCE_ATTRIBUTION_STATUSES,
+  FITCORE_EVIDENCE_ATTRIBUTION_POLICY,
+  buildEvidenceAttribution,
+  type EvidenceAttributionInput,
+  type EvidenceAttributionReason,
+  type EvidenceAttributionReasonCode,
+  type EvidenceAttributionRecord,
+  type EvidenceAttributionRole,
+  type EvidenceAttributionStatus,
+} from "./analytics/evidence-attribution";
+
+export {
+  FITCORE_INSIGHT_EXPLANATION_POLICY,
+  INSIGHT_EXPLANATION_FACT_KINDS,
+  INSIGHT_EXPLANATION_STATUSES,
+  buildInsightExplanation,
+  type InsightExplanationFact,
+  type InsightExplanationFactKind,
+  type InsightExplanationInput,
+  type InsightExplanationLimitation,
+  type InsightExplanationLimitationCode,
+  type InsightExplanationPacket,
+  type InsightExplanationReason,
+  type InsightExplanationReasonCode,
+  type InsightExplanationStatus,
+} from "./analytics/insight-explanations";
+
+export {
+  getFitCoreAnalyticsExplanations,
+  type FitCoreAnalyticsExplanationReport,
+  type FitCoreAnalyticsExplanationSource,
+  type FitCoreAnalyticsExplanationSummary,
+  type FitCoreExplanationNodeEvaluation,
+} from "./analytics/fitcore-analytics-explanations";
+
+export {
   FITCORE_CORRELATION_VERSION,
   FITCORE_INSIGHT_MINIMUMS,
   FITCORE_INSIGHT_READINESS_VERSION,

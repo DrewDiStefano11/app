@@ -54,6 +54,10 @@ import {
   getFitCoreAnalyticsInsights,
   type FitCoreAnalyticsInsightReport,
 } from "./fitcore-analytics-insights";
+import {
+  getFitCoreAnalyticsExplanations,
+  type FitCoreAnalyticsExplanationReport,
+} from "./fitcore-analytics-explanations";
 
 export const FITCORE_ANALYTICS_SCHEMA_VERSION = ANALYTICS_SCHEMA_VERSION;
 export const FITCORE_AGGREGATE_CONFIDENCE_VERSION = "lowest_available_domain_confidence_v1";
@@ -192,6 +196,7 @@ export interface FitCoreAnalyticsResult extends FitCoreAnalyticsBaseResult {
   trends: FitCoreAnalyticsTrendReport;
   signals: FitCoreAnalyticsSignalReport;
   insights: FitCoreAnalyticsInsightReport;
+  explanations: FitCoreAnalyticsExplanationReport;
 }
 
 const DOMAIN_ORDER: readonly FitCoreAnalyticsDomain[] = [
@@ -506,5 +511,7 @@ export function getFitCoreAnalytics(
   const signals = getFitCoreAnalyticsSignals(trendedAnalytics);
   const signaledAnalytics = clone({ ...trendedAnalytics, signals });
   const insights = getFitCoreAnalyticsInsights(signaledAnalytics);
-  return clone({ ...signaledAnalytics, insights });
+  const insightAnalytics = clone({ ...signaledAnalytics, insights });
+  const explanations = getFitCoreAnalyticsExplanations(insightAnalytics);
+  return clone({ ...insightAnalytics, explanations });
 }
