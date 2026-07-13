@@ -169,6 +169,40 @@ export {
 } from "./analytics/fitcore-analytics-signals";
 
 export {
+  FITCORE_INSIGHT_EVIDENCE_POLICY,
+  INSIGHT_EVIDENCE_SOURCE_TYPES,
+  buildInsightEvidence,
+  type InsightEvidenceBundle,
+  type InsightEvidenceInput,
+  type InsightEvidenceReason,
+  type InsightEvidenceReasonCode,
+  type InsightEvidenceSourceType,
+  type InsightEvidenceStatus,
+} from "./analytics/insight-evidence";
+
+export {
+  FITCORE_INSIGHT_CANDIDATE_POLICY,
+  evaluateInsightCandidate,
+  type InsightCandidate,
+  type InsightCandidateReason,
+  type InsightCandidateReasonCode,
+  type InsightCandidateStatus,
+  type InsightDirection,
+  type InsightEvidenceStrength,
+  type InsightObservationType,
+  type InsightReviewPriority,
+} from "./analytics/insight-candidates";
+
+export {
+  FITCORE_SELECTED_CANDIDATE_LIMIT,
+  getFitCoreAnalyticsInsights,
+  type FitCoreAnalyticsInsightReport,
+  type FitCoreAnalyticsInsightSource,
+  type FitCoreAnalyticsInsightSummary,
+  type FitCoreInsightNodeEvaluation,
+} from "./analytics/fitcore-analytics-insights";
+
+export {
   FITCORE_CORRELATION_VERSION,
   FITCORE_INSIGHT_MINIMUMS,
   FITCORE_INSIGHT_READINESS_VERSION,
