@@ -38,6 +38,10 @@ import {
 } from "./analytics-version";
 import { getUnknownMetricProvenance, type MetricProvenance } from "./data-provenance";
 import { METRIC_DEPENDENCY_GRAPH, METRIC_DEPENDENCY_GRAPH_ID } from "./metric-dependency-graph";
+import {
+  buildFitCoreAnalyticsTrust,
+  type FitCoreAnalyticsTrustReport,
+} from "./fitcore-analytics-trust";
 
 export const FITCORE_ANALYTICS_SCHEMA_VERSION = ANALYTICS_SCHEMA_VERSION;
 export const FITCORE_AGGREGATE_CONFIDENCE_VERSION = "lowest_available_domain_confidence_v1";
@@ -172,6 +176,7 @@ export interface FitCoreAnalyticsBaseResult {
 export interface FitCoreAnalyticsResult extends FitCoreAnalyticsBaseResult {
   correlations: FitCoreCorrelationResult[];
   insightReadiness: FitCoreInsightReadinessResult;
+  trust: FitCoreAnalyticsTrustReport;
 }
 
 const DOMAIN_ORDER: readonly FitCoreAnalyticsDomain[] = [
@@ -472,5 +477,9 @@ export function getFitCoreAnalytics(
     reasons,
   });
   const readiness = buildFitCoreInsightReadiness(state, base, now);
-  return clone({ ...base, ...readiness });
+  const analytics = clone({ ...base, ...readiness });
+  const trust = buildFitCoreAnalyticsTrust(analytics, now, {
+    defaultProvenance: base.provenance,
+  });
+  return clone({ ...analytics, trust });
 }

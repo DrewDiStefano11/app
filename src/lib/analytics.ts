@@ -57,6 +57,49 @@ export {
 } from "./analytics/metric-dependency-graph";
 
 export {
+  METRIC_QUALITY_THRESHOLDS,
+  evaluateMetricQuality,
+  type MetricQualityAssessment,
+  type MetricQualityEvidence,
+  type MetricQualityInput,
+  type MetricQualityLevel,
+  type MetricQualityReason,
+  type MetricQualityReasonCode,
+} from "./analytics/metric-quality";
+
+export {
+  METRIC_FRESHNESS_POLICIES,
+  evaluateMetricFreshness,
+  type MetricFreshnessAssessment,
+  type MetricFreshnessInput,
+  type MetricFreshnessPolicy,
+  type MetricFreshnessReason,
+  type MetricFreshnessReasonCode,
+  type MetricFreshnessState,
+} from "./analytics/metric-freshness";
+
+export {
+  FITCORE_METRIC_TRUST_POLICY_VERSION,
+  METRIC_TRUST_THRESHOLDS,
+  evaluateMetricTrust,
+  type MetricDependencyTrustInput,
+  type MetricTrustAssessment,
+  type MetricTrustInput,
+  type MetricTrustLevel,
+  type MetricTrustReason,
+  type MetricTrustReasonCode,
+  type MetricTrustStatus,
+} from "./analytics/metric-trust";
+
+export {
+  buildFitCoreAnalyticsTrust,
+  type FitCoreAnalyticsTrustInput,
+  type FitCoreAnalyticsTrustOptions,
+  type FitCoreAnalyticsTrustReport,
+  type FitCoreAnalyticsTrustSummary,
+} from "./analytics/fitcore-analytics-trust";
+
+export {
   FITCORE_CORRELATION_VERSION,
   FITCORE_INSIGHT_MINIMUMS,
   FITCORE_INSIGHT_READINESS_VERSION,
