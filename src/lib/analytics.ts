@@ -276,6 +276,37 @@ export {
 } from "./analytics/fitcore-analytics-visualizations";
 
 export {
+  FITCORE_INSIGHT_INTERACTION_POLICY,
+  INSIGHT_INTERACTION_CONTRACT_STATUSES,
+  INSIGHT_INTERACTION_REQUEST_KINDS,
+  INSIGHT_INTERACTION_RESOLUTION_STATUSES,
+  buildInsightInteractionContract,
+  type InsightComparisonTarget,
+  type InsightDetailTarget,
+  type InsightInspectableTarget,
+  type InsightInspectableTargetType,
+  type InsightInteractionContract,
+  type InsightInteractionContractStatus,
+  type InsightInteractionLimitationKey,
+  type InsightInteractionReasonKey,
+  type InsightInteractionRequest,
+  type InsightInteractionRequestKind,
+  type InsightInteractionResolution,
+  type InsightInteractionResolutionStatus,
+  type InsightInteractionResolvedTarget,
+  type InsightRegionTarget,
+  type InsightSeriesTarget,
+} from "./analytics/insight-interactions";
+
+export {
+  buildFitCoreInsightInteractions,
+  resolveFitCoreInsightInteraction,
+  type FitCoreInsightInteractionEvaluation,
+  type FitCoreInsightInteractionReport,
+  type FitCoreInsightInteractionSummary,
+} from "./analytics/fitcore-analytics-interactions";
+
+export {
   FITCORE_CORRELATION_VERSION,
   FITCORE_INSIGHT_MINIMUMS,
   FITCORE_INSIGHT_READINESS_VERSION,
