@@ -18,6 +18,45 @@ import {
 } from "./analytics/date-time";
 
 export {
+  ANALYTICS_ENGINE_VERSION,
+  ANALYTICS_GENERATED_BY,
+  ANALYTICS_PHASE,
+  ANALYTICS_SCHEMA_VERSION,
+  getAnalyticsVersionMetadata,
+  type AnalyticsVersionMetadata,
+} from "./analytics/analytics-version";
+
+export {
+  PROVENANCE_SOURCE_TYPES,
+  calculateTraceability,
+  combineMetricProvenance,
+  getUnknownMetricProvenance,
+  normalizeMetricProvenance,
+  type MetricProvenance,
+  type MetricProvenanceInput,
+  type ProvenanceDerivation,
+  type ProvenanceSourceType,
+} from "./analytics/data-provenance";
+
+export {
+  METRIC_DEPENDENCY_GRAPH,
+  METRIC_DEPENDENCY_GRAPH_ID,
+  METRIC_DEPENDENCY_NODE_CATEGORIES,
+  assertValidMetricDependencyGraph,
+  getDirectMetricDependencies,
+  getDirectMetricDependents,
+  getMetricDependencyGraph,
+  getMetricDependencyNode,
+  getMetricDependencyTopologicalOrder,
+  getTransitiveMetricDependencies,
+  validateMetricDependencyGraph,
+  type MetricDependencyDomain,
+  type MetricDependencyGraphValidation,
+  type MetricDependencyNode,
+  type MetricDependencyNodeCategory,
+} from "./analytics/metric-dependency-graph";
+
+export {
   FITCORE_CORRELATION_VERSION,
   FITCORE_INSIGHT_MINIMUMS,
   FITCORE_INSIGHT_READINESS_VERSION,
