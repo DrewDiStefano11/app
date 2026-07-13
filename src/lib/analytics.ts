@@ -138,6 +138,37 @@ export {
 } from "./analytics/fitcore-analytics-trends";
 
 export {
+  FITCORE_ANOMALY_DETECTION_POLICY,
+  evaluateAnomaly,
+  type AnomalyClassification,
+  type AnomalyDetectionOptions,
+  type AnomalyDetectionReason,
+  type AnomalyDetectionReasonCode,
+  type AnomalyDetectionResult,
+  type AnomalyDetectionStatus,
+} from "./analytics/anomaly-detection";
+
+export {
+  FITCORE_MEANINGFUL_CHANGE_POLICY,
+  MEANINGFUL_CHANGE_WINDOW_PRIORITY,
+  evaluateMeaningfulChange,
+  type MeaningfulChangeClassification,
+  type MeaningfulChangeReason,
+  type MeaningfulChangeReasonCode,
+  type MeaningfulChangeResult,
+  type MeaningfulChangeStatus,
+} from "./analytics/meaningful-change";
+
+export {
+  getFitCoreAnalyticsSignals,
+  type FitCoreAnalyticsSignalReport,
+  type FitCoreAnalyticsSignalSummary,
+  type FitCoreMetricSignalReason,
+  type FitCoreMetricSignalReasonCode,
+  type FitCoreMetricSignalRecord,
+} from "./analytics/fitcore-analytics-signals";
+
+export {
   FITCORE_CORRELATION_VERSION,
   FITCORE_INSIGHT_MINIMUMS,
   FITCORE_INSIGHT_READINESS_VERSION,

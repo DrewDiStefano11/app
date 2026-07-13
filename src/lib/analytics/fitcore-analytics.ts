@@ -46,6 +46,10 @@ import {
   getFitCoreAnalyticsTrends,
   type FitCoreAnalyticsTrendReport,
 } from "./fitcore-analytics-trends";
+import {
+  getFitCoreAnalyticsSignals,
+  type FitCoreAnalyticsSignalReport,
+} from "./fitcore-analytics-signals";
 
 export const FITCORE_ANALYTICS_SCHEMA_VERSION = ANALYTICS_SCHEMA_VERSION;
 export const FITCORE_AGGREGATE_CONFIDENCE_VERSION = "lowest_available_domain_confidence_v1";
@@ -182,6 +186,7 @@ export interface FitCoreAnalyticsResult extends FitCoreAnalyticsBaseResult {
   insightReadiness: FitCoreInsightReadinessResult;
   trust: FitCoreAnalyticsTrustReport;
   trends: FitCoreAnalyticsTrendReport;
+  signals: FitCoreAnalyticsSignalReport;
 }
 
 const DOMAIN_ORDER: readonly FitCoreAnalyticsDomain[] = [
@@ -487,6 +492,12 @@ export function getFitCoreAnalytics(
     defaultProvenance: base.provenance,
   });
   const trustedAnalytics = clone({ ...analytics, trust });
-  const trends = getFitCoreAnalyticsTrends(state, trustedAnalytics, now);
-  return clone({ ...trustedAnalytics, trends });
+  const trends = getFitCoreAnalyticsTrends(
+    state,
+    trustedAnalytics as unknown as Omit<FitCoreAnalyticsResult, "trends">,
+    now,
+  );
+  const trendedAnalytics = clone({ ...trustedAnalytics, trends });
+  const signals = getFitCoreAnalyticsSignals(trendedAnalytics);
+  return clone({ ...trendedAnalytics, signals });
 }
