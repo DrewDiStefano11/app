@@ -100,6 +100,44 @@ export {
 } from "./analytics/fitcore-analytics-trust";
 
 export {
+  FITCORE_PERSONAL_BASELINE_POLICY,
+  PERSONAL_BASELINE_POLICIES,
+  calculatePersonalBaseline,
+  type AnalyticsTimeSeriesPoint,
+  type PersonalBaselineCadence,
+  type PersonalBaselineOptions,
+  type PersonalBaselineReason,
+  type PersonalBaselineReasonCode,
+  type PersonalBaselineResult,
+  type PersonalBaselineStatus,
+  type TimeSeriesAggregation,
+} from "./analytics/personal-baselines";
+
+export {
+  FITCORE_ROLLING_TREND_POLICY,
+  ROLLING_TREND_WINDOWS,
+  calculateRollingTrend,
+  type RollingTrendDirection,
+  type RollingTrendOptions,
+  type RollingTrendReason,
+  type RollingTrendReasonCode,
+  type RollingTrendResult,
+  type RollingTrendStatus,
+  type RollingTrendWindow,
+  type RollingTrendWindowResult,
+} from "./analytics/rolling-trends";
+
+export {
+  getFitCoreAnalyticsTrends,
+  type FitCoreAnalyticsTrendReport,
+  type FitCoreAnalyticsTrendSummary,
+  type FitCoreMetricTrendRecord,
+  type FitCoreTrendReason,
+  type FitCoreTrendReasonCode,
+  type FitCoreTrendTrustContext,
+} from "./analytics/fitcore-analytics-trends";
+
+export {
   FITCORE_CORRELATION_VERSION,
   FITCORE_INSIGHT_MINIMUMS,
   FITCORE_INSIGHT_READINESS_VERSION,
