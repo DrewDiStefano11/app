@@ -10,7 +10,6 @@ import {
   TrendingUp,
   Info,
   Activity,
-  History,
   ChevronDown,
   ChevronRight,
   Dumbbell,
@@ -378,7 +377,6 @@ function DailyViewContent() {
 
 function BodyTab() {
   const { state } = useStore();
-  const [expanded, setExpanded] = useState<"photos" | "history" | null>(null);
 
   const sortedBw = useMemo(
     () => [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt),
@@ -416,23 +414,13 @@ function BodyTab() {
         />
       </div>
 
-      <ExpandableCard
-        title="Progress Photos"
-        icon={<Camera size={18} className="text-[var(--section)]" />}
-        expanded={expanded === "photos"}
-        onToggle={() => setExpanded((e) => (e === "photos" ? null : "photos"))}
-      >
+      <ExpandableCard title="Progress Photos">
         <div className="pt-2">
           <PhotosSection />
         </div>
       </ExpandableCard>
 
-      <ExpandableCard
-        title="Visual Timeline & History"
-        icon={<History size={18} className="text-[var(--section)]" />}
-        expanded={expanded === "history"}
-        onToggle={() => setExpanded((e) => (e === "history" ? null : "history"))}
-      >
+      <ExpandableCard title="Visual Timeline & History">
         <div className="pt-2">
           <ProgressHistoryTab />
           <div className="mt-4">
@@ -964,8 +952,6 @@ function GoalsTab() {
 }
 
 function InsightsTab() {
-  const [expanded, setExpanded] = useState<string | null>(null);
-
   return (
     <div className="px-5 space-y-4">
       <SectionHeader title="Actionable Insights" />
@@ -996,12 +982,7 @@ function InsightsTab() {
       />
 
       <SectionHeader title="Education" />
-      <ExpandableCard
-        title="Understanding Weight Fluctuations"
-        icon={<Info size={18} className="text-[var(--section)]" />}
-        expanded={expanded === "weight"}
-        onToggle={() => setExpanded((e) => (e === "weight" ? null : "weight"))}
-      >
+      <ExpandableCard title="Understanding Weight Fluctuations">
         <div className="pt-2 space-y-2 text-sm text-muted-foreground">
           <p>
             Bodyweight can fluctuate wildly day-to-day due to water retention, carbohydrate intake,
@@ -1010,12 +991,7 @@ function InsightsTab() {
           </p>
         </div>
       </ExpandableCard>
-      <ExpandableCard
-        title="Correlation vs. Causation"
-        icon={<Info size={18} className="text-[var(--section)]" />}
-        expanded={expanded === "correlation"}
-        onToggle={() => setExpanded((e) => (e === "correlation" ? null : "correlation"))}
-      >
+      <ExpandableCard title="Correlation vs. Causation">
         <div className="pt-2 space-y-2 text-sm text-muted-foreground">
           <p>
             Just because two metrics move together doesn't strictly mean one caused the other.
@@ -1024,12 +1000,7 @@ function InsightsTab() {
           </p>
         </div>
       </ExpandableCard>
-      <ExpandableCard
-        title="Handling Plateaus"
-        icon={<Info size={18} className="text-[var(--section)]" />}
-        expanded={expanded === "plateau"}
-        onToggle={() => setExpanded((e) => (e === "plateau" ? null : "plateau"))}
-      >
+      <ExpandableCard title="Handling Plateaus">
         <div className="pt-2 space-y-2 text-sm text-muted-foreground">
           <p>Progress is rarely perfectly linear. Plateaus lasting 1-2 weeks are normal.</p>
           <p>
