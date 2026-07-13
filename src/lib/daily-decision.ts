@@ -1,4 +1,5 @@
 import { exerciseById } from "./data";
+import { dayKey as dateKey, startOfDay } from "./analytics/date-time";
 import type {
   AppState,
   ConfirmationStatus,
@@ -154,19 +155,6 @@ export interface DailyDecision {
 }
 
 const DAY = 86_400_000;
-
-function startOfDay(timestamp: number): number {
-  const date = new Date(timestamp);
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-}
-
-function dateKey(timestamp: number): string {
-  const date = new Date(timestamp);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
 function provenanceOf(value: {
   provenance?: DataProvenance;

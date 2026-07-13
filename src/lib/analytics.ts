@@ -1,37 +1,300 @@
 import type { AppState, Workout } from "./types";
 import { EXERCISES, type MuscleGroup } from "./data";
+import { clampScore } from "./analytics/safe-math";
+import {
+  calculateMealTotals,
+  calculateSetVolume,
+  calculateWorkoutVolume,
+  recoveryCheckInReadinessScore,
+} from "./analytics/domain-metrics";
+import {
+  addCalendarDays,
+  calendarDaysWindow,
+  dateRangeContains,
+  dayKey,
+  fillMissingDays,
+  startOfDay,
+  todayWindow,
+} from "./analytics/date-time";
 
-const DAY = 86400000;
+export {
+  FITCORE_CORRELATION_VERSION,
+  FITCORE_INSIGHT_MINIMUMS,
+  FITCORE_INSIGHT_READINESS_VERSION,
+  buildFitCoreInsightReadiness,
+  type FitCoreCorrelationDirection,
+  type FitCoreCorrelationResult,
+  type FitCoreCorrelationStatus,
+  type FitCoreCorrelationStrength,
+  type FitCoreInsightConfidence,
+  type FitCoreInsightDomain,
+  type FitCoreInsightImpactArea,
+  type FitCoreInsightPriority,
+  type FitCoreInsightReadinessBuildResult,
+  type FitCoreInsightReadinessItem,
+  type FitCoreInsightReadinessResult,
+  type FitCoreInsightReadinessStatus,
+  type FitCoreInsightSourceMetadata,
+} from "./analytics/fitcore-insight-readiness";
 
-function clampScore(score: number): number {
-  if (!Number.isFinite(score)) return 0;
-  return Math.max(0, Math.min(100, Math.round(score)));
-}
+export {
+  DAY_MS,
+  addCalendarDays,
+  allTimeWindow,
+  calendarDayDifference,
+  calendarDaysWindow,
+  currentWeekWindow,
+  dateRangeContains,
+  dayKey,
+  fillMissingDays,
+  groupLogsByDay,
+  last14DaysWindow,
+  last30DaysWindow,
+  last7DaysWindow,
+  last90DaysWindow,
+  previous30DaysWindow,
+  previous7DaysWindow,
+  previousWeekWindow,
+  sortDatedEntries,
+  startOfDay,
+  todayWindow,
+  yesterdayWindow,
+  type DailySeriesPoint,
+  type DateRange,
+  type WeekdayIndex,
+} from "./analytics/date-time";
+
+export {
+  ANALYTICS_SAMPLE_MINIMUMS,
+  clamp,
+  clampPercent,
+  clampScore,
+  safeAverage,
+  safeMax,
+  safeMin,
+  safeNumber,
+  safePercentChange,
+  safeRatio,
+  safeSum,
+} from "./analytics/safe-math";
+
+export {
+  FITCORE_METRIC_IDS,
+  calculateConfidence,
+  calculateMealTotals,
+  calculateTrendQuality,
+  calculateWorkoutVolume,
+  createAnalyticsMetric,
+  completedWorkoutCountInRange,
+  dailyTrainingVolumeSeries,
+  getCoreDomainAnalytics,
+  getNutritionAnalytics,
+  getProgressAnalytics,
+  getRecoveryAnalytics,
+  getTrainingAnalytics,
+  recoveryCheckInReadinessScore,
+  type AnalyticsConfidence,
+  type AnalyticsConfidenceResult,
+  type AnalyticsDomain,
+  type AnalyticsMetric,
+  type AnalyticsMetricInput,
+  type AnalyticsMetricKind,
+  type AnalyticsMetricSource,
+  type AnalyticsSourceCollection,
+  type AnalyticsStatus,
+  type AnalyticsUnit,
+  type BodyweightPoint,
+  type BodyweightTrendDirection,
+  type CoreDomainAnalytics,
+  type DomainAvailability,
+  type ConfidenceEvidence,
+  type MacroTotals,
+  type MetricExclusion,
+  type MetricReason,
+  type MetricReasonCode,
+  type NutritionAnalytics,
+  type ProgressAnalytics,
+  type RecoveryAnalytics,
+  type RecoveryCheckInSummary,
+  type TrainingAnalytics,
+  type TrainingVolumePoint,
+  type TrendDirection,
+  type TrendQualityCode,
+  type TrendQualityInput,
+  type TrendQualityResult,
+  type TrendValue,
+} from "./analytics/domain-metrics";
+
+export {
+  BALANCE_TOLERANCE_PERCENT,
+  EXERCISE_STALE_AFTER_DAYS,
+  MAX_ESTIMATED_1RM_REPETITIONS,
+  SECONDARY_MUSCLE_VOLUME_FACTOR,
+  STALLED_CHANGE_TOLERANCE_PERCENT,
+  STALLED_MINIMUM_SESSIONS,
+  STRENGTH_STABLE_CHANGE_PERCENT,
+  STRENGTH_TREND_MINIMUM_SESSIONS,
+  TRAINING_DETAIL_METRIC_IDS,
+  getExerciseAndMuscleAnalytics,
+  type BalanceDistributionItem,
+  type BestObservedSet,
+  type ExerciseAndMuscleAnalytics,
+  type ExerciseHistoryAnalytics,
+  type ExerciseIdentity,
+  type ExerciseIdentityStrategy,
+  type ExercisePrEvent,
+  type ExercisePrType,
+  type ExerciseRanking,
+  type ExerciseSetObservation,
+  type MuscleGroupAnalytics,
+  type MuscleGroupAnalyticsResult,
+  type MuscleRecoveryReadiness,
+  type StrengthTrendPoint,
+  type TrainingBalanceAnalytics,
+  type TrainingBalanceDimension,
+  type TrainingDetailOptions,
+} from "./analytics/training-detail-metrics";
+
+export {
+  BODYWEIGHT_STALE_AFTER_DAYS,
+  CANONICAL_MEAL_TYPES,
+  NUTRITION_CONSISTENCY_MINIMUM_LOGGED_DAYS,
+  NUTRITION_DETAIL_METRIC_IDS,
+  NUTRITION_TARGET_TOLERANCE_PERCENT,
+  POST_WORKOUT_WINDOW_MINUTES,
+  PRE_WORKOUT_WINDOW_MINUTES,
+  getNutritionDetailAnalytics,
+  type CanonicalMealType,
+  type DailyMacroPoint,
+  type DailyMealCountPoint,
+  type MacroConsistencyAnalytics,
+  type MacroConsistencyValue,
+  type MealCountAnalytics,
+  type MealGapDay,
+  type MealMacroDistribution,
+  type MealMacroShare,
+  type MealTimingAnalytics,
+  type MealTypeBreakdownItem,
+  type NutritionCompleteness,
+  type NutritionDetailAnalytics,
+  type NutritionDetailOptions,
+  type NutritionMacro,
+  type OptionalNutrientAnalytics,
+  type ProteinPerBodyweightAnalytics,
+  type TargetAdherenceAnalytics,
+  type WorkoutFuelAnalytics,
+} from "./analytics/nutrition-detail-metrics";
+
+export {
+  RECOVERY_CONSISTENCY_MINIMUM_LOGGED_DAYS,
+  RECOVERY_DETAIL_METRIC_IDS,
+  RECOVERY_FIELD_MAXIMUM,
+  RECOVERY_FIELD_MINIMUM,
+  RECOVERY_HIGH_SORENESS_THRESHOLD,
+  RECOVERY_LOW_READINESS_THRESHOLD,
+  RECOVERY_TREND_MINIMUM_SAMPLES,
+  RECOVERY_TREND_STABLE_THRESHOLD,
+  getRecoveryDetailAnalytics,
+  recoveryDetailReadinessScore,
+  type BodyAreaFrequencyItem,
+  type RecoveryCompleteness,
+  type RecoveryConditionAnalytics,
+  type RecoveryConsistencyValue,
+  type RecoveryDetailAnalytics,
+  type RecoveryDetailField,
+  type RecoveryDetailOptions,
+  type RecoverySignalAnalytics,
+  type RecoveryTrendPoint,
+  type RecoveryTrendValue,
+  type WearableMetricAvailability,
+} from "./analytics/recovery-detail-metrics";
+
+export {
+  FITCORE_ANALYTICS_PRESENTATION_CATALOG,
+  FITCORE_ANALYTICS_PRESENTATION_SURFACES,
+  FITCORE_ANALYTICS_PRESENTATION_VERSION,
+  FITCORE_PRESENTATION_STATE_PRECEDENCE,
+  buildFitCoreAnalyticsPresentation,
+  getFitCoreAnalyticsPresentation,
+  type AnalyticsPresentationAggregateSummary,
+  type AnalyticsPresentationDomain,
+  type AnalyticsPresentationDomainSummary,
+  type AnalyticsPresentationMetric,
+  type AnalyticsPresentationMetricDefinition,
+  type AnalyticsPresentationMetricId,
+  type AnalyticsPresentationMetricValue,
+  type AnalyticsPresentationReason,
+  type AnalyticsPresentationReasonCode,
+  type AnalyticsPresentationSection,
+  type AnalyticsPresentationState,
+  type AnalyticsPresentationSurface,
+  type AnalyticsPresentationSurfaceResult,
+  type FitCoreAnalyticsPresentationOptions,
+  type FitCoreAnalyticsPresentationResult,
+} from "./analytics/fitcore-analytics-presentation";
+
+export {
+  FITCORE_AGGREGATE_CONFIDENCE_VERSION,
+  FITCORE_ANALYTICS_SCHEMA_VERSION,
+  getFitCoreAnalytics,
+  type FitCoreAnalyticsAvailability,
+  type FitCoreAnalyticsBaseResult,
+  type FitCoreAnalyticsCompleteness,
+  type FitCoreAnalyticsConfidence,
+  type FitCoreAnalyticsDomain,
+  type FitCoreAnalyticsExclusions,
+  type FitCoreAnalyticsOptions,
+  type FitCoreAnalyticsReason,
+  type FitCoreAnalyticsReasonCode,
+  type FitCoreAnalyticsResult,
+  type FitCoreAnalyticsSources,
+  type FitCoreDomainAvailabilityStatus,
+  type FitCoreDomainCompleteness,
+  type FitCoreDomainConfidence,
+  type FitCoreDomainSources,
+  type FitCoreDomainStatus,
+} from "./analytics/fitcore-analytics";
+
+export {
+  GOAL_DETAIL_METRIC_IDS,
+  GOAL_HIGH_CONFIDENCE_MINIMUM_OBSERVATIONS,
+  GOAL_HIGH_CONFIDENCE_MINIMUM_SPAN_DAYS,
+  GOAL_HISTORY_MINIMUM_OBSERVATIONS,
+  GOAL_PACE_TOLERANCE_PERCENT,
+  GOAL_STALE_MEASUREMENT_DAYS,
+  getGoalDetailAnalytics,
+  type GoalAnalyticalStatus,
+  type GoalAnalyticsItem,
+  type GoalCompleteness,
+  type GoalDeadlineRisk,
+  type GoalDetailAnalytics,
+  type GoalDetailOptions,
+  type GoalDirection,
+  type GoalMeasurementPoint,
+  type GoalNeededPaceValue,
+  type GoalPaceValue,
+  type GoalProgressValue,
+  type GoalProjectionValue,
+} from "./analytics/goal-detail-metrics";
 
 function sortByCreatedAtThenId<T extends { createdAt: number; id: string }>(entries: T[]): T[] {
   return [...entries].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
 }
 
-export function withinDays(ts: number, days: number) {
-  return ts > Date.now() - days * DAY;
+export function withinDays(ts: number, days: number, now = Date.now()) {
+  return dateRangeContains(calendarDaysWindow(days, now), ts);
 }
 
 export function workoutVolume(w: Workout): number {
-  let v = 0;
-  for (const ex of w.exercises) {
-    for (const s of ex.sets) {
-      if (s.completed && s.weight && s.reps) v += s.weight * s.reps;
-    }
-  }
-  return v;
+  return calculateWorkoutVolume(w);
 }
 
-export function workoutsInRange(state: AppState, days: number) {
-  return state.workouts.filter((w) => withinDays(w.startedAt, days));
+export function workoutsInRange(state: AppState, days: number, now = Date.now()) {
+  return state.workouts.filter((w) => withinDays(w.startedAt, days, now));
 }
 
-export function totalVolumeInRange(state: AppState, days: number) {
-  return workoutsInRange(state, days).reduce((s, w) => s + workoutVolume(w), 0);
+export function totalVolumeInRange(state: AppState, days: number, now = Date.now()) {
+  return workoutsInRange(state, days, now).reduce((s, w) => s + workoutVolume(w), 0);
 }
 
 export function trainingConsistencyScore(state: AppState): number {
@@ -44,9 +307,9 @@ export function nutritionAdherenceScore(state: AppState): number {
   const recent = state.mealEntries.filter((m) => withinDays(m.createdAt, 7));
   if (!recent.length) return 0;
   // bucket by day
-  const days = new Map<number, { c: number; p: number }>();
+  const days = new Map<string, { c: number; p: number }>();
   for (const m of recent) {
-    const d = Math.floor(m.createdAt / DAY);
+    const d = dayKey(m.createdAt);
     const e = days.get(d) ?? { c: 0, p: 0 };
     e.c += m.calories;
     e.p += m.protein;
@@ -66,17 +329,14 @@ export function nutritionAdherenceScore(state: AppState): number {
 }
 
 export function readinessScore(state: AppState): number {
-  const sleep = state.sleepEntries.slice(-3);
-  const check = state.recoveryCheckIns.slice(-3);
+  const sleep = sortByCreatedAtThenId(state.sleepEntries).slice(-3);
+  const check = sortByCreatedAtThenId(state.recoveryCheckIns).slice(-3);
   if (!sleep.length && !check.length) return 70; // baseline
   const sleepAvg = sleep.length
     ? sleep.reduce((s, e) => s + Math.min(1, e.hours / 8) * (e.quality / 5), 0) / sleep.length
     : 0.7;
   const checkAvg = check.length
-    ? check.reduce(
-        (s, c) => s + (c.energy + c.motivation + (6 - c.soreness) + (6 - c.stress)) / 20,
-        0,
-      ) / check.length
+    ? check.reduce((sum, item) => sum + recoveryCheckInReadinessScore(item) / 100, 0) / check.length
     : 0.7;
   return clampScore((sleepAvg * 0.5 + checkAvg * 0.5) * 100);
 }
@@ -130,10 +390,13 @@ export interface MomentumResult {
   factors: MomentumFactor[];
 }
 
-function distinctDays(timestamps: number[], days: number) {
-  const cutoff = Date.now() - days * DAY;
+function distinctDays(timestamps: number[], days: number, now = Date.now()) {
+  const range = calendarDaysWindow(days, now);
   return new Set(
-    timestamps.filter((ts) => ts >= cutoff).map((ts) => new Date(ts).toISOString().slice(0, 10)),
+    timestamps
+      .filter((ts) => dateRangeContains(range, ts))
+      .map(dayKey)
+      .filter(Boolean),
   ).size;
 }
 
@@ -145,13 +408,13 @@ function momentumLabel(score: number): Exclude<MomentumLabel, "Not Enough Data">
 }
 
 /** Read-only 0-100 trend signal derived entirely from existing FitCore activity. */
-export function momentumScore(state: AppState): MomentumResult {
+export function momentumScore(state: AppState, now = Date.now()): MomentumResult {
   const factors: MomentumFactor[] = [];
   const targetWorkouts = Math.max(1, state.profile.daysPerWeek || 4);
-  const recentWorkouts = workoutsInRange(state, 7).length;
-  const priorWorkouts = state.workouts.filter(
-    (workout) =>
-      workout.startedAt >= Date.now() - 14 * DAY && workout.startedAt < Date.now() - 7 * DAY,
+  const recentWorkouts = workoutsInRange(state, 7, now).length;
+  const priorRange = calendarDaysWindow(7, now, 7);
+  const priorWorkouts = state.workouts.filter((workout) =>
+    dateRangeContains(priorRange, workout.startedAt),
   ).length;
 
   if (state.workouts.length > 0) {
@@ -172,14 +435,15 @@ export function momentumScore(state: AppState): MomentumResult {
   }
 
   if (state.mealEntries.length > 0) {
-    const recentMeals = state.mealEntries.filter((meal) => withinDays(meal.createdAt, 7));
+    const recentMeals = state.mealEntries.filter((meal) => withinDays(meal.createdAt, 7, now));
     const loggedDays = distinctDays(
       recentMeals.map((meal) => meal.createdAt),
       7,
+      now,
     );
     const proteinByDay = new Map<string, number>();
     for (const meal of recentMeals) {
-      const day = new Date(meal.createdAt).toISOString().slice(0, 10);
+      const day = dayKey(meal.createdAt);
       proteinByDay.set(day, (proteinByDay.get(day) ?? 0) + meal.protein);
     }
     const proteinTarget = Math.max(1, state.nutritionTargets.protein);
@@ -201,10 +465,12 @@ export function momentumScore(state: AppState): MomentumResult {
     const weighIns = distinctDays(
       state.bodyweightEntries.map((entry) => entry.createdAt),
       14,
+      now,
     );
     const checkIns = distinctDays(
       state.recoveryCheckIns.map((entry) => entry.createdAt),
       14,
+      now,
     );
     const touchpoints = weighIns + checkIns;
     factors.push({
@@ -217,11 +483,14 @@ export function momentumScore(state: AppState): MomentumResult {
   }
 
   if (state.sleepEntries.length > 0 || state.recoveryCheckIns.length > 0) {
-    const recentSleep = state.sleepEntries.filter((entry) => withinDays(entry.createdAt, 7));
-    const recentChecks = state.recoveryCheckIns.filter((entry) => withinDays(entry.createdAt, 7));
+    const recentSleep = state.sleepEntries.filter((entry) => withinDays(entry.createdAt, 7, now));
+    const recentChecks = state.recoveryCheckIns.filter((entry) =>
+      withinDays(entry.createdAt, 7, now),
+    );
     const sleepDays = distinctDays(
       recentSleep.map((entry) => entry.createdAt),
       7,
+      now,
     );
     const sleepGoal = Math.max(1, state.profile.sleepGoalH ?? 8);
     const sleepQuality = recentSleep.length
@@ -256,8 +525,8 @@ export function momentumScore(state: AppState): MomentumResult {
   }
 
   const sortedWeights = sortByCreatedAtThenId(state.bodyweightEntries);
-  const recentVolume = totalVolumeInRange(state, 14);
-  const previousVolume = totalVolumeInRange(state, 28) - recentVolume;
+  const recentVolume = totalVolumeInRange(state, 14, now);
+  const previousVolume = totalVolumeInRange(state, 28, now) - recentVolume;
   if (sortedWeights.length >= 2 || previousVolume > 0) {
     let score = 50;
     let detail = "Progress signals are holding steady";
@@ -402,50 +671,39 @@ export function muscleMap(state: AppState, mode: HeatMode): Record<string, numbe
   return out;
 }
 
-export function weeklyVolumeSeries(state: AppState, days = 7): { day: string; volume: number }[] {
-  const out: { day: string; volume: number }[] = [];
-  const now = Date.now();
-  for (let i = days - 1; i >= 0; i--) {
-    const start = now - (i + 1) * DAY;
-    const end = now - i * DAY;
-    const vol = state.workouts
-      .filter((w) => w.startedAt >= start && w.startedAt < end)
-      .reduce((s, w) => s + workoutVolume(w), 0);
-    const d = new Date(end);
-    out.push({
-      day: d.toLocaleDateString(undefined, { weekday: "short" }).slice(0, 1),
-      volume: Math.round(vol),
-    });
+export function weeklyVolumeSeries(
+  state: AppState,
+  days = 7,
+  now = Date.now(),
+): { day: string; volume: number }[] {
+  const range = calendarDaysWindow(days, now);
+  const volumeByDay: Record<string, number> = {};
+  for (const workout of state.workouts) {
+    if (!dateRangeContains(range, workout.startedAt)) continue;
+    const key = dayKey(workout.startedAt);
+    volumeByDay[key] = (volumeByDay[key] ?? 0) + workoutVolume(workout);
   }
-  return out;
+  return fillMissingDays(range, volumeByDay, 0).map((point) => ({
+    day: new Date(point.timestamp).toLocaleDateString(undefined, { weekday: "short" }).slice(0, 1),
+    volume: Math.round(point.value),
+  }));
 }
 
-export function todayMealTotals(state: AppState) {
-  const today = state.mealEntries.filter((m) => m.createdAt > Date.now() - DAY);
-  return today.reduce(
-    (s, m) => ({
-      calories: s.calories + m.calories,
-      protein: s.protein + m.protein,
-      carbs: s.carbs + m.carbs,
-      fat: s.fat + m.fat,
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0 },
-  );
+export function todayMealTotals(state: AppState, now = Date.now()) {
+  const range = todayWindow(now);
+  const today = state.mealEntries.filter((m) => dateRangeContains(range, m.createdAt));
+  return calculateMealTotals(today);
 }
 
-export function trainingStreak(state: AppState): number {
+export function trainingStreak(state: AppState, now = Date.now()): number {
   if (!state.workouts.length) return 0;
-  const days = new Set(state.workouts.map((w) => Math.floor(w.startedAt / DAY)));
+  const days = new Set(state.workouts.map((w) => dayKey(w.startedAt)).filter(Boolean));
   let streak = 0;
-  let d = Math.floor(Date.now() / DAY);
-  while (days.has(d) || days.has(d - 1)) {
-    if (days.has(d)) {
-      streak++;
-      d--;
-    } else if (streak === 0) {
-      d--;
-    } // allow today off
-    else break;
+  let cursor = startOfDay(now);
+  if (!days.has(dayKey(cursor))) cursor = addCalendarDays(cursor, -1); // allow today off
+  while (days.has(dayKey(cursor))) {
+    streak++;
+    cursor = addCalendarDays(cursor, -1);
   }
   return streak;
 }
@@ -466,11 +724,11 @@ export function bestMuscleToTrainToday(state: AppState): string {
   return best;
 }
 
-export function bodyweightDelta(state: AppState, days: number): number | null {
+export function bodyweightDelta(state: AppState, days: number, now = Date.now()): number | null {
   const sorted = sortByCreatedAtThenId(state.bodyweightEntries);
   if (!sorted.length) return null;
   const latest = sorted[sorted.length - 1];
-  const cutoff = Date.now() - days * DAY;
+  const cutoff = calendarDaysWindow(days, now).start;
   const baseline = sorted.find((e) => e.createdAt >= cutoff) ?? sorted[0];
   return latest.weightLb - baseline.weightLb;
 }
