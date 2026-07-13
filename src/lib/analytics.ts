@@ -240,6 +240,42 @@ export {
 } from "./analytics/fitcore-analytics-explanations";
 
 export {
+  FITCORE_INSIGHT_VISUALIZATION_POLICY,
+  INSIGHT_VISUALIZATION_DATA_MODES,
+  INSIGHT_VISUALIZATION_INTERACTIONS,
+  INSIGHT_VISUALIZATION_KINDS,
+  INSIGHT_VISUALIZATION_STATUSES,
+  buildInsightVisualizationPacket,
+  isVisualizationKindModeCompatible,
+  type InsightVisualizationComparisonData,
+  type InsightVisualizationComparisonItem,
+  type InsightVisualizationData,
+  type InsightVisualizationDataMode,
+  type InsightVisualizationDerivedData,
+  type InsightVisualizationInteraction,
+  type InsightVisualizationKind,
+  type InsightVisualizationLimitationKey,
+  type InsightVisualizationMatrixCell,
+  type InsightVisualizationMatrixData,
+  type InsightVisualizationPacket,
+  type InsightVisualizationPacketInput,
+  type InsightVisualizationReasonKey,
+  type InsightVisualizationScalarData,
+  type InsightVisualizationSeries,
+  type InsightVisualizationSeriesData,
+  type InsightVisualizationSeriesPoint,
+  type InsightVisualizationStatus,
+} from "./analytics/insight-visualizations";
+
+export {
+  buildFitCoreInsightVisualizations,
+  type FitCoreInsightVisualizationEvaluation,
+  type FitCoreInsightVisualizationInput,
+  type FitCoreInsightVisualizationReport,
+  type FitCoreInsightVisualizationSummary,
+} from "./analytics/fitcore-analytics-visualizations";
+
+export {
   FITCORE_CORRELATION_VERSION,
   FITCORE_INSIGHT_MINIMUMS,
   FITCORE_INSIGHT_READINESS_VERSION,

@@ -58,6 +58,10 @@ import {
   getFitCoreAnalyticsExplanations,
   type FitCoreAnalyticsExplanationReport,
 } from "./fitcore-analytics-explanations";
+import {
+  buildFitCoreInsightVisualizations,
+  type FitCoreInsightVisualizationReport,
+} from "./fitcore-analytics-visualizations";
 
 export const FITCORE_ANALYTICS_SCHEMA_VERSION = ANALYTICS_SCHEMA_VERSION;
 export const FITCORE_AGGREGATE_CONFIDENCE_VERSION = "lowest_available_domain_confidence_v1";
@@ -197,6 +201,7 @@ export interface FitCoreAnalyticsResult extends FitCoreAnalyticsBaseResult {
   signals: FitCoreAnalyticsSignalReport;
   insights: FitCoreAnalyticsInsightReport;
   explanations: FitCoreAnalyticsExplanationReport;
+  visualizations: FitCoreInsightVisualizationReport;
 }
 
 const DOMAIN_ORDER: readonly FitCoreAnalyticsDomain[] = [
@@ -513,5 +518,7 @@ export function getFitCoreAnalytics(
   const insights = getFitCoreAnalyticsInsights(signaledAnalytics);
   const insightAnalytics = clone({ ...signaledAnalytics, insights });
   const explanations = getFitCoreAnalyticsExplanations(insightAnalytics);
-  return clone({ ...insightAnalytics, explanations });
+  const explainedAnalytics = clone({ ...insightAnalytics, explanations });
+  const visualizations = buildFitCoreInsightVisualizations({ insights, explanations });
+  return { ...clone(explainedAnalytics), visualizations };
 }
