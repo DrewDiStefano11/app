@@ -140,7 +140,7 @@ test.describe("Training Daily View Smoke", () => {
     await expect(page.getByRole("button", { name: "Finish workout", exact: true })).toBeVisible();
   });
 
-  test("renders the four Deep Dive tabs", async ({ page }) => {
+  test("renders the Training Deep Dive analysis workspace", async ({ page }) => {
     await seedMinimalOnboardedState(page);
     await gotoDashboard(page);
 
@@ -157,26 +157,15 @@ test.describe("Training Daily View Smoke", () => {
     }
     await page.getByRole("button", { name: "Train", exact: true }).click();
 
-    await expect(page.getByRole("heading", { name: "Training", exact: true })).toBeVisible();
-
-    // Exactly 4 tabs
-    await expect(page.getByRole("tab", { name: "Performance" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Strength" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Library" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Insights" })).toBeVisible();
-
-    // Render contents safely
-    await page.getByRole("tab", { name: "Performance" }).click();
-    await expect(page.getByRole("heading", { name: "Volume trend (14d)" })).toBeVisible();
-
-    await page.getByRole("tab", { name: "Strength" }).click();
-    await expect(page.getByText("Strength & Personal Records")).toBeVisible();
-
-    await page.getByRole("tab", { name: "Library" }).click();
-    await expect(page.getByText("starter templates")).toBeVisible();
-
-    await page.getByRole("tab", { name: "Insights" }).click();
-    await expect(page.getByText("Training Insights")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Training Deep Dive", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Volume and completed work" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Logged load and repetitions" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Distribution, balance, and body context" }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Return to Training Daily View" })).toBeVisible();
 
     // Assert no fatal errors
     const fatalErrors = ["This page didn't load", "Application error", "Unhandled Runtime Error"];

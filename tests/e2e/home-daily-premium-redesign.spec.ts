@@ -5,6 +5,15 @@ import { FITCORE_STORAGE_KEY } from "./helpers/fitcore-test-state";
 
 async function seedStateOnOrigin(page: Page, state: Record<string, unknown>) {
   await page.goto("/");
+  // Let the store finish its initial hydration before replacing persisted state.
+  // Otherwise the first mount can race this write and save the default state over it.
+  await expect(page.getByRole("button", { name: "Get started", exact: true })).toBeVisible({
+    timeout: 10000,
+  });
+  await page.waitForFunction(
+    (key) => window.localStorage.getItem(key) !== null,
+    FITCORE_STORAGE_KEY,
+  );
   await page.evaluate(({ key, value }) => window.localStorage.setItem(key, JSON.stringify(value)), {
     key: FITCORE_STORAGE_KEY,
     value: state,

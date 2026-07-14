@@ -19,7 +19,6 @@ import type { LayoutMode } from "@/components/app/layout-primitives";
 import {
   Card,
   StatCard,
-  PageHeader,
   PrimaryButton,
   GhostButton,
   EmptyState,
@@ -38,16 +37,12 @@ import {
   TrainingDailyPremiumView,
   type TrainingDailyPanel,
 } from "@/components/app/views/training-daily-premium";
+import {
+  TrainingDeepDivePremiumView,
+  type TrainingDeepDiveContext,
+} from "@/components/app/views/training-deep-dive-premium";
 
 type TrainingPanel = TrainingDailyPanel | null;
-
-type DeepDiveSubtab = "performance" | "strength" | "library" | "insights";
-const DEEP_DIVE_TABS: { id: DeepDiveSubtab; label: string }[] = [
-  { id: "performance", label: "Performance" },
-  { id: "strength", label: "Strength" },
-  { id: "library", label: "Library" },
-  { id: "insights", label: "Insights" },
-];
 
 export function TrainingView({
   layoutMode = "daily",
@@ -59,39 +54,26 @@ export function TrainingView({
   const { state } = useStore();
   const [panel, setPanel] = useState<TrainingPanel>(null);
   const [showActiveWorkout, setShowActiveWorkout] = useState(false);
-  const [tab, setTab] = useState<DeepDiveSubtab>("performance");
+  const [deepDiveContext, setDeepDiveContext] = useState<TrainingDeepDiveContext>();
 
   if (state.activeWorkout && showActiveWorkout) return <ActiveWorkoutView />;
 
   return (
     <div className="pb-24">
-      {layoutMode === "deepDive" && (
-        <>
-          <PageHeader
-            title="Training"
-            subtitle={`${state.profile.split} • ${state.profile.daysPerWeek}d/wk`}
-          />
-          <SubTabs tabs={DEEP_DIVE_TABS} active={tab} onChange={setTab} />
-        </>
-      )}
-
       {layoutMode === "daily" ? (
         <TrainingDailyPremiumView
           onOpenPanel={setPanel}
           onOpenActive={() => setShowActiveWorkout(true)}
-          onOpenDeepDive={() => onLayoutModeChange?.("deepDive")}
+          onOpenDeepDive={(context) => {
+            setDeepDiveContext(context);
+            onLayoutModeChange?.("deepDive");
+          }}
         />
       ) : (
-        <>
-          {tab === "performance" && <PerformanceTab />}
-          {tab === "strength" && <StrengthTab />}
-          {tab === "library" && (
-            <div className="px-5">
-              <TemplatesSection onWorkoutStarted={() => setShowActiveWorkout(true)} />
-            </div>
-          )}
-          {tab === "insights" && <InsightsTab />}
-        </>
+        <TrainingDeepDivePremiumView
+          context={deepDiveContext}
+          onReturnDaily={() => onLayoutModeChange?.("daily")}
+        />
       )}
 
       <BottomSheet

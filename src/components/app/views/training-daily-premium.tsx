@@ -41,6 +41,7 @@ import {
   type StackItem,
 } from "@/components/app/premium-visualization";
 import { BottomSheet } from "@/components/app/sheet";
+import type { TrainingDeepDiveContext } from "@/components/app/views/training-deep-dive-premium";
 import {
   bestMuscleToTrainToday,
   muscleMap,
@@ -74,7 +75,7 @@ export function TrainingDailyPremiumView({
 }: {
   onOpenPanel: (panel: TrainingDailyPanel) => void;
   onOpenActive: () => void;
-  onOpenDeepDive: () => void;
+  onOpenDeepDive: (context?: TrainingDeepDiveContext) => void;
 }) {
   const { state, view, set } = useStore();
   const [selectedChart, setSelectedChart] = useState("volume");
@@ -214,7 +215,7 @@ export function TrainingDailyPremiumView({
           detail={`${consistency}% of the ${state.profile.daysPerWeek}-day schedule target`}
           data={frequencyData}
           metric="sessions"
-          onFocus={onOpenDeepDive}
+          onFocus={() => onOpenDeepDive({ focus: "consistency", range })}
         />
       ),
     },
@@ -241,7 +242,7 @@ export function TrainingDailyPremiumView({
                 ? `${weekWorkouts.length} of ${state.profile.daysPerWeek} scheduled sessions logged.`
                 : "Log a completed workout to establish consistency."}
             </p>
-            <button type="button" onClick={onOpenDeepDive}>
+            <button type="button" onClick={() => onOpenDeepDive({ focus: "consistency", range })}>
               Open breakdown <ChevronRight size={14} />
             </button>
           </div>
@@ -436,7 +437,11 @@ export function TrainingDailyPremiumView({
             title="Workload analytics"
             description="Swipe or use arrow keys. Pinning is session-only in Phase A."
             action={
-              <button className="training-text-action" type="button" onClick={onOpenDeepDive}>
+              <button
+                className="training-text-action"
+                type="button"
+                onClick={() => onOpenDeepDive({ focus: "workload", range })}
+              >
                 Deep Dive <ChevronRight size={14} />
               </button>
             }
@@ -523,9 +528,25 @@ export function TrainingDailyPremiumView({
                     : "No measured imbalance is shown without completed training history."}
                 </p>
                 {selectedMuscle && (
-                  <button type="button" onClick={() => setSelectedMuscle(selectedMuscle)}>
-                    Muscle details <ChevronRight size={14} />
-                  </button>
+                  <div className="training-body-summary__actions">
+                    <button type="button" onClick={() => setSelectedMuscle(selectedMuscle)}>
+                      Muscle details <ChevronRight size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenDeepDive({
+                          focus: "muscles",
+                          range,
+                          selectedMuscle,
+                          heatMode,
+                          bodySide,
+                        })
+                      }
+                    >
+                      Analyze in Deep Dive <ChevronRight size={14} />
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -644,6 +665,9 @@ export function TrainingDailyPremiumView({
               <button type="button" onClick={() => onOpenPanel("performance")}>
                 Open records <ChevronRight size={14} />
               </button>
+              <button type="button" onClick={() => onOpenDeepDive({ focus: "records", range })}>
+                Analyze records <ChevronRight size={14} />
+              </button>
             </PremiumCard>
           </section>
 
@@ -665,6 +689,9 @@ export function TrainingDailyPremiumView({
               </div>
               <button type="button" onClick={() => onOpenPanel("cardio")}>
                 Open cardio <ChevronRight size={14} />
+              </button>
+              <button type="button" onClick={() => onOpenDeepDive({ focus: "cardio", range })}>
+                Analyze cardio <ChevronRight size={14} />
               </button>
             </PremiumCard>
           </section>
@@ -747,7 +774,11 @@ export function TrainingDailyPremiumView({
               today’s workout.
             </p>
           </div>
-          <button className="premium-primary-action" type="button" onClick={onOpenDeepDive}>
+          <button
+            className="premium-primary-action"
+            type="button"
+            onClick={() => onOpenDeepDive({ focus: "overview", range })}
+          >
             Open Deep Dive <ArrowRight size={17} />
           </button>
         </PremiumCard>
@@ -777,7 +808,29 @@ export function TrainingDailyPremiumView({
         onModeChange={setComparisonMode}
         data={volumeData}
       />
-      <MuscleDetailSheet muscle={selectedMuscle} onClose={() => setSelectedMuscle(null)} />
+      <MuscleDetailSheet
+        muscle={selectedMuscle}
+        onClose={() => setSelectedMuscle(null)}
+        action={
+          selectedMuscle ? (
+            <button
+              type="button"
+              className="premium-primary-action w-full"
+              onClick={() =>
+                onOpenDeepDive({
+                  focus: "muscles",
+                  range,
+                  selectedMuscle,
+                  heatMode,
+                  bodySide,
+                })
+              }
+            >
+              Analyze in Deep Dive <ChevronRight size={15} />
+            </button>
+          ) : undefined
+        }
+      />
       <BottomSheet
         open={toolsOpen}
         onClose={() => setToolsOpen(false)}
