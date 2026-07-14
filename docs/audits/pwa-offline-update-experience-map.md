@@ -1,17 +1,17 @@
 # 1. Executive summary
 
 - **Current PWA architecture**: Uses a basic, manually-written service worker (`public/sw.js`) and a hardcoded manifest (`public/manifest.json`). The service worker is registered on window load in `src/routes/__root.tsx`.
-- **Current installability**: The application has a manifest with `display: standalone` and icons, and is installable as a PWA, but there are no custom in-app install prompts.
+- **Current installability**: Manifest configuration present; service-worker registration present; PWA prerequisites appear configured; actual installability requires browser or Lighthouse verification.
 - **Current service-worker architecture**: The service worker intercepts GET requests. It uses a cache-first strategy for static assets and a network-first strategy for navigation requests. Server and AI functions are excluded from caching.
 - **Current cache strategy**: Hybrid. Navigation is network-first with a fallback to the cached root `/`. Static assets (images, CSS, JS) are cache-first. API calls (like `/_server` and `ai.functions`) are network-only.
-- **Current offline capabilities**: The app shell can load offline via the network-first fallback to `/`. However, because API calls are network-only and not queued, dynamic data fetching and mutation fail offline.
+- **Current offline capabilities**: The app shell can load offline via the network-first fallback to `/`. Local UI navigation and local state reads function offline when assets and local data are available. Training, Fuel, Recovery, and Stats logging write to `localStorage` locally and thus function offline. AI/Jarvis requests, server-function requests, and external network requests explicitly require a network and fail offline.
 - **Current update experience**: The service worker calls `skipWaiting()` immediately on install. However, the application code does not listen for `updatefound` or controller changes. There is no user prompt to reload when an update is available.
-- **Strongest implemented areas**: Basic installability and offline app shell loading.
+- **Strongest implemented areas**: Basic installability configuration and offline app shell loading.
 - **Most serious stale-cache risks**: The cache name `fitcore-v1` is hardcoded. New deployments do not invalidate the old cache unless the name is manually bumped in `public/sw.js`.
-- **Most serious offline data risks**: Mutations and dynamic data requests are network-only without offline queueing or explicit error surfaces, leading to silent failures or complete unavailability of features when offline.
+- **Most serious offline data risks**: AI/Jarvis requests and server functions fail offline without offline queueing or explicit error surfaces.
 - **Most serious update risks**: Users may remain stuck on a stale cached version of the app because there is no update prompt or automatic reload mechanism integrated into the client app.
 - **Most serious platform-specific gaps**: No custom handling for iOS safe areas or Android maskable icon paddings beyond standard manifest fields.
-- **Major future Data Safety dependencies**: Future offline mutation queueing, atomic local saves, and sync mechanisms.
+- **Major future Data Safety dependencies**: Future offline mutation queueing for network endpoints, atomic local saves, and sync mechanisms.
 - **Most important requirements for future implementation approval**: Implementing a robust, automated asset caching and versioning strategy (e.g., via Workbox) and adding a user-facing update prompt.
 
 # 2. Method and evidence boundaries
@@ -126,10 +126,10 @@ Inspected `src/routes/__root.tsx`:
 - **install**: Caches hardcoded `STATIC_ASSETS`, then calls `self.skipWaiting()`.
 - **precache**: Hardcoded array `STATIC_ASSETS` in `public/sw.js`.
 - **activation**: Deletes caches whose name does not match `CACHE_NAME` (`fitcore-v1`), then calls `self.clients.claim()`.
-- **old cache cleanup**: Performed during activation.
+- **old cache cleanup**: Performed during activation, but depends on hardcoded cache name changing.
 - **waiting**: Skipped due to `self.skipWaiting()`.
 - **`skipWaiting`**: Called immediately on install.
-- **client claiming**: Called immediately on activate.
+- **client claiming**: Called immediately on activate via `clients.claim()`.
 - **controller change**: Handled natively, but app does not listen to `controllerchange` to reload.
 - **update activation**: Activates immediately.
 - **service-worker failure**: No explicit fallback.
@@ -144,7 +144,7 @@ New versions activate immediately without explicit user action.
 
 # 9. Cache inventory
 
-- **name**: `fitcore-v1`
+- **name**: `fitcore-v1` (hardcoded cache name).
 - **versioning strategy**: Hardcoded string in `public/sw.js`.
 - **source file**: `public/sw.js`
 - **contents**: Root `/`, manifest, icons, and dynamic matches for assets (`.js`, `.css`, `.png`, etc.).
@@ -152,14 +152,14 @@ New versions activate immediately without explicit user action.
 - **cleanup trigger**: On `activate` (deletes non-matching cache names).
 - **update strategy**: Cache first for static, Network first for navigation.
 - **expiration behavior**: None implemented.
-- **storage-growth risk**: High. Runtime cache accumulates indefinitely since there is no expiration logic.
+- **storage-growth risk**: High. Runtime cache accumulates indefinitely since there is no expiration logic for runtime asset caching.
 - **test coverage**: Absent.
 
 Distinction:
 
 - precache: `STATIC_ASSETS` list.
 - static runtime cache: Accumulated dynamically on `fetch`.
-- navigation cache: Not cached dynamically, relies on the pre-cached `/`.
+- navigation cache: Not cached dynamically, relies on the pre-cached `/` (cached root HTML).
 - API cache: Explicitly excluded.
 
 # 10. Cache-strategy audit
@@ -185,36 +185,38 @@ Deep links survive offline reload if the JS bundle for that route is already in 
 
 # 12. Offline startup audit
 
-- **first visit is offline**: Fails (no SW installed).
-- **returning user is offline**: Loads cached `/` shell.
-- **cached shell exists**: Loads successfully.
-- **cached shell does not exist**: White screen or browser offline page.
-- **service worker is not yet installed**: Fails.
-- **manifest is cached**: Yes (in `STATIC_ASSETS`).
-- **scripts are cached**: Yes (via Cache First).
-- **storage data exists**: Extracted from `localStorage` client-side.
-- **storage data is unavailable**: Initial states apply.
-- **a new version is waiting**: Not applicable (`skipWaiting` prevents waiting state).
+- **first visit while offline**: fails (no SW installed, confirmed by code).
+- **returning visit while offline**: loads cached `/` shell (confirmed by code).
+- **service worker installed but root not cached**: fails (Network-first fallback returns undefined/error, probable risk).
+- **root cached but one bundle missing**: fails (White screen or error, probable risk).
+- **local data available**: UI renders local state successfully (confirmed by code).
+- **local storage blocked**: UI state initialization fails (quota error caught silently, probable risk).
+- **local state mutation while offline**: succeeds (writes to `localStorage`, confirmed by code).
+- **Jarvis request while offline**: fails (network-only in SW, confirmed by code).
+- **service-worker update while app is open**: update installs and activates silently (due to `skipWaiting`, confirmed by code).
+- **new worker activation**: claims clients but app does not reload (confirmed by code).
+- **stale cached shell**: loads indefinitely until cache is manually purged or hard refresh (confirmed by code).
+- **storage quota failure**: fails silently (caught in `src/lib/persist.ts`, confirmed by code).
 
-First-visit offline support is confirmed missing.
+First-load shell availability requires network. Returning-user shell availability functions offline. Service-worker installation and updates function online but activate silently.
 
 # 13. Offline navigation audit
 
 Offline navigation across surfaces (Home, Training, Fuel/Nutrition, Recovery, Stats/Progress, Jarvis, Settings):
 
 - **static asset dependency**: High. Requires JS chunks for each route to be cached.
-- **data dependency**: High for initial load. Uses TanStack Query, which may cache data in memory, but server functions are network-only.
+- **data dependency**: High for initial load. Uses TanStack Query, which may cache data in memory. Local UI navigation and local state reads function offline when assets and local `localStorage` data are available.
 - **current offline availability**: App shell and previously visited routes remain navigable. Unvisited routes will fail if their JS chunks aren't cached.
 - **likely missing asset risk**: High for deep routes on a fresh install before they are visited.
-- **likely stale-data risk**: Low for UI, but data won't fetch.
+- **likely stale-data risk**: Low for UI, but dynamic external data won't fetch.
 - **user-facing indicator**: Confirmed missing.
 - **tests**: Absent.
 
 # 14. Offline data-entry audit
 
-- **network dependency**: Most mutations appear to persist to `localStorage` (via `src/lib/fitcore-data.ts`), making them locally available.
+- **network dependency**: AI/Jarvis requests and server-function requests explicitly require a network and fail offline.
 - **local persistence dependency**: High (synchronous `localStorage` writes).
-- **user-facing behavior**: Mutations save to `localStorage`.
+- **user-facing behavior**: Training, Fuel, Recovery, and Stats logging write to `localStorage` locally and thus function offline. Local mutations save to `localStorage` and succeed locally while offline.
 - **success feedback**: Local state updates immediately.
 - **failure feedback**: None specific to network; quota failures are silently caught in `src/lib/persist.ts`.
 - **reconnect behavior**: Confirmed missing.
@@ -276,9 +278,9 @@ Activation is automatic (`skipWaiting`), but reload is mixed/unclear (relies on 
 
 - **cache-name versioning**: Hardcoded as `fitcore-v1`.
 - **old-cache deletion**: Handled in `activate`, but since the name doesn't change automatically, it never triggers for new deployments unless manually bumped.
-- **hashed asset URLs**: Used by Vite.
-- **stale-asset risk**: High. If the HTML shell falls back to the cache, it may request old hashed JS files.
-- **storage-growth risk**: High. Old hashed files are never purged from `fitcore-v1` because the runtime cache grows indefinitely.
+- **hashed asset URLs**: Used by Vite build process. Deployment changes generate new hashed assets.
+- **stale-asset risk**: High. If the HTML shell (cached root HTML) falls back to the cache, it may request old hashed build assets that no longer exist on the server.
+- **storage-growth risk**: High. Old hashed files are never purged from `fitcore-v1` because the runtime asset cache grows indefinitely and the hardcoded cache name is not bumped automatically.
 
 # 20. Deployment and version-consistency audit
 
