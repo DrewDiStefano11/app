@@ -1,246 +1,262 @@
 # 1. Executive summary
 
-**Current form architecture**
-FitCore's forms rely heavily on React local state (`useState`) managing input fields (`<input>`, `<textarea>`, Shadcn components). Submissions directly update a global application store (managed via `useStore` referencing Zustand, persisting via `persist.ts` caching to `localStorage`). Major flows are housed in `BottomSheet` portaled overlays.
+**State and form architecture**
+FitCore’s form inputs rely on local React state (`useState`) to stage user input. Mutations are submitted synchronously to the global React Context store provided by `src/lib/store.tsx` via `createContext` and the `useStore()` consumer. It is not using Zustand.
 
-**Current validation architecture**
-Validation across the app is UI-bound and decentralized. Handlers in components check conditions (e.g. `!name`) before updating `useStore`. There is no global validation layer guarding the store mutations.
+**Persistence architecture**
+The `store.tsx` module persists updates to localStorage by directly invoking `saveFitCoreData(next)` located in `src/lib/fitcore-data.ts`. This occurs during standard mutations, store resets, imports, and component mount hydration.
 
-**Current destructive-action architecture**
-Destructive paths (e.g., discarding an active workout, deleting custom meals, deleting historical weigh-ins, clearing user data) use a shared `<ConfirmDialog>` component (`src/components/app/sheet.tsx`) to intercept the UI intent, mutating the global state synchronously upon confirmation.
-
-**Methodology Corrections vs Previous Audit**
-Removed speculative fields (e.g., custom form logic not actually mounted) and removed claims of a formal Data Safety structure not yet present in the branch. Checked the exact `useStore` boundaries to clarify "Zustand" is the backing architecture. Duplicate submission protections were analyzed actively by checking for `inFlight` refs or disabled states (most are unprotected).
+**Destructive actions and validation**
+Validation is largely decentralized, utilizing inline parser coercions (`Number(e.target.value) || 0`) and standard HTML `<input>` constraints without a universal schema. Destructive actions rely on a shared `<ConfirmDialog>`, triggering direct filter mutations on the central context without explicit undo capabilities (except for distinct Jarvis conversational undo flows). Duplicate submissions lack formal `inFlight` guards in standard buttons.
 
 # 2. Method and evidence boundaries
 
 **Required base SHA**: `3e4326782d761313c4f2644ecfe55503770b360a`
-**Static inspection methodology**: Comprehensive `grep` of `src/` to identify `<form>`, `<input>`, `<Select>`, `<BottomSheet>`, `<ConfirmDialog>`, and their associated `useState` + `useStore` hooks.
-**Files inspected**: `src/components/app/views/*.tsx`, `src/components/app/active-workout.tsx`, `src/components/app/sheet.tsx`, `src/lib/store.tsx`.
-**How validation rules are traced**: Evaluated the event handlers (e.g., `onClick` on submit buttons) and HTML attributes (e.g., `min`, `type="number"`).
+**Methodology**: Comprehensive grep and manual inspection of the current source tree looking specifically for `<input>`, `<Select>`, `<Switch>`, `BottomSheet`, `ConfirmDialog`, `onSubmit`, `useStore()`, and `saveFitCoreData`. No speculative or unrendered components were mapped.
+**Form discovery method**: Evaluated all domain views in `src/components/app/views/` and shared overlays in `src/components/app/` to inventory strictly the fields actively rendered to the DOM.
 
-**Definitions**:
+# 3. Store architecture
 
-- _Confirmed implemented_: Feature is visible and connected in `main` code.
-- _Confirmed missing_: Explored related source and found absent.
-- _Structural duplicate-submission risk_: Form lacks disable guards on submit logic.
-- _Presentation-only_: UI visually tracks it, but store does not persist or enforce it.
+The application uses a custom React Context defined in `src/lib/store.tsx`.
 
-# 3. State and form architecture
+- **Components**: `StoreProvider` wrapping the component tree.
+- **Hooks**: `useStore` acts as the consumer to return `{ state, set, reset, replace }`.
+- **Core logic**: Uses React's `useState`, `useCallback`, and `useMemo` to maintain and update the `AppState`.
 
-**Import paths & hooks**:
+# 4. Persistence architecture
 
-- `import { useStore } from "@/lib/store"`
-- `import { BottomSheet, ConfirmDialog } from "@/components/app/sheet"`
-- State mutations use `set((s) => ({ ...s, ... }))`
+Persistence is handled synchronously through `src/lib/fitcore-data.ts`.
 
-**Mutation functions**: Direct synchronous updates via Zustand's setter.
-**Persistence functions**: Store updates are captured via an implied subscriber (likely `localStorage`) in `persist.ts`.
+- **Path**: `src/lib/store.tsx` imports `saveFitCoreData` from `src/lib/fitcore-data.ts`.
+- **Triggers**: Invoked in the effect (`if (hydrated) saveFitCoreData(state)`), inside the core `set()` mutation (`saveFitCoreData(next)`), inside `reset()`, and inside `replace()`.
 
-# 4. Shared form controls
+# 5. Shared form controls
 
-**Controls**:
+- `src/components/ui/input.tsx` (wrapped `<input>`)
+- `src/components/ui/textarea.tsx`
+- `src/components/ui/switch.tsx`
+- `src/components/ui/slider.tsx`
+- `src/components/ui/select.tsx` (generic HTML `<select>` wrappers)
+- `<BottomSheet>` (portaled sheet for focused data entry in `src/components/app/sheet.tsx`)
+- `<ConfirmDialog>` (shared confirmation primitive)
 
-- `input` (text, number, date)
-- `textarea`
-- Shadcn UI: `<Switch>`, `<Slider>`, `<Select>`, `<Button>`.
-- Core Overlays: `<BottomSheet>`, `<ConfirmDialog>`.
-
-# 5. Complete form inventory
+# 6. Complete form inventory
 
 **Onboarding** (`src/components/app/views/onboarding.tsx`):
 
-- Fields: name, age, weight, height, goal, unit preferences.
-- Controls: text input, select, switches.
+- Fields actually rendered:
+  - Main goal (`<Select>`)
+  - Training experience (`<Select>`)
+  - Days per week (`<Input type="number">`)
+  - Preferred split (`<Select>`)
+  - Current bodyweight (`<Input inputMode="decimal">`)
+  - Target bodyweight (`<Input inputMode="decimal">`)
+  - Calorie target (`<Input inputMode="numeric">`)
+  - Protein target (`<Input inputMode="numeric">`)
+  - Carbohydrate target (`<Input inputMode="numeric">`)
+  - Fat target (`<Input inputMode="numeric">`)
 
-**Settings/Profile** (`src/components/app/views/settings.tsx`):
+**Settings** (`src/components/app/views/settings.tsx`):
 
-- Fields: Editable variations of onboarding data, notification preferences.
+- Rendered profile settings, units toggles, Jarvis preferences.
 
-**Workout Creation & Active Workout** (`src/components/app/active-workout.tsx`):
+**Training creation & Active workout** (`src/components/app/active-workout.tsx`):
 
-- Fields: exercise selection, set logging (weight, reps, RPE).
-- Form flow: Inherits from custom templates or scratch.
+- Set logging (Weight, Reps, RPE via `<Input>`).
+- Note logging (`<Textarea>`).
 
-**Meal Logging** (`src/components/app/views/nutrition.tsx`):
+**Cardio** (`src/components/app/views/training.tsx`):
 
-- Fields: name (text), calories (number), macros (number).
+- Log cardio form (Distance, Duration, Intensity).
 
-**Recovery Check-in** (`src/components/app/views/recovery.tsx`):
+**Nutrition** (`src/components/app/views/nutrition.tsx`):
 
-- Fields: sleep (hours, quality), soreness, fatigue.
-- Controls: `<Slider>`, inputs.
+- Log meal sheet.
+- Fields: Name (`<Input>`), Calories, Protein, Carbs, Fat.
+- Type selector (`<Select>`).
 
-**Stats/Progress** (`src/components/app/views/progress.tsx`):
+**Recovery** (`src/components/app/views/recovery.tsx`):
 
-- Fields: weigh-in (numeric), progress photo (file input).
+- Daily check-in (Soreness, Fatigue via `<Slider>`).
+- Sleep logging (Hours, Quality).
 
-# 6. Validation-rule registry
+**Stats and Goals** (`src/components/app/views/progress.tsx`):
 
-- **Age/Weight/Height (Onboarding/Settings)**:
-  - Type: `<input type="number">`
-  - Required: Mostly yes (UI blocks progression).
-  - Validation: UI-only HTML constraints. No persistence-layer validation.
-- **Set Weight/Reps (Active Workout)**:
-  - Type: `<input type="number">`
-  - Initial: 0 or previous.
-  - Validation: basic parsing via inline functions; missing hard guards in store.
-- **Meal Macros (Nutrition)**:
-  - Type: `<input>` for string parsing.
-  - Validation: parser fallback handling (e.g. parsing empty string to 0).
+- Log weigh-in (Weight `Input`, Date `Input type="date"`).
+- Photo upload (File `Input type="file"`).
+- Add goal (`<Input>`, `<Select>`).
 
-# 7. Numeric-input audit
+**Import and reset** (`src/components/app/views/settings.tsx`):
 
-- **Parsers**: Reliance on implicit JavaScript conversions (`parseFloat`, `Number()`) directly inside `set()` callbacks.
-- **Empty strings**: Usually default to `0` instead of rejecting.
-- **Negatives**: Some forms lack `min="0"`, allowing negative state into the store.
-- **UI-only validation**: Many numeric limits exist purely as HTML properties, not enforced by `store.tsx`.
+- Reset app data (Button triggering `<ConfirmDialog>`).
+- Import data (File `<input type="file" accept=".json">`).
 
-# 8. Date/time audit
+**Jarvis confirmations** (`src/components/app/jarvis/jarvis-panel.tsx`):
 
-- **Weigh-ins/Meals/Workouts**: Date values typically default to "today".
-- **Validation**: Handled via browser-native `<input type="date">`. Timezones are browser-dependent.
-- **Absent validation**: No strict server-side chronologically bounded validation (e.g., logging workouts 10 years in the future is possible).
+- Standard conversational chat input (`<Textarea>` or `<Input>`).
 
-# 9. Unit-handling audit
+# 7. Validation-rule registry
 
-- **Weight**: Profile settings define `lb` vs `kg`. Store defaults largely treat standard values uniformly but display layers convert using `kgToLb` / `lbToKg` utilities.
-- **Distance**: `mi` vs `km`.
-- **Validation**: Display unit switching does not natively validate or re-calculate historical persistence integrity—it relies on view-layer maths.
+_Example rules mapped from source:_
 
-# 10. Required and optional fields
+- **Onboarding Bodyweight**:
+  - Exact label: "Current (lb)"
+  - Source: `onboarding.tsx`
+  - Input type: `<Input inputMode="decimal">`
+  - Required status: implicitly yes (blocks progression visually).
+  - Parser: `Number(e.target.value) || 0`
+  - Min/Max: Native constraints absent on standard text/decimal inputs.
+  - Custom validation: UI coercion only.
+  - Persistence result: Saves immediately on "Continue".
 
-- **Required**: Onboarding name, meal log name, weigh-in value.
-- **Optional**: Photo descriptions, specific macros.
-- **Issue**: Form submission handlers often fail silently (e.g., `if (!value) return`) leaving the user without an error toast.
+- **Meal Logging Calories**:
+  - Exact label: "Calories"
+  - Source: `nutrition.tsx`
+  - Parser: `parseInt` or `Number` coercion.
+  - Failure behavior: Empty strings fall back to `0`.
+
+# 8. Numeric fields
+
+- Most inputs use standard `<Input>` wrappers.
+- Keyboard hints are applied (e.g. `inputMode="decimal"`, `inputMode="numeric"`).
+- Decimal parsing is mostly delegated to the browser.
+- Fallback logic heavily leans on `|| 0`, leading to silent conversion of invalid inputs.
+
+# 9. Date/time fields
+
+- Weigh-in log: `<Input type="date">`. Default is usually inferred or left to the browser's current date string.
+- No global cross-timezone normalizer identified strictly on the input mutation boundary.
+
+# 10. Units
+
+- Weight toggles (`lb` / `kg`) alter rendering layers. Mutations largely rely on user-facing numeric inputs which are persisted "as-is", relying on the view layer to honor the preference context when displaying.
 
 # 11. Defaults and prefills
 
-- Defaults aggressively populate with current date/time or historical baselines (e.g., previous weigh-in).
-- Risk: Quick tapping "Save" can log duplicated identical data entries accidentally.
+- Numeric defaults rely on `0`.
+- Profile fields prefill with `defaultState.profile`.
 
 # 12. Dirty state
 
-- **Confirmed missing**: Overlays like `<BottomSheet>` generally lack explicit dirty-state checks. Dismissing the backdrop discards unsubmitted form state.
-- **Draft retained**: The global `activeWorkout` object inherently acts as a persistent draft for training.
+- **Confirmed form state discarded on unmount**: For sheets like `LogMealSheet`, dismissing the backdrop loses the active `useState`.
+- **Confirmed draft preservation**: The `activeWorkout` object in Context acts as a persistent global draft.
+- **No explicit dirty-state warning**: Closing most data entry sheets fails to warn the user of lost text.
 
 # 13. Submit lifecycle
 
-1. UI interaction (`onChange`).
-2. Submit trigger (`onClick` on `<Button>`).
-3. Inline validation check.
-4. Synchronous store mutation `set()`.
-5. Overlay close (`onClose()`).
-6. Re-render.
+1. UI component invokes Context `set( (s) => {...} )`.
+2. Context hook executes `saveFitCoreData(next)`.
+3. UI closes bottom sheet automatically via `onClose()`.
 
 # 14. Duplicate-submission protections and risks
 
-- **No explicit in-flight guard**: Form submit handlers usually lack `isSubmitting` disable states because mutations are synchronous.
-- **Structural duplicate-submission risk**: If a user clicks rapidly before the React render cycle unmounts the component, multiple identical state arrays can be pushed (e.g. logging a meal twice).
-- Requires runtime verification to confirm severity.
+- **No explicit in-flight guard**: Standard Submit buttons lack an `isSubmitting` or `inFlight` ref guard to disable the button.
+- **Structural duplicate risk**: A rapid succession of pointer events before the React component unmounts could push identical payload objects into the Context array (e.g., duplicated meals or sets).
 
 # 15. Cancel and close behavior
 
-- Close icons and backdrop clicks generally dismiss overlays.
-- `<ConfirmDialog>` cancels return safely to the previous layer.
-- Dirty data loss is highly likely upon dismiss.
+- Overlays close on backdrop click (discarding UI state).
+- `<ConfirmDialog>` cancels safely without modifying context.
 
 # 16. Error feedback
 
-- Missing centralized error styling for form fields (`aria-invalid` not comprehensively used).
-- Validation blocks execution without explaining why (silent failure).
+- Missing centralized error styling. Validation usually results in silent termination of the submit handler.
 
 # 17. Success feedback
 
-- Overlays mostly close silently upon success.
-- Toasts (`src/components/ui/sonner.tsx`) are used inconsistently.
+- Overlays mostly unmount implicitly on success. Toasts (`sonner`) used sparingly.
 
-# 18. Complete destructive-action inventory
+# 18. Destructive-action inventory
 
-- **Discard Active Workout** (`src/components/app/active-workout.tsx`):
+- **Discard active workout** (`src/components/app/active-workout.tsx`):
   - Trigger: "Discard workout" button.
-  - Confirmation: `<ConfirmDialog>` with destructive styling.
-  - Mutation: Clears `activeWorkout` state.
-- **Delete Weigh-in** (`src/components/app/views/progress.tsx`):
-  - Trigger: Delete button in weigh-in detail.
-  - Confirmation: `<ConfirmDialog title="Delete weigh-in?">`.
-  - Scope: The specific target `id`.
-  - Mutation: Filters `bodyweightEntries`.
-- **Delete Photo** (`src/components/app/views/progress.tsx`):
-  - Trigger: Delete button on photo.
-  - Confirmation: `<ConfirmDialog>`.
-  - Mutation: Filters `progressPhotos`.
-- **Delete Meal** (`src/components/app/views/nutrition.tsx`):
-  - Confirmation: `<ConfirmDialog>`.
-  - Mutation: Filters `mealEntries`.
-- **Delete Cardio** (`src/components/app/views/training.tsx`):
-  - Confirmation: `<ConfirmDialog>`.
-  - Mutation: Filters `cardioEntries`.
-- **Reset All Data** (`src/components/app/views/settings.tsx`):
-  - Trigger: Settings reset toggle/button.
-  - Confirmation: `<ConfirmDialog>`.
-  - Mutation: Restores `defaultState`.
+  - Location: Active workout view.
+  - Confirmation: `<ConfirmDialog>`
+  - Mutation: `set((s) => ({ ...s, activeWorkout: null }))`
+  - Persistence: Yes, synchronous.
+- **Delete cardio** (`src/components/app/views/training.tsx`):
+  - Trigger: Delete button in detail sheet.
+  - Confirmation: `<ConfirmDialog title="Delete cardio entry?">`
+  - Mutation: `cardioEntries.filter(...)`
+- **Delete meal** (`src/components/app/views/nutrition.tsx`):
+  - Trigger: Delete button.
+  - Confirmation: `<ConfirmDialog>`
+  - Mutation: `mealEntries.filter(...)`
+- **Delete weigh-in** (`src/components/app/views/progress.tsx`):
+  - Trigger: Trash icon in history.
+  - Confirmation: `<ConfirmDialog title="Delete weigh-in?">`
+  - Mutation: `bodyweightEntries.filter(...)`
+  - _Conclusion: Historical weigh-in deletion currently exists in source code._
+- **Delete progress photo** (`src/components/app/views/progress.tsx`):
+  - Trigger: Delete button on photo detail.
+  - Confirmation: `<ConfirmDialog title="Delete photo?">`
+  - Mutation: `progressPhotos.filter(...)`
+- **Reset all data** (`src/components/app/views/settings.tsx`):
+  - Trigger: "Reset app data" button.
+  - Confirmation: `<ConfirmDialog>`
+  - Mutation: `reset()` context method.
+- **Import overwrite behavior** (`src/components/app/views/settings.tsx`):
+  - Trigger: File upload `<input type="file">`.
+  - Mutation: `replace(data)`.
 
 # 19. Confirmation matrix
 
-| Domain    | Action          | Explicit Label | Focus Trapping                |
-| --------- | --------------- | -------------- | ----------------------------- |
-| Progress  | Delete weigh-in | Yes            | Requires browser verification |
-| Progress  | Delete photo    | Yes            | Requires browser verification |
-| Nutrition | Delete meal     | Yes            | Requires browser verification |
-| Training  | Delete cardio   | Yes            | Requires browser verification |
-| Training  | Discard workout | Yes            | Requires browser verification |
-| Settings  | Reset data      | Yes            | Requires browser verification |
+| Action          | Explicit Label | Scope explicit | Guard type        |
+| --------------- | -------------- | -------------- | ----------------- |
+| Discard workout | Discard        | No             | `<ConfirmDialog>` |
+| Delete weigh-in | Delete         | No             | `<ConfirmDialog>` |
+| Delete photo    | Delete         | No             | `<ConfirmDialog>` |
+| Delete cardio   | Delete         | No             | `<ConfirmDialog>` |
+| Reset data      | Reset          | App-wide       | `<ConfirmDialog>` |
 
 # 20. Undo and recovery matrix
 
-- **Undo functionality is completely absent** from current persistence methods.
-- **Recoverability**: Requires manual re-entry by the user for all deleted objects.
+- **Ordinary manual domain deletion**: Irreversible (no undo).
+- **Jarvis action undo**: Jarvis provides distinct `undone: true` patching workflows via `JarvisAuditStatus`.
+- **Active workout draft preservation**: Stays active in Context until completed or discarded.
+- **Import rollback**: Absent.
+- **Reset recovery**: Absent.
 
 # 21. Accessibility static evidence
 
-- `<form>` tags are rarely utilized.
-- Inputs often lack formal `id` bindings to `<label>`.
-- Errors lack `aria-describedby`.
-- Shared `BottomSheet` lacks explicit `role="dialog"` applied via root standard (uses portaled DOM injection).
+- Forms lack explicit `aria-describedby` error bindings.
+- Confirmation dialogues are standard React portals but lack complex ARIA tagging for deeply nested children.
 
 # 22. Mobile static evidence
 
-- `<BottomSheet>` height variants (`height="tall"`) present.
-- Overlapping virtual keyboards are a structural risk (requires browser verification).
-- Inputs rely on standard `<input type="number">` instead of `inputMode="decimal"` for native number pads.
+- Touch targets and bottom-sheet sizing (`height="tall"`) indicate mobile-first CSS architecture.
+- Structural risk of keyboard overlapping inputs in tall sheets requires browser verification.
 
 # 23. Test coverage
 
-- `tests/e2e/nutrition-logging-validation-smoke.spec.ts` covers meal form UI interactions.
-- `tests/e2e/bodyweight-weigh-in-validation-smoke.spec.ts` covers weigh-in flows.
-- Tests do not heavily verify missing undo paths or rapid-duplicate submission edges.
+- `tests/e2e/nutrition-logging-validation-smoke.spec.ts`
+- `tests/e2e/bodyweight-weigh-in-validation-smoke.spec.ts`
+- `tests/e2e/settings-data-safety-lifecycle-smoke.spec.ts`
+- Test suites cover structural validation but do not broadly cover duplicate submission resilience.
 
-# 24. Future Data Safety integration questions
+# 24. Future integration questions
 
-- How will synchronous `set()` calls adapt to asynchronous atomic transactions?
-- Will destructive mutations require historical versioning?
-- How will the system implement idempotency keys for form duplications?
+- How will the synchronous Context mutations adapt to Data Safety async models?
+- What idempotency mechanisms will prevent the structural duplicate submission risks?
 
 # 25. Preservation checklist
 
-- Maintain `ConfirmDialog` usage on all new destructive pathways.
-- Enforce explicit `aria-label` / `aria-describedby` when re-writing forms.
-- Do not add fake default units to numeric parsers.
-- Retain global `activeWorkout` draft protection.
+- Maintain `<ConfirmDialog>` abstraction for critical deletions.
+- Persist the global `activeWorkout` context object as a draft model.
+- Maintain existing `inputMode` mobile keyboard optimizations.
 
 # 26. Open questions
 
-- Does `<ConfirmDialog>` natively trap focus on all mobile browsers?
-- Will Data Safety introduce native "Undo" functionality?
+- Will Data Safety introduce a global undo buffer for standard domain deletions outside Jarvis?
 
 # 27. File index
 
+- `src/lib/store.tsx`
+- `src/lib/fitcore-data.ts`
 - `src/components/app/views/onboarding.tsx`
 - `src/components/app/views/settings.tsx`
-- `src/components/app/active-workout.tsx`
 - `src/components/app/views/nutrition.tsx`
-- `src/components/app/views/recovery.tsx`
 - `src/components/app/views/progress.tsx`
+- `src/components/app/views/training.tsx`
+- `src/components/app/active-workout.tsx`
 - `src/components/app/sheet.tsx`
-- `src/lib/store.tsx`
