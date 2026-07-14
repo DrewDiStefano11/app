@@ -8,7 +8,7 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 
 - Phase: A — Early UI redesign
 - Branch: `codex/fitcore-premium-ui-foundation`
-- Current task: Task 5 complete; Task 6 is next
+- Current task: Task 6 complete; Task 7 is next
 - Task 2 starting SHA: `ea4214b82acc8cec6afa42e96b3aab44b35ae85a`
 - Task 2 ending SHA: the Task 2 commit at current `HEAD` (resolve through Git history)
 - Task 2 commit message: `feat(ui): redesign home daily view`
@@ -23,6 +23,10 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 - Task 5 ending SHA: the Task 5 commit at current `HEAD` (resolve through Git history)
 - Task 5 commit message: `feat(ui): redesign training deep dive`
 - Task 5 working tree at task start: clean at the required starting SHA; no unrelated changes were present
+- Task 6 starting SHA: `9237f7aa60a77291cc94cba12264ec78155b4d70`
+- Task 6 ending SHA: the Task 6 commit at current `HEAD` (resolve through Git history)
+- Task 6 commit message: `feat(ui): redesign nutrition daily view`
+- Task 6 working tree at task start: the five approved Task 6 implementation/test files were intentionally uncommitted; no unrelated changes were present
 - Restricted Phase A files changed: none
 
 ## Task status
@@ -34,7 +38,8 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 | 3 — Home Deep Dive and universal comparison           | Complete    | `acbdee9bc695800c32a05d512f5a537967db712e` | Task 3 commit at current `HEAD`            | `feat(ui): redesign home deep dive`              | TypeScript, build, 369-case Chromium matrix, responsive, keyboard, reduced motion, data honesty | Premium analytical command center and honest session-only universal comparison builder                  |
 | 4 — Training Daily View redesign                      | Complete    | `24a7f29237d1913617ad0d0ff014f4626327419e` | Task 4 commit at current `HEAD`            | `feat(ui): redesign training daily view`         | TypeScript, build, 21 focused cases, 390-case Chromium matrix, responsive and accessibility QA  | Premium action-first Training command center; Training Deep Dive remains unchanged                      |
 | 5 — Training Deep Dive redesign                       | Complete    | `78bfb1c9235a944d208a9cd19a39529f1463ea32` | Task 5 commit at current `HEAD`            | `feat(ui): redesign training deep dive`          | TypeScript, build, 24 focused cases, 414-case Chromium matrix, responsive and accessibility QA  | Premium evidence-first training analysis workspace with honest session-only comparison builder          |
-| 6–14 — Remaining Phase A view and consistency tasks   | Not Started | —                                          | —                                          | —                                                | —                                                                                               | Execute sequentially                                                                                    |
+| 6 — Nutrition Daily View redesign                     | Complete    | `9237f7aa60a77291cc94cba12264ec78155b4d70` | Task 6 commit at current `HEAD`            | `feat(ui): redesign nutrition daily view`        | TypeScript, build, 18 focused cases, 432-case Chromium matrix, responsive and accessibility QA  | Premium exact-intake daily workspace; Nutrition Deep Dive remains unchanged                             |
+| 7–14 — Remaining Phase A view and consistency tasks   | Not Started | —                                          | —                                          | —                                                | —                                                                                               | Execute sequentially                                                                                    |
 | 15 — Data Safety dependency check                     | Not Started | —                                          | —                                          | —                                                | —                                                                                               | Required before Phase B                                                                                 |
 | 16–21 — Data Safety integration through release audit | Blocked     | —                                          | —                                          | —                                                | —                                                                                               | Blocked until Data Safety & Persistence is merged and present on the redesign branch                    |
 
@@ -69,6 +74,17 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 - Weekly progress, templates and recent workouts, personal records, cardio, tools, recent activity, and Training Deep Dive entry points
 - Existing active-workout lifecycle retained, including exercise add/reorder, set logging, modifiers, notes, plate calculator, completion, reload restoration, and resume behavior
 - Session-only chart pin and suggestion state is labeled honestly; no new persistence or analytics formula was introduced
+
+### Nutrition
+
+- Dominant exact-calorie hero with finite progress geometry, logged/target/source context, and a preserved Log Meal action
+- Exact protein, carbohydrate, and fat grams remain visible while progress appears only for supported positive targets
+- Missing or invalid targets remain unavailable and distinct from explicit zero targets
+- Meals Today preserves real meal names, types, times, calories, macros, AI-estimate quality, deletion, and long-name wrapping
+- Existing Templates, Foods Library, custom macro entry, and Photo Log modes remain available through the existing logging sheet
+- Supplements remain sourced from the existing daily log; hydration is explicitly labeled planned and not connected rather than fabricated
+- Existing daily decision guidance and Nutrition Deep Dive handoff remain intact
+- Desktop expands to an intentional two-column workspace while narrow layouts retain safe-area and bottom-navigation clearance
 
 ## Completed Deep Dives
 
@@ -308,6 +324,63 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 - Correlation remains unavailable because the analytics layer does not expose sample size, confidence, direction, and strength.
 - The muscle detail surface describes recorded evidence only and does not diagnose weakness, injury, overtraining, or readiness for load.
 - Production build retains the known TanStack `inputValidator()` deprecations and existing bundling notices.
+
+## Task 6 files
+
+### Created
+
+- `src/components/app/views/nutrition-daily-premium.tsx`
+- `tests/e2e/nutrition-daily-premium-redesign.spec.ts`
+
+### Modified
+
+- `docs/audits/premium-ui-redesign-progress.md`
+- `src/components/app/views/nutrition.tsx`
+- `src/routes/index.tsx`
+- `src/styles.css`
+
+## Task 6 architecture and feature preservation
+
+- `NutritionDailyPremiumView` is a dedicated presentation layer supplied with existing state, analytics, logging, deletion, and layout-mode callbacks by the Nutrition route.
+- The calorie hero and macro cards retain exact logged grams and calorie totals. Progress geometry is clamped and finite, but over-target values remain available as explicit text.
+- Positive, explicit-zero, missing, null, and invalid targets are handled separately. Missing targets are never presented as measured zero; zero targets are never presented as missing or complete.
+- Existing Templates, Foods Library, custom macro entry, recent-meal behavior, Photo Log AI estimate, and planned Barcode state remain in the existing Log Meal sheet.
+- Custom meals persist through the existing application store and survive reload. Meal deletion keeps both Cancel and Confirm behavior.
+- Supplements use the existing stored daily log. Hydration remains visibly labeled `PLANNED` and `NOT CONNECTED`; no unsupported water total, goal, or progress was introduced.
+- Existing daily-decision guidance and data-quality treatment remain intact. Unconfirmed AI entries remain estimates rather than confirmed measurements.
+- Nutrition Deep Dive, its state, and its behavior were not redesigned. Task 7 remains unstarted.
+- No Data Safety, analytics formula, schema, persistence, package, or lockfile was changed.
+
+## Task 6 validation
+
+- Focused desktop command: `npx playwright test tests/e2e/nutrition-daily-premium-redesign.spec.ts --project=desktop-chromium` — 6/6 passed.
+- Focused mobile command: `npx playwright test tests/e2e/nutrition-daily-premium-redesign.spec.ts --project=mobile-360x800 --project=mobile-390x844` — 12/12 passed.
+- Final focused all-project command: `npx playwright test tests/e2e/nutrition-daily-premium-redesign.spec.ts --workers=1 --retries=0` — 18/18 passed.
+- Existing Nutrition regression group: 78/78 passed across desktop Chromium, mobile 360×800, and mobile 390×844. Coverage included daily panels, logging validation, core logging persistence, data propagation, date-boundary rollups, reload stability, provenance, local-storage compatibility, and daily-decision behavior.
+- Shared regression group: 147/147 passed across the three Chromium projects. Coverage included Home and Training premium views, navigation, bottom navigation, overlays, Settings, Jarvis and cross-domain actions, mobile layout, data propagation, rich-state all-tabs, no-fatal-errors, and empty-state crash protection.
+- Complete configured Playwright matrix: 432/432 passed with `--workers=1 --retries=0`, preserving configured reporters and timeouts. Each project ran four bounded shards using the same complete spec set: desktop Chromium 41/41 + 30/30 + 32/32 + 41/41 = 144/144; mobile 360×800 41/41 + 30/30 + 32/32 + 41/41 = 144/144; mobile 390×844 41/41 + 30/30 + 32/32 + 41/41 = 144/144.
+- Final matrix totals: 432 passed, 0 failed, 0 skipped, 0 interrupted, and 0 not run.
+- Failure classification: one focused strict-locator failure was a Task 6 test defect and was corrected without weakening behavior; legacy Nutrition copy selectors were Task 6 compatibility regressions and received accessible compatibility text; stale/orphaned Vite listeners and cache hydration in monolithic runs were environment failures proven with an exact-starting-SHA clean diagnostic worktree and recovered with bounded project shards. No unresolved failures remain.
+- TypeScript: pass (`npx tsc --noEmit`).
+- Changed-source/test ESLint: pass with zero warnings.
+- Changed-file Prettier: pass.
+- Production build: pass (`npm run build`).
+- `git diff --check`: pass.
+- Responsive widths inspected: 320, 360×800, 390×844, 430, 768, 1024, and 1280 px.
+- Visual states inspected: no meals, partial day, populated day, below/at/over calorie target, one macro behind, explicit-zero target, missing/invalid target, long meal names, multiple meals, supplements, Log Meal sheet, and deletion confirmation.
+- Accessibility and interaction: semantic Nutrition heading compatibility, named controls, exact text values, visible keyboard focus, reduced-motion behavior, sheet/dialog layering, Cancel/Confirm focus paths, and touch targets verified.
+- Layout and data honesty: no horizontal document overflow, clipped values, hidden logging action, bottom-navigation collision, `NaN`, or `Infinity`; missing evidence remains missing and unsupported hydration is labeled honestly.
+- Generated screenshots, Playwright reports/traces/videos, temporary diagnostic worktree, orphaned test processes, and production build output were removed after review; none are tracked.
+
+## Task 6 known warnings
+
+- Production and test output retains existing TanStack server-function `inputValidator()` deprecation notices and dependency bundling/large-chunk notices.
+- The existing Settings keyboard regression may log its fallback from Escape to the visible Done control while still passing.
+- The monolithic 432-case runner can leave high-memory Vite processes in this Windows environment; bounded project shards completed the unchanged matrix with no coverage, retry, timeout, or assertion reduction.
+
+## Task 6 next task
+
+Task 7 — Nutrition Deep Dive
 
 ## Pending Data Safety integration
 
