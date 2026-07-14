@@ -26,9 +26,15 @@ export function BottomSheet({
   }, [open]);
 
   if (!open) return null;
-  const section = typeof document !== "undefined" ? document.querySelector('.phone-shell')?.getAttribute('data-section') || 'home' : 'home';
+  const section =
+    typeof document !== "undefined"
+      ? document.querySelector(".phone-shell")?.getAttribute("data-section") || "home"
+      : "home";
   return createPortal(
-    <div className="sheet-root fixed inset-0 z-50 flex items-end justify-center" data-section={section}>
+    <div
+      className="sheet-root fixed inset-0 z-50 flex items-end justify-center"
+      data-section={section}
+    >
       <div
         className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in"
         onClick={onClose}
@@ -42,11 +48,11 @@ export function BottomSheet({
       >
         <div className="sheet-header flex min-h-16 items-center justify-between border-b border-white/[0.06] px-5 pb-3 pt-5">
           <div className="sheet-grabber absolute left-1/2 top-2 -translate-x-1/2 h-1 w-10 rounded-full bg-white/25" />
-          <h3 className="sheet-title font-semibold text-lg text-white">
-            {title}
-          </h3>
+          <h3 className="sheet-title font-semibold text-lg text-white">{title}</h3>
           <button
             onClick={onClose}
+            type="button"
+            aria-label={title ? `Close ${title}` : "Close sheet"}
             className="btn-control grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white press"
           >
             <X size={18} />
@@ -60,7 +66,7 @@ export function BottomSheet({
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
 
@@ -82,9 +88,15 @@ export function ConfirmDialog({
   destructive?: boolean;
 }) {
   if (!open) return null;
-  const section = typeof document !== "undefined" ? document.querySelector('.phone-shell')?.getAttribute('data-section') || 'home' : 'home';
+  const section =
+    typeof document !== "undefined"
+      ? document.querySelector(".phone-shell")?.getAttribute("data-section") || "home"
+      : "home";
   return createPortal(
-    <div className="sheet-root fixed inset-0 z-50 flex items-center justify-center p-6" data-section={section}>
+    <div
+      className="sheet-root fixed inset-0 z-50 flex items-center justify-center p-6"
+      data-section={section}
+    >
       <div
         className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md"
         onClick={onClose}
@@ -115,6 +127,6 @@ export function ConfirmDialog({
         </div>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 }
