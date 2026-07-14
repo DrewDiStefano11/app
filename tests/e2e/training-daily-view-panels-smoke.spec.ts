@@ -37,7 +37,7 @@ test.describe("Training Daily View Smoke", () => {
     await expect(templatesHeading).not.toBeVisible();
 
     // 4. Cardio/sports panel opens and closes safely.
-    await page.getByText("min this week").click();
+    await page.getByRole("button", { name: "Open cardio" }).click();
     const cardioHeading = page.locator(".sheet-title", { hasText: "Cardio & sports" });
     await expect(cardioHeading).toBeVisible();
     await page.getByRole("button", { name: "Close cardio panel" }).click();

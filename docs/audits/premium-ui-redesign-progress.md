@@ -8,14 +8,17 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 
 - Phase: A — Early UI redesign
 - Branch: `codex/fitcore-premium-ui-foundation`
-- Current task: Task 3 complete; Task 4 is next
+- Current task: Task 4 complete; Task 5 is next
 - Task 2 starting SHA: `ea4214b82acc8cec6afa42e96b3aab44b35ae85a`
 - Task 2 ending SHA: the Task 2 commit at current `HEAD` (resolve through Git history)
 - Task 2 commit message: `feat(ui): redesign home daily view`
 - Task 3 starting SHA: `acbdee9bc695800c32a05d512f5a537967db712e`
 - Task 3 ending SHA: the Task 3 commit at current `HEAD` (resolve through Git history)
 - Task 3 commit message: `feat(ui): redesign home deep dive`
-- Working tree at task start: contained in-scope, uncommitted Task 2 draft files; no unrelated changes were present
+- Task 4 starting SHA: `24a7f29237d1913617ad0d0ff014f4626327419e`
+- Task 4 ending SHA: the Task 4 commit at current `HEAD` (resolve through Git history)
+- Task 4 commit message: `feat(ui): redesign training daily view`
+- Task 4 working tree at task start: clean at the required starting SHA; no unrelated changes were present
 - Restricted Phase A files changed: none
 
 ## Task status
@@ -25,7 +28,8 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 | 1 — Premium UI and visualization foundation           | Complete    | `d8d635683c2588a09ab3167a6d129d5899fdf977` | `ea4214b82acc8cec6afa42e96b3aab44b35ae85a` | `feat(ui): add premium visualization foundation` | TypeScript, build, 32 Chromium tests, responsive, keyboard, reduced motion                      | Shared tokens, surfaces, chart stack, comparison modes, focus mode, state components, visualization lab |
 | 2 — Home Daily View redesign                          | Complete    | `ea4214b82acc8cec6afa42e96b3aab44b35ae85a` | Task 2 commit at current `HEAD`            | `feat(ui): redesign home daily view`             | TypeScript, changed-file ESLint/Prettier, build, 117-test Chromium matrix, screenshot refresh   | Premium action-first Home command center; no Home Deep Dive redesign                                    |
 | 3 — Home Deep Dive and universal comparison           | Complete    | `acbdee9bc695800c32a05d512f5a537967db712e` | Task 3 commit at current `HEAD`            | `feat(ui): redesign home deep dive`              | TypeScript, build, 369-case Chromium matrix, responsive, keyboard, reduced motion, data honesty | Premium analytical command center and honest session-only universal comparison builder                  |
-| 4–14 — Remaining Phase A view and consistency tasks   | Not Started | —                                          | —                                          | —                                                | —                                                                                               | Execute sequentially                                                                                    |
+| 4 — Training Daily View redesign                      | Complete    | `24a7f29237d1913617ad0d0ff014f4626327419e` | Task 4 commit at current `HEAD`            | `feat(ui): redesign training daily view`         | TypeScript, build, 21 focused cases, 390-case Chromium matrix, responsive and accessibility QA  | Premium action-first Training command center; Training Deep Dive remains unchanged                      |
+| 5–14 — Remaining Phase A view and consistency tasks   | Not Started | —                                          | —                                          | —                                                | —                                                                                               | Execute sequentially                                                                                    |
 | 15 — Data Safety dependency check                     | Not Started | —                                          | —                                          | —                                                | —                                                                                               | Required before Phase B                                                                                 |
 | 16–21 — Data Safety integration through release audit | Blocked     | —                                          | —                                          | —                                                | —                                                                                               | Blocked until Data Safety & Persistence is merged and present on the redesign branch                    |
 
@@ -50,6 +54,16 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 - Nutrition target summary, remaining calories, macro focus, and Log Meal flow
 - Goals, Momentum, Progress navigation, AI insight, quick actions, Recent Activity, Settings, Jarvis, and Daily/Deep Dive switching
 - Honest empty and partial states; readiness history omits unlogged dates rather than synthesizing baseline history
+
+### Training
+
+- Dominant state-aware hero that resumes an active workout or recommends the assigned/default workout with honest evidence quality
+- Readiness, recovery, and consistency support strip that suppresses fabricated baseline values when source data is absent
+- Weekly volume, training frequency, consistency, and suggested cardio analytics using the shared Task 1 stack, focus mode, table, and keyboard controls
+- Interactive front/back muscle heatmap with Load, Strength, Imbalance, and Recovery modes plus preserved muscle detail access
+- Weekly progress, templates and recent workouts, personal records, cardio, tools, recent activity, and Training Deep Dive entry points
+- Existing active-workout lifecycle retained, including exercise add/reorder, set logging, modifiers, notes, plate calculator, completion, reload restoration, and resume behavior
+- Session-only chart pin and suggestion state is labeled honestly; no new persistence or analytics formula was introduced
 
 ## Completed Deep Dives
 
@@ -138,6 +152,74 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 - Historical FitCore Score, readiness, recovery, Momentum, and goal-progress series remain unavailable until supported read-only analytics contracts exist.
 - Correlation remains unavailable because the current analytics layer does not expose a thresholded result with sample size, confidence, direction, and strength.
 - Comparison-period overlays and persistent chart libraries remain deferred rather than simulated.
+
+## Task 4 files
+
+### Created
+
+- `src/components/app/views/training-daily-premium.tsx`
+- `tests/e2e/training-daily-premium-redesign.spec.ts`
+
+### Modified
+
+- `docs/audits/premium-ui-redesign-progress.md`
+- `src/components/app/views/training.tsx`
+- `src/routes/index.tsx`
+- `src/styles.css`
+- `tests/e2e/home-daily-premium-redesign.spec.ts`
+- `tests/e2e/training-daily-view-panels-smoke.spec.ts`
+
+## Task 4 preserved-feature inventory
+
+- Training route, bottom navigation, Daily/Deep Dive selection, Settings, Jarvis, and Recent Activity
+- Assigned workout and default workout selection, workout-start sheet, and active-workout restoration after reload
+- Full workout lifecycle: exercise add, reorder, set inputs, completion, modifiers, notes, rest timer, plate calculator, and workout completion
+- Training volume, frequency, consistency, personal records, cardio, templates, workout history, muscle map, and muscle detail pathways
+- Existing Deep Dive implementation and all Task 1 shared comparison, focus, table, and analytics-stack behaviors
+- Existing read-only analytics contracts and application-state records; no analytics implementation, formula, schema, or persistence changes
+
+## Task 4 analytics and state behavior
+
+- Weekly volume uses completed-set volume from real workout records and provides an honest no-history state.
+- Frequency uses real completed-workout dates; consistency uses the existing `trainingConsistencyScore` contract.
+- Suggested cardio is derived only from recorded cardio sessions and remains visibly labeled as a suggestion.
+- Active-workout hero outranks recommendations and exposes progress, current exercise, recent set, and Resume workout.
+- Assigned/default recommendations expose their evidence quality and avoid claiming readiness or recovery values when recent source inputs are missing.
+- Chart pinning, suggestions, focus range, and stack selection are controlled session state only in Phase A.
+
+## Task 4 validation
+
+- Focused Training Daily suite: 21/21 across desktop Chromium, mobile 360×800, and mobile 390×844.
+- Complete repository Chromium matrix: 345/390 on the first pass; 39/45 heading-correction reruns passed; the remaining six copy-selector cases passed after two minimal compatibility corrections; final unique result 390/390 passing.
+- Existing Training Daily smoke suite: 3/3 on mobile 390×844 after the final integration.
+- TypeScript: pass (`node_modules\\.bin\\tsc.cmd --noEmit`).
+- Changed-file ESLint: pass with zero warnings.
+- Changed-file Prettier: pass.
+- Production build: pass.
+- `git diff --check`: pass.
+- Responsive screenshots reviewed at 320, 360, 390, 430, 480, and 1280 px.
+- States reviewed: missing recommendation evidence, partial evidence, assigned/default recommendation, active workout, pinned suggestion, analytics focus and table, heatmap modes and muscle detail, weekly progress, records, and cardio.
+- Accessibility: semantic heading hierarchy, named controls, keyboard chart navigation, keyboard focus visibility, Escape dismissal, accessible tables, and non-color status labels verified.
+- Overflow: no page-level horizontal overflow at any required width; desktop expands to an intentional 1120 px workspace.
+- Reduced motion: Training transitions collapse to near-zero duration and scrolling remains automatic.
+- Restricted Phase A files changed: none.
+- Analytics implementation or analytics unit-test files changed: none.
+- Generated screenshots, reports, traces, videos, temporary Playwright configuration, and production build output tracked: none.
+
+## Task 4 regression-test compatibility changes
+
+- `training-daily-view-panels-smoke.spec.ts`: replaced the obsolete fabricated-zero cardio copy selector with the accessible `Open cardio` control.
+- `home-daily-premium-redesign.spec.ts`: replaced workout-name-specific active-state copy with the stable exact `Workout in progress` status.
+- No test assertion was weakened for functionality; both changes align selectors with the preserved behavior and honest-data copy.
+
+## Task 4 known limitations
+
+- Chart pin, suggestion, focus-range, and stack-selection state intentionally resets after reload in Phase A.
+- Recommendations reuse existing assigned/default workout, readiness, recovery, and muscle evidence; missing inputs remain unsupported rather than synthesized.
+- Repeat-workout is not offered because the current history contract does not expose that action.
+- Custom exercise and plate-calculator tools remain contextual entry points into the existing active-workout experience.
+- No persistent chart library, new analytics formula, or alternate storage path was added.
+- Production build retains the known TanStack `inputValidator()` deprecations, dependency bundling notices, and large-chunk warnings.
 
 ## Pending Data Safety integration
 
@@ -265,4 +347,4 @@ Visual review confirmed clear hierarchy, readable controls, stable horizontal ch
 
 ## Next recommended task
 
-Task 4 — Redesign the Training Daily View
+Task 5 — Redesign the Training Deep Dive
