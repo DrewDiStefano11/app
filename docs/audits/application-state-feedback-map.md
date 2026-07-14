@@ -1,181 +1,192 @@
 # 1. Executive summary
 
-- current application-state architecture: The application relies entirely on synchronous, full-blob `localStorage` persistence managed through a Zustand store in `src/lib/store.tsx`.
-- current state-feedback patterns: Most state feedback is instantaneous due to sync writes. Asynchronous loading states and retries are largely absent.
-- strongest implemented state handling: Domain-specific empty states are consistently implemented across most views (Home, Training, Nutrition) using a shared `EmptyState` component.
-- most serious state inconsistencies: Lack of global error boundaries or asynchronous mutation UI states (spinners, disabling inputs during save).
-- most serious data-honesty risks: Missing data (e.g., calories, macro targets) is coerced to 0 instead of displaying an honest missing state.
-- most serious retry and recovery gaps: There are no explicit UI retry mechanisms for failed storage writes.
-- most serious offline gaps: The app operates entirely locally. Storage blockages (e.g. Safari Private Mode) can cause silent uncaught exceptions.
-- major shared-component opportunities: Centralizing an error boundary and expanding `EmptyState` to handle loading/error contexts.
-- major future Data Safety integration dependencies: Asynchronous migrations will require a complete overhaul of mutation UI (spinners, toasts, retries, conflicts).
-- most important requirements for future redesign approval: Ensure missing vs. zero distinction and implement safe retry boundaries.
+- Store architecture uses a custom React Context provider with `useState` (`src/lib/store.tsx`), avoiding external dependencies like Zustand.
+- Persistence fails silently. Synchronous `localStorage.setItem` catches quota and write exceptions, bypassing white screens but causing invisible data loss on reload.
+- Corrupted JSON defaults back to `defaultState`, triggering forced onboarding on the next load.
+- Jarvis operates with distinct asynchronous UI states including sending, duplicate-guards, error warnings, and an undo snackbar pattern.
+- Empty states are widely and consistently implemented across domain collections.
 
 # 2. Method and evidence boundaries
 
-- required base SHA: `3e4326782d761313c4f2644ecfe55503770b360a`
-- static code-and-test inspection methodology: Manual inspection of `src/` and `tests/` directories via AST and regex search.
-- files inspected: `src/lib/store.tsx`, `src/lib/fitcore-data.ts`, `src/components/app/views/*`, `src/components/app/dashboard-layout.ts`, `src/components/app/ui.tsx`.
-- tests inspected: `tests/e2e/home.spec.ts`, `tests/e2e/training.spec.ts`, `tests/e2e/onboarding.spec.ts`.
-- why runtime behavior is not being claimed as browser-verified: Instructions prohibit dev servers, browser automation, or runtime injection.
-- how test fixtures are distinguished from production behavior: Located in `tests/e2e/helpers/` and not imported by `src/`.
-- how current main is distinguished from unmerged Data Safety work: Evaluated strictly at the required SHA worktree.
-- how findings are classified:
-  - Confirmed implemented: Feature is wired in code.
-  - Confirmed missing: Feature is verifiably absent from code.
-  - Confirmed partial: Exists but missing sub-states.
-  - Probable risk: Identified vulnerability, unverified at runtime.
-  - Future dependency: Requirement for async work.
+- Baseline SHA: `3e4326782d761313c4f2644ecfe55503770b360a`
+- Code-and-test static inspection only. No dev server, Playwright, network simulation, or browser automation run.
+- Did not document unmerged Data Safety behavior.
+- Distinguished parse failures from write exceptions.
 
-# 3. State architecture
+# 3. Store architecture
 
-The application state is held entirely in a React/Zustand global store (`src/lib/store.tsx`).
-Persistence is handled by `saveFitCoreData` writing synchronously to `localStorage` key `fitcore.v1`.
-Because all writes are synchronous, there are no "pending" or "loading" UI states for user actions like saving a workout or logging a meal. The UI immediately updates with the new state.
+The application state is managed by a custom React Context provider (`src/lib/store.tsx`). It uses standard React `useState` for in-memory tracking. No external state management libraries (like Zustand or Redux) are used.
 
-# 4. Shared feedback components
+# 4. Feedback-component registry
 
-- `EmptyState`: (Local) Used for empty collections (e.g., "No workouts").
-- `PlannedFeatureCard`: (Local) Used for unsupported deep-dive analytics.
-- spinner: (Absent) No global loading spinner component exists.
-- error boundary: (Absent) No global React ErrorBoundary is implemented in the router.
-- toast/snackbar: (Absent) Success and error feedback rely solely on immediate layout updates.
-- inline validation: (Local) Native HTML5 input validation (`required`, `min`) is used in forms.
-- confirmation: (Local) Used for destructive actions (e.g., resetting settings) via standard modals.
+- `EmptyState`: Shared, implemented. Renders empty collections.
+- `PlannedFeatureCard`: Shared, presentation-only. Renders placeholders for future analytics.
+- `Loader2`: Shared, implemented. Used for Jarvis thinking states.
+- spinner: Local, partial. Included via `Loader2` for Jarvis.
+- skeleton: Absent.
+- inline validation: Local, implemented. HTML5 constraints within forms.
+- error message: Local, implemented. Jarvis catches server exceptions and renders warnings inline.
+- warning: Local, implemented. Rendered in Jarvis and destruct-confirmations.
+- success message: Local, implemented. Used for import text results (`"Imported successfully"`).
+- toast/snackbar: Shared, implemented (via `sonner` / `toast`). Used for Jarvis undo actions (`src/components/app/jarvis/jarvis-panel.tsx`).
+- status strip: Absent.
+- confirmation dialog: Shared, implemented. `ConfirmDialog` wraps data resets and destructive flows.
+- retry action: Absent explicitly for mutations.
+- offline banner: Absent.
+- fallback screen: Absent. App defaults to onboarding if hydration fails.
+- error boundary: Absent. No top-level React ErrorBoundary surrounds the router.
 
-# 5. Startup and hydration
+# 5. Startup
 
-- startup: App mounts instantly via `src/router.tsx`.
-- hydration: `src/lib/store.tsx` calls `loadFitCoreData` synchronously.
-- missing saved data: Detected if `store.profile` is missing; redirects to onboarding.
-- malformed saved JSON: `loadFitCoreData` is wrapped in a `try/catch`. If parsing fails, it falls back to `defaultState`, effectively resetting the app.
-- schema/migration failure: `migrateAppState` handles schema migrations on load.
+- Status: Implemented.
+- Behavior: React tree mounts instantly, checking context provider.
 
-# 6. Onboarding
+# 6. Hydration
 
-- first use: Users without a profile see `OnboardingView`.
-- missing data vs empty profile: Indistinguishable. A user with corrupted JSON that fails hydration will be sent to onboarding exactly like a new user.
-- incomplete state: Form disable state handles partial progress.
-- success state: Clicking save writes to `localStorage` and routes to Home instantly.
+- Status: Implemented.
+- Behavior: `loadFitCoreData` runs synchronously on context mount.
 
-# 7. Home
+# 7. Corruption and fallback
 
-- empty: "Complete your first check-in to build a score." (Implemented)
-- partial data: Partial macro rings shown.
-- missing data vs zero: `undefined` scores use empty states, but missing macros default to 0.
+- Status: Implemented / Probable risk.
+- Behavior: `loadFitCoreData` wraps `localStorage.getItem` and `JSON.parse` in a `try/catch`.
+- Parse failure: Malformed JSON triggers the catch block, falling back silently to `defaultState`.
+- Invalid-shape filtering: `migrateAppState` validates schemas and fills missing defaults.
+- Onboarding consequence: Returning `defaultState` wipes the `profile` object, causing `router.tsx` to force the user through onboarding again, producing an apparent total data loss.
 
-# 8. Training
+# 8. Onboarding
 
-- empty: "No workouts" empty state is implemented.
-- insufficient history: "Complete a workout to start your volume trend."
-- partial data: Partial volume history renders whatever points exist.
+- first use: Users without a profile trigger `OnboardingView`.
+- missing data vs empty profile: Users with corrupted JSON fallback to an empty profile, entering the exact same onboarding flow.
+- success: Saving the profile pushes it to context, firing a silent sync to `localStorage` and routing to Home.
 
-# 9. Active workout
+# 9. Home
 
-- empty: "No active workout" empty state is implemented.
-- conflict: Multiple workouts are not prevented by explicit conflict states.
-- fatal render failure: Interrupted workouts are safely preserved in the store across reloads.
+- empty: Implemented. "Complete your first check-in to build a score."
+- missing data: Missing metrics are handled gracefully as empty states rather than zero values in most panels.
 
-# 10. Fuel
+# 10. Training
 
-- empty: "Log a meal to begin today's calorie progress." (Implemented).
-- missing versus zero: `undefined` calories coerce to `0`, creating a significant data honesty risk in charts.
-- partial data: Supported natively.
+- empty: Implemented. "No workouts".
+- insufficient history: Implemented. "Complete a workout to start your volume trend."
 
-# 11. Recovery
+# 11. Active workout
 
-- empty: "Complete a check-in to calculate readiness." (Implemented).
-- missing data: Missing contributors explicitly render missing labels rather than 0.
+- empty: Implemented. "No active workout".
+- fatal render failure: Interrupted workouts are preserved safely in the store, avoiding data loss if the browser tab reloads mid-workout.
 
-# 12. Stats
+# 12. Nutrition
 
-- empty: "Add a goal to begin tracking progress." (Implemented).
-- insufficient history: "Add two weigh-ins to reveal your trend." (Implemented).
+- empty: Implemented. "Log a meal to begin today's calorie progress."
+- missing vs zero risk: High. Undefined calories coerce to 0 during sum operations.
 
-# 13. Settings
+# 13. Recovery
 
-- warning: Destructive modal for clearing data is implemented.
-- error: Save failures (e.g. `localStorage` quotas) fail silently without UI feedback.
-- success: Immediate UI reflection of updated settings.
+- empty: Implemented. "Complete a check-in to calculate readiness."
+- partial data: Explicitly labels missing contributors without coercing them to zero.
 
-# 14. Jarvis
+# 14. Stats
 
-- loading/thinking: (Absent) Jarvis runs synchronously or relies entirely on implicit waiting.
-- error: Fails silently if microphone permissions are denied.
+- empty: Implemented. "Add a goal to begin tracking progress."
+- insufficient history: Implemented. Requires multiple points.
 
-# 15. Loading and saving
+# 15. Settings
 
-- Both loading and saving are instantaneous UI state updates due to synchronous `localStorage` writes. Explicit "saving..." text or spinners are confirmed missing.
+- warning: Implemented. `ConfirmDialog` guards "Reset App Data".
+- import feedback: Local, implemented. Form updates text to "Imported successfully" or "Invalid backup file".
 
-# 16. Success feedback
+# 16. Jarvis
 
-- Confirmed missing. There are no toasts, snackbars, or explicit success banners. Success is communicated implicitly by the form closing and the underlying list updating.
+- loading / thinking: Local, implemented. Uses `sending` state and a `Loader2` spinner.
+- sending guard: Local, implemented. `sendingRef.current` guards duplicate submits.
+- warning/error: Local, implemented. Catches server failures and outputs "Warning: [message]".
+- undo: Shared, implemented. Fires a `toast` snackbar with an Undo action after successful tool executions.
+- disabled: Local, implemented. Refuses input when settings disable Jarvis.
 
-# 17. Warnings
+# 17. Loading and sending
 
-- Implemented specifically for destructive actions (Reset App Data in Settings) using a modal confirmation.
+- Global mutation loading: Absent. Saves are synchronous.
+- Jarvis asynchronous sending: Implemented. Displays `Loader2` and disables input.
 
-# 18. Errors
+# 18. Saving and persistence
 
-- Confirmed missing. There is no user-facing error UI for storage failures, quota exceptions, or network failures.
+- Status: Silent failure risk.
+- Behavior: `saveFitCoreData` attempts a synchronous `localStorage.setItem`.
+- Write exception / Quota failure: The `try/catch` catches exceptions and returns `false`.
+- User feedback: Absent. The app updates React in-memory but drops the persistence, leading to silent data loss upon reload.
 
-# 19. Retry and recovery
+# 19. Success
 
-- Confirmed missing. There are no explicit retry buttons.
-- Recovery from corrupted data defaults to wiping the app back to `defaultState` during hydration.
+- Implemented: Jarvis tool execution, Import data ("Imported successfully").
+- Absent: Global mutation saving. Forms just close upon submission.
 
-# 20. Empty and insufficient-data states
+# 20. Warnings
 
-- Widely and consistently implemented across all domains using the `EmptyState` component or specific text labels (e.g., "Add two weigh-ins...").
+- Implemented: Jarvis connection/server errors, destructive action confirms.
 
-# 21. Missing versus zero
+# 21. Errors
 
-- Inconsistent. Recovery treats missing data honestly, but Nutrition coercing missing calories to zero creates a significant data honesty risk.
+- Parse failure: Falls back to defaults without error UI.
+- Render errors: Absent. Uncaught render exceptions trigger white screens.
 
-# 22. Offline and PWA states
+# 22. Retry
 
-- The application operates locally first. Offline banners are confirmed missing.
-- Service worker caching acts seamlessly but lacks UI for update notifications (stale cache risk).
+- Absent. Synchronous saves and missing fallback UIs mean no explicit retry paths exist.
 
-# 23. Corruption and fatal failures
+# 23. Confirmation
 
-- Corrupted JSON in `localStorage` is caught by a `try/catch` block in `src/lib/store.tsx`, but the fallback is silently replacing the user's data with `defaultState`, causing complete data loss without warning.
+- Implemented: `ConfirmDialog` protects the settings reset.
 
-# 24. Accessibility of dynamic feedback
+# 24. Undo
 
-- Confirmed missing. Dynamic updates lack `aria-live` regions or status role announcements.
+- Implemented: Jarvis utilizes a `toast` from `sonner` to expose an undo action for completed tools.
 
-# 25. Test coverage
+# 25. Empty and insufficient data
 
-- E2E tests cover happy paths and basic empty states (`tests/e2e/home.spec.ts`).
-- There are no UI component tests simulating storage quota failures or testing error boundaries.
+- Heavily implemented across all domain collections using `EmptyState`. Insufficient history warns users exactly what is needed (e.g. "Add two weigh-ins...").
 
-# 26. Priority risk register
+# 26. Missing versus zero
 
-1.  **Silent Data Loss:** Malformed JSON hydration silently wipes all data via `defaultState` fallback.
-2.  **Silent Save Failure:** Storage quota exceptions during synchronous writes throw uncaught exceptions, breaking UI state without warning.
-3.  **Data Honesty:** Nutrition coercing missing calories to zero.
+- Inconsistent. Recovery handles missing variables honestly, but Nutrition coercing missing calories to `0` causes analytical risks.
 
-# 27. Future Data Safety integration questions
+# 27. Offline and PWA
 
-- How will synchronous UI forms handle pending states when migrations to async API calls occur?
-- How will the app safely notify users of storage quotas before destructive overwrites?
+- The application operates totally locally. There are no offline warning banners or PWA update notifications.
 
-# 28. Redesign acceptance checklist
+# 28. Accessibility of dynamic feedback
 
-- All domains must have actionable empty states.
-- Missing values must not visually default to zero.
+- Partial / Absent. `EmptyState` lacks `aria-live` properties.
+
+# 29. Test coverage
+
+- Smoke tests hit basic empty states (`tests/e2e/home.spec.ts`).
+- There are no tests verifying hydration fallbacks or storage quota handling.
+
+# 30. Priority risk register
+
+1. **Silent Save Failures:** Storage quota errors are caught but not surfaced to the UI, silently breaking persistence.
+2. **Apparent Data Loss:** Malformed JSON drops the user into `defaultState` and routes them to onboarding without explanation.
+3. **Missing vs Zero:** Nutrition coercing missing macro targets to 0.
+
+# 31. Future Data Safety integration questions
+
+- How will async API transactions block user input without a global `isMutating` spinner logic?
+- How can storage quota failures alert users properly?
+
+# 32. Redesign acceptance checklist
+
 - Save operations must introduce error boundaries and UI feedback.
-- Async mutations must block duplicate submissions.
+- Missing values must not visually default to zero.
 
-# 29. Open questions
+# 33. Open questions
 
-- How exactly does Safari Private Mode block the initial `localStorage` read during the `store.tsx` module initialization?
+- Can we extract the Jarvis undo `toast` into a shared pattern for all mutations?
 
-# 30. File index
+# 34. File index
 
 - `src/lib/store.tsx`
 - `src/lib/fitcore-data.ts`
+- `src/components/app/jarvis/jarvis-panel.tsx`
 - `src/components/app/views/*`
 - `src/components/app/dashboard-layout.ts`
 - `src/components/app/ui.tsx`
