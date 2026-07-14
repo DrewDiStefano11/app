@@ -245,7 +245,7 @@ test.describe("Home Daily premium redesign", () => {
       },
     });
 
-    await expect(page.getByText(/Upper Strength started/).first()).toBeVisible({
+    await expect(page.getByText("Workout in progress", { exact: true })).toBeVisible({
       timeout: 10000,
     });
     await page.getByRole("button", { name: "Resume workout", exact: true }).click();

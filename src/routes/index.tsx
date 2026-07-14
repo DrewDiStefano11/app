@@ -110,7 +110,9 @@ function FitCoreApp() {
                 <RecentActivity />
               </>
             )}
-            {section === "training" && <TrainingView layoutMode={layoutMode} />}
+            {section === "training" && (
+              <TrainingView layoutMode={layoutMode} onLayoutModeChange={setLayoutMode} />
+            )}
             {section === "nutrition" && <NutritionView layoutMode={layoutMode} />}
             {section === "recovery" && <RecoveryView layoutMode={layoutMode} />}
             {section === "progress" && <ProgressView layoutMode={layoutMode} />}
