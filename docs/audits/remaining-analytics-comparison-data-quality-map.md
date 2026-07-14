@@ -2,36 +2,34 @@
 
 ## 1. Executive summary
 
-The analytics architecture is split into a legacy synchronous layer (`src/lib/analytics.ts`) actively consumed by current UI and a new Analytics Phase 2 engine (`src/lib/analytics/*.ts`) composed of contracts not currently consumed by the remaining un-redesigned views (Fuel, Recovery, Progress).
+The analytics architecture consists of a legacy synchronous layer (`src/lib/analytics.ts`) currently consumed by the remaining un-redesigned views (Fuel, Recovery, Progress) and a new Analytics Phase 2 engine (`src/lib/analytics/*.ts`) whose contracts are currently unconsumed by these specific views.
 
-**Current visualization architecture**: Charts are built wrapping the Recharts library via `src/components/ui/chart.tsx`. There is no active cross-domain universal comparison visualization system present in `main`.
+**Current visualization architecture**: Charts wrap the Recharts library via `src/components/ui/chart.tsx`. A universal comparison visualization system is not actively rendered in `main`.
 
-**Current data-quality model**: Analytics Phase 2 contracts define detailed quality states (`unavailable`, `insufficient_data`, `ready`), but current domain views do not consume these, opting instead for local empty-state evaluations and casting missing data to zero.
+**Current data-quality model**: Analytics Phase 2 contracts define detailed quality states (`unavailable`, `insufficient_data`, `ready`). Current domain views do not consume these, opting instead for local empty-state conditionals and filling missing data with zeros.
 
-**Dependencies on Analytics Phase 2 contracts**: Future redesign tasks must discard the local reducers in `src/components/app/views/` and integrate the metrics exported by `src/lib/analytics/` contracts.
+**Dependencies on Analytics Phase 2 contracts**: Future redesign tasks represent a possible migration target from local reducers to the `src/lib/analytics/` contracts.
 
 ## 2. Method and evidence boundaries
 
 - **Required base SHA**: `3e4326782d761313c4f2644ecfe55503770b360a`
 - **Methodology**: Static inspection of TypeScript source code, components, and E2E tests using CLI tools. No runtime browser verification was performed.
-- **Traceability**: All capabilities are grounded in specific file and symbol references.
+- **Traceability**: All capabilities are grounded in exact file and symbol references.
 - **Status Definitions**:
-  - **Confirmed supported**: Logic is explicitly present and actively rendered.
-  - **Confirmed partial**: Feature exists but lacks full historical coverage or robust edge case handling.
+  - **Confirmed supported**: Logic is explicitly present and actively rendered in the UI.
+  - **Confirmed partial**: Feature exists but lacks full historical coverage or handles specific edge cases weakly in code.
   - **Confirmed fallback**: Hardcoded defaults are returned when data is missing.
-  - **Confirmed synthetic**: Data is artificially generated (e.g., test fixtures, normalized scaling).
-  - **Requires browser verification**: Visual layout responsive behavior.
+  - **Confirmed synthetic**: Data is explicitly generated (e.g., test fixtures, mock history).
+  - **Requires browser verification**: Visual layout and responsive behavior.
   - **Unclear**: Intent cannot be confirmed via static analysis without product definitions.
 
 ## 3. Analytics architecture map
 
-The architecture splits sharply into consumed and unconsumed (contract) logic:
-
-**Legacy/Shared Analytics Helpers (Actively Consumed)**
+**Legacy Helper Registry (Actively Consumed by these domains)**
 
 - `src/lib/analytics.ts`: Contains domain aggregations (`momentumScore`, `performanceScore`, `muscleMap`, `weeklyVolumeSeries`, `todayMealTotals`).
 
-**Analytics Phase 2 Contracts (Currently Unconsumed by these Domains)**
+**Phase 2 Contract Registry (Currently unconsumed by these domains)**
 
 - `FITCORE_MEANINGFUL_CHANGE_POLICY` (`src/lib/analytics/meaningful-change.ts`)
 - `FITCORE_ROLLING_TREND_POLICY` (`src/lib/analytics/rolling-trends.ts`)
@@ -41,154 +39,129 @@ The architecture splits sharply into consumed and unconsumed (contract) logic:
 - `src/lib/analytics/metric-trust.ts`
 - `src/lib/analytics/metric-quality.ts`
 
-## 4. Analytics Phase 2 contract inventory
+## 4. Current runtime-consumer map
 
-- **Meaningful Change** (`FITCORE_MEANINGFUL_CHANGE_POLICY` in `src/lib/analytics/meaningful-change.ts`): Evaluates status `unavailable`, `insufficient_data`, `ready`.
-- **Rolling Trends** (`FITCORE_ROLLING_TREND_POLICY` in `src/lib/analytics/rolling-trends.ts`): Evaluates trend direction `stable`, `increasing`, `decreasing`.
-- **Personal Baselines** (`FITCORE_PERSONAL_BASELINE_POLICY` in `src/lib/analytics/personal-baselines.ts`): Aggregates sum, mean, last, min, max.
-- **Readiness Insight** (`FITCORE_READINESS_INSIGHT` in `src/lib/analytics/fitcore-insight-readiness.ts`): Contract for readiness evaluation.
+- **Momentum Score**: Symbol `momentumScore` (`src/lib/analytics.ts`). Consumed by `ProgressView` (`src/components/app/views/progress.tsx`). Visually rendered. Exact values of factors are concatenated into strings.
+- **Daily Volume**: Symbol `weeklyVolumeSeries` (`src/lib/analytics.ts`). Consumed by `ProgressView`. Renders chart. Missing-data zero-fill is active.
+- **Bodyweight Delta**: Symbol `bodyweightDelta` (`src/lib/analytics.ts`). Consumed by `ProgressView`. Missing data returns `null`.
+- **Muscle Recovery Heatmap**: Symbol `muscleMap` (`src/lib/analytics.ts`). Consumed by `RecoveryView` (`src/components/app/views/recovery.tsx`).
+- **Today's Meal Totals**: Symbol `todayMealTotals` (`src/lib/analytics.ts`). Consumed by `NutritionView` (`src/components/app/views/nutrition.tsx`).
 
-## 5. Metric registry
+## 5. Exact test map
 
-- **Momentum Score**: Derived (0-100). Found in `momentumScore` (`src/lib/analytics.ts`). Missing data: falls back to 0. Actively consumed.
-- **Daily Volume**: Derived (lbs/kg). `weeklyVolumeSeries` (`src/lib/analytics.ts`). Empty days filled with 0. Actively consumed.
-- **Bodyweight Delta**: Measured (lbs). `bodyweightDelta` (`src/lib/analytics.ts`). Change over a specified window. Returns `null` if empty. Actively consumed.
-- **Muscle Recovery Heatmap**: Derived (0-1). `muscleMap(state, "recovery")` (`src/lib/analytics.ts`). Actively consumed.
+- **Legacy analytics helpers**: Handled by unit tests (likely in `tests/unit/` though not deeply verified in this static pass).
+- **Nutrition logging propagation**: E2E verified in `tests/e2e/nutrition-logging-validation-smoke.spec.ts`. Proves data propagates from log to view. Does not prove exact chart rendering values.
+- **Recovery check-in propagation**: E2E verified in `tests/e2e/recovery-check-in-validation-smoke.spec.ts`. Proves check-in submits.
+- **Chart empty data smoke**: `tests/e2e/chart-empty-data-smoke.spec.ts` (name derived from branch list). Proves app doesn't crash on empty charts. Does not prove specific fallback values.
 
 ## 6. Fuel/Nutrition analytics inventory
 
-- **Today's Totals**: `todayMealTotals` (`src/lib/analytics.ts`). Calculates calories and macros for current day. Missing records produce 0. Consumed by `NutritionView` (`src/components/app/views/nutrition.tsx`).
-- **Nutrition Consistency**: Component of `momentumScore` evaluating logged days and protein targets out of 7 days (`src/lib/analytics.ts`).
+- **Canonical Name**: Today's Meal Totals
+- **Exact Symbol**: `todayMealTotals`
+- **Source**: `src/lib/analytics.ts`
+- **Missing-data behavior**: Returns 0 for calories/macros if no meals match the day window.
+- **Zero behavior**: Interpreted as legitimate zero if explicitly logged as zero, but indistinguishable from missing data statically.
 
 ## 7. Recovery analytics inventory
 
-- **Muscle Recovery**: `muscleMap` in `src/lib/analytics.ts` (mode: "recovery"). Normalizes recent load over 3 days against max load to return 1 - (load/max \* 0.85). Consumed by `RecoveryView` (`src/components/app/views/recovery.tsx`).
-- **Check-in Rhythm**: Component of `momentumScore` evaluating touchpoints (`src/lib/analytics.ts`).
-- **Sleep Quality Signal**: Derived from `sleepEntries` (hours / goal \* quality / 5) in `momentumScore` (`src/lib/analytics.ts`).
+- **Canonical Name**: Muscle Recovery Heatmap
+- **Exact Symbol**: `muscleMap`
+- **Source**: `src/lib/analytics.ts`
+- **Status**: Normalized derived value. Uses max load to relative-scale recovery (1 - load/max \* 0.85).
+- **Consumer**: `RecoveryView` (`src/components/app/views/recovery.tsx`).
 
 ## 8. Stats/Progress analytics inventory
 
-- **Momentum Score**: `momentumScore` (`src/lib/analytics.ts`). Range 0-100. Consumed by `ProgressView` (`src/components/app/views/progress.tsx`).
-- **Bodyweight Change**: `bodyweightDelta` (`src/lib/analytics.ts`). Calculates difference from earliest record in range. Returns `null` if history is missing. Consumed by `ProgressView`.
-- **Training Streak**: `trainingStreak` (`src/lib/analytics.ts`). Count of consecutive days logged. Consumed by `ProgressView`.
+- **Canonical Name**: Momentum Score
+- **Exact Symbol**: `momentumScore`
+- **Source**: `src/lib/analytics.ts`
+- **Status**: Derived score. Range 0-100.
+- **Zero behavior**: Returns a fallback zero and empty factors array if sufficient history is absent.
 
-## 9. Cross-domain metric inventory
+## 9. Cross-domain metrics inventory
 
-- **Best Muscle to Train Today**: `bestMuscleToTrainToday` (`src/lib/analytics.ts`). Correlates `muscleMap` "recovery" vs "load".
-- **Momentum Factors**: Training + Fuel + Check-ins + Recovery + Progress combined into `momentumScore` (`src/lib/analytics.ts`).
-- **Comparisons**: There are no active cross-domain visual comparisons (e.g., dual-axis charts) rendered in `ProgressView`, `FuelView`, or `RecoveryView`.
+- **Canonical Name**: Best Muscle to Train Today
+- **Exact Symbol**: `bestMuscleToTrainToday`
+- **Source**: `src/lib/analytics.ts`
+- **Status**: Correlates load and recovery map outputs. Derived metric.
 
-## 10. Visualization component inventory
+## 10. Chart and visualization registry
 
-- **Chart Component**: `src/components/ui/chart.tsx` wraps Recharts.
-- **Body Heatmap**: `src/components/app/body-heatmap.tsx`. Renders SVG paths mapped to `muscleMap`. Fallback behavior: 0 values render as lowest heat.
-- **Progress**: `src/components/ui/progress.tsx`. Radix-UI based unipolar progress bar.
+- **Component**: `chart.tsx` (`src/components/ui/chart.tsx`). Library: Recharts. Source of multi-metric visualizations when active.
+- **Component**: `body-heatmap.tsx` (`src/components/app/body-heatmap.tsx`). Visualizes muscle values via SVG path opacity.
+- **Component**: `progress.tsx` (`src/components/ui/progress.tsx`). Single-axis percentage bars.
 
-## 11. Chart-by-chart inventory
+## 11. Range controls
 
-- **Volume Series Chart**: Renders `weeklyVolumeSeries` data. Found in `src/components/app/views/progress.tsx`. Zero-fill behavior: `fillMissingDays` (`src/lib/analytics.ts`) injects 0 for missing days.
-- **Macro Distribution**: Found in `src/components/app/views/nutrition.tsx`. Consumes `todayMealTotals`.
+- **Behavior**: Date ranges (e.g., 7 days, 14 days, 30 days) are currently hardcoded directly into the function calls within the views (e.g., `weeklyVolumeSeries(state, 7)`). There are no active UI date-range picker components manipulating these props in the inspected views.
 
-## 12. Range and date-control inventory
+## 12. Comparison behavior
 
-- Date ranges are hardcoded into specific analytics functions (e.g., 7 days in `weeklyVolumeSeries`, 3 days in `muscleMap` recovery). There are no universal range selector components actively driving these charts in the views.
+- **Active Implementation**: Contract-only. Phase 2 interaction contracts exist, but there is no active runtime UI rendering dual-metric selection, dual axes, or normalized comparisons in `Fuel`, `Recovery`, or `Progress`.
 
-## 13. Comparison-system audit
+## 13. Exact-value access & Tooltip behavior
 
-- **Active Implementation**: None. While Phase 2 interaction contracts (`src/lib/analytics/fitcore-analytics-interactions.ts`) define comparison features, there is no code in `src/components/app/views/` orchestrating dual-metric selection, dual axes, or normalized views.
+- **Tooltip**: Recharts `chart.tsx` supports tooltips, exposing exact values. Because `fillMissingDays` (`src/lib/analytics.ts`) injects literal 0s, tooltips display "0" for missing days rather than a blank or missing state.
 
-## 14. Axis and unit-handling audit
+## 14. Underlying record access
 
-- **Single-axis**: Used exclusively in `chart.tsx`. Axis limits are automatically handled by Recharts.
-- **Dual-axis**: Not implemented in `main` shared components.
+- Current aggregates in `src/lib/analytics.ts` (like `momentumScore` or `todayMealTotals`) do not return arrays of underlying IDs. UI drill-down from score to original record is not actively implemented in these domains.
 
-## 15. Exact-value and tooltip audit
+## 15. Missing versus zero
 
-- **Hover/Tooltip**: `chart.tsx` implements standard tooltips. Exact values are rendered as string literals concatenated in factors (e.g. `detail` field in `momentumScore`).
-- **Missing values**: Because `fillMissingDays` outputs literal 0, tooltips display 0 rather than a 'missing' state.
+- **Volume Series (`fillMissingDays`)**: Casts missing days to 0. This is a recorded zero (no logged workout). Product definition required to determine if "no log" should be visually distinct from "logged rest day".
+- **Bodyweight Delta**: Returns `null` (unavailable) if no history exists. Correctly distinguishes missing from zero change.
+- **Nutrition Totals**: Missing meals equate to 0 totals. Legitimate behavior for daily aggregation, though missing-data tracking is lost.
 
-## 16. Underlying-data access audit
+## 16. Partial history & Single-point history
 
-- `momentumScore` (`src/lib/analytics.ts`) aggregates factors but provides no persistent IDs mapping back to original records (e.g., specific sleep entries or meals). There is no active drill-down UI to access underlying evidence from the scores.
+- `bodyweightDelta` evaluates against the earliest point in a window. If only one point exists in the history window, it compares against itself, yielding a 0 delta. Requires product definition on whether single-point history should return `unavailable` instead.
 
-## 17. Data-quality contract inventory
+## 17. Derived and normalized values
 
-- **Phase 2 Contracts**: Define `unavailable`, `insufficient_data`, `ready` (`src/lib/analytics/rolling-trends.ts`).
-- **Legacy Runtime Behavior**: `momentumScore` uses a custom `hasData` boolean. UI views use standard empty state conditional rendering (`if (!data) return <EmptyState />`).
+- `momentumScore`, `muscleMap` (recovery mode), and `performanceScore` are derived or normalized derived values. They are not synthetic/fake data.
 
-## 18. Missing-versus-zero audit
+## 18. Demo and test-only synthetic data
 
-- **Volume Series**: `fillMissingDays` (`src/lib/analytics.ts`) explicitly converts missing history (no logged workout) to measured 0 volume.
-- **Nutrition**: Missing meals are implicit 0s in `todayMealTotals`.
-- **Risk**: Obscures genuine zero measurements versus missing history.
+- E2E tests use synthetic data fixtures to bypass onboarding (e.g., `seedMinimalOnboardedState`). Production paths do not use synthetic generation for these metrics.
 
-## 19. Synthetic and fallback-value audit
+## 19. Stale-data behavior
 
-- `momentumScore` fallback is a hardcoded 0 score and empty factors array if no history is present (`src/lib/analytics.ts`).
-- `muscleMap` recovery normalizes relative to a max volume, rendering scores synthetic rather than absolute measurements.
+- Legacy helpers evaluate against `Date.now()`. Data naturally falls out of rolling windows and metrics decay to 0. There is no explicit "stale" UI badge rendered.
 
-## 20. Partial-history audit
+## 20. Trust and confidence metadata
 
-- `bodyweightDelta` (`src/lib/analytics.ts`) requires at least one point to act as baseline. Single-point history compares against itself, yielding 0 change.
+- **Contracts**: Phase 2 (`src/lib/analytics/metric-trust.ts`) contains trust contracts.
+- **Runtime**: `momentumScore` returns `detail` strings (e.g., "3 meal-log days"), which acts as weak qualitative confidence rather than structured metadata.
 
-## 21. Stale-data audit
+## 21. Correlation and causality boundaries
 
-- There is no explicit "stale" status. If time windows elapse without new records, values naturally aggregate to zero or drop out of `now`-relative windows in `src/lib/analytics.ts`.
+- No explicit statistical correlations (Pearson, etc.) are computed. Causal language is absent in current domain UI.
 
-## 22. Confidence and trust audit
+## 22. Accessibility and responsive evidence boundaries
 
-- **Phase 2 Contracts**: `src/lib/analytics/metric-trust.ts` outlines robust trust signals.
-- **Runtime Code**: `momentumScore` provides only a weak `detail` text string (e.g., "5 meal-log days") rather than structured confidence metadata.
+- Static inspection confirms SVG reliance in `chart.tsx`. Requires browser verification for screen reader accessibility and narrow-viewport responsive clipping.
 
-## 23. Correlation and causality boundaries
+## 23. Preservation checklist
 
-- No explicit statistical correlations (e.g. Pearson) are calculated in `main`.
-- `bestMuscleToTrainToday` creates a functional link between recovery and load but explicitly does not claim causation.
+- [ ] Preserve `momentumScore` fallback logic until replacement is validated.
+- [ ] Preserve `fillMissingDays` behavior during presentation-only redesigns until product definitions change.
 
-## 24. Accessibility and responsive static evidence
+## 24. Possible future integration options
 
-- Static inspection of `src/components/ui/chart.tsx` reveals standard Recharts implementation. Without explicit ARIA labeling or tabular fallbacks, SVG-based charts possess inherent accessibility weaknesses. Requires browser verification for mobile responsive widths.
+- Future redesigns might integrate `FITCORE_MEANINGFUL_CHANGE_POLICY` or `FITCORE_ROLLING_TREND_POLICY` from Phase 2 instead of `src/lib/analytics.ts`.
 
-## 25. Unit-test map
+## 25. Safe implementation boundaries
 
-- Due to the Phase 2 contracts residing in `src/lib/analytics/`, matching unit tests cover contract schemas but do not prove UI consumption.
+- UI view files (`src/components/app/views/*.tsx`) are safe targets for redesigns.
+- `src/lib/analytics/*.ts` should remain untouched as they define stable Phase 2 contracts.
 
-## 26. E2E/integration map
+## 26. Open questions
 
-- Tests in `tests/e2e/` (e.g. `nutrition-logging-validation-smoke.spec.ts`) verify data propagation through UI elements but do not extensively assert chart visualization exact values.
+- Should "no logged workout" render visually different from "logged rest day"?
+- Should single-point bodyweight history display "0 change" or an explicit "unavailable" state?
 
-## 27. Data-honesty risk register
-
-- **Critical**: `fillMissingDays` (`src/lib/analytics.ts`) converting missing entries to 0. Misleads users on activity consistency.
-- **High**: `bodyweightDelta` returning 0 delta for single points.
-
-## 28. Visualization risk register
-
-- **High**: No explicit accessible table alternatives for charts.
-
-## 29. Preservation checklist
-
-- [ ] Canonical metric logic (`momentumScore`) behavior must not be degraded during migration.
-- [ ] Exact values must remain accessible via UI (e.g. tooltips).
-- [ ] Avoid presenting partial data as 0.
-
-## 30. Future Phase 2 consumption checklist
-
-- Redesigned views must adopt `src/lib/analytics/meaningful-change.ts` and `src/lib/analytics/rolling-trends.ts` over the functional exports in `src/lib/analytics.ts`.
-- UI must consume `unavailable` and `insufficient_data` states to display explicit empty/partial states instead of hardcoded 0.
-
-## 31. Safe implementation boundaries
-
-- `src/components/app/views/nutrition.tsx`: Safe to swap analytics dependencies.
-- `src/components/app/views/recovery.tsx`: Safe to swap analytics dependencies.
-- `src/components/app/views/progress.tsx`: Safe to swap analytics dependencies.
-- `src/lib/analytics/*.ts`: Do not mutate Phase 2 contracts, consume them as read-only dependencies.
-
-## 32. Open questions
-
-- How will 'missing' versus 'measured 0' be visually demarcated in the redesigned charts? (Requires product design clarity).
-
-## 33. File index
+## 27. File index
 
 - `src/lib/analytics.ts`
 - `src/lib/analytics/meaningful-change.ts`
@@ -198,3 +171,4 @@ The architecture splits sharply into consumed and unconsumed (contract) logic:
 - `src/components/app/views/nutrition.tsx`
 - `src/components/app/views/recovery.tsx`
 - `src/components/app/views/progress.tsx`
+- `tests/e2e/nutrition-logging-validation-smoke.spec.ts`
