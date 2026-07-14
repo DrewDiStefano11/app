@@ -74,7 +74,7 @@ export function HomeDailyPremiumView({
 }: {
   onOpen: (popup: HomeDailyPopup) => void;
   onOpenMuscle: (muscle: string | null) => void;
-  onOpenDeepDive: () => void;
+  onOpenDeepDive: (focus?: "comparison") => void;
   onOpenProgress: () => void;
   onResumeWorkout: () => void;
 }) {
@@ -448,7 +448,11 @@ export function HomeDailyPremiumView({
         title="Training volume vs calories"
         description="Only dates with a recorded workout or meal are shown."
         action={
-          <button className="home-text-action" type="button" onClick={onOpenDeepDive}>
+          <button
+            className="home-text-action"
+            type="button"
+            onClick={() => onOpenDeepDive("comparison")}
+          >
             Deep Dive <ChevronRight size={14} />
           </button>
         }
@@ -470,7 +474,11 @@ export function HomeDailyPremiumView({
             requiredHistory={Math.max(1, 2 - comparisonData.length)}
           />
         )}
-        <button className="home-customize-action" type="button" onClick={onOpenDeepDive}>
+        <button
+          className="home-customize-action"
+          type="button"
+          onClick={() => onOpenDeepDive("comparison")}
+        >
           Customize in Deep Dive <Settings size={15} />
         </button>
       </DashboardSection>
@@ -485,7 +493,7 @@ export function HomeDailyPremiumView({
           setDismissedSuggestion(true);
           setSuggestedChart(undefined);
         }}
-        onCustomize={onOpenDeepDive}
+        onCustomize={() => onOpenDeepDive("comparison")}
         ariaLabel="Home analytics"
       />
 
@@ -637,7 +645,7 @@ export function HomeDailyPremiumView({
             plan.
           </p>
         </div>
-        <button className="premium-primary-action" type="button" onClick={onOpenDeepDive}>
+        <button className="premium-primary-action" type="button" onClick={() => onOpenDeepDive()}>
           Open Deep Dive <ArrowRight size={17} />
         </button>
       </PremiumCard>

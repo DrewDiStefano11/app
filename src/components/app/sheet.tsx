@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -16,12 +16,53 @@ export function BottomSheet({
   children: ReactNode;
   height?: "auto" | "tall" | "full";
 }) {
+  const surfaceRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  const titleId = useId();
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
     const orig = document.body.style.overflow;
+    const returnTarget =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = "hidden";
+    const surface = surfaceRef.current;
+    const focusable = surface?.querySelector<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    );
+    requestAnimationFrame(() => (focusable ?? surface)?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !surface) return;
+      const controls = [
+        ...surface.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((element) => element.offsetParent !== null);
+      if (!controls.length) {
+        event.preventDefault();
+        surface.focus();
+        return;
+      }
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.body.style.overflow = orig;
+      document.removeEventListener("keydown", handleKeyDown);
+      requestAnimationFrame(() => returnTarget?.focus());
     };
   }, [open]);
 
@@ -40,6 +81,12 @@ export function BottomSheet({
         onClick={onClose}
       />
       <div
+        ref={surfaceRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={title ? titleId : undefined}
+        aria-label={title ? undefined : "FitCore panel"}
+        tabIndex={-1}
         className={cn(
           "sheet-surface relative w-full max-w-[480px] mx-auto rounded-t-[var(--radius-modal)] animate-in slide-in-from-bottom duration-300 overflow-hidden",
           height === "tall" && "max-h-[88dvh]",
@@ -48,7 +95,9 @@ export function BottomSheet({
       >
         <div className="sheet-header flex min-h-16 items-center justify-between border-b border-white/[0.06] px-5 pb-3 pt-5">
           <div className="sheet-grabber absolute left-1/2 top-2 -translate-x-1/2 h-1 w-10 rounded-full bg-white/25" />
-          <h3 className="sheet-title font-semibold text-lg text-white">{title}</h3>
+          <h3 id={titleId} className="sheet-title font-semibold text-lg text-white">
+            {title}
+          </h3>
           <button
             onClick={onClose}
             type="button"

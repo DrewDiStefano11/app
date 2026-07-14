@@ -19,9 +19,17 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "FitCore — AI Fitness Command Center for Training & Recovery" },
-      { name: "description", content: "Plan workouts, log nutrition, monitor recovery and track progress in one AI-powered fitness dashboard." },
+      {
+        name: "description",
+        content:
+          "Plan workouts, log nutrition, monitor recovery and track progress in one AI-powered fitness dashboard.",
+      },
       { property: "og:title", content: "FitCore — Personal Fitness Command Center" },
-      { property: "og:description", content: "Plan workouts, log nutrition, monitor recovery and track progress with a personal AI coach." },
+      {
+        property: "og:description",
+        content:
+          "Plan workouts, log nutrition, monitor recovery and track progress with a personal AI coach.",
+      },
       { property: "og:url", content: "/" },
     ],
     links: [{ rel: "canonical", href: "/" }],
@@ -35,7 +43,8 @@ export const Route = createFileRoute("/")({
           applicationCategory: "HealthApplication",
           applicationSubCategory: "FitnessApplication",
           operatingSystem: "Web, iOS, Android",
-          description: "Personal AI fitness command center for training, nutrition, recovery and progress tracking.",
+          description:
+            "Personal AI fitness command center for training, nutrition, recovery and progress tracking.",
           offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
         }),
       },
@@ -65,7 +74,10 @@ function FitCoreApp() {
 
   useEffect(() => {
     if (!hasActiveWorkout) return;
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [hasActiveWorkout]);
@@ -81,7 +93,7 @@ function FitCoreApp() {
   const contextSummary = buildAICoachContext(view, section);
 
   return (
-    <div className="phone-shell" data-section={section} key={section}>
+    <div className="phone-shell" data-section={section} data-layout-mode={layoutMode} key={section}>
       <div className="animate-tile-in">
         {settingsOpen ? (
           <SettingsView onBack={() => setSettingsOpen(false)} layoutMode={layoutMode} />
@@ -111,7 +123,10 @@ function FitCoreApp() {
       {!hasActiveWorkout && (
         <BottomNav
           active={section}
-          onChange={(s) => { setSection(s); setSettingsOpen(false); }}
+          onChange={(s) => {
+            setSection(s);
+            setSettingsOpen(false);
+          }}
           onOpenSettings={() => setSettingsOpen(true)}
         />
       )}

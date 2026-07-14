@@ -57,6 +57,7 @@ import { isToday, useStore } from "@/lib/store";
 import type { AppState, SectionId } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { HomeDailyPremiumView } from "@/components/app/views/home-daily-premium";
+import { HomeDeepDivePremiumView } from "@/components/app/views/home-deep-dive-premium";
 
 type Popup =
   | null
@@ -94,6 +95,11 @@ export function HomeView({
 
   const [popup, setPopup] = useState<Popup>(null);
   const [muscle, setMuscle] = useState<string | null>(null);
+  const [deepDiveFocus, setDeepDiveFocus] = useState<"comparison" | undefined>();
+  const changeLayoutMode = (mode: LayoutMode) => {
+    if (mode === "daily") setDeepDiveFocus(undefined);
+    onLayoutModeChange(mode);
+  };
 
   return (
     <div className="home-command-center pb-2">
@@ -128,18 +134,27 @@ export function HomeView({
       </header>
 
       <div className="space-y-4 px-4">
-        <ViewModeToggle mode={layoutMode} onModeChange={onLayoutModeChange} />
+        <ViewModeToggle mode={layoutMode} onModeChange={changeLayoutMode} />
 
         {layoutMode === "daily" ? (
           <HomeDailyPremiumView
             onOpen={(next) => setPopup(next)}
             onOpenMuscle={setMuscle}
-            onOpenDeepDive={() => onLayoutModeChange("deepDive")}
+            onOpenDeepDive={(focus) => {
+              setDeepDiveFocus(focus);
+              onLayoutModeChange("deepDive");
+            }}
             onOpenProgress={() => onNavigate("progress")}
             onResumeWorkout={() => onNavigate("training")}
           />
         ) : (
-          <HomeDeepDive setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
+          <HomeDeepDivePremiumView
+            setPopup={setPopup}
+            setMuscle={setMuscle}
+            onNavigate={onNavigate}
+            onReturnDaily={() => changeLayoutMode("daily")}
+            initialFocus={deepDiveFocus}
+          />
         )}
       </div>
 
@@ -763,6 +778,10 @@ function HomeDeepDive({
     </div>
   );
 }
+
+// Retained temporarily as a tree-shaken reference while the cumulative redesign branch
+// transitions all Home Deep Dive callers to the premium implementation.
+void HomeDeepDive;
 
 // -----------------------------------------------------------------------------
 // Shared UI Components
