@@ -4452,3 +4452,912 @@ body {
 .home-premium-daily .home-daily-hero {
   background: #111117;
 }
+
+/* Training Deep Dive — Task 5 */
+.training-deep-dive {
+  --training-accent: #8b5cf6;
+  --training-accent-bright: #a78bfa;
+  --training-accent-soft: rgb(139 92 246 / 12%);
+  color: var(--foreground);
+  padding-bottom: 7.5rem;
+}
+
+.training-deep-header {
+  padding: 1rem 1.25rem 1.25rem;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  background:
+    radial-gradient(circle at 15% 0%, rgb(124 58 237 / 17%), transparent 34rem),
+    linear-gradient(180deg, rgb(13 10 24 / 96%), rgb(9 9 15 / 92%));
+}
+
+.training-deep-back,
+.training-filter-button,
+.training-table-toggle,
+.training-return-action {
+  min-height: 44px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 0.85rem;
+  background: rgb(255 255 255 / 4%);
+  color: rgb(255 255 255 / 72%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.training-deep-heading-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem;
+  margin-top: 1.35rem;
+}
+
+.training-deep-heading-row h1 {
+  margin-top: 0.3rem;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 6vw, 3.6rem);
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+}
+
+.training-deep-heading-row > div:first-child > p:last-child {
+  max-width: 42rem;
+  margin-top: 0.7rem;
+  color: rgb(255 255 255 / 48%);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.training-deep-context {
+  min-width: 10.5rem;
+  border: 1px solid rgb(139 92 246 / 30%);
+  border-radius: 1rem;
+  background: rgb(139 92 246 / 9%);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.1rem 0.5rem;
+  padding: 0.75rem 0.9rem;
+  color: var(--training-accent-bright);
+}
+
+.training-deep-context svg {
+  grid-row: 1 / 3;
+  align-self: center;
+}
+.training-deep-context span {
+  color: rgb(255 255 255 / 38%);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.training-deep-context strong {
+  color: white;
+  font-size: 0.86rem;
+}
+.training-deep-initial-grid {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+.training-deep-hero-meta,
+.training-direction-card__head,
+.training-comparison-builder__header,
+.training-session-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+}
+.training-direction-card {
+  padding: 1.05rem;
+}
+.training-direction-card__head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.training-direction-card h2 {
+  margin-top: 0.2rem;
+  font-size: 1.15rem;
+  font-weight: 750;
+}
+.training-direction-card > p {
+  margin-top: 0.7rem;
+  color: rgb(255 255 255 / 46%);
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+.training-evidence-list {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+}
+.training-evidence-list > div {
+  display: grid;
+  grid-template-columns: 4.2rem 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.7rem;
+  background: rgb(255 255 255 / 3%);
+}
+.training-evidence-list span {
+  color: #fbbf24;
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.training-evidence-list span[data-available="true"] {
+  color: #34d399;
+}
+.training-evidence-list strong {
+  min-width: 0;
+  font-size: 0.73rem;
+}
+.training-evidence-list small {
+  color: rgb(255 255 255 / 38%);
+  font-size: 0.66rem;
+  text-align: right;
+}
+
+.training-filter-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  background: rgb(8 8 13 / 93%);
+  backdrop-filter: blur(18px);
+}
+
+.training-range-control {
+  display: none;
+  gap: 0.3rem;
+}
+.training-range-control button,
+.training-heat-controls button {
+  min-height: 38px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 0.65rem;
+  padding: 0.45rem 0.68rem;
+  background: rgb(255 255 255 / 3%);
+  color: rgb(255 255 255 / 50%);
+  font-size: 0.69rem;
+  font-weight: 750;
+}
+.training-range-control button[aria-pressed="true"],
+.training-heat-controls button[aria-pressed="true"] {
+  border-color: rgb(139 92 246 / 55%);
+  background: rgb(139 92 246 / 14%);
+  color: white;
+}
+.training-active-filters {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+  overflow-x: auto;
+  margin-top: 0.55rem;
+  scrollbar-width: none;
+}
+.training-active-filters::-webkit-scrollbar {
+  display: none;
+}
+.training-active-filters span,
+.training-active-filters button {
+  flex: 0 0 auto;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 999px;
+  padding: 0.35rem 0.55rem;
+  color: rgb(255 255 255 / 48%);
+  background: rgb(255 255 255 / 3%);
+  font-size: 0.64rem;
+  font-weight: 700;
+}
+.training-active-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--training-accent-bright);
+}
+
+.training-deep-main {
+  display: grid;
+  gap: 1.6rem;
+  padding: 1.25rem;
+}
+.training-deep-section {
+  min-width: 0;
+  scroll-margin-top: 7rem;
+}
+.training-deep-section > .premium-section-header {
+  margin-bottom: 0.85rem;
+}
+.training-metric-strip,
+.training-muscle-evidence__metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+.training-metric-strip > article,
+.training-muscle-evidence__metrics > article {
+  min-width: 0;
+  padding: 0.78rem;
+}
+.training-metric-strip span,
+.training-muscle-evidence__metrics span {
+  display: block;
+  color: rgb(255 255 255 / 40%);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.training-metric-strip strong,
+.training-muscle-evidence__metrics strong {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.training-metric-strip small,
+.training-muscle-evidence__metrics small {
+  display: block;
+  margin-top: 0.15rem;
+  color: rgb(255 255 255 / 32%);
+  font-size: 0.62rem;
+}
+.training-period-context {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.75rem;
+  padding: 0.9rem;
+}
+.training-period-context > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.training-period-context span,
+.training-period-context p {
+  color: rgb(255 255 255 / 40%);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+.training-period-context strong {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.training-consistency-layout {
+  display: grid;
+  gap: 0.75rem;
+}
+.training-score-panel {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+}
+.training-score-ring {
+  --score: 0deg;
+  width: 6.5rem;
+  aspect-ratio: 1;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  background:
+    radial-gradient(circle, #0c0c14 61%, transparent 63%),
+    conic-gradient(var(--training-accent) var(--score), rgb(255 255 255 / 7%) 0);
+}
+.training-score-ring strong {
+  font-family: var(--font-display);
+  font-size: 1.65rem;
+}
+.training-score-ring span,
+.training-score-panel > div:last-child span {
+  display: block;
+  color: rgb(255 255 255 / 34%);
+  font-size: 0.61rem;
+  line-height: 1.4;
+}
+.training-score-panel > div:last-child p {
+  color: rgb(255 255 255 / 40%);
+  font-size: 0.68rem;
+}
+.training-score-panel > div:last-child strong {
+  display: block;
+  margin: 0.15rem 0 0.4rem;
+  font-size: 1.2rem;
+}
+.training-frequency-list {
+  padding: 1rem;
+}
+.training-frequency-list h3,
+.training-exercise-entries h3,
+.training-muscle-distribution h3 {
+  margin-bottom: 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+.training-frequency-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid rgb(255 255 255 / 6%);
+  font-size: 0.72rem;
+}
+.training-frequency-list span {
+  color: rgb(255 255 255 / 42%);
+}
+
+.training-exercise-controls {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+.training-exercise-controls label,
+.training-filter-sheet label {
+  display: grid;
+  gap: 0.4rem;
+  color: rgb(255 255 255 / 45%);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.training-exercise-controls select,
+.training-filter-sheet select {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 0.7rem;
+  padding: 0 0.75rem;
+  background: #11111b;
+  color: white;
+  font-size: 0.82rem;
+}
+.training-exercise-controls > span {
+  color: rgb(255 255 255 / 35%);
+  font-size: 0.65rem;
+}
+.training-exercise-entries {
+  margin-top: 0.75rem;
+  padding: 0.9rem;
+}
+.training-exercise-entries > button,
+.training-muscle-evidence > button,
+.training-date-entries > button {
+  width: 100%;
+  min-height: 48px;
+  border-top: 1px solid rgb(255 255 255 / 7%);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.65rem 0;
+  color: inherit;
+  text-align: left;
+}
+.training-exercise-entries strong,
+.training-exercise-entries small,
+.training-muscle-evidence strong,
+.training-muscle-evidence small,
+.training-date-entries strong,
+.training-date-entries small {
+  display: block;
+}
+.training-exercise-entries small,
+.training-muscle-evidence small,
+.training-date-entries small {
+  margin-top: 0.2rem;
+  color: rgb(255 255 255 / 35%);
+  font-size: 0.65rem;
+}
+.training-exercise-entries > button > span:nth-child(2) {
+  color: rgb(255 255 255 / 52%);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.training-muscle-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+.training-muscle-distribution,
+.training-deep-heatmap {
+  min-width: 0;
+  padding: 0.95rem;
+}
+.training-muscle-distribution > button {
+  width: 100%;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(5.5rem, 0.8fr) minmax(0, 1.2fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-top: 1px solid rgb(255 255 255 / 6%);
+  color: inherit;
+  text-align: left;
+}
+.training-muscle-distribution strong,
+.training-muscle-distribution small {
+  display: block;
+}
+.training-muscle-distribution small {
+  margin-top: 0.2rem;
+  color: rgb(255 255 255 / 34%);
+  font-size: 0.62rem;
+}
+.training-muscle-bar {
+  position: relative;
+  height: 1.3rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgb(255 255 255 / 5%);
+}
+.training-muscle-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6d28d9, #a78bfa);
+}
+.training-muscle-bar b {
+  position: absolute;
+  inset: 0.2rem 0.4rem auto auto;
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+}
+.training-honesty-note {
+  margin-top: 0.7rem;
+  border: 1px solid rgb(251 191 36 / 20%);
+  border-radius: 0.65rem;
+  padding: 0.65rem;
+  background: rgb(251 191 36 / 6%);
+  color: rgb(255 255 255 / 50%);
+  font-size: 0.67rem;
+  line-height: 1.5;
+}
+.training-deep-heatmap__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.training-deep-heatmap h3 {
+  margin-top: 0.2rem;
+  font-size: 0.95rem;
+}
+.training-heat-controls {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.8rem 0;
+}
+.training-heat-controls > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+.training-heat-controls > div:last-child {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.training-heat-caption,
+.training-empty-copy {
+  color: rgb(255 255 255 / 38%);
+  font-size: 0.7rem;
+  line-height: 1.55;
+}
+
+.training-pr-timeline {
+  display: grid;
+  gap: 0.55rem;
+}
+.training-pr-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-color: rgb(245 180 52 / 25%);
+}
+.training-pr-card > svg,
+.training-pr-card > div:last-child strong {
+  color: #f5b434;
+}
+.training-pr-card span,
+.training-pr-card p {
+  color: rgb(255 255 255 / 38%);
+  font-size: 0.65rem;
+}
+.training-pr-card h3 {
+  margin: 0.15rem 0;
+  font-size: 0.82rem;
+}
+.training-pr-card > div:last-child {
+  text-align: right;
+}
+.training-pr-card > div:last-child strong,
+.training-pr-card > div:last-child span {
+  display: block;
+}
+
+.training-history-table-wrap,
+.training-underlying-table {
+  overflow-x: auto;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 0.9rem;
+  background: rgb(255 255 255 / 2%);
+}
+.training-history-table,
+.training-underlying-table table,
+.training-workout-detail table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 48rem;
+  font-size: 0.7rem;
+}
+.training-history-table th,
+.training-history-table td,
+.training-underlying-table th,
+.training-underlying-table td,
+.training-workout-detail th,
+.training-workout-detail td {
+  padding: 0.7rem;
+  border-bottom: 1px solid rgb(255 255 255 / 6%);
+  text-align: left;
+  vertical-align: top;
+  font-variant-numeric: tabular-nums;
+}
+.training-history-table th,
+.training-underlying-table th,
+.training-workout-detail th {
+  color: rgb(255 255 255 / 38%);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.training-history-table td small {
+  display: block;
+  max-width: 14rem;
+  margin-top: 0.25rem;
+  color: rgb(255 255 255 / 32%);
+}
+.training-history-table button {
+  min-height: 36px;
+  border-radius: 0.55rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--training-accent-soft);
+  color: var(--training-accent-bright);
+  font-weight: 750;
+}
+
+.training-cardio-layout,
+.training-cardio-entries {
+  display: grid;
+  gap: 0.65rem;
+}
+.training-cardio-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem;
+}
+.training-cardio-summary svg {
+  color: #60a5fa;
+}
+.training-cardio-summary span,
+.training-cardio-summary p,
+.training-cardio-entries span,
+.training-cardio-entries small {
+  display: block;
+  color: rgb(255 255 255 / 38%);
+  font-size: 0.66rem;
+}
+.training-cardio-summary strong {
+  display: block;
+  margin: 0.15rem 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+}
+.training-cardio-entries article {
+  padding: 0.85rem;
+}
+.training-cardio-entries article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+.training-cardio-entries p {
+  margin-top: 0.35rem;
+  color: rgb(255 255 255 / 62%);
+  font-size: 0.75rem;
+}
+
+.training-comparison-builder {
+  margin-bottom: 0.75rem;
+  padding: 0.9rem;
+}
+.training-comparison-builder__header {
+  justify-content: space-between;
+}
+.training-comparison-builder__header > div {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.training-comparison-builder__header > span {
+  color: rgb(255 255 255 / 36%);
+  font-size: 0.65rem;
+}
+.training-metric-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+.training-metric-picker button {
+  min-height: 40px;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.6rem;
+  color: rgb(255 255 255 / 50%);
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.training-metric-picker button[aria-pressed="true"] {
+  border-color: rgb(139 92 246 / 45%);
+  background: var(--training-accent-soft);
+  color: white;
+}
+.training-metric-picker small {
+  color: rgb(255 255 255 / 30%);
+}
+.training-session-actions {
+  margin-top: 0.75rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgb(255 255 255 / 7%);
+}
+.training-session-actions button {
+  min-height: 38px;
+  border-radius: 0.6rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.6rem;
+  background: rgb(255 255 255 / 5%);
+  color: rgb(255 255 255 / 62%);
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+.training-session-actions span {
+  color: rgb(255 255 255 / 32%);
+  font-size: 0.63rem;
+}
+.training-table-toggle {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+.training-underlying-table {
+  margin-top: 0.6rem;
+}
+.training-correlation-note {
+  display: flex;
+  gap: 0.7rem;
+  margin-top: 0.75rem;
+  padding: 0.9rem;
+}
+.training-correlation-note svg {
+  flex: 0 0 auto;
+  color: rgb(255 255 255 / 35%);
+}
+.training-correlation-note p {
+  margin-top: 0.25rem;
+  color: rgb(255 255 255 / 40%);
+  font-size: 0.68rem;
+  line-height: 1.55;
+}
+
+.training-quality-grid {
+  display: grid;
+  gap: 0.55rem;
+}
+.training-quality-grid article {
+  padding: 0.8rem;
+}
+.training-quality-grid article > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.55rem;
+}
+.training-quality-grid p {
+  margin-top: 0.45rem;
+  color: rgb(255 255 255 / 38%);
+  font-size: 0.66rem;
+  line-height: 1.5;
+}
+.training-return-action {
+  width: 100%;
+  border-color: rgb(139 92 246 / 34%);
+  background: var(--training-accent-soft);
+  color: white;
+}
+.training-filter-sheet {
+  display: grid;
+  gap: 0.85rem;
+}
+.training-filter-sheet__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.5rem;
+}
+.training-filter-sheet__actions button {
+  min-height: 44px;
+  border-radius: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  background: rgb(255 255 255 / 5%);
+  color: rgb(255 255 255 / 65%);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+.training-workout-detail,
+.training-muscle-evidence,
+.training-date-entries {
+  display: grid;
+  gap: 0.75rem;
+}
+.training-workout-detail__summary p,
+.training-workout-detail__summary blockquote,
+.training-muscle-evidence > p {
+  margin-top: 0.35rem;
+  color: rgb(255 255 255 / 42%);
+  font-size: 0.72rem;
+  line-height: 1.55;
+}
+.training-workout-detail__summary strong {
+  display: block;
+  margin-top: 0.6rem;
+}
+.training-workout-detail article {
+  padding: 0.8rem;
+  overflow-x: auto;
+}
+.training-workout-detail article > p {
+  margin: 0.3rem 0;
+  color: rgb(255 255 255 / 42%);
+  font-size: 0.7rem;
+}
+.training-muscle-evidence > button,
+.training-date-entries > button {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding-inline: 0.4rem;
+}
+.training-date-entries > article {
+  display: flex;
+  gap: 0.65rem;
+  padding: 0.8rem;
+}
+.training-body-summary__actions {
+  display: grid;
+  gap: 0.4rem;
+}
+
+@media (max-width: 479px) {
+  .training-deep-heading-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .training-deep-context {
+    width: 100%;
+  }
+  .training-evidence-list > div {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+  .training-evidence-list small {
+    grid-column: 2;
+    text-align: left;
+  }
+  .training-pr-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .training-pr-card > div:last-child {
+    grid-column: 2;
+    text-align: left;
+  }
+  .training-exercise-entries > button {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .training-exercise-entries > button > span:nth-child(2) {
+    grid-column: 1;
+  }
+  .training-exercise-entries > button > svg {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+}
+
+@media (min-width: 700px) {
+  [data-section="training"][data-layout-mode="deepDive"].phone-shell {
+    width: min(1120px, calc(100vw - 2rem));
+  }
+  .training-deep-header,
+  .training-filter-bar,
+  .training-deep-main {
+    padding-inline: 1.75rem;
+  }
+  .training-deep-initial-grid,
+  .training-consistency-layout,
+  .training-muscle-grid {
+    grid-template-columns: minmax(0, 1.18fr) minmax(19rem, 0.82fr);
+  }
+  .training-filter-bar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem 0.8rem;
+  }
+  .training-range-control {
+    display: flex;
+    min-width: 0;
+  }
+  .training-filter-button {
+    width: auto;
+  }
+  .training-active-filters {
+    grid-column: 1 / -1;
+    margin-top: 0;
+  }
+  .training-metric-strip,
+  .training-muscle-evidence__metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .training-cardio-layout {
+    grid-template-columns: minmax(15rem, 0.75fr) minmax(0, 1.25fr);
+  }
+  .training-cardio-layout > .premium-state-surface {
+    grid-column: 1 / -1;
+  }
+  .training-quality-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .training-deep-header,
+  .training-filter-bar,
+  .training-deep-main {
+    padding-inline: 2rem;
+  }
+  .training-deep-main {
+    gap: 2.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .training-deep-dive *,
+  .training-deep-dive *::before,
+  .training-deep-dive *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.00001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.00001s !important;
+  }
+}

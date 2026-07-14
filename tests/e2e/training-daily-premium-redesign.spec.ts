@@ -125,7 +125,9 @@ test.describe("Training Daily premium redesign", () => {
     }
 
     await page.getByRole("button", { name: "Open Deep Dive", exact: true }).click();
-    await expect(page.getByRole("tab", { name: "Performance" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Training Deep Dive", exact: true }),
+    ).toBeVisible();
   });
 
   test("labels a partial recommendation without inventing missing recovery data", async ({
