@@ -31,8 +31,43 @@ import {
   type FitCoreInsightReadinessResult,
 } from "./fitcore-insight-readiness";
 import type { DateRange } from "./date-time";
+import {
+  ANALYTICS_SCHEMA_VERSION,
+  getAnalyticsVersionMetadata,
+  type AnalyticsVersionMetadata,
+} from "./analytics-version";
+import { getUnknownMetricProvenance, type MetricProvenance } from "./data-provenance";
+import { METRIC_DEPENDENCY_GRAPH, METRIC_DEPENDENCY_GRAPH_ID } from "./metric-dependency-graph";
+import {
+  buildFitCoreAnalyticsTrust,
+  type FitCoreAnalyticsTrustReport,
+} from "./fitcore-analytics-trust";
+import {
+  getFitCoreAnalyticsTrends,
+  type FitCoreAnalyticsTrendReport,
+} from "./fitcore-analytics-trends";
+import {
+  getFitCoreAnalyticsSignals,
+  type FitCoreAnalyticsSignalReport,
+} from "./fitcore-analytics-signals";
+import {
+  getFitCoreAnalyticsInsights,
+  type FitCoreAnalyticsInsightReport,
+} from "./fitcore-analytics-insights";
+import {
+  getFitCoreAnalyticsExplanations,
+  type FitCoreAnalyticsExplanationReport,
+} from "./fitcore-analytics-explanations";
+import {
+  buildFitCoreInsightVisualizations,
+  type FitCoreInsightVisualizationReport,
+} from "./fitcore-analytics-visualizations";
+import {
+  buildFitCoreInsightInteractions,
+  type FitCoreInsightInteractionReport,
+} from "./fitcore-analytics-interactions";
 
-export const FITCORE_ANALYTICS_SCHEMA_VERSION = "1.0.0";
+export const FITCORE_ANALYTICS_SCHEMA_VERSION = ANALYTICS_SCHEMA_VERSION;
 export const FITCORE_AGGREGATE_CONFIDENCE_VERSION = "lowest_available_domain_confidence_v1";
 
 export type FitCoreAnalyticsDomain = "training" | "nutrition" | "recovery" | "goals";
@@ -140,6 +175,12 @@ export interface FitCoreAnalyticsExclusions {
 
 export interface FitCoreAnalyticsBaseResult {
   schemaVersion: typeof FITCORE_ANALYTICS_SCHEMA_VERSION;
+  analyticsVersion: AnalyticsVersionMetadata;
+  dependencyGraph: {
+    graphId: typeof METRIC_DEPENDENCY_GRAPH_ID;
+    nodeCount: number;
+  };
+  provenance: MetricProvenance;
   generatedAt: string;
   range: DateRange | null;
   domains: {
@@ -159,6 +200,13 @@ export interface FitCoreAnalyticsBaseResult {
 export interface FitCoreAnalyticsResult extends FitCoreAnalyticsBaseResult {
   correlations: FitCoreCorrelationResult[];
   insightReadiness: FitCoreInsightReadinessResult;
+  trust: FitCoreAnalyticsTrustReport;
+  trends: FitCoreAnalyticsTrendReport;
+  signals: FitCoreAnalyticsSignalReport;
+  insights: FitCoreAnalyticsInsightReport;
+  explanations: FitCoreAnalyticsExplanationReport;
+  visualizations: FitCoreInsightVisualizationReport;
+  interactions: FitCoreInsightInteractionReport;
 }
 
 const DOMAIN_ORDER: readonly FitCoreAnalyticsDomain[] = [
@@ -410,6 +458,12 @@ export function getFitCoreAnalytics(
   }));
   const base: FitCoreAnalyticsBaseResult = clone({
     schemaVersion: FITCORE_ANALYTICS_SCHEMA_VERSION,
+    analyticsVersion: getAnalyticsVersionMetadata(),
+    dependencyGraph: {
+      graphId: METRIC_DEPENDENCY_GRAPH_ID,
+      nodeCount: METRIC_DEPENDENCY_GRAPH.length,
+    },
+    provenance: getUnknownMetricProvenance(["missing_source", "source_type_not_recorded"]),
     generatedAt: new Date(now).toISOString(),
     range: ranges.length
       ? {
@@ -453,5 +507,24 @@ export function getFitCoreAnalytics(
     reasons,
   });
   const readiness = buildFitCoreInsightReadiness(state, base, now);
-  return clone({ ...base, ...readiness });
+  const analytics = clone({ ...base, ...readiness });
+  const trust = buildFitCoreAnalyticsTrust(analytics, now, {
+    defaultProvenance: base.provenance,
+  });
+  const trustedAnalytics = clone({ ...analytics, trust });
+  const trends = getFitCoreAnalyticsTrends(
+    state,
+    trustedAnalytics as unknown as Omit<FitCoreAnalyticsResult, "trends">,
+    now,
+  );
+  const trendedAnalytics = clone({ ...trustedAnalytics, trends });
+  const signals = getFitCoreAnalyticsSignals(trendedAnalytics);
+  const signaledAnalytics = clone({ ...trendedAnalytics, signals });
+  const insights = getFitCoreAnalyticsInsights(signaledAnalytics);
+  const insightAnalytics = clone({ ...signaledAnalytics, insights });
+  const explanations = getFitCoreAnalyticsExplanations(insightAnalytics);
+  const explainedAnalytics = clone({ ...insightAnalytics, explanations });
+  const visualizations = buildFitCoreInsightVisualizations({ insights, explanations });
+  const interactions = buildFitCoreInsightInteractions(visualizations);
+  return { ...clone(explainedAnalytics), visualizations, interactions };
 }

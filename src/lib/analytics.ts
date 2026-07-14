@@ -18,6 +18,295 @@ import {
 } from "./analytics/date-time";
 
 export {
+  ANALYTICS_ENGINE_VERSION,
+  ANALYTICS_GENERATED_BY,
+  ANALYTICS_PHASE,
+  ANALYTICS_SCHEMA_VERSION,
+  getAnalyticsVersionMetadata,
+  type AnalyticsVersionMetadata,
+} from "./analytics/analytics-version";
+
+export {
+  PROVENANCE_SOURCE_TYPES,
+  calculateTraceability,
+  combineMetricProvenance,
+  getUnknownMetricProvenance,
+  normalizeMetricProvenance,
+  type MetricProvenance,
+  type MetricProvenanceInput,
+  type ProvenanceDerivation,
+  type ProvenanceSourceType,
+} from "./analytics/data-provenance";
+
+export {
+  METRIC_DEPENDENCY_GRAPH,
+  METRIC_DEPENDENCY_GRAPH_ID,
+  METRIC_DEPENDENCY_NODE_CATEGORIES,
+  assertValidMetricDependencyGraph,
+  getDirectMetricDependencies,
+  getDirectMetricDependents,
+  getMetricDependencyGraph,
+  getMetricDependencyNode,
+  getMetricDependencyTopologicalOrder,
+  getTransitiveMetricDependencies,
+  validateMetricDependencyGraph,
+  type MetricDependencyDomain,
+  type MetricDependencyGraphValidation,
+  type MetricDependencyNode,
+  type MetricDependencyNodeCategory,
+} from "./analytics/metric-dependency-graph";
+
+export {
+  METRIC_QUALITY_THRESHOLDS,
+  evaluateMetricQuality,
+  type MetricQualityAssessment,
+  type MetricQualityEvidence,
+  type MetricQualityInput,
+  type MetricQualityLevel,
+  type MetricQualityReason,
+  type MetricQualityReasonCode,
+} from "./analytics/metric-quality";
+
+export {
+  METRIC_FRESHNESS_POLICIES,
+  evaluateMetricFreshness,
+  type MetricFreshnessAssessment,
+  type MetricFreshnessInput,
+  type MetricFreshnessPolicy,
+  type MetricFreshnessReason,
+  type MetricFreshnessReasonCode,
+  type MetricFreshnessState,
+} from "./analytics/metric-freshness";
+
+export {
+  FITCORE_METRIC_TRUST_POLICY_VERSION,
+  METRIC_TRUST_THRESHOLDS,
+  evaluateMetricTrust,
+  type MetricDependencyTrustInput,
+  type MetricTrustAssessment,
+  type MetricTrustInput,
+  type MetricTrustLevel,
+  type MetricTrustReason,
+  type MetricTrustReasonCode,
+  type MetricTrustStatus,
+} from "./analytics/metric-trust";
+
+export {
+  buildFitCoreAnalyticsTrust,
+  type FitCoreAnalyticsTrustInput,
+  type FitCoreAnalyticsTrustOptions,
+  type FitCoreAnalyticsTrustReport,
+  type FitCoreAnalyticsTrustSummary,
+} from "./analytics/fitcore-analytics-trust";
+
+export {
+  FITCORE_PERSONAL_BASELINE_POLICY,
+  PERSONAL_BASELINE_POLICIES,
+  calculatePersonalBaseline,
+  type AnalyticsTimeSeriesPoint,
+  type PersonalBaselineCadence,
+  type PersonalBaselineOptions,
+  type PersonalBaselineReason,
+  type PersonalBaselineReasonCode,
+  type PersonalBaselineResult,
+  type PersonalBaselineStatus,
+  type TimeSeriesAggregation,
+} from "./analytics/personal-baselines";
+
+export {
+  FITCORE_ROLLING_TREND_POLICY,
+  ROLLING_TREND_WINDOWS,
+  calculateRollingTrend,
+  type RollingTrendDirection,
+  type RollingTrendOptions,
+  type RollingTrendReason,
+  type RollingTrendReasonCode,
+  type RollingTrendResult,
+  type RollingTrendStatus,
+  type RollingTrendWindow,
+  type RollingTrendWindowResult,
+} from "./analytics/rolling-trends";
+
+export {
+  getFitCoreAnalyticsTrends,
+  type FitCoreAnalyticsTrendReport,
+  type FitCoreAnalyticsTrendSummary,
+  type FitCoreMetricTrendRecord,
+  type FitCoreTrendReason,
+  type FitCoreTrendReasonCode,
+  type FitCoreTrendTrustContext,
+} from "./analytics/fitcore-analytics-trends";
+
+export {
+  FITCORE_ANOMALY_DETECTION_POLICY,
+  evaluateAnomaly,
+  type AnomalyClassification,
+  type AnomalyDetectionOptions,
+  type AnomalyDetectionReason,
+  type AnomalyDetectionReasonCode,
+  type AnomalyDetectionResult,
+  type AnomalyDetectionStatus,
+} from "./analytics/anomaly-detection";
+
+export {
+  FITCORE_MEANINGFUL_CHANGE_POLICY,
+  MEANINGFUL_CHANGE_WINDOW_PRIORITY,
+  evaluateMeaningfulChange,
+  type MeaningfulChangeClassification,
+  type MeaningfulChangeReason,
+  type MeaningfulChangeReasonCode,
+  type MeaningfulChangeResult,
+  type MeaningfulChangeStatus,
+} from "./analytics/meaningful-change";
+
+export {
+  getFitCoreAnalyticsSignals,
+  type FitCoreAnalyticsSignalReport,
+  type FitCoreAnalyticsSignalSummary,
+  type FitCoreMetricSignalReason,
+  type FitCoreMetricSignalReasonCode,
+  type FitCoreMetricSignalRecord,
+} from "./analytics/fitcore-analytics-signals";
+
+export {
+  FITCORE_INSIGHT_EVIDENCE_POLICY,
+  INSIGHT_EVIDENCE_SOURCE_TYPES,
+  buildInsightEvidence,
+  type InsightEvidenceBundle,
+  type InsightEvidenceInput,
+  type InsightEvidenceReason,
+  type InsightEvidenceReasonCode,
+  type InsightEvidenceSourceType,
+  type InsightEvidenceStatus,
+} from "./analytics/insight-evidence";
+
+export {
+  FITCORE_INSIGHT_CANDIDATE_POLICY,
+  evaluateInsightCandidate,
+  type InsightCandidate,
+  type InsightCandidateReason,
+  type InsightCandidateReasonCode,
+  type InsightCandidateStatus,
+  type InsightDirection,
+  type InsightEvidenceStrength,
+  type InsightObservationType,
+  type InsightReviewPriority,
+} from "./analytics/insight-candidates";
+
+export {
+  FITCORE_SELECTED_CANDIDATE_LIMIT,
+  getFitCoreAnalyticsInsights,
+  type FitCoreAnalyticsInsightReport,
+  type FitCoreAnalyticsInsightSource,
+  type FitCoreAnalyticsInsightSummary,
+  type FitCoreInsightNodeEvaluation,
+} from "./analytics/fitcore-analytics-insights";
+
+export {
+  EVIDENCE_ATTRIBUTION_ROLES,
+  EVIDENCE_ATTRIBUTION_STATUSES,
+  FITCORE_EVIDENCE_ATTRIBUTION_POLICY,
+  buildEvidenceAttribution,
+  type EvidenceAttributionInput,
+  type EvidenceAttributionReason,
+  type EvidenceAttributionReasonCode,
+  type EvidenceAttributionRecord,
+  type EvidenceAttributionRole,
+  type EvidenceAttributionStatus,
+} from "./analytics/evidence-attribution";
+
+export {
+  FITCORE_INSIGHT_EXPLANATION_POLICY,
+  INSIGHT_EXPLANATION_FACT_KINDS,
+  INSIGHT_EXPLANATION_STATUSES,
+  buildInsightExplanation,
+  type InsightExplanationFact,
+  type InsightExplanationFactKind,
+  type InsightExplanationInput,
+  type InsightExplanationLimitation,
+  type InsightExplanationLimitationCode,
+  type InsightExplanationPacket,
+  type InsightExplanationReason,
+  type InsightExplanationReasonCode,
+  type InsightExplanationStatus,
+} from "./analytics/insight-explanations";
+
+export {
+  getFitCoreAnalyticsExplanations,
+  type FitCoreAnalyticsExplanationReport,
+  type FitCoreAnalyticsExplanationSource,
+  type FitCoreAnalyticsExplanationSummary,
+  type FitCoreExplanationNodeEvaluation,
+} from "./analytics/fitcore-analytics-explanations";
+
+export {
+  FITCORE_INSIGHT_VISUALIZATION_POLICY,
+  INSIGHT_VISUALIZATION_DATA_MODES,
+  INSIGHT_VISUALIZATION_INTERACTIONS,
+  INSIGHT_VISUALIZATION_KINDS,
+  INSIGHT_VISUALIZATION_STATUSES,
+  buildInsightVisualizationPacket,
+  isVisualizationKindModeCompatible,
+  type InsightVisualizationComparisonData,
+  type InsightVisualizationComparisonItem,
+  type InsightVisualizationData,
+  type InsightVisualizationDataMode,
+  type InsightVisualizationDerivedData,
+  type InsightVisualizationInteraction,
+  type InsightVisualizationKind,
+  type InsightVisualizationLimitationKey,
+  type InsightVisualizationMatrixCell,
+  type InsightVisualizationMatrixData,
+  type InsightVisualizationPacket,
+  type InsightVisualizationPacketInput,
+  type InsightVisualizationReasonKey,
+  type InsightVisualizationScalarData,
+  type InsightVisualizationSeries,
+  type InsightVisualizationSeriesData,
+  type InsightVisualizationSeriesPoint,
+  type InsightVisualizationStatus,
+} from "./analytics/insight-visualizations";
+
+export {
+  buildFitCoreInsightVisualizations,
+  type FitCoreInsightVisualizationEvaluation,
+  type FitCoreInsightVisualizationInput,
+  type FitCoreInsightVisualizationReport,
+  type FitCoreInsightVisualizationSummary,
+} from "./analytics/fitcore-analytics-visualizations";
+
+export {
+  FITCORE_INSIGHT_INTERACTION_POLICY,
+  INSIGHT_INTERACTION_CONTRACT_STATUSES,
+  INSIGHT_INTERACTION_REQUEST_KINDS,
+  INSIGHT_INTERACTION_RESOLUTION_STATUSES,
+  buildInsightInteractionContract,
+  type InsightComparisonTarget,
+  type InsightDetailTarget,
+  type InsightInspectableTarget,
+  type InsightInspectableTargetType,
+  type InsightInteractionContract,
+  type InsightInteractionContractStatus,
+  type InsightInteractionLimitationKey,
+  type InsightInteractionReasonKey,
+  type InsightInteractionRequest,
+  type InsightInteractionRequestKind,
+  type InsightInteractionResolution,
+  type InsightInteractionResolutionStatus,
+  type InsightInteractionResolvedTarget,
+  type InsightRegionTarget,
+  type InsightSeriesTarget,
+} from "./analytics/insight-interactions";
+
+export {
+  buildFitCoreInsightInteractions,
+  resolveFitCoreInsightInteraction,
+  type FitCoreInsightInteractionEvaluation,
+  type FitCoreInsightInteractionReport,
+  type FitCoreInsightInteractionSummary,
+} from "./analytics/fitcore-analytics-interactions";
+
+export {
   FITCORE_CORRELATION_VERSION,
   FITCORE_INSIGHT_MINIMUMS,
   FITCORE_INSIGHT_READINESS_VERSION,
