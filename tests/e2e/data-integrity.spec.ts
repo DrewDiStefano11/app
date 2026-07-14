@@ -1,4 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
+import {
+  currentFitCoreState,
+  readPersistedFitCoreState,
+  seedRevisionedFitCoreState,
+} from "./helpers/fitcore-test-state";
 
 test.describe("FitCore data integrity", () => {
   test.beforeEach(async ({ page }) => {
@@ -28,7 +33,7 @@ test.describe("FitCore data integrity", () => {
           bodyweightEntries: [{ id: "weight-old", weightLb: 177.5, createdAt }],
           mealEntries: [],
           recoveryCheckIns: [],
-          goals: "corrupted-field-that-should-be-repaired",
+          // Missing collections are safely completed; present invalid values remain rejected.
         }),
       );
     }, now);
@@ -37,25 +42,23 @@ test.describe("FitCore data integrity", () => {
     await expect(page.getByText("FitCore Score", { exact: true })).toBeVisible();
 
     await expect
-      .poll(() =>
-        page.evaluate(() => {
-          const saved = JSON.parse(localStorage.getItem("fitcore.v1") || "{}");
-          return {
-            version: saved.version,
-            name: saved.profile?.name,
-            profileWeight: saved.profile?.bodyweightLb,
-            storedWeight: saved.bodyweightEntries?.[0]?.weightLb,
-            workoutId: saved.workouts?.[0]?.id,
-            goalsRepaired: Array.isArray(saved.goals) && saved.goals.length > 0,
-            hasCurrentFields:
-              Array.isArray(saved.supplementLogs) &&
-              Array.isArray(saved.jarvisAudit) &&
-              Array.isArray(saved.recoverySignals) &&
-              Array.isArray(saved.dismissedSuggestions),
-            nestedDefaultPreserved: saved.personalization?.units?.distance === "mi",
-          };
-        }),
-      )
+      .poll(async () => {
+        const saved = await readPersistedFitCoreState(page);
+        return {
+          version: saved.version,
+          name: saved.profile?.name,
+          profileWeight: saved.profile?.bodyweightLb,
+          storedWeight: saved.bodyweightEntries?.[0]?.weightLb,
+          workoutId: saved.workouts?.[0]?.id,
+          goalsRepaired: Array.isArray(saved.goals) && saved.goals.length > 0,
+          hasCurrentFields:
+            Array.isArray(saved.supplementLogs) &&
+            Array.isArray(saved.jarvisAudit) &&
+            Array.isArray(saved.recoverySignals) &&
+            Array.isArray(saved.dismissedSuggestions),
+          nestedDefaultPreserved: saved.personalization?.units?.distance === "mi",
+        };
+      })
       .toEqual({
         version: 4,
         name: "Migration Test",
@@ -68,11 +71,7 @@ test.describe("FitCore data integrity", () => {
       });
 
     await page.reload();
-    await expect
-      .poll(() =>
-        page.evaluate(() => JSON.parse(localStorage.getItem("fitcore.v1") || "{}").version),
-      )
-      .toBe(4);
+    await expect.poll(async () => (await readPersistedFitCoreState(page)).version).toBe(4);
   });
 
   test("rejects broken imports and safely repairs incomplete saved collections", async ({
@@ -122,7 +121,7 @@ test.describe("FitCore data integrity", () => {
     });
   });
 
-  const clickBottomNav = async (page: any, targetName: string) => {
+  const clickBottomNav = async (page: Page, targetName: string) => {
     const nav = page.getByRole("navigation", { name: "Primary navigation" });
     const targetBtn = nav.getByRole("button", { name: targetName, exact: true });
 
@@ -147,10 +146,7 @@ test.describe("FitCore data integrity", () => {
   };
 
   test("manual workout, meal, check-in, and weigh-in survive a full reload", async ({ page }) => {
-    await page.evaluate(() => {
-      localStorage.setItem("fitcore.v1", JSON.stringify({ onboardingComplete: true }));
-    });
-    await page.reload();
+    await seedRevisionedFitCoreState(page, currentFitCoreState({ onboardingComplete: true }));
 
     await clickBottomNav(page, "Train");
     await page.getByRole("button", { name: /Start today's plan/i }).click();
@@ -177,41 +173,37 @@ test.describe("FitCore data integrity", () => {
     await clickBottomNav(page, "Stats");
 
     // In Daily View, weigh in is direct. In Deep Dive, we must go to Body.
-    if (await page.getByRole('button', { name: 'Deep Dive' }).isVisible()) {
-        await page.getByRole('button', { name: 'Deep Dive' }).click();
-        await page.getByRole('tab', { name: 'Body', exact: true }).click();
+    if (await page.getByRole("button", { name: "Deep Dive" }).isVisible()) {
+      await page.getByRole("button", { name: "Deep Dive" }).click();
+      await page.getByRole("tab", { name: "Body", exact: true }).click();
     }
     await page.getByPlaceholder("Weight in lb").fill("179.4");
     await page.getByRole("button", { name: "Save", exact: true }).click();
 
     await expect
-      .poll(() =>
-        page.evaluate(() => {
-          const state = JSON.parse(localStorage.getItem("fitcore.v1") || "{}");
-          return {
-            workouts: state.workouts?.length,
-            meals: state.mealEntries?.length,
-            checkIns: state.recoveryCheckIns?.length,
-            weights: state.bodyweightEntries?.length,
-            profileWeight: state.profile?.bodyweightLb,
-          };
-        }),
-      )
+      .poll(async () => {
+        const state = await readPersistedFitCoreState(page);
+        return {
+          workouts: state.workouts?.length,
+          meals: state.mealEntries?.length,
+          checkIns: state.recoveryCheckIns?.length,
+          weights: state.bodyweightEntries?.length,
+          profileWeight: state.profile?.bodyweightLb,
+        };
+      })
       .toEqual({ workouts: 1, meals: 1, checkIns: 1, weights: 1, profileWeight: 179.4 });
 
     await page.reload();
     await expect
-      .poll(() =>
-        page.evaluate(() => {
-          const state = JSON.parse(localStorage.getItem("fitcore.v1") || "{}");
-          return [
-            state.workouts?.[0]?.name,
-            state.mealEntries?.[0]?.name,
-            state.recoveryCheckIns?.[0]?.energy,
-            state.bodyweightEntries?.[0]?.weightLb,
-          ];
-        }),
-      )
+      .poll(async () => {
+        const state = await readPersistedFitCoreState(page);
+        return [
+          state.workouts?.[0]?.name,
+          state.mealEntries?.[0]?.name,
+          state.recoveryCheckIns?.[0]?.energy,
+          state.bodyweightEntries?.[0]?.weightLb,
+        ];
+      })
       .toEqual(["Push Day", "Integrity meal", 7, 179.4]);
 
     await page.getByRole("button", { name: "Home" }).click();

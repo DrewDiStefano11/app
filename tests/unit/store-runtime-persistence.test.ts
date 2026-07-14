@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { FitCoreAtomicPersistenceAdapter } from "../../src/lib/atomic-persistence.ts";
+import { migrateFitCoreDataIfNeeded } from "../../src/lib/fitcore-data.ts";
 import { persistFitCoreStateWithRevision } from "../../src/lib/revisioned-persistence.ts";
 import { createFitCoreRuntimePersistenceController } from "../../src/lib/runtime-persistence.ts";
 import {
@@ -108,6 +109,56 @@ test("legacy startup migrates once and later initialization prefers revisioned s
   assert.equal(second.metadata.persistenceStatus, "ready");
   assert.deepEqual(second.state, legacy);
   assert.equal(adapter.writes().length, writes);
+});
+
+test("store startup applies a verified partial historical legacy state", () => {
+  const adapter = new MemoryAdapter();
+  const partial = {
+    version: 1,
+    onboardingComplete: true,
+    profile: {
+      goal: "hypertrophy",
+      experience: "intermediate",
+      daysPerWeek: 0,
+      split: "Push / Pull / Legs",
+      bodyweightLb: 180,
+      targetBodyweightLb: 185,
+      units: "lb",
+    },
+    workouts: [],
+    activeWorkout: null,
+    mealEntries: [],
+    bodyweightEntries: [],
+    goals: [],
+  };
+  const runtime = controller(adapter, partial);
+  const outcome = hydrateFitCoreStoreRuntime(runtime, defaultState);
+
+  assert.equal(outcome.applied, true);
+  assert.equal(outcome.metadata.persistenceStatus, "legacy_migrated");
+  assert.equal(outcome.state.onboardingComplete, true);
+  assert.equal(outcome.state.profile.daysPerWeek, 0);
+  assert.equal(outcome.state.profile.sleepGoalH, defaultState.profile.sleepGoalH);
+  assert.equal(Object.hasOwn(outcome.state.profile, "name"), false);
+
+  const writes = adapter.writes().length;
+  const committed = commitFitCoreStoreRuntime(
+    runtime,
+    outcome.state,
+    migrateFitCoreDataIfNeeded({
+      ...outcome.state,
+      activeWorkout: {
+        id: "legacy-startup-mutation",
+        name: "Workout",
+        startedAt: 1_700_000_000_000,
+        exercises: [],
+      },
+    }),
+  );
+  assert.equal(committed.applied, true);
+  assert.equal(committed.state.activeWorkout?.id, "legacy-startup-mutation");
+  assert.equal(runtime.getCurrentSnapshot()?.revision, 2);
+  assert.equal(adapter.writes().length, writes + 3);
 });
 
 test("central mutation publishes only the verified transaction state", () => {

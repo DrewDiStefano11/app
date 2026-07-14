@@ -1,13 +1,18 @@
-import { test, expect, Page } from '@playwright/test';
-import { seedFitCoreAppState, FITCORE_DATA_VERSION } from './helpers/fitcore-test-state';
+import { test, expect, Page } from "@playwright/test";
+import {
+  currentFitCoreState,
+  FITCORE_DATA_VERSION,
+  readPersistedFitCoreState,
+  seedFitCoreAppState,
+  seedRevisionedFitCoreState,
+} from "./helpers/fitcore-test-state";
 
-test.describe('LocalStorage Compatibility Smoke Coverage', () => {
-
+test.describe("LocalStorage Compatibility Smoke Coverage", () => {
   const fatalErrors = [
     "This page didn't load",
     "Application error",
     "Unhandled Runtime Error",
-    "createServerFn(...).validator is not a function"
+    "createServerFn(...).validator is not a function",
   ];
 
   async function assertNoFatalErrors(page: Page) {
@@ -18,52 +23,64 @@ test.describe('LocalStorage Compatibility Smoke Coverage', () => {
 
   async function verifyCoreNavigation(page: Page) {
     // Check Home
-    await expect(page.getByText('FitCore Score', { exact: true }).or(page.getByText('FitCore Today', { exact: true }))).toBeVisible({ timeout: 10000 });
+    await expect(
+      page
+        .getByText("FitCore Score", { exact: true })
+        .or(page.getByText("FitCore Today", { exact: true })),
+    ).toBeVisible({ timeout: 10000 });
     await assertNoFatalErrors(page);
 
     // Training
-    await page.getByRole('button', { name: 'Train', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Training' })).toBeVisible();
+    await page.getByRole("button", { name: "Train", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Training" })).toBeVisible();
     await assertNoFatalErrors(page);
 
     // Nutrition
-    await page.getByRole('button', { name: 'Fuel', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Nutrition' })).toBeVisible();
+    await page.getByRole("button", { name: "Fuel", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Nutrition" })).toBeVisible();
     await assertNoFatalErrors(page);
 
     // Recovery - ensure exact match
-    await page.getByRole('button', { name: 'Recover', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Recovery' })).toBeVisible();
+    await page.getByRole("button", { name: "Recover", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Recovery" })).toBeVisible();
     await assertNoFatalErrors(page);
 
     // Progress
-    await page.getByRole('button', { name: 'Stats', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Progress' })).toBeVisible();
+    await page.getByRole("button", { name: "Stats", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Progress" })).toBeVisible();
     await assertNoFatalErrors(page);
 
     // Go back to Home
-    await page.getByRole('button', { name: 'Home' }).click();
-    await expect(page.getByText('FitCore Score', { exact: true }).or(page.getByText('FitCore Today', { exact: true }))).toBeVisible();
+    await page.getByRole("button", { name: "Home" }).click();
+    await expect(
+      page
+        .getByText("FitCore Score", { exact: true })
+        .or(page.getByText("FitCore Today", { exact: true })),
+    ).toBeVisible();
 
     // Settings (Hub)
     // We try to access it via the Hub navigation if the exact 'Settings' name isn't reliably available in all viewports/states
-    await page.locator('.lucide-circle-user').or(page.getByRole('button', { name: 'Settings', exact: true })).first().click();
-    await expect(page.getByRole('heading', { name: 'Settings', exact: true })).toBeVisible();
+    await page
+      .locator(".lucide-circle-user")
+      .or(page.getByRole("button", { name: "Settings", exact: true }))
+      .first()
+      .click();
+    await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
     await assertNoFatalErrors(page);
   }
 
-  test('Scenario A — Minimal current state', async ({ page }) => {
+  test("Scenario A — Minimal current state", async ({ page }) => {
     const minimalState = {
       version: FITCORE_DATA_VERSION,
       onboardingComplete: true,
       profile: {
-        goal: 'hypertrophy',
-        experience: 'intermediate',
+        goal: "hypertrophy",
+        experience: "intermediate",
         daysPerWeek: 5,
-        split: 'Push / Pull / Legs',
+        split: "Push / Pull / Legs",
         bodyweightLb: 180,
         targetBodyweightLb: 185,
-        units: 'lb',
+        units: "lb",
       },
       workouts: [],
       activeWorkout: null,
@@ -74,62 +91,66 @@ test.describe('LocalStorage Compatibility Smoke Coverage', () => {
       ],
     };
 
-    await seedFitCoreAppState(page, minimalState);
-    await page.goto('/');
+    await seedRevisionedFitCoreState(page, currentFitCoreState(minimalState));
+    await page.goto("/");
     await verifyCoreNavigation(page);
   });
 
-  test('Scenario B — Partial older-looking state', async ({ page }) => {
+  test("Scenario B — Partial older-looking state", async ({ page }) => {
     // Intentionally omit some arrays and fields that might have been added later
     const olderState = {
       version: 3, // older version
       onboardingComplete: true,
       profile: {
-        goal: 'hypertrophy',
-        experience: 'beginner',
+        goal: "hypertrophy",
+        experience: "beginner",
         bodyweightLb: 150,
       },
       // missing activeWorkout, mealEntries, goals
-      workouts: [{ id: 'w1', name: 'Old Workout', startedAt: Date.now() - 86400000, exercises: [] }],
-      bodyweightEntries: [{ id: 'bw1', weightLb: 150, createdAt: Date.now() - 86400000 }],
+      workouts: [
+        { id: "w1", name: "Old Workout", startedAt: Date.now() - 86400000, exercises: [] },
+      ],
+      bodyweightEntries: [{ id: "bw1", weightLb: 150, createdAt: Date.now() - 86400000 }],
     };
 
     await seedFitCoreAppState(page, olderState);
-    await page.goto('/');
+    await page.goto("/");
     await verifyCoreNavigation(page);
 
     // Assert that the seeded legacy workout and bodyweight data survived hydration
-    await expect.poll(() => page.evaluate(() => {
-      const state = JSON.parse(window.localStorage.getItem('fitcore.v1') || '{}');
-      return {
-        workoutsCount: state.workouts?.length,
-        firstWorkoutId: state.workouts?.[0]?.id,
-        bodyweightCount: state.bodyweightEntries?.length,
-        firstBodyweightId: state.bodyweightEntries?.[0]?.id,
-        // The app should have bumped the version up to the current schema version
-        version: state.version
-      };
-    })).toEqual({
-      workoutsCount: 1,
-      firstWorkoutId: 'w1',
-      bodyweightCount: 1,
-      firstBodyweightId: 'bw1',
-      version: FITCORE_DATA_VERSION
-    });
+    await expect
+      .poll(async () => {
+        const state = await readPersistedFitCoreState(page);
+        return {
+          workoutsCount: state.workouts?.length,
+          firstWorkoutId: state.workouts?.[0]?.id,
+          bodyweightCount: state.bodyweightEntries?.length,
+          firstBodyweightId: state.bodyweightEntries?.[0]?.id,
+          // The app should have bumped the version up to the current schema version
+          version: state.version,
+        };
+      })
+      .toEqual({
+        workoutsCount: 1,
+        firstWorkoutId: "w1",
+        bodyweightCount: 1,
+        firstBodyweightId: "bw1",
+        version: FITCORE_DATA_VERSION,
+      });
   });
 
-  test('Scenario C — Empty collections', async ({ page }) => {
+  test("Scenario C — Empty collections", async ({ page }) => {
     const emptyCollectionsState = {
       version: FITCORE_DATA_VERSION,
       onboardingComplete: true,
       profile: {
-        goal: 'hypertrophy',
-        experience: 'advanced',
+        goal: "hypertrophy",
+        experience: "advanced",
         daysPerWeek: 4,
-        split: 'Upper/Lower',
+        split: "Upper/Lower",
         bodyweightLb: 170,
         targetBodyweightLb: 180,
-        units: 'lb',
+        units: "lb",
       },
       workouts: [],
       activeWorkout: null,
@@ -145,8 +166,8 @@ test.describe('LocalStorage Compatibility Smoke Coverage', () => {
       progressPhotos: [],
     };
 
-    await seedFitCoreAppState(page, emptyCollectionsState);
-    await page.goto('/');
+    await seedRevisionedFitCoreState(page, currentFitCoreState(emptyCollectionsState));
+    await page.goto("/");
     await verifyCoreNavigation(page);
   });
 });

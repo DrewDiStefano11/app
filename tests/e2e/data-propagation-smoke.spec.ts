@@ -1,61 +1,26 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   expectDashboardReady,
-  FITCORE_DATA_VERSION,
-  FITCORE_STORAGE_KEY,
+  readPersistedFitCoreState,
+  seedMinimalOnboardedState,
 } from "./helpers/fitcore-test-state";
 
 async function expectRecentActivity(page: Page, label: string, detail?: string) {
-  const recentActivity = page.getByText("Recent activity", { exact: true }).locator("xpath=ancestor::div[contains(@class, 'tile')][1]");
+  const recentActivity = page
+    .getByText("Recent activity", { exact: true })
+    .locator("xpath=ancestor::div[contains(@class, 'tile')][1]");
   await expect(recentActivity.getByText(label, { exact: true })).toBeVisible();
   if (detail) {
     await expect(recentActivity.getByText(detail, { exact: true })).toBeVisible();
   }
 }
 
-async function persistedState(page: Page) {
-  return page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}"), FITCORE_STORAGE_KEY);
-}
+const persistedState = readPersistedFitCoreState;
 
 function sheetByHeading(page: Page, name: string) {
   return page
     .getByRole("heading", { name, exact: true })
     .locator("xpath=ancestor::div[contains(@class, 'sheet-surface')][1]");
-}
-
-async function seedReloadableOnboardedState(page: Page) {
-  await page.goto("/");
-  await page.evaluate(
-    ({ key, version }) => {
-      localStorage.clear();
-      localStorage.setItem(
-        key,
-        JSON.stringify({
-          version,
-          onboardingComplete: true,
-          profile: {
-            goal: "hypertrophy",
-            experience: "intermediate",
-            daysPerWeek: 5,
-            split: "Push / Pull / Legs",
-            bodyweightLb: 180,
-            targetBodyweightLb: 185,
-            units: "lb",
-          },
-          workouts: [],
-          activeWorkout: null,
-          mealEntries: [],
-          bodyweightEntries: [],
-          goals: [
-            { id: "g1", type: "weekly_workouts", label: "Train 5x per week", target: 5, current: 0 },
-          ],
-        }),
-      );
-    },
-    { key: FITCORE_STORAGE_KEY, version: FITCORE_DATA_VERSION },
-  );
-  await page.reload();
-  await expectDashboardReady(page);
 }
 
 async function assertNoFatalErrors(page: Page) {
@@ -74,12 +39,12 @@ test.describe("Data propagation smoke", () => {
     page.on("pageerror", (error) => {
       pageErrors.push(error);
     });
-    await seedReloadableOnboardedState(page);
+    await seedMinimalOnboardedState(page);
   });
 
   test.afterEach(async ({ page }) => {
     if (pageErrors.length > 0) {
-      throw new Error(`Fatal page errors occurred: ${pageErrors.map(e => e.message).join(', ')}`);
+      throw new Error(`Fatal page errors occurred: ${pageErrors.map((e) => e.message).join(", ")}`);
     }
     await assertNoFatalErrors(page);
   });
@@ -95,7 +60,9 @@ test.describe("Data propagation smoke", () => {
     await sheet.getByText("F (g)", { exact: true }).locator("..").locator("input").fill("12");
     await sheet.getByRole("button", { name: "Save meal", exact: true }).click();
 
-    await expect.poll(async () => (await persistedState(page)).mealEntries?.[0]?.name).toBe("Smoke protein bowl");
+    await expect
+      .poll(async () => (await persistedState(page)).mealEntries?.[0]?.name)
+      .toBe("Smoke protein bowl");
 
     await page.reload();
     await expectDashboardReady(page);
@@ -120,7 +87,9 @@ test.describe("Data propagation smoke", () => {
     await sheet.getByRole("spinbutton").first().fill("181.6");
     await sheet.getByRole("button", { name: "Save weigh-in", exact: true }).click();
 
-    await expect.poll(async () => (await persistedState(page)).bodyweightEntries?.[0]?.weightLb).toBe(181.6);
+    await expect
+      .poll(async () => (await persistedState(page)).bodyweightEntries?.[0]?.weightLb)
+      .toBe(181.6);
 
     await page.reload();
     await expectDashboardReady(page);
@@ -131,13 +100,13 @@ test.describe("Data propagation smoke", () => {
 
     // Check if 181.6 is present (using .first() to avoid strict mode violations)
     try {
-        await expect(page.getByText("181.6").first()).toBeVisible({ timeout: 2000 });
+      await expect(page.getByText("181.6").first()).toBeVisible({ timeout: 2000 });
     } catch {
-        if (await page.getByRole('button', { name: 'Deep Dive' }).isVisible()) {
-             await page.getByRole('button', { name: 'Deep Dive' }).click();
-             await page.getByRole('tab', { name: 'Body', exact: true }).click();
-        }
-        await expect(page.getByText("181.6").first()).toBeVisible();
+      if (await page.getByRole("button", { name: "Deep Dive" }).isVisible()) {
+        await page.getByRole("button", { name: "Deep Dive" }).click();
+        await page.getByRole("tab", { name: "Body", exact: true }).click();
+      }
+      await expect(page.getByText("181.6").first()).toBeVisible();
     }
 
     await page.reload();
@@ -146,13 +115,13 @@ test.describe("Data propagation smoke", () => {
     await page.getByRole("button", { name: "Stats" }).click();
     await expect(page.getByRole("heading", { name: "Progress" })).toBeVisible();
     try {
-        await expect(page.getByText("181.6").first()).toBeVisible({ timeout: 2000 });
+      await expect(page.getByText("181.6").first()).toBeVisible({ timeout: 2000 });
     } catch {
-        if (await page.getByRole('button', { name: 'Deep Dive' }).isVisible()) {
-             await page.getByRole('button', { name: 'Deep Dive' }).click();
-             await page.getByRole('tab', { name: 'Body', exact: true }).click();
-        }
-        await expect(page.getByText("181.6").first()).toBeVisible();
+      if (await page.getByRole("button", { name: "Deep Dive" }).isVisible()) {
+        await page.getByRole("button", { name: "Deep Dive" }).click();
+        await page.getByRole("tab", { name: "Body", exact: true }).click();
+      }
+      await expect(page.getByText("181.6").first()).toBeVisible();
     }
   });
 
@@ -171,13 +140,17 @@ test.describe("Data propagation smoke", () => {
 
     await page.getByRole("button", { name: "Recover", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Recovery" })).toBeVisible();
-    await expect.poll(async () => (await persistedState(page)).recoveryCheckIns?.[0]?.notes).toBe("Smoke check-in");
+    await expect
+      .poll(async () => (await persistedState(page)).recoveryCheckIns?.[0]?.notes)
+      .toBe("Smoke check-in");
 
     await page.reload();
     await expectDashboardReady(page);
 
     await page.getByRole("button", { name: "Recover", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Recovery" })).toBeVisible();
-    await expect.poll(async () => (await persistedState(page)).recoveryCheckIns?.[0]?.notes).toBe("Smoke check-in");
+    await expect
+      .poll(async () => (await persistedState(page)).recoveryCheckIns?.[0]?.notes)
+      .toBe("Smoke check-in");
   });
 });

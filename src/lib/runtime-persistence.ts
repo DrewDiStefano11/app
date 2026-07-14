@@ -3,6 +3,8 @@ import {
   type FitCoreAtomicPersistenceAdapter,
 } from "./atomic-persistence";
 import { FITCORE_BACKUP_ENVELOPE_POLICY } from "./data-backup";
+import { validateFitCoreDataIntegrity } from "./data-integrity";
+import { migrateFitCoreDataIfNeeded } from "./fitcore-data";
 import {
   FITCORE_STORE_TRANSACTION_POLICY,
   commitFitCoreStoreTransaction,
@@ -11,6 +13,13 @@ import {
   type FitCoreStoreTransactionCommitResult,
   type FitCoreStoreTransactionReadResult,
 } from "./store-transaction";
+import {
+  defaultJarvisSettings,
+  defaultPersonalization,
+  defaultState,
+  type AppState,
+  type Personalization,
+} from "./types";
 
 export const FITCORE_RUNTIME_PERSISTENCE_POLICY = "fitcore_runtime_persistence_v1" as const;
 
@@ -161,6 +170,110 @@ const LIMITATIONS = [
 class LegacyJsonError extends Error {}
 class BrowserEnvironmentError extends Error {}
 class SecureRandomError extends Error {}
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function persistenceShape(value: unknown): unknown {
+  try {
+    if (Array.isArray(value)) {
+      const descriptors = Object.getOwnPropertyDescriptors(value);
+      const keys = Reflect.ownKeys(descriptors);
+      for (const key of keys) {
+        if (typeof key !== "string") return value;
+        if (key !== "length" && !/^(0|[1-9]\d*)$/.test(key)) return value;
+        if (!("value" in descriptors[key]!)) return value;
+      }
+      const result = new Array(value.length);
+      for (const key of keys) {
+        if (typeof key !== "string") return value;
+        if (key === "length") continue;
+        const descriptor = descriptors[key]!;
+        result[Number(key)] = persistenceShape(descriptor.value);
+      }
+      return result;
+    }
+    if (!record(value)) return value;
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) return value;
+    const descriptors = Object.getOwnPropertyDescriptors(value);
+    for (const key of Reflect.ownKeys(descriptors)) {
+      if (typeof key !== "string" || !("value" in descriptors[key]!)) return value;
+    }
+    const result: Record<string, unknown> = Object.create(prototype);
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+      if (descriptor.value === undefined) continue;
+      Object.defineProperty(result, key, {
+        configurable: true,
+        enumerable: true,
+        value: persistenceShape(descriptor.value),
+        writable: true,
+      });
+    }
+    return result;
+  } catch {
+    return value;
+  }
+}
+
+function compatibleLegacyState(value: unknown): AppState | unknown {
+  if (!record(value)) return value;
+  if (
+    !Number.isSafeInteger(value.version) ||
+    Number(value.version) < 1 ||
+    typeof value.onboardingComplete !== "boolean" ||
+    !record(value.profile)
+  )
+    return value;
+
+  const base = structuredClone(defaultState);
+  const legacy = value as Partial<AppState> & Record<string, unknown>;
+  const personalization = record(legacy.personalization)
+    ? (legacy.personalization as Partial<Personalization>)
+    : null;
+  return {
+    ...base,
+    ...legacy,
+    version: Math.max(base.version, Number(legacy.version)),
+    profile: { ...base.profile, ...legacy.profile },
+    nutritionTargets: record(legacy.nutritionTargets)
+      ? { ...base.nutritionTargets, ...legacy.nutritionTargets }
+      : (legacy.nutritionTargets ?? base.nutritionTargets),
+    personalization:
+      personalization === null
+        ? (legacy.personalization ?? base.personalization)
+        : {
+            ...defaultPersonalization,
+            ...personalization,
+            units: record(personalization.units)
+              ? { ...defaultPersonalization.units, ...personalization.units }
+              : (personalization.units ?? defaultPersonalization.units),
+            reminders: record(personalization.reminders)
+              ? { ...defaultPersonalization.reminders, ...personalization.reminders }
+              : (personalization.reminders ?? defaultPersonalization.reminders),
+            defaultGraphModes: record(personalization.defaultGraphModes)
+              ? {
+                  ...defaultPersonalization.defaultGraphModes,
+                  ...personalization.defaultGraphModes,
+                }
+              : (personalization.defaultGraphModes ?? defaultPersonalization.defaultGraphModes),
+          },
+    reminders: record(legacy.reminders)
+      ? { ...base.reminders, ...legacy.reminders }
+      : (legacy.reminders ?? base.reminders),
+    jarvisSettings: record(legacy.jarvisSettings)
+      ? { ...defaultJarvisSettings, ...legacy.jarvisSettings }
+      : (legacy.jarvisSettings ?? base.jarvisSettings),
+  } as AppState;
+}
+
+function preparedCompatibleLegacyState(value: unknown): unknown {
+  const compatible = persistenceShape(compatibleLegacyState(value));
+  const integrity = validateFitCoreDataIntegrity(compatible);
+  if (integrity.status === "invalid") return compatible;
+  return persistenceShape(migrateFitCoreDataIfNeeded(compatible as AppState));
+}
 
 function counts(): Counts {
   return {
@@ -462,7 +575,7 @@ export function createFitCoreRuntimePersistenceController(
     const committed = commitFitCoreStoreTransaction(dependencies.adapter, {
       expectedRevision: null,
       baseState: null,
-      nextState: legacy,
+      nextState: preparedCompatibleLegacyState(legacy),
       exportedAt,
       writeToken,
     });
@@ -520,7 +633,7 @@ export function createFitCoreRuntimePersistenceController(
       const transaction = commitFitCoreStoreTransaction(dependencies.adapter, {
         expectedRevision: snapshot.revision,
         baseState: snapshot.state,
-        nextState,
+        nextState: persistenceShape(nextState),
         exportedAt,
         writeToken,
       });

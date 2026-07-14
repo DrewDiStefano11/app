@@ -1,12 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
+  currentFitCoreState,
   expectDashboardReady,
-  FITCORE_DATA_VERSION,
-  FITCORE_STORAGE_KEY,
+  readPersistedFitCoreState,
+  seedRevisionedFitCoreState,
 } from "./helpers/fitcore-test-state";
 
-const RICH_STATE = {
-  version: FITCORE_DATA_VERSION,
+const RICH_STATE = currentFitCoreState({
   onboardingComplete: true,
   profile: {
     goal: "hypertrophy",
@@ -24,7 +24,7 @@ const RICH_STATE = {
       startedAt: Date.now() - 86400000,
       endedAt: Date.now() - 82800000,
       exercises: [],
-    }
+    },
   ],
   activeWorkout: null,
   mealEntries: [
@@ -37,14 +37,14 @@ const RICH_STATE = {
       carbs: 80,
       fat: 20,
       createdAt: Date.now() - 40000000,
-    }
+    },
   ],
   bodyweightEntries: [
     {
       id: "bw-rich-1",
       weightLb: 181.5,
       createdAt: Date.now() - 50000000,
-    }
+    },
   ],
   sleepEntries: [
     {
@@ -52,7 +52,7 @@ const RICH_STATE = {
       hours: 7.5,
       quality: 4,
       createdAt: Date.now() - 60000000,
-    }
+    },
   ],
   recoveryCheckIns: [
     {
@@ -63,39 +63,35 @@ const RICH_STATE = {
       motivation: 4,
       notes: "Feeling rich",
       createdAt: Date.now() - 30000000,
-    }
+    },
   ],
   muscleFatigue: {
-    chest: 20,
-    legs: 50,
+    chest: "moderate",
+    legs: "fatigued",
   },
   goals: [
     { id: "g-rich-1", type: "weekly_workouts", label: "Train 5x per week", target: 5, current: 2 },
   ],
   supplementLogs: [
-    { id: "sup-rich-1", supplementId: "whey", takenAt: Date.now() - 20000000, dosage: "1 scoop" },
+    { id: "sup-rich-1", name: "Whey", createdAt: Date.now() - 20000000, dose: "1 scoop" },
   ],
   progressPhotos: [
-    { id: "pho-rich-1", date: Date.now() - 10000000, url: "local://fake", angle: "front" }
+    {
+      id: "pho-rich-1",
+      dataUrl: "data:image/png;base64,AA==",
+      view: "front",
+      phase: "maintenance",
+      createdAt: Date.now() - 10000000,
+    },
   ],
-};
+});
 
 async function seedReloadableRichState(page: Page) {
-  await page.goto("/");
-  await page.evaluate(
-    ({ key, state }) => {
-      localStorage.clear();
-      localStorage.setItem(key, JSON.stringify(state));
-    },
-    { key: FITCORE_STORAGE_KEY, state: RICH_STATE }
-  );
-  await page.reload();
+  await seedRevisionedFitCoreState(page, RICH_STATE);
   await expectDashboardReady(page);
 }
 
-async function persistedState(page: Page) {
-  return page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}"), FITCORE_STORAGE_KEY);
-}
+const persistedState = readPersistedFitCoreState;
 
 async function assertNoFatalErrors(page: Page) {
   const bodyText = await page.locator("body").innerText();
@@ -119,12 +115,14 @@ test.describe("Rich state all-tabs smoke", () => {
 
   test.afterEach(async ({ page }) => {
     if (pageErrors.length > 0) {
-      throw new Error(`Fatal page errors occurred: ${pageErrors.map(e => e.message).join(', ')}`);
+      throw new Error(`Fatal page errors occurred: ${pageErrors.map((e) => e.message).join(", ")}`);
     }
     await assertNoFatalErrors(page);
   });
 
-  test("loads rich state safely, navigates all tabs, does not wipe data, handles reload", async ({ page }) => {
+  test("loads rich state safely, navigates all tabs, does not wipe data, handles reload", async ({
+    page,
+  }) => {
     // Scenario A — Rich state loads Home safely
     await seedReloadableRichState(page);
     await assertNoFatalErrors(page);
@@ -136,30 +134,30 @@ test.describe("Rich state all-tabs smoke", () => {
 
     // Scenario B — All main tabs render safely
     const sections = [
-      { name: 'Training', navButton: 'Train', heading: 'Training', exactNav: true },
-      { name: 'Nutrition', navButton: 'Fuel', heading: 'Nutrition', exactNav: true },
-      { name: 'Recovery', navButton: 'Recover', heading: 'Recovery', exactNav: true },
-      { name: 'Progress', navButton: 'Stats', heading: 'Progress', exactNav: true }
+      { name: "Training", navButton: "Train", heading: "Training", exactNav: true },
+      { name: "Nutrition", navButton: "Fuel", heading: "Nutrition", exactNav: true },
+      { name: "Recovery", navButton: "Recover", heading: "Recovery", exactNav: true },
+      { name: "Progress", navButton: "Stats", heading: "Progress", exactNav: true },
     ];
 
     for (const section of sections) {
-      await page.getByRole('button', { name: section.navButton, exact: section.exactNav }).click();
-      await expect(page.getByRole('heading', { name: section.heading })).toBeVisible();
+      await page.getByRole("button", { name: section.navButton, exact: section.exactNav }).click();
+      await expect(page.getByRole("heading", { name: section.heading })).toBeVisible();
       await assertNoFatalErrors(page);
     }
 
     await page.getByRole("button", { name: "Home", exact: true }).click();
     // Settings/Hub (Scenario B continued)
-    await page.getByRole('button', { name: 'Settings', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await page.getByRole("button", { name: "Settings", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
     await assertNoFatalErrors(page);
 
     // Scenario E — No stuck overlay / no blocked navigation
     // Close the hub safely
-    await page.getByRole('button', { name: 'Done' }).click();
+    await page.getByRole("button", { name: "Done" }).click();
 
     // Navigate back to Home to ensure nav is still usable
-    await page.getByRole('button', { name: 'Home' }).click();
+    await page.getByRole("button", { name: "Home" }).click();
     await expectDashboardReady(page);
     await assertNoFatalErrors(page);
 
@@ -173,8 +171,8 @@ test.describe("Rich state all-tabs smoke", () => {
 
     // Scenario D — Reload stability
     // Navigate to Recovery
-    await page.getByRole('button', { name: 'Recover', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Recovery' })).toBeVisible();
+    await page.getByRole("button", { name: "Recover", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Recovery" })).toBeVisible();
 
     // Reload
     await page.reload();
@@ -190,7 +188,7 @@ test.describe("Rich state all-tabs smoke", () => {
     expect(state.bodyweightEntries[0]?.id).toBe("bw-rich-1");
 
     // Final check for bottom nav functionality
-    await page.getByRole('button', { name: 'Home' }).click();
+    await page.getByRole("button", { name: "Home" }).click();
     await assertNoFatalErrors(page);
   });
 });

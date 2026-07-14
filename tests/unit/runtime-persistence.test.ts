@@ -266,6 +266,61 @@ test("valid legacy state migrates once through Task 7 and retains its source", (
   }
 });
 
+test("recognized partial historical legacy state completes safely before strict migration", () => {
+  const partial = {
+    version: 1,
+    onboardingComplete: true,
+    profile: {
+      goal: "hypertrophy",
+      experience: "intermediate",
+      daysPerWeek: 0,
+      split: "Push / Pull / Legs",
+      bodyweightLb: 180,
+      targetBodyweightLb: 185,
+      units: "lb",
+    },
+    workouts: [],
+    activeWorkout: null,
+    mealEntries: [],
+    bodyweightEntries: [],
+    goals: [],
+  };
+  const fixture = dependencies({ legacy: partial });
+  const controller = createFitCoreRuntimePersistenceController(fixture.value);
+  const result = controller.hydrate();
+
+  assert.equal(result.status, "legacy_migrated");
+  assert.equal(result.revision, 1);
+  assert.equal(result.state!.version, defaultState.version);
+  assert.equal(result.state!.onboardingComplete, true);
+  assert.equal(result.state!.profile.daysPerWeek, 0);
+  assert.equal(result.state!.profile.sleepGoalH, defaultState.profile.sleepGoalH);
+  assert.equal(Object.hasOwn(result.state!.profile, "name"), false);
+  assert.deepEqual(result.state!.workouts, []);
+
+  const writes = fixture.adapter.writes().length;
+  const second = createFitCoreRuntimePersistenceController(
+    dependencies({ adapter: fixture.adapter, legacy: state("ignored") }).value,
+  ).hydrate();
+  assert.equal(second.status, "ready");
+  assert.equal(second.revision, 1);
+  assert.equal(fixture.adapter.writes().length, writes);
+});
+
+test("legacy completion preserves present invalid values and rejects unrecognized partial data", () => {
+  for (const legacy of [
+    { version: 4, onboardingComplete: true, profile: { goal: 42 } },
+    { onboardingComplete: true, profile: {}, workouts: [] },
+    { version: 4, onboardingComplete: "true", profile: {}, workouts: [] },
+  ]) {
+    const fixture = dependencies({ legacy });
+    const result = createFitCoreRuntimePersistenceController(fixture.value).hydrate();
+    assert.equal(result.status, "blocked");
+    assert.equal(result.state, null);
+    assert.deepEqual(fixture.adapter.writes(), []);
+  }
+});
+
 test("invalid legacy data and dependency failures remain private and non-destructive", () => {
   for (const fixture of [
     dependencies({ legacy: { invalid: "private-legacy" } }),
@@ -304,6 +359,56 @@ test("successful commit uses verified base and replaces the controller snapshot"
   assert.equal(result.summary.generatedTokenCount, 1);
   assert.equal(result.summary.transactionWriteCount, 1);
   assert.deepEqual(controller.getCurrentSnapshot()!.state, next);
+});
+
+test("commit treats undefined object fields as missing without coercing invalid array entries", () => {
+  const fixture = dependencies({ exportedAt: LATER_AT, token: TOKEN_2 });
+  const controller = createFitCoreRuntimePersistenceController(fixture.value);
+  controller.hydrate();
+  const next = state();
+  next.profile.daysPerWeek = 0;
+  next.activeWorkout = {
+    id: "runtime-active",
+    name: "Workout",
+    startedAt: 1_700_000_000_000,
+    exercises: [],
+    provenance: {
+      source: "manual",
+      confidence: "high",
+      confirmation: "confirmed",
+      auditId: undefined,
+    },
+  };
+  const committed = controller.commit(next);
+  assert.equal(committed.status, "ready");
+  assert.equal(committed.state!.profile.daysPerWeek, 0);
+  assert.equal(Object.hasOwn(committed.state!.activeWorkout!.provenance!, "auditId"), false);
+
+  const writes = fixture.adapter.writes().length;
+  const invalid = structuredClone(committed.state!) as unknown as Record<string, unknown>;
+  invalid.goals = [undefined];
+  const rejected = controller.commit(invalid);
+  assert.equal(rejected.status, "blocked");
+  assert.equal(rejected.state, null);
+  assert.equal(fixture.adapter.writes().length, writes);
+
+  const accessorFixture = dependencies({ exportedAt: LATER_AT, token: TOKEN_2 });
+  const accessorController = createFitCoreRuntimePersistenceController(accessorFixture.value);
+  accessorController.hydrate();
+  const accessorState = state();
+  let accessorReads = 0;
+  Object.defineProperty(accessorState.profile, "name", {
+    configurable: true,
+    enumerable: true,
+    get: () => {
+      accessorReads += 1;
+      return "private-accessor";
+    },
+  });
+  const accessorResult = accessorController.commit(accessorState);
+  assert.equal(accessorResult.status, "blocked");
+  assert.equal(accessorResult.state, null);
+  assert.equal(accessorReads, 0);
 });
 
 test("no change preserves authoritative revision and token without storage writes", () => {
