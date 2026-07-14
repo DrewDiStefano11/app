@@ -8,7 +8,7 @@ Low. Core structural landmarks are often missing or misused (e.g., `span` instea
 
 ## Current responsive maturity
 
-Low-to-Medium. Broad grid structures exist via standard Tailwind breakpoints (`sm`, `md`, `lg`), but explicit CSS rules for small screen behavior (e.g., `min-w-[320px]`) are absent.
+Low-to-Medium. Broad grid structures exist via standard Tailwind breakpoints (`sm`, `md`, `lg`), but explicit CSS rules for small screen behavior (e.g., `min-w-[320px]`) are absent. Bottom navigation correctly implements safe-area insets, but other fixed overlays do not.
 
 ## Strongest implemented patterns
 
@@ -21,13 +21,14 @@ Low-to-Medium. Broad grid structures exist via standard Tailwind breakpoints (`s
 - Form fields in Nutrition and Recovery check-ins lack explicit `label` associations.
 - Reordering sets in `active-workout.tsx` uses pointer-only drag-and-drop.
 - Continuous animations lack `prefers-reduced-motion` media queries.
+- Custom overlays like `BottomSheet` and `ConfirmDialog` completely lack explicit ARIA roles, focus trapping, and Escape key dismissal logic.
 
 ## Prioritized probable risks requiring runtime verification
 
 - **Virtual keyboard overlap:** Probable risk of virtual keyboards obscuring inputs in `BottomSheet` and `jarvis-panel.tsx` on mobile devices.
 - **Horizontal overflow:** Probable overflow and text clipping on screens at or below 360px for complex active workout rows and history tables.
 - **Contrast:** Probable contrast failures for `text-muted-foreground` on various backgrounds, requiring computed measurement.
-- **Safe-area:** Probable safe-area overlap on fixed-positioned items like bottom navigation on mobile devices with notches.
+- **Safe-area:** Probable safe-area overlap on fixed-positioned items other than bottom navigation on mobile devices with notches.
 - **Focus trapping failure:** Focus trap leakage is a probable risk for custom popups built on `BottomSheet` since it lacks explicit trap code, requiring runtime testing.
 
 # 2. Method and evidence boundaries
@@ -51,7 +52,7 @@ Low-to-Medium. Broad grid structures exist via standard Tailwind breakpoints (`s
 - _Focus trap failure on `BottomSheet`_ -> Probable risk requiring browser verification.
 - _Virtual keyboard hiding inputs_ -> Probable keyboard-overlap risk requiring browser verification.
 - _Contrast failing WCAG_ -> Requires computed verification in a browser.
-- _Safe-area overlap_ -> Probable safe-area risk requiring browser verification.
+- _Safe-area overlap_ -> Probable safe-area risk requiring browser verification (except for Bottom Navigation which is confirmed correct).
 - _Touch targets measuring below threshold_ -> Probable risk requiring browser measurement.
 
 # 3. Surface inventory
@@ -89,7 +90,7 @@ Low-to-Medium. Broad grid structures exist via standard Tailwind breakpoints (`s
 - **Keyboard handlers:** Tab navigation is supported for native elements like `input` and `button`. Custom controls often lack keyboard interaction.
 - **Tab semantics:** Custom tab components (e.g., `SubTabs`) lack `role="tablist"` and arrow-key navigation.
 - **Segmented-control semantics:** Built with generic buttons, missing `role="radiogroup"` or similar grouping.
-- **Range inputs:** Custom range sliders in `src/components/app/views/recovery.tsx` often lack full keyboard accessibility if not native inputs.
+- **Range inputs:** Custom range sliders in `src/components/app/views/recovery.tsx` often lack full keyboard accessibility if not native inputs. (Native `<input type="range">` where used are confirmed keyboard accessible).
 - **Drag-only controls:** Reordering sets in `active-workout.tsx` relies on drag-and-drop without keyboard fallback.
 - **Active-workout controls:** Densely packed inputs rely heavily on tab-order without explicit logical grouping or shortcuts.
 - **Jarvis composer:** Basic input focus works, but complex chat navigation is undefined.
@@ -98,25 +99,37 @@ Low-to-Medium. Broad grid structures exist via standard Tailwind breakpoints (`s
 
 - **Focus-visible CSS:** Radix primitives provide baseline `:focus-visible` styling (`ring-2 ring-ring offset-2`).
 - **Custom controls:** Focus rings are frequently missing on custom SVG nodes, charts, and heatmaps.
-- **Zoom restrictions:** No restrictive `user-scalable=no` tags were found in standard viewport metadata, allowing native browser zooming.
+- **Zoom restrictions:** No restrictive `user-scalable=no` or `maximum-scale=1` tags were found in standard viewport metadata, allowing native browser zooming.
 
 # 7. Overlay semantics and focus behavior
 
-| Overlay Type  | Implementation                       | Native/Lib Semantics         | Explicit Roles/ARIA  | Focus Trapping | App-Specific Focus | Esc Behavior | Backdrop Behavior | Scroll Locking            | Unverified Runtime                      |
-| ------------- | ------------------------------------ | ---------------------------- | -------------------- | -------------- | ------------------ | ------------ | ----------------- | ------------------------- | --------------------------------------- |
-| BottomSheet   | `src/components/app/sheet.tsx`       | Custom Portal                | Missing              | Missing        | Unmanaged          | Yes          | Clicks to close   | Yes (`overflow="hidden"`) | Focus trap leakage, screen reader order |
-| Radix Dialog  | `src/components/ui/dialog.tsx`       | Radix `DialogPrimitive`      | `role="dialog"`      | Yes (by Radix) | Default            | Yes          | Clicks to close   | Yes                       | Focus restoration                       |
-| AlertDialog   | `src/components/ui/alert-dialog.tsx` | Radix `AlertDialogPrimitive` | `role="alertdialog"` | Yes (by Radix) | Default            | Yes          | Clicks to close   | Yes                       | Focus restoration                       |
-| Custom Popups | `src/components/app/popups/*`        | Uses `BottomSheet`           | Missing              | Missing        | Unmanaged          | Yes          | Clicks to close   | Yes                       | Focus trap leakage                      |
-| ConfirmDialog | `src/components/app/sheet.tsx`       | Custom Portal                | Missing              | Missing        | Unmanaged          | Yes          | Clicks to close   | None visible              | Focus trap leakage                      |
+| Overlay Type            | Native/Lib Semantics         | Explicit Roles/ARIA  | Initial Focus | Focus Restoration | Focus Trapping | Esc Behavior          | Backdrop Behavior             | Scroll Locking            | Unverified Runtime                      |
+| ----------------------- | ---------------------------- | -------------------- | ------------- | ----------------- | -------------- | --------------------- | ----------------------------- | ------------------------- | --------------------------------------- |
+| custom `BottomSheet`    | Custom Portal                | Missing              | Missing       | Missing           | Missing        | Confirmed Missing     | Confirmed Implemented (Click) | Yes (`overflow="hidden"`) | Focus trap leakage, screen reader order |
+| custom `ConfirmDialog`  | Custom Portal                | Missing              | Missing       | Missing           | Missing        | Confirmed Missing     | Confirmed Implemented (Click) | None visible              | Focus trap leakage, screen reader order |
+| Radix `Dialog`          | Radix `DialogPrimitive`      | `role="dialog"`      | Default       | Default           | Yes (by Radix) | Confirmed Implemented | Confirmed Implemented         | Yes                       | Focus restoration exact element         |
+| Radix `AlertDialog`     | Radix `AlertDialogPrimitive` | `role="alertdialog"` | Default       | Default           | Yes (by Radix) | Confirmed Implemented | Confirmed Implemented         | Yes                       | Focus restoration exact element         |
+| Popups on `BottomSheet` | Uses `BottomSheet`           | Missing              | Missing       | Missing           | Missing        | Confirmed Missing     | Confirmed Implemented (Click) | Yes                       | Focus trap leakage                      |
 
-**Note:** While Radix `Dialog` and `AlertDialog` provide built-in focus trapping, the heavily used `BottomSheet` and `ConfirmDialog` components do not implement focus trapping explicitly in source, making focus leakage a **probable risk** requiring runtime testing.
+**Note:** The custom `BottomSheet` and `ConfirmDialog` overlays completely lack Escape key listeners, `onKeyDown` handlers, explicit roles, and initial/restoration focus assignments in their source code. Their lack of focus trapping represents a probable accessibility hazard requiring assistive-technology verification.
+
+**Explicit Overlay Dismissal Verification:**
+
+- Custom `BottomSheet` Escape dismissal is **Confirmed missing**.
+- Custom `ConfirmDialog` Escape dismissal is **Confirmed missing**.
+- Backdrop click dismissal is **Confirmed implemented** for both.
+- Close-button dismissal is **Confirmed implemented** for `BottomSheet`.
+- Cancel-button dismissal is **Confirmed implemented** for `ConfirmDialog`.
+- Backdrop elements are not keyboard reachable, meaning keyboard users cannot close popups via the backdrop.
+- Runtime keyboard behavior from browser defaults is not assumed.
 
 # 8. Accessible names
 
 - **Labels and label associations:** `label` elements are present in `src/components/ui/label.tsx` but are frequently missing `htmlFor` associations to inputs in actual forms (e.g., Fuel meal logging).
 - **aria-label / aria-labelledby / aria-describedby:** Seldom used.
 - **Icon-button names:** Icon-only buttons (e.g., `X` for close, `ChevronLeft` for back) frequently lack explicit `aria-label` attributes or `sr-only` span fallbacks, particularly in custom sheet headers.
+- **ConfirmDialog buttons:** "Cancel" and "Confirm" buttons are textually labelled.
+- **BottomSheet close button:** The close button in `BottomSheet` (`<X size={18} />`) is confirmed to lack an `aria-label` or `sr-only` fallback text.
 
 # 9. Forms and validation semantics
 
@@ -175,8 +188,12 @@ Low-to-Medium. Broad grid structures exist via standard Tailwind breakpoints (`s
 
 # 19. Safe-area inventory
 
-- **Probable safe-area risk:** Bottom navigation (`src/components/app/bottom-nav.tsx`) uses `fixed bottom-0` but lacks explicit `padding-bottom: env(safe-area-inset-bottom)`.
+- **Global Safe-area:** There are no global safe-area CSS rules applied in the root `globals.css`.
+
+- **Confirmed implemented:** Bottom navigation (`src/components/app/bottom-nav.tsx`) successfully uses explicit bottom safe-area padding: `pb-[max(10px,env(safe-area-inset-bottom))]`.
 - **Probable safe-area risk:** Bottom sheets (`src/components/app/sheet.tsx`) have hardcoded heights (`max-h-[88dvh]`) that may interact poorly with top/bottom safe areas.
+- **Probable safe-area risk:** Jarvis composer and fixed actions outside of the bottom nav lack explicit safe area padding.
+- **Platform-specific effectiveness:** Remains requires browser verification for landscape and specific device notches.
 
 # 20. Virtual-keyboard risk inventory
 
@@ -196,7 +213,7 @@ Low-to-Medium. Broad grid structures exist via standard Tailwind breakpoints (`s
 
 # 22. Shared-component findings
 
-- **Sheets:** `BottomSheet` lacks explicit focus trapping source logic and ARIA roles.
+- **Sheets:** `BottomSheet` lacks explicit focus trapping source logic, ARIA roles, and Escape handlers.
 - **Popups:** Custom popups built on `BottomSheet` inherit its vulnerabilities.
 - **Inputs:** `Input` components are sound, but consuming forms fail to label them programmatically.
 - **Dialogs:** Radix primitives (`Dialog`, `AlertDialog`) are semantically sound.
@@ -212,14 +229,14 @@ Low-to-Medium. Broad grid structures exist via standard Tailwind breakpoints (`s
 2. Active workout set reordering is strictly pointer-driven.
 3. Form fields consistently lack programmatic `htmlFor` label associations.
 4. Continuous animations ignore `prefers-reduced-motion`.
-5. `BottomSheet` and `ConfirmDialog` lack semantic roles (`role="dialog"`).
+5. `BottomSheet` and `ConfirmDialog` lack semantic roles (`role="dialog"`), focus trapping, and Escape key listeners.
 
 # 25. Prioritized probable risks requiring runtime verification
 
 1. Virtual keyboard overlapping bottom-fixed inputs (Jarvis, Sheets).
 2. Horizontal overflow and clipping on tables and workout rows on viewports <= 360px.
 3. Contrast failures for muted text on domain backgrounds.
-4. Safe-area overlap on fixed bottom navigation.
+4. Safe-area overlap on fixed items (except Bottom Nav).
 5. Touch targets for dense icon controls measuring too small.
 6. Focus trap leakage and incorrect read order in `BottomSheet` popups due to missing trap logic.
 
