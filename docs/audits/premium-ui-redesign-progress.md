@@ -8,23 +8,26 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 
 - Phase: A — Early UI redesign
 - Branch: `codex/fitcore-premium-ui-foundation`
-- Current task: Task 2 complete; Task 3 is next
+- Current task: Task 3 complete; Task 4 is next
 - Task 2 starting SHA: `ea4214b82acc8cec6afa42e96b3aab44b35ae85a`
 - Task 2 ending SHA: the Task 2 commit at current `HEAD` (resolve through Git history)
 - Task 2 commit message: `feat(ui): redesign home daily view`
+- Task 3 starting SHA: `acbdee9bc695800c32a05d512f5a537967db712e`
+- Task 3 ending SHA: the Task 3 commit at current `HEAD` (resolve through Git history)
+- Task 3 commit message: `feat(ui): redesign home deep dive`
 - Working tree at task start: contained in-scope, uncommitted Task 2 draft files; no unrelated changes were present
 - Restricted Phase A files changed: none
 
 ## Task status
 
-| Task                                                  | Status      | Starting SHA                               | Ending SHA                                 | Commit                                           | Validation                                                                                    | Notes                                                                                                   |
-| ----------------------------------------------------- | ----------- | ------------------------------------------ | ------------------------------------------ | ------------------------------------------------ | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| 1 — Premium UI and visualization foundation           | Complete    | `d8d635683c2588a09ab3167a6d129d5899fdf977` | `ea4214b82acc8cec6afa42e96b3aab44b35ae85a` | `feat(ui): add premium visualization foundation` | TypeScript, build, 32 Chromium tests, responsive, keyboard, reduced motion                    | Shared tokens, surfaces, chart stack, comparison modes, focus mode, state components, visualization lab |
-| 2 — Home Daily View redesign                          | Complete    | `ea4214b82acc8cec6afa42e96b3aab44b35ae85a` | Task 2 commit at current `HEAD`            | `feat(ui): redesign home daily view`             | TypeScript, changed-file ESLint/Prettier, build, 117-test Chromium matrix, screenshot refresh | Premium action-first Home command center; no Home Deep Dive redesign                                    |
-| 3 — Home Deep Dive and universal comparison           | Not Started | —                                          | —                                          | —                                                | —                                                                                             | Next recommended task                                                                                   |
-| 4–14 — Remaining Phase A view and consistency tasks   | Not Started | —                                          | —                                          | —                                                | —                                                                                             | Execute sequentially                                                                                    |
-| 15 — Data Safety dependency check                     | Not Started | —                                          | —                                          | —                                                | —                                                                                             | Required before Phase B                                                                                 |
-| 16–21 — Data Safety integration through release audit | Blocked     | —                                          | —                                          | —                                                | —                                                                                             | Blocked until Data Safety & Persistence is merged and present on the redesign branch                    |
+| Task                                                  | Status      | Starting SHA                               | Ending SHA                                 | Commit                                           | Validation                                                                                      | Notes                                                                                                   |
+| ----------------------------------------------------- | ----------- | ------------------------------------------ | ------------------------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 1 — Premium UI and visualization foundation           | Complete    | `d8d635683c2588a09ab3167a6d129d5899fdf977` | `ea4214b82acc8cec6afa42e96b3aab44b35ae85a` | `feat(ui): add premium visualization foundation` | TypeScript, build, 32 Chromium tests, responsive, keyboard, reduced motion                      | Shared tokens, surfaces, chart stack, comparison modes, focus mode, state components, visualization lab |
+| 2 — Home Daily View redesign                          | Complete    | `ea4214b82acc8cec6afa42e96b3aab44b35ae85a` | Task 2 commit at current `HEAD`            | `feat(ui): redesign home daily view`             | TypeScript, changed-file ESLint/Prettier, build, 117-test Chromium matrix, screenshot refresh   | Premium action-first Home command center; no Home Deep Dive redesign                                    |
+| 3 — Home Deep Dive and universal comparison           | Complete    | `acbdee9bc695800c32a05d512f5a537967db712e` | Task 3 commit at current `HEAD`            | `feat(ui): redesign home deep dive`              | TypeScript, build, 369-case Chromium matrix, responsive, keyboard, reduced motion, data honesty | Premium analytical command center and honest session-only universal comparison builder                  |
+| 4–14 — Remaining Phase A view and consistency tasks   | Not Started | —                                          | —                                          | —                                                | —                                                                                               | Execute sequentially                                                                                    |
+| 15 — Data Safety dependency check                     | Not Started | —                                          | —                                          | —                                                | —                                                                                               | Required before Phase B                                                                                 |
+| 16–21 — Data Safety integration through release audit | Blocked     | —                                          | —                                          | —                                                | —                                                                                               | Blocked until Data Safety & Persistence is merged and present on the redesign branch                    |
 
 ## Completed shared foundations
 
@@ -50,7 +53,91 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 
 ## Completed Deep Dives
 
-- None beyond the shared Task 1 visualization foundation. Home Deep Dive remains Task 3.
+### Home
+
+- Premium analytical header with active range and current data-quality status
+- Current FitCore Score with existing Training, Nutrition, and Recovery contributor contracts
+- Universal comparison builder spanning timestamped Training, Nutrition, Recovery, and Progress logs
+- Raw, percentage-change, indexed-baseline, and aligned display modes with line, area, and bar chart choices
+- Controlled metric add, remove, visibility, range, exact-date, focus, table, reset, rename, duplicate, and session-only save behavior
+- Honest presets that remain visible when a required historical analytics contract is unavailable
+- More-than-five-series and incompatible-unit warnings that preserve every selection and keep raw rendering to two axes
+- Cross-domain training, recovery, nutrition, bodyweight, Momentum, goal, heatmap, evidence, and underlying-data sections
+- Explicit unsupported states for historical FitCore Score, readiness, recovery, Momentum, goal progress, and correlation instead of fabricated series
+- Predictable return to Home Daily View with comparison-preview focus continuity
+
+## Task 3 files
+
+### Created
+
+- `src/components/app/views/home-deep-dive-premium.tsx`
+- `tests/e2e/home-deep-dive-premium-redesign.spec.ts`
+
+### Modified
+
+- `docs/audits/premium-ui-redesign-progress.md`
+- `src/components/app/sheet.tsx`
+- `src/components/app/views/home-daily-premium.tsx`
+- `src/components/app/views/home.tsx`
+- `src/routes/index.tsx`
+- `src/styles.css`
+- `tests/e2e/app-pr-gate-smoke.spec.ts`
+- `tests/e2e/no-fatal-app-errors-smoke.spec.ts`
+- `tests/e2e/reload-stability-smoke.spec.ts`
+- `tests/e2e/training-daily-view-panels-smoke.spec.ts`
+
+## Task 3 preserved-feature inventory
+
+- Home route, Home tab, bottom navigation, Settings, Jarvis, Recent Activity, and active-workout restoration
+- Home Daily View score, priority, comparison preview, analytics stack, heatmap, nutrition, goals, quick actions, and all existing sheets
+- Score, readiness, recovery, Momentum, training-volume, macro, heatmap, and muscle detail access
+- Daily/Deep Dive selection and predictable return without resetting unrelated Home state
+- Task 1 visualization lab, comparison modes, exact-date keyboard navigation, focus mode, and accessible data table
+
+## Task 3 comparison-builder capabilities
+
+- Default two-series Training volume versus Calories comparison
+- 13 real timestamped metrics from workout, cardio, meal, sleep, recovery check-in, and bodyweight records
+- Add, remove, show, hide, range selection, line/area/bar type, raw, normalized, indexed, and aligned modes
+- Redundant domain, label, unit, marker, accessible legend, and table identification beyond color
+- At most two raw-value axes with explicit incompatible-unit guidance
+- Complexity guidance above five visible series without discarding selections
+- Exact-date inspection, keyboard date navigation, full-screen focus, and narrow-screen underlying-data table
+- Six requested presets with transparent unavailable-contract or insufficient-history explanations
+- Controlled rename, duplicate, clear/reset, and explicitly session-only save/recent behavior; no persistence claim
+
+## Task 3 analytics contracts consumed
+
+- `fitcoreScore`, `trainingConsistencyScore`, `nutritionAdherenceScore`, `readinessScore`, `recoveryScore`, `momentumScore`, `workoutVolume`, and `muscleMap` from the existing read-only analytics contract
+- Existing `AppState` workout, cardio, meal, sleep, recovery-check-in, bodyweight, goal, target, and profile records
+- No analytics implementation, analytics unit test, formula, schema, store, persistence, or revision contract was modified
+- No supported thresholded correlation contract exists, so correlation is explicitly unavailable and no local coefficient is calculated
+
+## Task 3 validation
+
+- Focused Task 3 suite: 18/18 across desktop Chromium, mobile 360×800, and mobile 390×844
+- Complete repository Chromium matrix: 357/369 on the first full pass; 12 selector-only failures corrected and rerun across all three projects; final unique result 369/369 passing
+- Selector-correction reruns: 15/18 followed by the remaining reload-stability correction at 3/3
+- TypeScript: pass (`node_modules\.bin\tsc.cmd --noEmit`)
+- Changed-file ESLint: pass with zero warnings
+- Changed-file Prettier: pass
+- Production build: pass
+- `git diff --check`: pass
+- Responsive screenshots reviewed at 320, 360, 390, 430, 480, and 1280 px
+- States reviewed: default two-series, preset, raw, normalized/indexed/aligned, complexity, incompatible units, partial/insufficient data, correlation unavailable, focus mode, underlying table, mobile metric sheet, keyboard focus, and reduced motion
+- Accessibility: semantic headings/tables, named icon controls, screen-reader selection/status announcements, non-color series labels, focus containment/restoration, Escape dismissal, logical keyboard order, and touch targets verified
+- Overflow: no page-level horizontal overflow at any required mobile width; desktop expands to an intentional 1120 px workspace
+- Reduced motion: transitions and animations collapse to near-zero duration and scroll behavior remains automatic
+- Restricted Phase A files changed: none
+- Analytics implementation or analytics unit-test files changed: none
+- Generated screenshots, reports, traces, videos, build output, and temporary Playwright configuration tracked: none
+
+## Task 3 known limitations
+
+- Session saves, names, duplicates, selected series, and builder configuration intentionally reset after reload in Phase A.
+- Historical FitCore Score, readiness, recovery, Momentum, and goal-progress series remain unavailable until supported read-only analytics contracts exist.
+- Correlation remains unavailable because the current analytics layer does not expose a thresholded result with sample size, confidence, direction, and strength.
+- Comparison-period overlays and persistent chart libraries remain deferred rather than simulated.
 
 ## Pending Data Safety integration
 
@@ -163,7 +250,7 @@ Visual review confirmed clear hierarchy, readable controls, stable horizontal ch
 
 ## Deferred future work
 
-- Full Home Deep Dive and universal comparison builder
+- Saved chart persistence and permanent chart-library behavior for the completed Home Deep Dive
 - Saved chart persistence, chart library, and persistent stack position
 - Remaining Daily Views and Deep Dives
 - Cross-view responsive/accessibility consistency pass
@@ -178,4 +265,4 @@ Visual review confirmed clear hierarchy, readable controls, stable horizontal ch
 
 ## Next recommended task
 
-Task 3 — redesign Home Deep Dive and implement the full universal comparison experience using the Task 1 visualization foundation and Task 2 navigation context.
+Task 4 — Redesign the Training Daily View
