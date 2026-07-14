@@ -56,6 +56,7 @@ import { GRAPH_PREFS, usePersistentState } from "@/lib/persist";
 import { isToday, useStore } from "@/lib/store";
 import type { AppState, SectionId } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { HomeDailyPremiumView } from "@/components/app/views/home-daily-premium";
 
 type Popup =
   | null
@@ -86,6 +87,10 @@ export function HomeView({
   const name = (state.profile as { name?: string }).name ?? "ATHLETE";
   const streak = useMemo(() => trainingStreak(view), [view]);
   const weekVol = useMemo(() => totalVolumeInRange(view, 7), [view]);
+  const todayLabel = useMemo(
+    () => new Date().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }),
+    [],
+  );
 
   const [popup, setPopup] = useState<Popup>(null);
   const [muscle, setMuscle] = useState<string | null>(null);
@@ -98,6 +103,7 @@ export function HomeView({
           <h1 className="home-command-title">
             Good Morning, <span>{name}</span>
           </h1>
+          <p className="home-command-date">Today &middot; {todayLabel}</p>
           <div className="home-status-strip">
             <span className="home-status-chip">
               <Flame size={12} />
@@ -125,7 +131,13 @@ export function HomeView({
         <ViewModeToggle mode={layoutMode} onModeChange={onLayoutModeChange} />
 
         {layoutMode === "daily" ? (
-          <HomeDailyView setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
+          <HomeDailyPremiumView
+            onOpen={(next) => setPopup(next)}
+            onOpenMuscle={setMuscle}
+            onOpenDeepDive={() => onLayoutModeChange("deepDive")}
+            onOpenProgress={() => onNavigate("progress")}
+            onResumeWorkout={() => onNavigate("training")}
+          />
         ) : (
           <HomeDeepDive setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
         )}
@@ -163,7 +175,7 @@ export function HomeView({
   );
 }
 
-function HomeDailyView({
+export function HomeDailyView({
   setPopup,
   setMuscle,
   onNavigate,

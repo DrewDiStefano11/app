@@ -245,6 +245,8 @@ export function ComparisonChart({
   quality = { state: "ready" },
   annotations = [],
   animate = true,
+  compact = false,
+  onFocus,
 }: {
   title: string;
   description?: string;
@@ -259,6 +261,8 @@ export function ComparisonChart({
   quality?: DataQualityDetails;
   annotations?: { date: string; label: string }[];
   animate?: boolean;
+  compact?: boolean;
+  onFocus?: () => void;
 }) {
   const [hidden, setHidden] = useState<string[]>(
     series.filter((item) => item.hidden).map((item) => item.id),
@@ -381,14 +385,24 @@ export function ComparisonChart({
     );
 
   return (
-    <PremiumCard className="premium-chart-shell" as="section">
+    <PremiumCard
+      className={cn("premium-chart-shell", compact && "premium-chart-shell--compact")}
+      as="section"
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="eyebrow">Comparison</p>
           <h3 className="mt-1 text-lg font-semibold">{title}</h3>
           {description && <p className="mt-1 text-xs leading-5 text-white/45">{description}</p>}
         </div>
-        <DataQualityBadge quality={quality} compact />
+        <div className="flex shrink-0 items-center gap-2">
+          <DataQualityBadge quality={quality} compact />
+          {onFocus && (
+            <button className="premium-icon-action" type="button" onClick={onFocus}>
+              <Expand size={15} /> Focus
+            </button>
+          )}
+        </div>
       </div>
       {excessive && (
         <div className="premium-chart-warning" role="status">
