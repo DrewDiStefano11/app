@@ -23,14 +23,15 @@ User Input (Text/Voice) -> Mode/Context Builder -> MLX Swift Runtime (Llama 3.2 
 This document defines a bounded feasibility candidate set. Final selection depends on physical device benchmarks.
 
 
-Preferred Feasibility Configuration:
-1B-3B model candidates (Llama 3.2, Qwen 2.5) in 4-bit quantization
+User Input
     ↓
-MLX Swift or llama.cpp evaluation
+Deterministic Routing and Context Builder
     ↓
-Swift provider wrapper
+Approved JarvisModelProvider
     ↓
-Bounded context and structured FitCore tool calls
+Streamed Structured Output
+    ↓
+Validated Tool Request or User Response
 
 Optional iPhone 16 enhancement:
 Apple Foundation Models behind the same provider interface
@@ -101,26 +102,24 @@ Apple Foundation Models behind the same provider interface
 
 ## 6. Candidate-model comparison
 
-| Exact Official Identifier | Publisher | Parameters | Expected Quantized Formats | Tool Support | License | Known Mobile Constraints | Reason to Benchmark | Primary Risk |
-|---------------------------|-----------|------------|----------------------------|--------------|---------|--------------------------|---------------------|--------------|
-| `meta-llama/Llama-3.2-3B-Instruct` | Meta | 3.2B | GGUF, MLX safetensors | Yes | Llama 3.2 (Custom) | Memory pressure on 6GB RAM devices | Strong tool calling | Jetsam terminations on iPhone 15 |
-| `meta-llama/Llama-3.2-1B-Instruct` | Meta | 1.23B | GGUF, MLX safetensors | Yes | Llama 3.2 (Custom) | Weaker reasoning capacity | Safely fits in 6GB RAM | Tool calling accuracy drops |
-| `Qwen/Qwen2.5-1.5B-Instruct` | Alibaba | 1.5B | GGUF, MLX safetensors | Yes | Apache 2.0 | Weaker reasoning | Excellent size-to-performance ratio | Hallucination on complex tasks |
-
-*(Parameter counts and licenses verified via official HuggingFace model cards)*
+| Exact Official Identifier | Publisher | Parameters | Release/Revision | License | Official Model Card | Tool/Structured Output | Expected Formats | Mobile Constraints | Reason to Test | Primary Risk |
+|---------------------------|-----------|------------|------------------|---------|---------------------|------------------------|------------------|--------------------|----------------|--------------|
+| `meta-llama/Llama-3.2-3B-Instruct` | Meta | 3.2B | Sept 2024 | Llama 3.2 | [Link](https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD.md) | Yes | GGUF, MLX | Memory pressure on 6GB RAM | Strong tool calling baseline | Jetsam terminations on iPhone 15 |
+| `meta-llama/Llama-3.2-1B-Instruct` | Meta | 1.23B | Sept 2024 | Llama 3.2 | [Link](https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD.md) | Yes | GGUF, MLX | Weaker reasoning | Safely fits in 6GB RAM | Tool calling accuracy drops |
+| `Qwen/Qwen2.5-1.5B-Instruct` | Alibaba | 1.5B | Sept 2024 | Apache 2.0 | [Link](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct) | Yes | GGUF, MLX | Weaker reasoning | Excellent size-to-performance ratio | Hallucination on complex tasks |
 
 ## 7. Preferred feasibility candidates
 
 The final model selection is subject to strict performance gating. We will evaluate the following initial candidate set:
 
-1. **Llama 3.2 3B Instruct** (Primary ~3B candidate)
-2. **Qwen 2.5 1.5B Instruct** (Primary ~1.5B candidate, fallback for strict memory constraints)
-3. **Llama 3.2 1B Instruct** (Secondary ~1B candidate)
+1. `meta-llama/Llama-3.2-3B-Instruct` (~3B candidate)
+2. `Qwen/Qwen2.5-1.5B-Instruct` (~1.5B candidate)
+3. `meta-llama/Llama-3.2-1B-Instruct` (~1B candidate)
 
 For the preferred ~3B candidate define testing ranges:
-* **Context range:** 4k - 8k tokens
+* **Context range:** Provisional (e.g., 4k - 8k tokens, set from measured results)
 * **Stop conditions:** Standard tokenizer-specific tokens (e.g., `eot_id`, `eom_id`)
-* **Maximum output limits:** ~150-250 tokens per turn
+* **Maximum output limits:** Provisional limit (e.g., 150-250 tokens, set from approved rubric)
 * **Tool-call behavior:** Official model tool calling prompt format
 * **Required attribution:** Varies by license (e.g., "Built with Llama")
 
@@ -139,7 +138,7 @@ Quantization formats differ significantly between runtimes (e.g., MLX uses speci
 **Strategy:** Mobile Bounded Context
 While Llama 3.2 supports up to 128k context, this is prohibitively expensive in memory and processing time (Time to First Token) on a mobile device.
 
-* **Recommended initial practical context range:** 4096 tokens.
+* **Recommended initial practical context range:** Provisional length (e.g., 4096 tokens).
 * **Context-overflow handling:** FIFO sliding window for recent turns, combined with a rolling summary of older turns.
 * **Summary refresh:** When context reaches 80% of limit, summarize the oldest 50% of the active conversation.
 * **Record truncation:** Database query results passed to tools must be aggressively truncated (e.g., top 5 records) before entering the prompt.
@@ -148,10 +147,10 @@ While Llama 3.2 supports up to 128k context, this is prohibitively expensive in 
 
 ## 10. Inference-runtime comparison
 
-| Runtime | Official Repository | Current Release/Tag | iOS support | Swift integration approach | Metal support | Supported model formats | Streaming | Cancellation | License | Known mobile integration risks |
-|---------|---------------------|---------------------|-------------|----------------------------|---------------|-------------------------|-----------|--------------|---------|--------------------------------|
-| MLX Swift | `ml-explore/mlx-swift` | Check repo | Yes | Native Swift API wrapper | Yes (Unified Mem) | MLX (.safetensors) | Yes | Yes | MIT | Fast changing API |
-| llama.cpp | `ggerganov/llama.cpp` | Check repo | Yes | C++ interop wrapper | Yes | GGUF | Yes | Yes | MIT | C++ interop complexity |
+| Runtime | Official Repository | Current Release/Tag | Swift integration approach | Supported model formats | Streaming | Cancellation | License | Known mobile integration risks |
+|---------|---------------------|---------------------|----------------------------|-------------------------|-----------|--------------|---------|--------------------------------|
+| MLX Swift | `ml-explore/mlx-swift` | `v0.21.0` (or latest pinned) | Native Swift API wrapper | MLX (.safetensors) | Yes | Yes | MIT | Fast changing API |
+| llama.cpp | `ggerganov/llama.cpp` | `b4600` (or latest pinned) | C++ interop wrapper | GGUF | Yes | Yes | MIT | C++ interop complexity |
 
 ## 11. Final runtime selection
 
@@ -203,6 +202,25 @@ Provider output must never bypass tool validation, permissions, or FitCore servi
 
 ### Provider Abstraction Diagram
 ```text
+FitCore Services
+    ↕
+Tool Gateway
+    ↕
+JarvisModelProvider
+    ├─ Approved common local provider
+    ├─ Apple Foundation Models provider on eligible systems
+    └─ Explicitly enabled optional provider
+
+App Intents
+    └─ Separate system-integration layer for exposing approved FitCore actions and entities
+```
+
+* App Intents is not a model provider.
+* App Intents does not select a model.
+* App Intents does not replace the tool gateway.
+* App Intents does not authorize writes.
+* Apple Foundation Models availability is independently determined.
+text
 FitCore Services <--> Tool Gateway <--> JarvisModelProvider Interface <--> MLX Swift (Candidate)
                                                                       <--> App Intents (Opt iPhone 16)
 ```
@@ -214,8 +232,8 @@ FitCore Services <--> Tool Gateway <--> JarvisModelProvider Interface <--> MLX S
 * required on iPhone 16;
 * baseline behavior and tool contracts.
 
-### Optional iPhone 16 provider (Apple Foundation Models)
-* **Apple Foundation Models framework:** An on-device model API provided by Apple on eligible devices and operating systems. This serves as an optional provider candidate. Availability is determined by official framework eligibility and runtime checks, and is not guaranteed on a regular iPhone 15. This must remain behind the `JarvisModelProvider` interface.
+### Optional provider (Apple Foundation Models)
+* **Apple Foundation Models framework:** An on-device model API provided by Apple on eligible systems. This serves as an optional provider candidate. Availability is determined by official framework eligibility and runtime checks, and is not guaranteed on a regular iPhone 15. This must remain behind the `JarvisModelProvider` interface. Supported capabilities, guided-generation features, privacy, and on-device characteristics are strictly defined by Apple's official Developer documentation. It is not tied strictly to the "iPhone 16" but rather to the hardware capabilities defined by Apple (e.g., specific Neural Engine and RAM configurations).
 * **App Intents:** A system integration mechanism for exposing application actions and entities to Apple system experiences. App Intents may complement Jarvis, but it is not the language-model runtime, does not replace the FitCore tool gateway, does not authorize writes, and does not determine whether Jarvis should route a reasoning request to Apple Foundation Models.
 
 ### Provider-Routing Logic
@@ -237,7 +255,7 @@ Selected local model provider available?
 
 ## 15. Tool-calling representation
 
-Structured tool-request format: JSON Schema conforming to Llama 3's expected tool calling structure.
+Provider output is normalized into the approved Jarvis tool-request envelope.
 
 ```json
 {
@@ -248,6 +266,8 @@ Structured tool-request format: JSON Schema conforming to Llama 3's expected too
   },
   "turn_id": "turn-123",
   "request_id": "req-456",
+  "context_version": "v1.0",
+  "provider_identifier": "local-mlx",
   "diagnostics": {
     "confidence": 0.95
   }
@@ -259,7 +279,7 @@ Structured tool-request format: JSON Schema conforming to Llama 3's expected too
 * Argument validation is performed strictly against predefined schemas.
 * Maximum tool iterations: 3 per user request to prevent loops.
 * No text extraction from prose if structured output is available.
-* Model-generated confidence (e.g., 0.95) must never affect authorization.
+* A model-generated confidence value may exist only as optional diagnostics and cannot affect authorization.
 
 ### Tool-Call Generation and Validation Flow
 ```text
@@ -434,7 +454,7 @@ The iPhone 16 cannot compensate for an iPhone 15 failure.
 |---------|-----------|-----------------------|--------------------|-------------|
 | OOM / Jetsam | OS memory warning | "I need a moment to think" | Unload, switch to 1B model | Prevent crash loop |
 | Malformed tool request | JSON parse failure | None (internal retry) | Bounded repair (1x) | Never execute invalid tool |
-| Timeout | Generation takes > 10s | "I'm having trouble processing that" | Degraded/Offline deterministic mode | Bounded wait |
+| Timeout | Generation exceeds provisional timeout | "I'm having trouble processing that" | Degraded/Offline deterministic mode | Bounded wait |
 | Model Missing | Check load | "I'm downloading my brain" | Prewritten explanations | No ops |
 
 ### Failure and Deterministic-Fallback Flow
@@ -448,30 +468,30 @@ Model Operation Error -> Is Retryable? -> Yes -> Retry (Max 1x)
 
 ## 31. Rejected approaches
 
-* **Cloud-only model:** Violates core requirement of offline availability and privacy.
-* **Apple Foundation Models as ONLY provider:** Violates requirement to support standard iPhone 15.
-* **
-* **8-bit Quantization:** May present memory tradeoffs that require strict device validation on the iPhone 15 to ensure FitCore UI stability.
+Architectural violations that are explicitly rejected before benchmarking:
+* **Mandatory cloud-only core:** Violates core requirement of offline availability and privacy.
+* **Direct model persistence access:** All writes must go through the deterministic Tool Gateway.
+* **No deterministic fallback:** The system must gracefully handle model failures.
+* **Provider-specific tool permissions:** Permissions must be enforced uniformly at the gateway.
+* **No cancellation:** Immediate task cancellation is a hard requirement.
+* **Silent external processing:** Explicit user consent is required for any optional cloud providers.
 
 ## 32. Final recommendation summary
 
-* **Preferred Model Candidates:** Llama 3.2 3B Instruct, Qwen 2.5 1.5B
-* **Preferred Runtime Candidates:** MLX Swift, llama.cpp
-* **Swift integration:** Custom provider abstraction
-* **Quantization:** 4-bit (INT4)
-* **Context range:** 4096 tokens
-* **Reasoning policy:** Non-thinking default
-* **Tool-call format:** Llama 3 JSON Tool Schema
-* **Provider abstraction:** `JarvisModelProvider` protocol
-* **Optional iPhone 16 strategy:** Phase 2 enhancement via App Intents
-* **Most important unresolved risk:** Jetsam memory terminations on iPhone 15 with 6GB RAM running a 2.6GB model alongside FitCore UI.
-* **Required feasibility gate:** Sustained 10-turn memory stress test on physical iPhone 15.
+* **Bounded Candidate Model Classes:** 1B-1.5B and 2B-4B class models.
+* **Candidate Runtimes:** MLX Swift, llama.cpp.
+* **Benchmark Dimensions:** Tokens/sec, peak memory, TTFT, cancellation latency, tool accuracy.
+* **Binding Gate:** Regular iPhone 15 performance and stability (no Jetsam terminations).
+* **Provider Abstraction:** Common `JarvisModelProvider` interface.
+* **Fallback:** Deterministic fallback mode.
+* **Optional Provider:** Apple Foundation Models on eligible systems.
+* **Final Selection:** Unresolved. Requires physical-device benchmark results.
 
 ## 33. References
 
-* MLX Swift Official Documentation: https://swiftpackageindex.com/ml-explore/mlx-swift (Accessed 2026-07-15)
+* MLX Swift Official Repository (Apple/ml-explore): https://github.com/ml-explore/mlx-swift (Accessed 2026-07-15)
 * Llama 3.2 Model Card (Meta): https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD.md (Accessed 2026-07-15)
-* Qwen 2.5 Model Details: https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct (Accessed 2026-07-15)
-* Apple Foundation Models / Intelligence Requirements: https://support.apple.com/en-us/121115 (Accessed 2026-07-15)
-* llama.cpp Official Repository: https://github.com/ggerganov/llama.cpp (Accessed 2026-07-15)
+* Qwen 2.5 Model Card (Alibaba): https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct (Accessed 2026-07-15)
+* Apple Foundation Models / App Intents Developer Documentation: https://developer.apple.com/documentation/appintents (Accessed 2026-07-15)
+* llama.cpp Official Repository (ggerganov): https://github.com/ggerganov/llama.cpp (Accessed 2026-07-15)
 * Llama 3.2 Community License: https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/LICENSE (Accessed 2026-07-15)
