@@ -52,7 +52,7 @@
 
 ### Owned by FitCore/Jarvis Operations
 
-- **Native application**: Releasing the containing iOS/Capacitor shell and verifying its crash rates.
+- **Native application**: Releasing the containing iOS/selected feasibility candidate shell and verifying its crash rates.
 - **Web application**: Deploying the Vite/React core app (`__root.tsx`, `router.tsx`) and checking `serviceWorker` registrations.
 - **Bridge protocol**: Verifying message passing integrity.
 - **Deterministic parser**: Maintaining local offline text-command parsers.
@@ -63,7 +63,7 @@
 - **Model assets**: Managing download availability, integrity checksums, and version matching.
 - **Tool gateway**: Confirming execution context between Jarvis and FitCore services.
 - **FitCore canonical services**: Validating that Jarvis commands properly write to standard storage (`src/lib/store.tsx`).
-- **Memory storage**: Managing local SQLite/localStorage AI memory schemas.
+- **Memory storage**: Managing approved Jarvis memory store (e.g., approved structured retrieval) schemas.
 - **Model registry**: Maintaining lists of safe and revoked models.
 - **Optional provider**: Rotating API keys, setting request limits, and disabling on incident.
 - **Diagnostics**: Collecting privacy-safe `AiDiagnostics` (e.g. from `src/components/app/jarvis/jarvis-panel.tsx`).
@@ -101,25 +101,27 @@ Revoked          - Component is permanently blocked (e.g., known compromised mod
 
 ## Component inventory and health checks
 
-| Component              | Health check                           | Healthy result   | Degraded result         | Failure fallback         |
-| ---------------------- | -------------------------------------- | ---------------- | ----------------------- | ------------------------ |
-| Native bridge          | Ping/Pong heartbeat                    | Bridge active    | Slow response           | Use web-only UI          |
-| Microphone permission  | OS permission check                    | Granted          | Intermittent audio      | Text-only input          |
-| Audio session          | Audio route active                     | Active           | Background interruption | Reinitialize session     |
-| Speech recognizer      | Initialization check                   | Ready            | High latency            | Deterministic/Text input |
-| Endpoint detector      | Silence detection test                 | Functional       | Missing endpoints       | Manual 'Stop' button     |
-| Deterministic parser   | Offline parse capability               | Ready            | Grammar limits hit      | System error             |
-| Local agent model      | Load and checksum test                 | Loaded           | Slow inference          | Deterministic parser     |
-| Model provider (Cloud) | Connection test                        | Reachable        | Rate limited            | Local agent model        |
-| TTS                    | Audio playback test                    | Ready            | Network TTS blocked     | System default TTS       |
-| Tool gateway           | Contract version match                 | Matched          | Deprecated tool use     | Reject execution         |
-| Canonical services     | Store write test (`src/lib/store.tsx`) | Write successful | Store locked            | Abort operation          |
-| Memory store           | Schema validation                      | Valid            | Partial corruption      | Ignore corrupted rows    |
-| Model registry         | Integrity manifest check               | Verified         | Stale manifest          | Block new downloads      |
-| Model files            | SHA256 checksum                        | Verified         | File missing            | Prompt repair            |
-| Available storage      | Space check                            | > 1GB free       | Space warning           | Stop downloads           |
-| Optional provider      | API key validation                     | Valid            | Cap reached             | Local agent model        |
-| Network state          | `navigator.onLine`                     | Online           | Poor connection         | Offline mode             |
+| Component              | Health check                                                                                      | Healthy result                                                                         | Degraded result         | Failure fallback                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ----------------------- | ---------------------------------------------------------------------------------------- |
+| Native bridge          | Ping/Pong heartbeat                                                                               | Bridge active                                                                          | Slow response           | Use web-only UI                                                                          |
+| Microphone permission  | OS permission check                                                                               | Granted                                                                                | Intermittent audio      | Text-only input                                                                          |
+| Audio session          | Audio route active                                                                                | Active                                                                                 | Background interruption | Reinitialize session                                                                     |
+| Speech recognizer      | Initialization check                                                                              | Ready                                                                                  | High latency            | Deterministic/Text input                                                                 |
+| Endpoint detector      | Silence detection test                                                                            | Functional                                                                             | Missing endpoints       | Manual 'Stop' button                                                                     |
+| Deterministic parser   | Offline parse capability                                                                          | Ready                                                                                  | Grammar limits hit      | Safe no-match, route to conversational model, concise clarification, or text UI fallback |
+| Local agent model      | Load and checksum test                                                                            | Loaded                                                                                 | Slow inference          | Deterministic parser                                                                     |
+| Model provider (Cloud) | Connection test                                                                                   | Reachable                                                                              | Rate limited            | Local agent model                                                                        |
+| TTS                    | Audio playback test                                                                               | Ready                                                                                  | Network TTS blocked     | System default TTS                                                                       |
+| Tool gateway           | Contract version match                                                                            | Matched                                                                                | Deprecated tool use     | Reject execution                                                                         |
+| Canonical services     | Schema and service initialization, read-only service availability, or checking persistence status | Initialized / Reachable                                                                | Store locked            | Abort operation                                                                          |
+| Memory store           | Schema validation                                                                                 | Valid                                                                                  | Partial corruption      | Ignore corrupted rows                                                                    |
+| Model registry         | Integrity manifest check                                                                          | Verified                                                                               | Stale manifest          | Block new downloads                                                                      |
+| Model files            | SHA256 checksum                                                                                   | Verified                                                                               | File missing            | Prompt repair                                                                            |
+| Available storage      | Space check                                                                                       | Dynamically computed based on asset size, temp space, rollback copy, and safety buffer | Space warning           | Stop downloads                                                                           |
+| Optional provider      | API key validation                                                                                | Valid                                                                                  | Cap reached             | Local agent model                                                                        |
+| Network state          | OS reachability as a hint, bounded request, timeout                                               | Online                                                                                 | Poor connection         | Offline mode                                                                             |
+
+_Note:_ Production startup and status checks must never create, edit, or delete workout, nutrition, recovery, sleep, goal, or body-metric records to prove functionality. The manifest and model manager should compute required storage dynamically. Core local operation must not depend on successful network health checks.
 
 ## Jarvis status summary
 
@@ -192,8 +194,8 @@ SPEECH_RECOGNITION    - STT latency, endpointing accuracy, failure.
 TURN_ROUTING          - Model vs. deterministic parser choice.
 MODEL_INFERENCE       - Latency, token generation rates, context size.
 TOOL_EXECUTION        - Validation success, payload structure, service binding.
-MEMORY                - AI SQLite write, read, semantic search success.
-BRIDGE                - Capacitor/Native message passing state.
+MEMORY                - Approved Jarvis memory store write, read, approved structured retrieval success.
+BRIDGE                - Selected feasibility candidate/Native message passing state.
 STORAGE               - Quota warnings, file I/O errors.
 SECURITY              - Key validation, revocation enforcement.
 PRIVACY               - Redaction triggers, memory access audits.
@@ -233,7 +235,7 @@ Format: `JARVIS-<DOMAIN>-<NUMBER>`
 - `JARVIS-AUDIO-004` - Microphone permission denied.
 - `JARVIS-BRIDGE-002` - Native bridge timeout.
 - `JARVIS-TOOL-007` - Invalid tool argument structure.
-- `JARVIS-MEMORY-003` - Semantic search index failed to load.
+- `JARVIS-MEMORY-003` - Approved structured retrieval index failed to load.
 - `JARVIS-STORAGE-002` - Insufficient space for model download.
 - `JARVIS-SECURITY-001` - Model explicitly revoked.
 
@@ -487,7 +489,7 @@ Maintain:
 - speech framework (Apple Speech or Whisper.cpp);
 - TTS framework (AVSpeechSynthesizer);
 - native bridge framework;
-- Capacitor or selected native wrapper;
+- Selected feasibility candidate or approved native container once validated;
 - Swift packages;
 - JavaScript dependencies (e.g. `bun install` monitoring via Dependabot);
 - iOS SDK.
@@ -858,18 +860,18 @@ _No separate files or trackers are created in this task._
 
 ## Configuration ownership
 
-| Configuration        | Source of truth                  | Change process   | Rollback                                  |
-| -------------------- | -------------------------------- | ---------------- | ----------------------------------------- |
-| Application version  | `package.json` / Xcode           | PR merge         | Git revert                                |
-| Model pack           | Model Manifest                   | PR merge         | Revert manifest                           |
-| Runtime              | Dependency lockfile              | `bun update`     | Revert `bun.lock`                         |
-| Prompt version       | Source code                      | PR merge         | Git revert                                |
-| Tool catalog         | Source code                      | PR merge         | Git revert                                |
-| Bridge protocol      | TS/Swift interface               | Lockstep PR      | Revert both sides                         |
-| Memory schema        | SQLite init / `src/lib/types.ts` | Schema migration | Complex (requires careful down-migration) |
-| Provider settings    | Local UI / `jarvis-panel.tsx`    | User input       | Reset to default                          |
-| Cost limits          | Local UI                         | User input       | Reset to default                          |
-| Feature capabilities | Source code flags                | PR merge         | Git revert                                |
+| Configuration        | Source of truth                                                | Change process   | Rollback                                  |
+| -------------------- | -------------------------------------------------------------- | ---------------- | ----------------------------------------- |
+| Application version  | `package.json` / Xcode                                         | PR merge         | Git revert                                |
+| Model pack           | Model Manifest                                                 | PR merge         | Revert manifest                           |
+| Runtime              | Dependency lockfile                                            | `bun update`     | Revert `bun.lock`                         |
+| Prompt version       | Source code                                                    | PR merge         | Git revert                                |
+| Tool catalog         | Source code                                                    | PR merge         | Git revert                                |
+| Bridge protocol      | TS/Swift interface                                             | Lockstep PR      | Revert both sides                         |
+| Memory schema        | Current FitCore persistence services init / `src/lib/types.ts` | Schema migration | Complex (requires careful down-migration) |
+| Provider settings    | Local UI / `jarvis-panel.tsx`                                  | User input       | Reset to default                          |
+| Cost limits          | Local UI                                                       | User input       | Reset to default                          |
+| Feature capabilities | Source code flags                                              | PR merge         | Git revert                                |
 
 ## Prompt and behavior maintenance
 
@@ -1048,22 +1050,22 @@ Deferred: live remote dashboards, automatic crash upload, behavioral analytics, 
 
 ## Repository-grounded operations map
 
-| Operational area | Existing repository behavior                                      | Reusable capability                   | Gap                             | Future action                                            |
-| ---------------- | ----------------------------------------------------------------- | ------------------------------------- | ------------------------------- | -------------------------------------------------------- |
-| Logging          | `console.log` / `console.error`                                   | Standard browser API                  | No persistent log file          | Use bounded `localStorage` array for critical events     |
-| Errors           | `error-capture.ts`, `error-page.ts`, `lovable-error-reporting.ts` | Error boundaries and Sentry-like hook | No Jarvis-specific stable codes | Define `JARVIS-XXX` codes and capture in `AiDiagnostics` |
-| Settings         | `settings.tsx`, `jarvis-panel.tsx`                                | UI toggles and local storage          | Missing diagnostic screen       | Add Diagnostics UI sub-panel                             |
-| Versioning       | `package.json` version                                            | Vite injection                        | No AI model versioning          | Add model metadata registry                              |
-| Migrations       | `fitcore-data.ts`, `data-backup.ts`                               | Data schema migration logic           | No AI memory migration          | Extend atomic persistence for AI schema                  |
-| SW Updates       | `__root.tsx` (`register("/sw.js")`)                               | PWA service worker check              | SW not caching huge models      | Exclude AI weights from standard SW cache                |
-| Reset            | `store.tsx` (`reset()`)                                           | Clears all data                       | Destructive default             | Build granular repair (model delete only)                |
-| Data deletion    | `atomic-persistence.ts`                                           | Wipes persistence                     | Too broad for AI fixes          | Implement `uninstallJarvisModels()`                      |
-| CI               | `.github/workflows/ci.yml`, `manual.yml`                          | Lint, Build, Playwright E2E           | No native iOS tests             | Add Capacitor/iOS build checks                           |
-| Dependencies     | `bun install`, `package.json`                                     | Bun lockfile                          | No ML runtime lock              | Pin MLX/Whisper.cpp dependencies                         |
-| Issue templates  | `.github/ISSUE_TEMPLATE/bug_report.yml`                           | Standard GitHub forms                 | No Jarvis fields                | Update templates for AI version info                     |
-| Diagnostics      | `AiDiagnostics` in `jarvis-panel.tsx`                             | Local telemetry object                | Not exposed securely            | Build Support Bundle export                              |
-| Telemetry        | Optional `lovable-error-reporting.ts`                             | Remote error hook                     | Highly restricted               | Ensure AI prompts never reach this                       |
-| Offline state    | `navigator.onLine` checks                                         | basic PWA                             | Needs deterministic fallback    | Implement offline NLP rules                              |
+| Operational area | Existing repository behavior                                      | Reusable capability                   | Gap                             | Future action                                                 |
+| ---------------- | ----------------------------------------------------------------- | ------------------------------------- | ------------------------------- | ------------------------------------------------------------- |
+| Logging          | `console.log` / `console.error`                                   | Standard browser API                  | No persistent log file          | Use bounded `localStorage` array for critical events          |
+| Errors           | `error-capture.ts`, `error-page.ts`, `lovable-error-reporting.ts` | Error boundaries and Sentry-like hook | No Jarvis-specific stable codes | Define `JARVIS-XXX` codes and capture in `AiDiagnostics`      |
+| Settings         | `settings.tsx`, `jarvis-panel.tsx`                                | UI toggles and local storage          | Missing diagnostic screen       | Add Diagnostics UI sub-panel                                  |
+| Versioning       | `package.json` version                                            | Vite injection                        | No AI model versioning          | Add model metadata registry                                   |
+| Migrations       | `fitcore-data.ts`, `data-backup.ts`                               | Data schema migration logic           | No AI memory migration          | Extend atomic persistence for AI schema                       |
+| SW Updates       | `__root.tsx` (`register("/sw.js")`)                               | PWA service worker check              | SW not caching huge models      | Exclude AI weights from standard SW cache                     |
+| Reset            | `store.tsx` (`reset()`)                                           | Clears all data                       | Destructive default             | Build granular repair (model delete only)                     |
+| Data deletion    | `atomic-persistence.ts`                                           | Wipes persistence                     | Too broad for AI fixes          | Implement `uninstallJarvisModels()`                           |
+| CI               | `.github/workflows/ci.yml`, `manual.yml`                          | Lint, Build, Playwright E2E           | No native iOS tests             | Add approved native container once validated/iOS build checks |
+| Dependencies     | `bun install`, `package.json`                                     | Bun lockfile                          | No ML runtime lock              | Pin MLX/Whisper.cpp dependencies                              |
+| Issue templates  | `.github/ISSUE_TEMPLATE/bug_report.yml`                           | Standard GitHub forms                 | No Jarvis fields                | Update templates for AI version info                          |
+| Diagnostics      | `AiDiagnostics` in `jarvis-panel.tsx`                             | Local telemetry object                | Not exposed securely            | Build Support Bundle export                                   |
+| Telemetry        | Optional `lovable-error-reporting.ts`                             | Remote error hook                     | Highly restricted               | Ensure AI prompts never reach this                            |
+| Offline state    | OS reachability as a hint, bounded request, timeout               | basic PWA                             | Needs deterministic fallback    | Implement offline NLP rules                                   |
 
 ## Open operational questions
 
