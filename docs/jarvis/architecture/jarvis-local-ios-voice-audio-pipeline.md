@@ -11,7 +11,7 @@ The preferred feasibility configuration (candidates requiring validation) is:
 ```text
 AVAudioSession and AVAudioEngine (SharedAudioEngine)
     ↓
-Voice-processing input with echo-reduction behavior requiring physical-device validation
+Voice-processing input with echo-reduction behavior requiring route-specific physical-device validation
     ↓
 Local streaming speech recognition (Parakeet EOU via FluidAudio)
     ↓
@@ -54,44 +54,44 @@ Raw audio is discarded immediately after processing.
 
 ### Speech recognition
 
-| Candidate                          | Fully local   | Streaming   | Partial transcripts | End-of-turn support | iOS-native integration | Approximate asset size | License          | Strengths                                     | Risks                                 |
-| ---------------------------------- | ------------- | ----------- | ------------------- | ------------------- | ---------------------- | ---------------------- | ---------------- | --------------------------------------------- | ------------------------------------- |
-| FluidAudio + Parakeet Realtime EOU | Yes           | Yes         | Yes                 | Yes                 | CoreML (ANE)           | ~600MB (est)           | MIT / Apache 2.0 | Optimized for Apple Neural Engine, low power. | Framework maturity.                   |
-| WhisperKit                         | Yes           | No (pseudo) | No                  | No                  | CoreML                 | Variable               | MIT              | Highly accurate offline.                      | High latency, no true streaming.      |
-| whisper.cpp                        | Yes           | No (pseudo) | No                  | No                  | Metal/CPU              | Variable               | MIT              | Portable, robust.                             | CPU/GPU heavy, battery drain.         |
-| Apple Speech                       | Yes (offline) | Yes         | Yes                 | No                  | Native API             | N/A (System)           | Proprietary      | Zero extra footprint.                         | Inconsistent offline mode, lacks EOU. |
+| Candidate                          | Fully local   | Streaming   | Partial transcripts | End-of-turn support | iOS-native integration | Approximate asset size                    | License          | Strengths                                     | Risks                                 |
+| ---------------------------------- | ------------- | ----------- | ------------------- | ------------------- | ---------------------- | ----------------------------------------- | ---------------- | --------------------------------------------- | ------------------------------------- |
+| FluidAudio + Parakeet Realtime EOU | Yes           | Yes         | Yes                 | Yes                 | CoreML (ANE)           | To be measured from the approved artifact | MIT / Apache 2.0 | Optimized for Apple Neural Engine, low power. | Framework maturity.                   |
+| WhisperKit                         | Yes           | No (pseudo) | No                  | No                  | CoreML                 | To be measured from the approved artifact | MIT              | Highly accurate offline.                      | High latency, no true streaming.      |
+| whisper.cpp                        | Yes           | No (pseudo) | No                  | No                  | Metal/CPU              | To be measured from the approved artifact | MIT              | Portable, robust.                             | CPU/GPU heavy, battery drain.         |
+| Apple Speech                       | Yes (offline) | Yes         | Yes                 | No                  | Native API             | N/A (System)                              | Proprietary      | Zero extra footprint.                         | Inconsistent offline mode, lacks EOU. |
 
 ### Speech output
 
-| Candidate                 | Fully local | Streaming | Voice quality | Time-to-first-audio claims | iOS integration | Approximate asset size | License     | Strengths                          | Risks                                 |
-| ------------------------- | ----------- | --------- | ------------- | -------------------------- | --------------- | ---------------------- | ----------- | ---------------------------------- | ------------------------------------- |
-| PocketTTS (FluidAudio)    | Yes         | Yes       | High          | < 100ms (claimed)          | CoreML          | ~200MB (est)           | MIT         | Very fast streaming TTS on device. | Requires sentence chunking.           |
-| Apple AVSpeechSynthesizer | Yes         | Yes       | Medium        | < 50ms                     | Native API      | N/A (System)           | Proprietary | Zero footprint, built-in.          | Robotic voices.                       |
-| Piper                     | Yes         | Yes       | Medium-High   | ~200ms                     | C++             | Variable               | MIT         | Fast, many voices.                 | Integration overhead, CPU bound.      |
-| Kokoro (mobile)           | Yes         | No        | Very High     | > 500ms                    | ONNX/CoreML     | ~300MB                 | Apache 2.0  | Best quality.                      | Not streaming natively, high latency. |
+| Candidate                 | Fully local | Streaming | Voice quality | Time-to-first-audio claims | iOS integration | Approximate asset size                    | License     | Strengths                          | Risks                                 |
+| ------------------------- | ----------- | --------- | ------------- | -------------------------- | --------------- | ----------------------------------------- | ----------- | ---------------------------------- | ------------------------------------- |
+| PocketTTS (FluidAudio)    | Yes         | Yes       | High          | < 100ms (claimed)          | CoreML          | To be measured from the approved artifact | MIT         | Very fast streaming TTS on device. | Requires sentence chunking.           |
+| Apple AVSpeechSynthesizer | Yes         | Yes       | Medium        | < 50ms                     | Native API      | N/A (System)                              | Proprietary | Zero footprint, built-in.          | Robotic voices.                       |
+| Piper                     | Yes         | Yes       | Medium-High   | ~200ms                     | C++             | To be measured from the approved artifact | MIT         | Fast, many voices.                 | Integration overhead, CPU bound.      |
+| Kokoro (mobile)           | Yes         | No        | Very High     | > 500ms                    | ONNX/CoreML     | To be measured from the approved artifact | Apache 2.0  | Best quality.                      | Not streaming natively, high latency. |
 
 ### Voice-assistant foundations
 
-| Candidate             | Reuse value     | Maintenance status | License | Architecture fit | Production-readiness risk                  | Recommendation                      |
-| --------------------- | --------------- | ------------------ | ------- | ---------------- | ------------------------------------------ | ----------------------------------- |
-| Volocal               | High (patterns) | Active             | MIT     | Perfect          | Reference implementation only              | Reference for patterns              |
-| FluidAudio examples   | Medium          | Active             | MIT     | Good             | Maturity unverified (requires measurement) | Preferred candidate to evaluate     |
-| Custom implementation | Low             | N/A                | N/A     | Variable         | High                                       | Not prioritized for the first spike |
+| Candidate             | Reuse value     | Maintenance status | License | Architecture fit                          | Production-readiness risk                  | Recommendation                      |
+| --------------------- | --------------- | ------------------ | ------- | ----------------------------------------- | ------------------------------------------ | ----------------------------------- |
+| Volocal               | High (patterns) | Active             | MIT     | Perfect                                   | Reference implementation only              | Reference for patterns              |
+| FluidAudio examples   | Medium          | Active             | MIT     | Good                                      | Maturity unverified (requires measurement) | Preferred candidate to evaluate     |
+| Custom implementation | Low             | N/A                | N/A     | To be measured from the approved artifact | High                                       | Not prioritized for the first spike |
 
 ## 6. Candidate component selection
 
 Final selection requires physical iPhone 15 tests, current framework compatibility, exact model revisions, licensing review, memory and thermal evaluation, Bluetooth validation, noisy-gym accuracy, and barge-in reliability.
 
 - **Audio-session manager:** `AVAudioSession` (Native). Reason to evaluate: Mandatory for iOS. Primary risk: strict category rules.
-- **Microphone capture:** `AVAudioEngine` (Native). Reason to evaluate: Apple voice-processing modes are expected to reduce acoustic echo and feedback; effectiveness depends on route, speaker volume, microphone, environment, and OS behavior; they do not guarantee elimination of self-transcription; physical-device tests are required.
+- **Microphone capture:** `AVAudioEngine` (Native). Reason to evaluate: Apple voice-processing modes are expected to reduce acoustic echo and feedback; effectiveness depends on route, speaker volume, microphone, environment, Bluetooth profile, and OS behavior; voice processing does not guarantee elimination of self-transcription; route-specific physical-device testing is mandatory; effectiveness depends on route, speaker volume, microphone, environment, and OS behavior; they do not guarantee elimination of self-transcription; physical-device tests are required.
 - **Echo cancellation:** Voice-Processing I/O node (Native). Reason to evaluate: Expected to improve self-transcription behavior, reducing TTS feedback into STT.
 - **Speech recognition:** Parakeet Realtime EOU (via FluidAudio). Expected benefit: True streaming, built-in end-of-utterance, runs on ANE. Required validation: Gym noise robustness.
 - **Partial transcript delivery:** FluidAudio callbacks.
 - **End-of-turn detection:** Parakeet Realtime EOU integrated detector. Expected benefit: May prevent premature cut-offs better than silence timeouts.
 - **Interruption detection:** Continuous acoustic monitoring via the STT engine.
-- **Speech generation:** PocketTTS (via FluidAudio). Reason to evaluate: Claimed fast streaming capability. Final TTS selection depends on license, first-audio latency, voice quality, pronunciation, memory, thermal behavior, interruption behavior, sentence chunking, model storage, and iPhone 15 stability.
+- **Speech generation:** PocketTTS (via FluidAudio). Reason to evaluate: Advertised capability. Final TTS selection depends on license, first-audio latency, voice quality, pronunciation, memory, thermal behavior, interruption behavior, sentence chunking, storage, and regular iPhone 15 stability.
 - **System fallback:** Apple `AVSpeechSynthesizer`.
-- **Model-asset management boundary:** FluidAudio's download manager is a candidate, but must not be treated as the final FitCore model manager. Asset sizes must be measured from the approved artifact.
+- **Model-asset management boundary:** FluidAudio's download manager is an evaluation candidate, but must not be treated as the final FitCore model manager. Asset sizes must be measured from the approved artifact.
 
 _Note: Language model is excluded as per task scope._
 
@@ -112,7 +112,7 @@ _Note: Language model is excluded as per task scope._
 - **Mode:** `voiceChat`. Enables hardware acoustic echo cancellation and optimized voice processing.
 - **Options:** `allowBluetooth`, `allowBluetoothA2DP`, `defaultToSpeaker`.
 - **Lifecycle:** Session activates on Jarvis launch or workout start, deactivates when closed. Must handle `AVAudioSession.interruptionNotification` and `AVAudioSession.routeChangeNotification`.
-- **Sample Rate:** Generally 16kHz or 48kHz (provisional and dependent on the selected model), requiring conversion in `AVAudioEngine`.
+- **Sample Rate:** 16 kHz or 48 kHz are provisional experiment variables dependent on the chosen model, route, and physical-device results, requiring conversion in `AVAudioEngine`.
 
 ## 9. Shared audio-engine design
 
@@ -169,7 +169,7 @@ Additional chunks queued continuously
 Response completes
 ```
 
-- **Chunking:** Max ~200 characters per chunk (provisional and dependent on the selected model and testing).
+- **Chunking:** 200-character TTS chunks are a provisional experiment variable dependent on the chosen model, route, and physical-device results.
 - **Fallback:** If PocketTTS fails, Apple `AVSpeechSynthesizer` speaks the buffered sentence.
 
 ## 12. Interruption and barge-in flow
@@ -185,12 +185,12 @@ Barge-in requires:
 - Stale-event rejection.
 - Route-specific testing.
 
-False interruption and missed interruption are both acceptance risks.
+False interruptions and missed interruptions are both acceptance risks.
 
 ```text
 Jarvis Speaking → User Speaks (Microphone Active)
        ↓
-Apple voice-processing modes are expected to reduce acoustic echo and feedback
+Apple voice-processing modes are expected to reduce acoustic echo and feedback; effectiveness depends on route, speaker volume, microphone, environment, Bluetooth profile, and OS behavior; voice processing does not guarantee elimination of self-transcription; route-specific physical-device testing is mandatory
        ↓
 User-speech detection behavior requires validation
        ↓
@@ -237,8 +237,12 @@ Strategies for the gym:
 
 - `AVAudioSession` options `allowBluetooth` and `allowBluetoothA2DP` must be set.
 - When a headset connects (route change notification), audio interruption and restart may occur. Session state must be reconciled, and active speech and listening state must be canceled or resumed safely.
-- Bluetooth HFP/A2DP tradeoffs must be tested. Route changes may interrupt audio; state must be reconciled.
-- AirPods route changes may interrupt recording or playback; sample rate may change; the current listening or speaking turn may need cancellation; no tool write may replay after route recovery; the exact recovery flow requires testing on physical hardware.
+- Bluetooth HFP and A2DP have different input/output tradeoffs.
+- Route changes may change sample rate.
+- Recording or playback may be interrupted.
+- Active turns may require cancellation or restart.
+- No tool write may replay after route recovery.
+- Exact recovery must be validated on physical hardware.
 
 ## 17. App lifecycle behavior
 
@@ -311,7 +315,7 @@ For each selected candidate, the following must be distinguished and reviewed:
 - **FluidAudio (Framework):** MIT / Apache 2.0.
 - **Parakeet EOU (Model/Weights):** Requires verifying NVIDIA NeMo terms and CoreML conversion rights.
 - **PocketTTS (Model/Weights):** Requires verifying Kyutai terms.
-- **Redistribution:** MIT or Apache licensing for a wrapper does not prove model weights may be redistributed. Core ML conversion does not automatically grant redistribution rights. Post-install downloading does not remove license obligations. Every model revision requires separate license review. Unresolved model licensing blocks production distribution. Feasibility testing may proceed only when the testing use is permitted.
+- **Redistribution:** A framework’s MIT or Apache license does not establish model-weight rights. Converting weights to Core ML does not automatically grant redistribution rights. Post-install downloads still require license compliance. Every model revision requires separate license review. Unresolved model licensing blocks production distribution. Feasibility testing may proceed only where the testing use is permitted.
 
 ## 22. Provisional performance targets
 
@@ -335,28 +339,29 @@ _Note: Do not report an exact latency as a FitCore expectation unless measured b
 
 Go/no-go conditions before implementation:
 
-- Regular iPhone 15 passes all required benchmarks.
+- Regular iPhone 15 passes.
 - No normal-use OOM or Jetsam termination occurs.
-- Local-only behavior does not silently use network recognition.
+- Local-only recognition does not silently use the network.
 - Raw audio is not retained.
 - Partial transcripts never trigger writes.
-- Stop and cancellation work.
-- False barge-in rate is acceptable.
-- Missed barge-in rate is acceptable.
+- Stop works.
+- Cancellation works.
+- False barge-in rate meets the approved rubric.
+- Missed barge-in rate meets the approved rubric.
 - Physical-device testing confirms that the complete audio pipeline avoids sustained self-transcription or feedback-loop behavior under required routes and volumes.
-- Built-in speaker feedback does not create an infinite loop.
 - Bluetooth route changes recover safely.
-- Noisy-gym transcription meets the approved rubric.
-- System TTS and text input remain available.
-- Licenses permit the intended distribution.
+- Noisy-gym recognition meets the approved rubric.
+- Apple system TTS remains available.
+- Text input remains available.
+- Distribution licenses are approved.
 
 ## 25. Failure and fallback matrix
 
 | Failure                  | Detection            | User-visible behavior        | Automatic fallback         | Data-safety rule       |
 | ------------------------ | -------------------- | ---------------------------- | -------------------------- | ---------------------- |
-| Mic permission denied    | OS callback          | "Mic access needed"          | Text input only            | N/A                    |
-| Speech model unavailable | Load error           | "Downloading models..."      | Text input only            | Do not record          |
-| TTS model unavailable    | Load error           | Robotic voice                | System AVSpeechSynthesizer | N/A                    |
+| Mic permission denied    | OS callback          | Nonbinding UX example        | Text input only            | N/A                    |
+| Speech model unavailable | Load error           | Nonbinding UX example        | Text input only            | Do not record          |
+| TTS model unavailable    | Load error           | Nonbinding UX example        | System AVSpeechSynthesizer | N/A                    |
 | Memory pressure          | OS warning           | UI warning, slower responses | Unload inactive models     | N/A                    |
 | Stale callback           | Revision ID mismatch | None                         | Ignore callback            | Prevent duplicate logs |
 
@@ -381,7 +386,7 @@ Go/no-go conditions before implementation:
 
 ## 27. References
 
-1. Apple Developer Documentation: AVAudioSession (https://developer.apple.com/documentation/avfaudio/avaudiosession), Accessed 2026-07-15. Supports audio session categorization.
-2. Apple Developer Documentation: AVAudioEngine Voice Processing (https://developer.apple.com/documentation/avfaudio/avaudiosession/mode/1616455-voicechat), Accessed 2026-07-15. Expected to reduce acoustic echo.
-3. FluidAudio Repository (https://github.com/FluidInference/FluidAudio), Accessed 2026-07-15.
-4. Volocal Repository (https://github.com/fikrikarim/volocal), Accessed 2026-07-15.
+1. exact Apple Developer documentation: AVAudioSession (https://developer.apple.com/documentation/avfaudio/avaudiosession), Accessed 2026-07-15.
+2. exact Apple Developer documentation: AVAudioEngine Voice Processing (https://developer.apple.com/documentation/avfaudio/avaudiosession/mode/1616455-voicechat), Accessed 2026-07-15.
+3. exact official framework repository: FluidAudio (https://github.com/FluidInference/FluidAudio), Accessed 2026-07-15.
+4. exact official framework repository: Volocal (https://github.com/fikrikarim/volocal), Accessed 2026-07-15.
