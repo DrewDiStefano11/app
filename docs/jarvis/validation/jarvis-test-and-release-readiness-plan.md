@@ -140,36 +140,43 @@ Define layers:
 
 | Component                    | Primary test type  | Required environment | Model required | Physical device required |
 | ---------------------------- | ------------------ | -------------------- | -------------- | ------------------------ |
-| Jarvis UI                    | E2E                | Browser              | No             | No                       |
-| deterministic command parser | Unit               | Node                 | No             | No                       |
-| conversation orchestrator    | Unit / Integration | Node                 | No             | No                       |
-| context builder              | Unit               | Node                 | No             | No                       |
-| tool gateway                 | Integration        | Node                 | No             | No                       |
-| FitCore services             | Unit / Integration | Node                 | No             | No                       |
-| confirmation manager         | Unit / E2E         | Node                 | No             | No                       |
-| Undo manager                 | Unit / E2E         | Node                 | No             | No                       |
-| model provider               | Contract           | Node                 | Yes            | No                       |
-| native bridge                | Contract           | Native               | No             | Yes                      |
-| speech recognition           | E2E                | Native               | No             | Yes                      |
-| endpoint detection           | E2E                | Native               | No             | Yes                      |
-| TTS                          | E2E                | Native               | No             | Yes                      |
-| model download manager       | Integration        | Native               | Yes            | Yes                      |
-| model registry               | Contract           | Native               | No             | No                       |
-| memory store                 | Integration        | Node                 | No             | No                       |
-| privacy controls             | Unit / E2E         | Node                 | No             | No                       |
-| diagnostics                  | Unit               | Node                 | No             | No                       |
+| Jarvis UI                    | E2E                | browser              | No             | No                       |
+| deterministic command parser | Unit               | Node/unit            | No             | No                       |
+| conversation orchestrator    | Unit / Integration | Node/unit            | No             | No                       |
+| context builder              | Unit               | Node/unit            | No             | No                       |
+| tool gateway                 | Integration        | Node/unit            | No             | No                       |
+| FitCore services             | Unit / Integration | Node/unit            | No             | No                       |
+| confirmation manager         | Unit / E2E         | Node/unit, browser   | No             | No                       |
+| Undo manager                 | Unit / E2E         | Node/unit, browser   | No             | No                       |
+| mock model provider          | Contract           | Node/unit, browser   | No             | No                       |
+| real local model provider    | Integration        | physical iPhone      | Yes            | Yes                      |
+| native bridge                | Contract           | native simulator     | No             | No                       |
+| speech recognition           | E2E                | physical iPhone      | Yes            | Yes                      |
+| endpoint detection           | E2E                | physical iPhone      | Yes            | Yes                      |
+| TTS (enhanced)               | E2E                | physical iPhone      | Yes            | Yes                      |
+| model download manager       | Integration        | macOS native build   | Yes            | No                       |
+| model registry               | Contract           | native simulator     | No             | No                       |
+| memory store                 | Integration        | Node/unit            | No             | No                       |
+| privacy controls (UI/Logic)  | Unit / E2E         | Node/unit, browser   | No             | No                       |
+| privacy controls (Native)    | Integration / E2E  | physical iPhone      | No             | Yes                      |
+| diagnostics                  | Unit               | Node/unit            | No             | No                       |
 
 ## 7. Requirements traceability
 
 ```text
-JARVIS-REQ-###
+JARVIS-COMPAT-###
+JARVIS-COST-###
+JARVIS-OFFLINE-###
+JARVIS-VOICE-###
+(and other category-specific IDs)
+
 JARVIS-TEST-###
 JARVIS-RISK-###
 JARVIS-GATE-###
 ```
 
 ```text
-Requirement (JARVIS-REQ-###)
+Requirement (e.g., JARVIS-VOICE-###)
     ↓
 Test Case (JARVIS-TEST-###)
     ↓
@@ -196,6 +203,7 @@ Future requirements and tests must record:
 ```text
 Test ID:
 Requirement:
+Risk ID:
 Component:
 Priority:
 Environment:
@@ -1132,14 +1140,13 @@ Create a table for:
 
 | Environment        | Supported verification capabilities          |
 | ------------------ | -------------------------------------------- |
-| Windows browser    | UI, E2E logic, Text interaction              |
-| macOS              | Unit, Contract, CI integration               |
-| iOS simulator      | Layout, Flow, Basic bridge                   |
-| physical iPhone 15 | Mandatory performance, Memory, Voice, Models |
-| physical iPhone 16 | Optional enhancements, Voice, Models         |
-| quiet room         | Baseline voice recognition                   |
-| simulated gym      | Noise handling, Voice extraction             |
-| actual gym         | Real-world reliability, Connectivity         |
+| static analysis    | Linting, type checking, formatting           |
+| Node/unit          | Deterministic parsers, reducers, pure logic  |
+| browser            | UI, E2E logic, Text interaction              |
+| macOS native build | Unit, Contract, integration without hardware |
+| native simulator   | Layout, Flow, Basic bridge                   |
+| physical iPhone    | Mandatory performance, Memory, Voice, Models |
+| field test         | Real-world reliability, Connectivity, Noise  |
 
 Define what each environment can and cannot prove.
 

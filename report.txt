@@ -1,38 +1,9 @@
 # Completion report
 
-1. **Branch name:** `docs/jarvis-test-release-readiness-2`
-2. **Starting SHA:** `092a41104925fe99552536d6aaa06a7013272f12`
-3. **Ending commit SHA:** `2b771c5831710edd4eceda3933e2a0f20a76a661`
-4. **Commit subject:** `docs(jarvis): define test and release readiness`
-5. **Pull request number and URL:** Will be provided by submission.
-6. **Exact file created:** `docs/jarvis/validation/jarvis-test-and-release-readiness-plan.md`
-7. **Test-pyramid design:** Defined as 7 layers: Static verification, Unit tests, Contract tests, Integration tests, End-to-end tests, Physical-device tests, Field tests.
-8. **Requirements-traceability approach:** Independent traceability syntax mapping JARVIS-REQ to JARVIS-TEST and JARVIS-GATE.
-9. **Test ownership by component:** Matrix provided mapping 18 components to their primary test layer and required environments (e.g. Node vs Native, Model needed, Physical device needed).
-10. **Static and unit-test requirements:** Defined deterministic safety layers preventing model integration from altering fundamental FitCore calculation.
-11. **Contract and integration-test requirements:** Includes Web-to-native, Model-provider interface, Tool requests, memory retrieval.
-12. **Voice and audio test requirements:** Dictated STT/TTS and end-of-turn physical validation using varying acoustic conditions like gym noise.
-13. **Local-model evaluation strategy:** Structured output evaluations using fixed prompt sets and score rubrics against pinned baselines, avoiding probabilistic drift in deterministic tests.
-14. **Tool, confirmation, idempotency, and Undo tests:** Required assertions of exactly one mutation, payload mismatch rejection, and one-time valid expiration parameters.
-15. **Context, conversation, and memory tests:** Verification for memory state machines, state lifecycles, and storage retrieval constraints.
-16. **Native bridge and lifecycle tests:** Validation for context continuity during phone calls, app backgrounding, bridge reloading, and screen locking.
-17. **Offline and degraded-mode tests:** Verifying fallback behaviors where NLP layers degrade while deterministic parsers retain functionality.
-18. **Privacy and security tests:** Assertions around rejection of arbitrary model paths, raw audio purges, and API logging restrictions.
-19. **Accessibility tests:** Ensuring VoiceOver, Dynamic Type, error announcements, and interaction flows remain intact.
-20. **Performance and long-session tests:** Tracking load constraints, memory bounds, and thermal safety over repeated 60-minute workouts.
-21. **Regression and flaky-test policy:** Quarantine bounds enforced for safety tests; every data-corruption defect mandates a permanent regression test.
-22. **Release-candidate sequence:** 11-step chronological progression moving from CI validations through strict physical iPhone testing prior to rollout.
-23. **Entry and exit criteria:** Dictates frozen feature scopes, test passage on physical iPhone 15 baseline, and evidence collation.
-24. **Hard release blockers:** Explicit enumeration of 18 conditions including duplicate writes, missing confirmation, raw audio retention, or bypass of model checksums.
-25. **Defect severity and waiver policy:** Defined 4-tier matrix where critical/high cannot be waived, mandating explicit mitigation for medium defects.
-26. **Evidence-package requirements:** Specified collection of SHAs, metrics, device matrices, privacy/security reports, and formal decisions.
-27. **Upgrade and rollback testing:** Verification that App/Model toggles can seamlessly regress if faulty, preserving raw canonical Data safely.
-28. **Repository-grounded test findings:** Identified existing foundations via `playwright.config.ts`, Vitest via `tests/unit/`, and GitHub Actions.
-29. **Initial QA implementation subset:** Recommendation of 12 incremental layers focusing heavily on deterministic unit logic before integrating real models.
-30. **Validation commands and results:** Successfully ran `git diff --check`, `git status --short`, and `git diff --stat`.
-31. **Confirmation that only the authorized file changed:** Confirmed.
-32. **Confirmation that no shared Jarvis documentation file changed:** Confirmed.
-33. **Confirmation that no runtime, test implementation, fixture, workflow, native, Swift, Objective-C, TypeScript, JavaScript, UI, data, Product Bible, audit, package, lockfile, model, audio, screenshot, report, or generated file changed:** Confirmed.
-34. **Confirmation that no merge, rebase, cherry-pick, reset, or amend occurred:** Reverted an erroneous Prettier auto-format, then committed normally. Clean worktree.
-35. **Final `git status --short`:** Verified empty (clean).
-36. **Any unresolved testing, release-readiness, evidence, device, model-evaluation, or rollback risk future Jarvis work should know:** The project currently lacks automated device labs for physical iOS tests, requiring substantial manual execution for acoustic regression. Wait to adopt automated audio-fixturing frameworks until Apple Native tools clarify.
+1. **Requirement-ID correction:** Replaced the generic `JARVIS-REQ-###` placeholders with specific domain identifiers such as `JARVIS-COMPAT-###`, `JARVIS-COST-###`, `JARVIS-OFFLINE-###`, `JARVIS-VOICE-###`.
+2. **Traceability matrix correction:** Added `risk ID where applicable;` to the traceability tracking fields and modified the format slightly to allow referencing one or more requirement IDs, ensuring `JARVIS-TEST-###`, `JARVIS-RISK-###`, and `JARVIS-GATE-###` are kept as distinct namespaces.
+3. **Component matrix corrections (Mock provider vs Real provider):** Split the provider tests in the Component Matrix into `mock model provider` (running in `Node/unit, browser`) and `real local model provider` (running on `physical iPhone` and requiring a Model).
+4. **Speech and model corrections:** Updated the Component Matrix for speech components (recognition, endpointing, TTS) to explicitly state they require models (`Model required: Yes`) and run on the `physical iPhone`.
+5. **Native privacy testing corrections:** In the Component Matrix, split privacy controls into `privacy controls (UI/Logic)` (Node/unit, browser) and `privacy controls (Native)` (physical iPhone). Also expanded Section 39 to explicitly list privacy/security tests that require a physical native application (e.g. microphone permission behavior, Keychain secret storage, model-file integrity).
+6. **Environment naming corrections:** Updated the `Test-environment matrix` (Section 52) and the `Verification ownership by component` (Section 6) to use clear environment classifications: `static analysis`, `Node/unit`, `browser`, `macOS native build`, `native simulator`, `physical iPhone`, and `field test`.
+7. **Strong release gates:** Preserved all strong release gates (no duplicate writes, accessibility, etc.) and corrected the text in Section 77 which was partially skipped/malformed in the previous commit.
