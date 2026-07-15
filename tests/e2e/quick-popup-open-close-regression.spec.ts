@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   expectDashboardReady,
-  FITCORE_STORAGE_KEY,
   gotoDashboard,
+  readPersistedFitCoreState,
   seedMinimalOnboardedState,
 } from "./helpers/fitcore-test-state";
 
@@ -26,16 +26,14 @@ function sheetByHeading(page: Page, name: string) {
 
 async function expectNoQuickActionDataSaved(page: Page) {
   await expect
-    .poll(() =>
-      page.evaluate((key) => {
-        const state = JSON.parse(localStorage.getItem(key) || "{}");
-        return {
-          meals: state.mealEntries?.length ?? 0,
-          checkIns: state.recoveryCheckIns?.length ?? 0,
-          weights: state.bodyweightEntries?.length ?? 0,
-        };
-      }, FITCORE_STORAGE_KEY),
-    )
+    .poll(async () => {
+      const state = await readPersistedFitCoreState(page);
+      return {
+        meals: state.mealEntries.length,
+        checkIns: state.recoveryCheckIns.length,
+        weights: state.bodyweightEntries.length,
+      };
+    })
     .toEqual({ meals: 0, checkIns: 0, weights: 0 });
 }
 

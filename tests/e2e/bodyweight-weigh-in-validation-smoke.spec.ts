@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   expectDashboardReady,
-  FITCORE_DATA_VERSION,
-  FITCORE_STORAGE_KEY,
+  readPersistedFitCoreState,
+  seedMinimalOnboardedState,
 } from "./helpers/fitcore-test-state";
 
 async function checkNoFatalErrors(page: Page) {
@@ -20,9 +20,7 @@ async function checkNoFatalErrors(page: Page) {
   }
 }
 
-async function persistedState(page: Page) {
-  return page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}"), FITCORE_STORAGE_KEY);
-}
+const persistedState = readPersistedFitCoreState;
 
 function sheetByHeading(page: Page, name: string) {
   return page
@@ -30,44 +28,9 @@ function sheetByHeading(page: Page, name: string) {
     .locator("xpath=ancestor::div[contains(@class, 'sheet-surface')][1]");
 }
 
-async function seedReloadableOnboardedState(page: Page) {
-  await page.goto("/");
-  await page.evaluate(
-    ({ key, version }) => {
-      localStorage.clear();
-      localStorage.setItem(
-        key,
-        JSON.stringify({
-          version,
-          onboardingComplete: true,
-          profile: {
-            goal: "hypertrophy",
-            experience: "intermediate",
-            daysPerWeek: 5,
-            split: "Push / Pull / Legs",
-            bodyweightLb: 180,
-            targetBodyweightLb: 185,
-            units: "lb",
-          },
-          workouts: [],
-          activeWorkout: null,
-          mealEntries: [],
-          bodyweightEntries: [],
-          goals: [
-            { id: "g1", type: "weekly_workouts", label: "Train 5x per week", target: 5, current: 0 },
-          ],
-        }),
-      );
-    },
-    { key: FITCORE_STORAGE_KEY, version: FITCORE_DATA_VERSION },
-  );
-  await page.reload();
-  await expectDashboardReady(page);
-}
-
 test.describe("Bodyweight weigh-in validation smoke", () => {
   test.beforeEach(async ({ page }) => {
-    await seedReloadableOnboardedState(page);
+    await seedMinimalOnboardedState(page);
   });
 
   test.afterEach(async ({ page }) => {
@@ -85,26 +48,38 @@ test.describe("Bodyweight weigh-in validation smoke", () => {
 
     await expect(sheet).not.toBeVisible();
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.bodyweightEntries?.length ?? 0;
-    }).toBe(1);
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.bodyweightEntries?.length ?? 0;
+      })
+      .toBe(1);
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.bodyweightEntries?.[0]?.weightLb;
-    }).toBe(181.4);
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.bodyweightEntries?.[0]?.weightLb;
+      })
+      .toBe(181.4);
 
     await page.reload();
     await expectDashboardReady(page);
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.bodyweightEntries?.length ?? 0;
-    }).toBe(1);
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.bodyweightEntries?.length ?? 0;
+      })
+      .toBe(1);
 
-    await page.evaluate(() => window.dispatchEvent(new CustomEvent("fitcore:nav", { detail: "progress" })));
-    await expect(page.getByText("FitCore Score", { exact: true }).or(page.getByRole("heading", { name: "Progress", exact: true }))).toBeVisible();
+    await page.evaluate(() =>
+      window.dispatchEvent(new CustomEvent("fitcore:nav", { detail: "progress" })),
+    );
+    await expect(
+      page
+        .getByText("FitCore Score", { exact: true })
+        .or(page.getByRole("heading", { name: "Progress", exact: true })),
+    ).toBeVisible();
     await checkNoFatalErrors(page);
   });
 
@@ -122,10 +97,12 @@ test.describe("Bodyweight weigh-in validation smoke", () => {
 
     await expect(sheet).not.toBeVisible();
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.bodyweightEntries?.length ?? 0;
-    }).toBe(initialEntries);
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.bodyweightEntries?.length ?? 0;
+      })
+      .toBe(initialEntries);
   });
 
   test("Scenario C: Empty input does not crash or create broken data", async ({ page }) => {
@@ -148,10 +125,12 @@ test.describe("Bodyweight weigh-in validation smoke", () => {
     } else {
       await saveButton.click();
       // Expect not to create a new entry
-      await expect.poll(async () => {
-        const state = await persistedState(page);
-        return state.bodyweightEntries?.length ?? 0;
-      }).toBe(initialEntries);
+      await expect
+        .poll(async () => {
+          const state = await persistedState(page);
+          return state.bodyweightEntries?.length ?? 0;
+        })
+        .toBe(initialEntries);
     }
 
     if (await sheet.isVisible()) {
@@ -179,16 +158,18 @@ test.describe("Bodyweight weigh-in validation smoke", () => {
     } else {
       await saveButton.click();
       // Ensure it does not create a broken entry (-50, 0, negative values)
-      await expect.poll(async () => {
-        const state = await persistedState(page);
-        // Specifically verify localStorage does not contain a negative or zero bodyweight entry.
-        const entryCount = state.bodyweightEntries?.length ?? 0;
-        if (entryCount > initialEntries) {
+      await expect
+        .poll(async () => {
+          const state = await persistedState(page);
+          // Specifically verify localStorage does not contain a negative or zero bodyweight entry.
+          const entryCount = state.bodyweightEntries?.length ?? 0;
+          if (entryCount > initialEntries) {
             const lastEntry = state.bodyweightEntries[state.bodyweightEntries.length - 1];
             return lastEntry.weightLb <= 0; // we want this to be false, meaning not negative/zero
-        }
-        return false; // length didn't change, so no negative entry created
-      }).toBe(false);
+          }
+          return false; // length didn't change, so no negative entry created
+        })
+        .toBe(false);
     }
 
     if (await sheet.isVisible()) {
@@ -208,8 +189,14 @@ test.describe("Bodyweight weigh-in validation smoke", () => {
 
     await expect(sheet).not.toBeVisible();
 
-    await page.evaluate(() => window.dispatchEvent(new CustomEvent("fitcore:nav", { detail: "progress" })));
-    await expect(page.getByText("FitCore Score", { exact: true }).or(page.getByRole("heading", { name: "Progress", exact: true }))).toBeVisible();
+    await page.evaluate(() =>
+      window.dispatchEvent(new CustomEvent("fitcore:nav", { detail: "progress" })),
+    );
+    await expect(
+      page
+        .getByText("FitCore Score", { exact: true })
+        .or(page.getByRole("heading", { name: "Progress", exact: true })),
+    ).toBeVisible();
     await checkNoFatalErrors(page);
   });
 });

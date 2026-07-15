@@ -1,8 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   expectDashboardReady,
-  FITCORE_DATA_VERSION,
-  FITCORE_STORAGE_KEY,
+  readPersistedFitCoreState,
+  seedMinimalOnboardedState,
 } from "./helpers/fitcore-test-state";
 
 async function checkNoFatalErrors(page: Page) {
@@ -19,9 +19,7 @@ async function checkNoFatalErrors(page: Page) {
   }
 }
 
-async function persistedState(page: Page) {
-  return page.evaluate((key) => JSON.parse(localStorage.getItem(key) || "{}"), FITCORE_STORAGE_KEY);
-}
+const persistedState = readPersistedFitCoreState;
 
 function sheetByHeading(page: Page, name: string) {
   return page
@@ -29,45 +27,9 @@ function sheetByHeading(page: Page, name: string) {
     .locator("xpath=ancestor::div[contains(@class, 'sheet-surface')][1]");
 }
 
-// Reusing the reloadable state pattern from core-logging-persistence-smoke
-async function seedReloadableOnboardedState(page: Page) {
-  await page.goto("/");
-  await page.evaluate(
-    ({ key, version }) => {
-      localStorage.clear();
-      localStorage.setItem(
-        key,
-        JSON.stringify({
-          version,
-          onboardingComplete: true,
-          profile: {
-            goal: "hypertrophy",
-            experience: "intermediate",
-            daysPerWeek: 5,
-            split: "Push / Pull / Legs",
-            bodyweightLb: 180,
-            targetBodyweightLb: 185,
-            units: "lb",
-          },
-          workouts: [],
-          activeWorkout: null,
-          mealEntries: [],
-          bodyweightEntries: [],
-          goals: [
-            { id: "g1", type: "weekly_workouts", label: "Train 5x per week", target: 5, current: 0 },
-          ],
-        }),
-      );
-    },
-    { key: FITCORE_STORAGE_KEY, version: FITCORE_DATA_VERSION },
-  );
-  await page.reload();
-  await expectDashboardReady(page);
-}
-
 test.describe("Nutrition logging validation smoke", () => {
   test.beforeEach(async ({ page }) => {
-    await seedReloadableOnboardedState(page);
+    await seedMinimalOnboardedState(page);
   });
 
   test.afterEach(async ({ page }) => {
@@ -91,28 +53,38 @@ test.describe("Nutrition logging validation smoke", () => {
     await expect(sheet).not.toBeVisible();
     await expectDashboardReady(page);
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.mealEntries?.length ?? 0;
-    }).toBe(1);
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.mealEntries?.length ?? 0;
+      })
+      .toBe(1);
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.mealEntries?.[0]?.name;
-    }).toBe("Validation protein bowl");
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.mealEntries?.[0]?.name;
+      })
+      .toBe("Validation protein bowl");
 
     // The current UI exposes Recent Activity
-    const recentActivity = page.getByText("Recent activity", { exact: true }).locator("xpath=ancestor::div[contains(@class, 'tile')][1]");
+    const recentActivity = page
+      .getByText("Recent activity", { exact: true })
+      .locator("xpath=ancestor::div[contains(@class, 'tile')][1]");
     await expect(recentActivity.getByText("Meal logged", { exact: true })).toBeVisible();
-    await expect(recentActivity.getByText("Validation protein bowl", { exact: true })).toBeVisible();
+    await expect(
+      recentActivity.getByText("Validation protein bowl", { exact: true }),
+    ).toBeVisible();
 
     await page.reload();
     await expectDashboardReady(page);
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.mealEntries?.[0]?.name;
-    }).toBe("Validation protein bowl");
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.mealEntries?.[0]?.name;
+      })
+      .toBe("Validation protein bowl");
   });
 
   test("Scenario B: Empty required fields do not crash", async ({ page }) => {
@@ -137,10 +109,12 @@ test.describe("Nutrition logging validation smoke", () => {
 
     await checkNoFatalErrors(page);
 
-    await expect.poll(async () => {
-      const state = await persistedState(page);
-      return state.mealEntries?.length ?? 0;
-    }).toBe(initialMeals);
+    await expect
+      .poll(async () => {
+        const state = await persistedState(page);
+        return state.mealEntries?.length ?? 0;
+      })
+      .toBe(initialMeals);
 
     if (await sheet.isVisible()) {
       await sheet.getByRole("button", { name: "Cancel", exact: true }).click();
