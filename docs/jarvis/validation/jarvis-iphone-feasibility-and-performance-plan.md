@@ -247,13 +247,30 @@ If multiple regular iPhone 15 hardware configurations materially differ, documen
 
 Define:
 
-- minimum supported iOS candidate: iOS 17;
-- latest supported iOS: iOS 18;
-- one prior supported minor version where practical;
-- beta operating systems excluded from release acceptance unless specifically evaluated;
-- Apple Foundation Models tests only on eligible devices and OS versions.
+- minimum supported iOS is determined after the approved native container, STT framework, inference runtime, TTS provider, and any optional Apple framework requirements are known;
+- the current production iOS release at implementation and release time must be included;
+- at least one supported prior version should be evaluated where technically and commercially reasonable;
+- beta OS versions do not satisfy final release gates;
+- exact minimum OS must be approved during the native and component feasibility phases;
+- optional provider tests run only on officially eligible hardware and OS versions.
 
-Do not select a minimum iOS version without repository and native-framework evidence.
+Every test record should capture:
+
+- exact iOS version and build;
+- exact device model;
+- native framework versions;
+- model revisions;
+- whether optional OS AI features are installed and available;
+- permission state;
+- build configuration.
+
+State that:
+
+- the regular iPhone 15 remains the pass/fail device;
+- a newer OS result cannot conceal failure on the chosen minimum OS;
+- an iPhone 16 result cannot compensate for iPhone 15 failure;
+- unsupported optional features must degrade without affecting deterministic workout behavior;
+- the minimum supported OS may be raised only through an explicit compatibility decision supported by evidence.
 
 ## 9. Build configuration matrix
 
