@@ -113,8 +113,10 @@ test.describe("Nutrition Daily premium redesign", () => {
 
     await page.screenshot({ path: testInfo.outputPath("nutrition-populated.png"), fullPage: true });
     await page.getByRole("button", { name: "Open Deep Dive", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Nutrition", exact: true })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Macros", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Nutrition Deep Dive", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Calories and macros" })).toBeVisible();
   });
 
   test("distinguishes no meals, missing targets, and explicit zero targets", async ({
