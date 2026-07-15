@@ -15,7 +15,7 @@ User Input (Text/Voice) -> Mode/Context Builder -> MLX Swift Runtime (Llama 3.2 
 * performance claims require independent testing;
 * regular iPhone 15 is the minimum supported target;
 * iPhone 16 must use the same common baseline;
-* Apple-provided models may be optional enhancements only;
+* Apple Foundation Models may be optional enhancements only on eligible hardware and operating systems;
 * model selection may be revised if the feasibility spike fails.
 
 ## 3. Executive recommendation
@@ -101,11 +101,13 @@ Apple Foundation Models behind the same provider interface
 
 ## 6. Candidate-model comparison
 
-| Model Identifier | Parameters | Expected Quantized Formats | Tool or structured-output | License | Known mobile constraints |
-|------------------|------------|----------------------------|---------------------------|---------|--------------------------|
-| `Qwen/Qwen2.5-1.5B-Instruct` | 1.5B | MLX 4-bit, GGUF | Yes | Apache 2.0 | Weaker reasoning |
-| `meta-llama/Llama-3.2-1B-Instruct` | 1.23B | MLX 4-bit, GGUF | Yes | Llama 3.2 (Custom) | Tool-calling accuracy limits |
-| `meta-llama/Llama-3.2-3B-Instruct` | 3.2B | MLX 4-bit, GGUF | Yes | Llama 3.2 (Custom) | Potential memory pressure on 6GB RAM |
+| Exact Official Identifier | Publisher | Parameters | Expected Quantized Formats | Tool Support | License | Known Mobile Constraints | Reason to Benchmark | Primary Risk |
+|---------------------------|-----------|------------|----------------------------|--------------|---------|--------------------------|---------------------|--------------|
+| `meta-llama/Llama-3.2-3B-Instruct` | Meta | 3.2B | GGUF, MLX safetensors | Yes | Llama 3.2 (Custom) | Memory pressure on 6GB RAM devices | Strong tool calling | Jetsam terminations on iPhone 15 |
+| `meta-llama/Llama-3.2-1B-Instruct` | Meta | 1.23B | GGUF, MLX safetensors | Yes | Llama 3.2 (Custom) | Weaker reasoning capacity | Safely fits in 6GB RAM | Tool calling accuracy drops |
+| `Qwen/Qwen2.5-1.5B-Instruct` | Alibaba | 1.5B | GGUF, MLX safetensors | Yes | Apache 2.0 | Weaker reasoning | Excellent size-to-performance ratio | Hallucination on complex tasks |
+
+*(Parameter counts and licenses verified via official HuggingFace model cards)*
 
 ## 7. Preferred feasibility candidates
 
@@ -146,12 +148,10 @@ While Llama 3.2 supports up to 128k context, this is prohibitively expensive in 
 
 ## 10. Inference-runtime comparison
 
-| Runtime | iOS support | Swift integration | Metal/ANE support | Model formats | Streaming | Cancellation | Quantization | License | Maturity | Risks |
-|---------|-------------|-------------------|-------------------|---------------|-----------|--------------|--------------|---------|----------|-------|
-| MLX Swift | Yes | Excellent (Native) | Metal (Unified Mem) | MLX (.safetensors) | Yes | Yes | Native MLX | MIT | Rapidly maturing | Fast changing API |
-| llama.cpp | Yes | Good (Wrapper) | Metal | GGUF | Yes | Yes | GGUF | MIT | High | C++ interop overhead |
-| ExecuTorch | Yes | Moderate | Metal/ANE | CoreML/PTE | Yes | Difficult | Edge | Custom | Moderate | Complex build process |
-| CoreML | Yes | Native | ANE/Metal | MLPackage | Yes | Yes | Native | Apple | High | Static graphs, hard to update models |
+| Runtime | Official Repository | Current Release/Tag | iOS support | Swift integration approach | Metal support | Supported model formats | Streaming | Cancellation | License | Known mobile integration risks |
+|---------|---------------------|---------------------|-------------|----------------------------|---------------|-------------------------|-----------|--------------|---------|--------------------------------|
+| MLX Swift | `ml-explore/mlx-swift` | Check repo | Yes | Native Swift API wrapper | Yes (Unified Mem) | MLX (.safetensors) | Yes | Yes | MIT | Fast changing API |
+| llama.cpp | `ggerganov/llama.cpp` | Check repo | Yes | C++ interop wrapper | Yes | GGUF | Yes | Yes | MIT | C++ interop complexity |
 
 ## 11. Final runtime selection
 
@@ -166,12 +166,9 @@ The final runtime selection will be determined by benchmarking MLX Swift against
 
 | Project | Decision | Reuse scope | Reason | Main risk |
 | ------- | -------- | ----------- | ------ | --------- |
-| `ml-explore/mlx-swift` | Use directly | Dependency | Native Apple Silicon optimization | Fast API evolution |
-| `ggml-org/llama.cpp` | Reject | N/A | MLX provides better native Swift/Metal integration | C++ interop complexity |
-| `mattt/llama.swift` | Reject | N/A | MLX chosen instead | Wrapper maintenance |
-| ExecuTorch | Reject | N/A | Complex build, less flexible than MLX | Build complexity |
-| CoreML / ANE | Reject | N/A | ANE is memory efficient but slower for LLMs, rigid format | Less flexible generation |
-| Apple Foundation Models | Wrap | Optional fallback | Built into iOS 18+ on iPhone 16 | Availability limited to newer devices |
+| `ml-explore/mlx-swift` | Evaluate | Dependency | Native Apple Silicon optimization | Fast API evolution |
+| `ggerganov/llama.cpp` | Evaluate | Dependency | Mature community standard | C++ interop complexity |
+| Apple Foundation Models | Evaluate | Optional fallback | Built into eligible OS | Availability limited |
 
 ## 13. Provider abstraction
 
@@ -206,7 +203,7 @@ Provider output must never bypass tool validation, permissions, or FitCore servi
 
 ### Provider Abstraction Diagram
 ```text
-FitCore Services <--> Tool Gateway <--> JarvisModelProvider Interface <--> MLX Swift (Baseline)
+FitCore Services <--> Tool Gateway <--> JarvisModelProvider Interface <--> MLX Swift (Candidate)
                                                                       <--> App Intents (Opt iPhone 16)
 ```
 
@@ -217,45 +214,52 @@ FitCore Services <--> Tool Gateway <--> JarvisModelProvider Interface <--> MLX S
 * required on iPhone 16;
 * baseline behavior and tool contracts.
 
-### Optional iPhone 16 provider (Apple Foundation Models / App Intents)
-* Supported requests: General knowledge, deep OS integration.
-* Provider-routing criteria: If the user request matches an App Intent registered with Apple Intelligence.
-* Fallback: Transparent fallback to MLX Swift if Apple Intelligence cannot handle the request or is unavailable (e.g., region locks, not downloaded).
-* **Recommendation:** Included as a phase-two enhancement. The first version must focus entirely on stabilizing the selected local baseline runtime to ensure feature parity across iPhone 15 and 16.
+### Optional iPhone 16 provider (Apple Foundation Models)
+* **Apple Foundation Models framework:** An on-device model API provided by Apple on eligible devices and operating systems. This serves as an optional provider candidate. Availability is determined by official framework eligibility and runtime checks, and is not guaranteed on a regular iPhone 15. This must remain behind the `JarvisModelProvider` interface.
+* **App Intents:** A system integration mechanism for exposing application actions and entities to Apple system experiences. App Intents may complement Jarvis, but it is not the language-model runtime, does not replace the FitCore tool gateway, does not authorize writes, and does not determine whether Jarvis should route a reasoning request to Apple Foundation Models.
+
+### Provider-Routing Logic
+
+Provider routing must be based on: provider availability, device support, OS support, user settings, privacy policy, requested capability, local-versus-external processing policy, model context limits, current thermal and memory state, and fallback availability.
 
 ### Common-Provider vs Optional-Enhanced-Provider Flow
 ```text
 User Request
     ↓
-Intent Router (Is Apple App Intent?)
-   /      YES        NO (or unsupported device)
- |          |
-Apple      MLX Swift
-Found.     Common Provider
-Model
+Deterministic command eligible?
+    ├─ Yes → Deterministic parser and canonical tool path
+    └─ No
+        ↓
+Selected local model provider available?
+    ├─ Yes → Local provider
+    └─ No → Safe degraded mode or explicitly enabled optional provider
 ```
 
 ## 15. Tool-calling representation
 
-Structured tool-request format: JSON Schema.
+Structured tool-request format: JSON Schema conforming to Llama 3's expected tool calling structure.
 
 ```json
 {
-  "type": "tool_request",
+  "request_type": "tool_request",
   "tool": "compareExerciseSessions",
   "arguments": {
     "exerciseId": "barbell-bench-press"
   },
   "turn_id": "turn-123",
-  "confidence": 0.95
+  "request_id": "req-456",
+  "diagnostics": {
+    "confidence": 0.95
+  }
 }
 ```
 
 * Strict parsing required.
-* Model confidence (e.g., 0.95) may be diagnostic metadata only and must not bypass safeguards or authorize execution.
-* The execution gateway must rely solely on: schema validity, known tool presence, validated arguments, context freshness, risk class, confirmation state, idempotency, turn revision, and canonical service validation.
 * Unknown tools rejected immediately.
+* Argument validation is performed strictly against predefined schemas.
 * Maximum tool iterations: 3 per user request to prevent loops.
+* No text extraction from prose if structured output is available.
+* Model-generated confidence (e.g., 0.95) must never affect authorization.
 
 ### Tool-Call Generation and Validation Flow
 ```text
@@ -408,10 +412,21 @@ All examples must be anonymized.
 
 ## 29. Acceptance gates
 
-* Llama 3.2 3B loads on iPhone 15 without Jetsam memory termination during a cold boot.
-* Tool requests are structurally valid > 95% of the time.
-* Output remains concise in workout mode.
-* Cancellation cleanly stops memory allocation and generation.
+The final recommendation must not name a production model or runtime. Approval gates based strictly on the regular iPhone 15 include:
+
+* No normal-use Jetsam memory termination.
+* Acceptable cold and warm load times.
+* Acceptable cancellation latency.
+* Stable structured output validation.
+* Tool selection and arguments meet approved accuracy thresholds.
+* Conversational quality meets the minimum rubric.
+* Thermal degradation remains safe over long sessions.
+* Battery impact remains acceptable.
+* Storage size fits the intended distribution plan.
+* License permits intended distribution.
+* Fallback remains functional.
+
+The iPhone 16 cannot compensate for an iPhone 15 failure.
 
 ## 30. Failure and fallback matrix
 
@@ -435,7 +450,7 @@ Model Operation Error -> Is Retryable? -> Yes -> Retry (Max 1x)
 
 * **Cloud-only model:** Violates core requirement of offline availability and privacy.
 * **Apple Foundation Models as ONLY provider:** Violates requirement to support standard iPhone 15.
-* **llama.cpp:** Remains a primary evaluation candidate alongside MLX Swift. for better native integration and potentially higher token throughput on recent Apple Silicon.
+* **
 * **8-bit Quantization:** May present memory tradeoffs that require strict device validation on the iPhone 15 to ensure FitCore UI stability.
 
 ## 32. Final recommendation summary
