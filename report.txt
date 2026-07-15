@@ -1,0 +1,9 @@
+# Completion report
+
+1. **Requirement-ID correction:** Replaced the generic `JARVIS-REQ-###` placeholders with specific domain identifiers such as `JARVIS-COMPAT-###`, `JARVIS-COST-###`, `JARVIS-OFFLINE-###`, `JARVIS-VOICE-###`.
+2. **Traceability matrix correction:** Added `risk ID where applicable;` to the traceability tracking fields and modified the format slightly to allow referencing one or more requirement IDs, ensuring `JARVIS-TEST-###`, `JARVIS-RISK-###`, and `JARVIS-GATE-###` are kept as distinct namespaces.
+3. **Component matrix corrections (Mock provider vs Real provider):** Split the provider tests in the Component Matrix into `mock model provider` (running in `Node/unit, browser`) and `real local model provider` (running on `physical iPhone` and requiring a Model).
+4. **Speech and model corrections:** Updated the Component Matrix for speech components (recognition, endpointing, TTS) to explicitly state they require models (`Model required: Yes`) and run on the `physical iPhone`.
+5. **Native privacy testing corrections:** In the Component Matrix, split privacy controls into `privacy controls (UI/Logic)` (Node/unit, browser) and `privacy controls (Native)` (physical iPhone). Also expanded Section 39 to explicitly list privacy/security tests that require a physical native application (e.g. microphone permission behavior, Keychain secret storage, model-file integrity).
+6. **Environment naming corrections:** Updated the `Test-environment matrix` (Section 52) and the `Verification ownership by component` (Section 6) to use clear environment classifications: `static analysis`, `Node/unit`, `browser`, `macOS native build`, `native simulator`, `physical iPhone`, and `field test`.
+7. **Strong release gates:** Preserved all strong release gates (no duplicate writes, accessibility, etc.) and corrected the text in Section 77 which was partially skipped/malformed in the previous commit.
