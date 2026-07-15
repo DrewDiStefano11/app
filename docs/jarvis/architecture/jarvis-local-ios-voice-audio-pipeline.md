@@ -11,7 +11,7 @@ The preferred feasibility configuration (candidates requiring validation) is:
 ```text
 AVAudioSession and AVAudioEngine (SharedAudioEngine)
     ↓
-Voice-processing input with hardware echo cancellation (AEC)
+Voice-processing input with echo-reduction behavior requiring physical-device validation
     ↓
 Local streaming speech recognition (Parakeet EOU via FluidAudio)
     ↓
@@ -72,11 +72,11 @@ Raw audio is discarded immediately after processing.
 
 ### Voice-assistant foundations
 
-| Candidate             | Reuse value     | Maintenance status | License | Architecture fit | Production-readiness risk | Recommendation         |
-| --------------------- | --------------- | ------------------ | ------- | ---------------- | ------------------------- | ---------------------- |
-| Volocal               | High (patterns) | Active             | MIT     | Perfect          | Low                       | Reference for patterns |
-| FluidAudio examples   | Medium          | Active             | MIT     | Good             | Low                       | Use as dependency      |
-| Custom implementation | Low             | N/A                | N/A     | Variable         | High                      | Reject                 |
+| Candidate             | Reuse value     | Maintenance status | License | Architecture fit | Production-readiness risk                  | Recommendation                      |
+| --------------------- | --------------- | ------------------ | ------- | ---------------- | ------------------------------------------ | ----------------------------------- |
+| Volocal               | High (patterns) | Active             | MIT     | Perfect          | Reference implementation only              | Reference for patterns              |
+| FluidAudio examples   | Medium          | Active             | MIT     | Good             | Maturity unverified (requires measurement) | Preferred candidate to evaluate     |
+| Custom implementation | Low             | N/A                | N/A     | Variable         | High                                       | Not prioritized for the first spike |
 
 ## 6. Candidate component selection
 
@@ -98,11 +98,11 @@ _Note: Language model is excluded as per task scope._
 ## 7. Existing-project reuse decision
 
 - **Volocal:** Reference only. FitCore should reproduce patterns (like `SharedAudioEngine` and `SentenceBuffer`) without forking the whole app to maintain control over the FitCore architecture.
-- **FluidAudio:** Use as dependency. Provides the CoreML wrappers for STT and TTS.
-- **Parakeet Realtime EOU (Model):** Use as dependency (via FluidAudio).
-- **WhisperKit:** Reject for baseline. Lacks streaming and EOU.
-- **whisper.cpp:** Reject for baseline. High battery drain.
-- **PocketTTS:** Use as dependency (via FluidAudio).
+- **FluidAudio:** Preferred candidate to evaluate. Provides the CoreML wrappers for STT and TTS.
+- **Parakeet Realtime EOU (Model):** Preferred candidate to evaluate (via FluidAudio).
+- **WhisperKit:** Not prioritized for the first spike. Lacks streaming and EOU.
+- **whisper.cpp:** Not prioritized for the first spike. High battery drain.
+- **PocketTTS:** Preferred candidate to evaluate (via FluidAudio).
 - **Apple native speech APIs:** Use as fallback for TTS only.
 
 ## 8. Audio-session architecture
@@ -160,7 +160,7 @@ Sentence buffer splits at punctuation (.!?:;)
     ↓
 Speech synthesis request (PocketTTS)
     ↓
-First audio chunk produced (< 100ms)
+First audio chunk produced (requires measurement)
     ↓
 Playback begins (AVAudioEngine player node)
     ↓
@@ -181,7 +181,7 @@ Jarvis Speaking → User Speaks (Microphone Active)
        ↓
 Hardware AEC Reduces Echo and Feedback Risk
        ↓
-Parakeet Detects Actual User Speech
+User-speech detection behavior requires validation
        ↓
 Turn Revision ID Incremented → TTS Stops & Queues Discarded
        ↓
@@ -226,8 +226,8 @@ Strategies for the gym:
 
 - `AVAudioSession` options `allowBluetooth` and `allowBluetoothA2DP` must be set.
 - When a headset connects (route change notification), the route change is expected to be handled; audio interruption and restart may occur. Session state must be reconciled, and active speech and listening state must be canceled or resumed safely.
-- Bluetooth microphone profiles (HFP) drop audio quality significantly compared to A2DP. The app must manage this tradeoff gracefully during two-way audio.
-- AirPods route changes are expected to be handled, but exact behavior must be tested on physical hardware.
+- Bluetooth HFP/A2DP tradeoffs must be tested. Route changes may interrupt audio; state must be reconciled.
+- AirPods route changes may interrupt audio; state must be reconciled; active listening and speech may need cancellation or restart. No write may be replayed. Exact behavior is validated on physical hardware.
 
 ## 17. App lifecycle behavior
 
@@ -265,7 +265,7 @@ Strategies for the gym:
 **Turn detection**
 
 1. Parakeet EOU detector.
-2. Silence timeout (5s).
+2. Configurable safety timeout.
 3. Push-to-talk completion.
 
 ## 20. Privacy behavior
@@ -300,17 +300,17 @@ For each selected candidate, the following must be distinguished and reviewed:
 - **FluidAudio (Framework):** MIT / Apache 2.0.
 - **Parakeet EOU (Model/Weights):** Requires verifying NVIDIA NeMo terms and CoreML conversion rights.
 - **PocketTTS (Model/Weights):** Requires verifying Kyutai terms.
-- **Redistribution:** If legally permitted, downloading on first launch is recommended to keep app size small.
+- **Redistribution:** Wrapper licensing does not establish model-weight redistribution rights. Every model revision requires separate license review. Post-install downloading does not eliminate license obligations. Final distribution cannot begin while license status is unresolved.
 
 ## 22. Provisional performance targets
 
-- Time to partial transcript: < 300ms
-- End-of-turn delay: < 800ms
-- Time from finalized transcript to first spoken response: < 1000ms
-- Interruption stop latency: < 200ms
-- Memory footprint: < 1GB (for STT + TTS, excluding LLM)
+- Time to partial transcript: requires iPhone 15 measurement
+- End-of-turn delay: requires iPhone 15 measurement
+- Time from finalized transcript to first spoken response: requires iPhone 15 measurement
+- Interruption stop latency: requires iPhone 15 measurement
+- Memory footprint: requires iPhone 15 measurement
 
-_Note: These are recommendations and require independent verification on device._
+_Note: Do not report an exact latency as a FitCore expectation unless measured by FitCore on the regular iPhone 15._
 
 ## 23. Required feasibility experiments
 
