@@ -264,6 +264,27 @@ Workout commands and text entry remain available. You can retry or repair the mo
 
 Essential diagnostics remain on-device (e.g. leveraging `AiDiagnostics` and `fitcore.jarvis.aiDiagnostics.v1` in `jarvis-panel.tsx`).
 
+The final diagnostics persistence mechanism is selected only after:
+
+- native packaging validation;
+- privacy review;
+- storage-lifecycle review;
+- corruption-recovery review;
+- deletion behavior review;
+- low-storage testing.
+
+Diagnostics storage must:
+
+- be bounded;
+- be local by default;
+- exclude raw audio;
+- exclude full transcripts;
+- exclude full prompts and responses;
+- exclude provider credentials;
+- exclude canonical health-adjacent values where not necessary;
+- support clear and export operations;
+- not become a competing source of canonical FitCore data.
+
 Possible local metrics:
 
 - component health statuses;
@@ -474,7 +495,7 @@ Ongoing responsibilities:
 - license monitoring (verifying open weights);
 - security advisories (e.g., compromised tensors);
 - behavioral regressions (testing prompt accuracy);
-- runtime compatibility (ONNX/MLX updates);
+- runtime compatibility (approved inference runtime updates);
 - iOS compatibility;
 - model revocation (publishing blocklists);
 - rollback (keeping previous known-good model hash);
@@ -486,7 +507,7 @@ Ongoing responsibilities:
 Maintain:
 
 - inference runtime (e.g., local LLM engine);
-- speech framework (Apple Speech or Whisper.cpp);
+- speech framework (approved speech-recognition provider);
 - TTS framework (AVSpeechSynthesizer);
 - native bridge framework;
 - Selected feasibility candidate or approved native container once validated;
@@ -1016,7 +1037,7 @@ First implementation recommendation:
 - local component health checks;
 - advanced diagnostics screen (exposing `AiDiagnostics`);
 - stable error codes (`JARVIS-XXX`);
-- privacy-safe local event history (bounded in `localStorage`);
+- privacy-safe local event history (approved bounded local diagnostics store);
 - model verification and repair logic;
 - model delete and reinstall controls;
 - system TTS and deterministic text fallback;
@@ -1050,22 +1071,22 @@ Deferred: live remote dashboards, automatic crash upload, behavioral analytics, 
 
 ## Repository-grounded operations map
 
-| Operational area | Existing repository behavior                                      | Reusable capability                   | Gap                             | Future action                                                 |
-| ---------------- | ----------------------------------------------------------------- | ------------------------------------- | ------------------------------- | ------------------------------------------------------------- |
-| Logging          | `console.log` / `console.error`                                   | Standard browser API                  | No persistent log file          | Use bounded `localStorage` array for critical events          |
-| Errors           | `error-capture.ts`, `error-page.ts`, `lovable-error-reporting.ts` | Error boundaries and Sentry-like hook | No Jarvis-specific stable codes | Define `JARVIS-XXX` codes and capture in `AiDiagnostics`      |
-| Settings         | `settings.tsx`, `jarvis-panel.tsx`                                | UI toggles and local storage          | Missing diagnostic screen       | Add Diagnostics UI sub-panel                                  |
-| Versioning       | `package.json` version                                            | Vite injection                        | No AI model versioning          | Add model metadata registry                                   |
-| Migrations       | `fitcore-data.ts`, `data-backup.ts`                               | Data schema migration logic           | No AI memory migration          | Extend atomic persistence for AI schema                       |
-| SW Updates       | `__root.tsx` (`register("/sw.js")`)                               | PWA service worker check              | SW not caching huge models      | Exclude AI weights from standard SW cache                     |
-| Reset            | `store.tsx` (`reset()`)                                           | Clears all data                       | Destructive default             | Build granular repair (model delete only)                     |
-| Data deletion    | `atomic-persistence.ts`                                           | Wipes persistence                     | Too broad for AI fixes          | Implement `uninstallJarvisModels()`                           |
-| CI               | `.github/workflows/ci.yml`, `manual.yml`                          | Lint, Build, Playwright E2E           | No native iOS tests             | Add approved native container once validated/iOS build checks |
-| Dependencies     | `bun install`, `package.json`                                     | Bun lockfile                          | No ML runtime lock              | Pin MLX/Whisper.cpp dependencies                              |
-| Issue templates  | `.github/ISSUE_TEMPLATE/bug_report.yml`                           | Standard GitHub forms                 | No Jarvis fields                | Update templates for AI version info                          |
-| Diagnostics      | `AiDiagnostics` in `jarvis-panel.tsx`                             | Local telemetry object                | Not exposed securely            | Build Support Bundle export                                   |
-| Telemetry        | Optional `lovable-error-reporting.ts`                             | Remote error hook                     | Highly restricted               | Ensure AI prompts never reach this                            |
-| Offline state    | OS reachability as a hint, bounded request, timeout               | basic PWA                             | Needs deterministic fallback    | Implement offline NLP rules                                   |
+| Operational area | Existing repository behavior                                      | Reusable capability                   | Gap                             | Future action                                                                                                                                         |
+| ---------------- | ----------------------------------------------------------------- | ------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Logging          | `console.log` / `console.error`                                   | Standard browser API                  | No persistent log file          | Use approved bounded local diagnostics store for critical events                                                                                      |
+| Errors           | `error-capture.ts`, `error-page.ts`, `lovable-error-reporting.ts` | Error boundaries and Sentry-like hook | No Jarvis-specific stable codes | Define `JARVIS-XXX` codes and capture in `AiDiagnostics`                                                                                              |
+| Settings         | `settings.tsx`, `jarvis-panel.tsx`                                | UI toggles and local storage          | Missing diagnostic screen       | Add Diagnostics UI sub-panel                                                                                                                          |
+| Versioning       | `package.json` version                                            | Vite injection                        | No AI model versioning          | Add model metadata registry                                                                                                                           |
+| Migrations       | `fitcore-data.ts`, `data-backup.ts`                               | Data schema migration logic           | No AI memory migration          | Extend atomic persistence for AI schema                                                                                                               |
+| SW Updates       | `__root.tsx` (`register("/sw.js")`)                               | PWA service worker check              | SW not caching huge models      | Exclude AI weights from standard SW cache                                                                                                             |
+| Reset            | `store.tsx` (`reset()`)                                           | Clears all data                       | Destructive default             | Build granular repair (model delete only)                                                                                                             |
+| Data deletion    | `atomic-persistence.ts`                                           | Wipes persistence                     | Too broad for AI fixes          | Implement `uninstallJarvisModels()`                                                                                                                   |
+| CI               | `.github/workflows/ci.yml`, `manual.yml`                          | Lint, Build, Playwright E2E           | No native iOS tests             | Add approved native container once validated/iOS build checks                                                                                         |
+| Dependencies     | `bun install`, `package.json`                                     | Bun lockfile                          | No ML runtime lock              | Pin the approved inference, speech-recognition, endpointing, speech-output, native-container, and model-management dependencies to reviewed versions. |
+| Issue templates  | `.github/ISSUE_TEMPLATE/bug_report.yml`                           | Standard GitHub forms                 | No Jarvis fields                | Update templates for AI version info                                                                                                                  |
+| Diagnostics      | `AiDiagnostics` in `jarvis-panel.tsx`                             | Local telemetry object                | Not exposed securely            | Build Support Bundle export                                                                                                                           |
+| Telemetry        | Optional `lovable-error-reporting.ts`                             | Remote error hook                     | Highly restricted               | Ensure AI prompts never reach this                                                                                                                    |
+| Offline state    | OS reachability as a hint, bounded request, timeout               | basic PWA                             | Needs deterministic fallback    | Implement offline NLP rules                                                                                                                           |
 
 ## Open operational questions
 
