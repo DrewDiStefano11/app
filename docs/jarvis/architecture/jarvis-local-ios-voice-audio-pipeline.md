@@ -6,7 +6,7 @@ This is a research-backed architecture recommendation. No runtime implementation
 
 ## 3. Executive recommendation
 
-The recommended baseline architecture is:
+The preferred feasibility configuration (candidates requiring validation) is:
 
 ```text
 AVAudioSession and AVAudioEngine (SharedAudioEngine)
@@ -78,7 +78,9 @@ Raw audio is discarded immediately after processing.
 | FluidAudio examples   | Medium          | Active             | MIT     | Good             | Low                       | Use as dependency      |
 | Custom implementation | Low             | N/A                | N/A     | Variable         | High                      | Reject                 |
 
-## 6. Final component selection
+## 6. Candidate component selection
+
+Final selection requires physical iPhone 15 tests, current framework compatibility, exact model revisions, licensing review, memory and thermal evaluation, Bluetooth validation, noisy-gym accuracy, and barge-in reliability.
 
 - **Audio-session manager:** `AVAudioSession` (Native). Why it wins: Mandatory for iOS. Known compromises: strict category rules.
 - **Microphone capture:** `AVAudioEngine` (Native). Why it wins: Integrated echo cancellation via voice processing mode.
@@ -124,7 +126,7 @@ AVAudioEngine (Shared Instance)
        └─> Output Node (Speaker) <─ TTS
 ```
 
-A single `AVAudioEngine` with a voice-processing I/O node handles both input (mic) and output (TTS). This is crucial because Apple's voice processing mode (hardware AEC) is most effective when both input and output run through the same I/O node. It prevents the mic from capturing the TTS output (barge-in support).
+A single `AVAudioEngine` with a voice-processing I/O node handles both input (mic) and output (TTS). This is crucial because Apple's voice processing mode (hardware AEC) is most effective when both input and output run through the same I/O node. It is expected to prevent the mic from capturing the TTS output (barge-in support), requiring measurement.
 
 ## 10. Voice-request sequence
 
@@ -146,8 +148,8 @@ Transcript normalized (text processing)
 Conversation system receives request
 ```
 
-- **Timeout:** 10 seconds of silence cancels the turn.
-- **No-speech:** Yields back to idle state without error.
+- **Timeout:** A configurable hard safety timeout prevents endless listening. Exact values remain provisional until physical-device testing.
+- **No-speech:** Yields safely back to idle state. Partial transcripts must never trigger writes.
 
 ## 11. Spoken-response streaming sequence
 
@@ -193,7 +195,7 @@ New Speech Transcribed → New Turn Begins
 - **Workout mode (hybrid):** Requires high noise tolerance. Push-to-talk capability must be available. EOU model handles hands-free, but requires higher confidence.
 - **Conversation mode:** Relies primarily on the end-of-utterance (EOU) model for natural turn timing and pauses.
 
-**Recommended strategy:** Parakeet EOU by default, with a hard silence timeout fallback (e.g., 5 seconds). Push-to-talk button always bypasses EOU for immediate submission.
+**Recommended strategy:** End-of-utterance (EOU) detection is the preferred automatic mechanism where validated. A configurable hard safety timeout serves as a fallback. Push-to-talk submission is always available.
 
 ## 14. Transcript normalization
 
@@ -225,7 +227,7 @@ Strategies for the gym:
 - `AVAudioSession` options `allowBluetooth` and `allowBluetoothA2DP` must be set.
 - When a headset connects (route change notification), audio seamlessly shifts.
 - Bluetooth microphone profiles (HFP) drop audio quality significantly compared to A2DP. The app must manage this tradeoff gracefully during two-way audio.
-- AirPods support seamless switching.
+- AirPods are expected to support seamless switching (requires validation).
 
 ## 17. App lifecycle behavior
 
@@ -238,8 +240,13 @@ Strategies for the gym:
 ## 18. Resource-management strategy
 
 - **Model Load:** Lazy load on first activation to save startup time.
-- **Memory:** STT and TTS models stay resident during an active session, but unload after 5 minutes of idle time.
-- **Thermal pressure:** If iOS reports severe thermal state, fallback to Apple System TTS and disable local STT (prompt for text input).
+- **Memory and Unload Policy:** STT and TTS models stay resident during an active session. The unload policy is controlled by the active session state, current workload, memory warnings, thermal state, application backgrounding, and expected reactivation latency. Exact idle-unload durations remain provisional pending physical-device measurements.
+- **Thermal degradation:** Under severe thermal pressure, implement a progressive degradation ladder (each transition must preserve active-workout data):
+  1. Shorten outputs.
+  2. Reduce optional model work.
+  3. Disable enhanced TTS in favor of system TTS.
+  4. Require push-to-talk.
+  5. Switch to text input when audio inference is unsafe or unavailable.
 
 ## 19. Fallback hierarchy
 
@@ -266,14 +273,34 @@ Strategies for the gym:
 - Raw audio is discarded immediately in memory after processing.
 - No hidden recording; OS-level microphone indicator is always visible.
 - No external audio upload in the baseline.
-- Diagnostic logs contain transcripts only, no raw audio.
+- Raw audio is never logged.
+- Full transcripts are never written to ordinary diagnostic logs.
+- Prompts and responses are not logged in full.
+- Operational diagnostics may record redacted error codes, component versions, confidence categories, latency measurements, audio-route type, and failure categories.
+- Visible conversation history is separate from diagnostics.
+- User-created support exports must exclude transcripts by default.
+- Any narrowly scoped transcript sharing requires explicit user review and action.
 
 ## 21. Licensing and distribution
 
-- **FluidAudio:** MIT / Apache 2.0.
-- **Parakeet EOU (CoreML):** Apache 2.0 / MIT.
-- **PocketTTS (CoreML):** MIT.
-- **Redistribution:** Models can be bundled or downloaded on first run. Given the ~800MB total size, downloading on first launch is recommended to keep app size small.
+An exact pre-distribution legal and license review is required. Do not infer that a model is redistributable solely because its wrapper framework is MIT or Apache licensed.
+
+For each selected candidate, the following must be distinguished and reviewed:
+
+- Framework license
+- Model license
+- Model-card terms
+- Redistribution rights
+- Attribution requirements
+- Commercial-use restrictions
+- Exact source revision
+
+**Provisional framework notes:**
+
+- **FluidAudio (Framework):** MIT / Apache 2.0.
+- **Parakeet EOU (Model/Weights):** Requires verifying NVIDIA NeMo terms and CoreML conversion rights.
+- **PocketTTS (Model/Weights):** Requires verifying Kyutai terms.
+- **Redistribution:** If legally permitted, downloading on first launch is recommended to keep app size small.
 
 ## 22. Provisional performance targets
 
@@ -312,16 +339,16 @@ Go/no-go conditions before implementation:
 | Memory pressure          | OS warning           | UI warning, slower responses | Unload inactive models     | N/A                    |
 | Stale callback           | Revision ID mismatch | None                         | Ignore callback            | Prevent duplicate logs |
 
-## 26. Final recommendation summary
+## 26. Feasibility configuration summary
 
-- **Preferred audio approach:** Singleton `AVAudioSession` with a shared `AVAudioEngine` utilizing Voice-Processing I/O for hardware AEC.
-- **Preferred STT approach:** Parakeet Realtime EOU via FluidAudio.
-- **Preferred EOU approach:** Parakeet built-in EOU.
-- **Preferred TTS approach:** PocketTTS via FluidAudio with sentence chunking.
+- **Candidate audio approach:** Singleton `AVAudioSession` with a shared `AVAudioEngine` utilizing Voice-Processing I/O (expected to provide hardware AEC).
+- **Candidate STT approach:** Parakeet Realtime EOU via FluidAudio.
+- **Candidate EOU approach:** Parakeet built-in EOU.
+- **Candidate TTS approach:** PocketTTS via FluidAudio with sentence chunking.
 - **Volocal reuse strategy:** Reference only. Extract patterns for the shared audio engine and barge-in revision IDs, but do not fork.
 - **Required fallback:** Apple `AVSpeechSynthesizer` for TTS, text-input for STT.
 - **Unresolved risk:** Reliable operation in noisy gym environments with heavy background music.
-- **Feasibility gate:** Proof of concept confirming iPhone 15 memory stability running all three models (STT, LLM, TTS) concurrently.
+- **Feasibility gate:** Physical iPhone 15 testing confirming memory stability, thermal behavior, and license compatibility before final component selection.
 
 ## 27. References
 
