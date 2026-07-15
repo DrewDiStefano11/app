@@ -1,32 +1,15 @@
 import { useState } from "react";
-import { Plus, Camera, Sparkles, Pill } from "lucide-react";
-import { useStore, uid, isToday } from "@/lib/store";
+import { Camera, Sparkles } from "lucide-react";
+import { useStore, uid } from "@/lib/store";
 import { FOODS, MEAL_TEMPLATES, mealTotals } from "@/lib/data";
 import type { MealEntry } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
-import {
-  PageHeader,
-  PrimaryButton,
-  Chip,
-  Input,
-  Label,
-  Select,
-  SectionHeader,
-  SubTabs,
-  PlannedFeatureCard,
-} from "@/components/app/ui";
+import { PrimaryButton, Chip, Input, Label, Select } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { NutritionDailyPremiumView } from "@/components/app/views/nutrition-daily-premium";
+import { NutritionDeepDivePremiumView } from "@/components/app/views/nutrition-deep-dive-premium";
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
-type NutritionSubtab = "macros" | "quality" | "timing" | "insights";
-const NUTRITION_TABS: { id: NutritionSubtab; label: string }[] = [
-  { id: "macros", label: "Macros" },
-  { id: "quality", label: "Quality" },
-  { id: "timing", label: "Timing" },
-  { id: "insights", label: "Insights" },
-];
-
 export function NutritionView({
   layoutMode = "daily",
   onLayoutModeChange,
@@ -37,152 +20,22 @@ export function NutritionView({
   const { state, set } = useStore();
   const [logOpen, setLogOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
-  const [tab, setTab] = useState<NutritionSubtab>("macros");
   const isDeepDive = layoutMode === "deepDive";
-
-  const today = state.mealEntries.filter((m) => isToday(m.createdAt));
-  const t = today.reduce(
-    (a, m) => ({ c: a.c + m.calories, p: a.p + m.protein, cb: a.cb + m.carbs, f: a.f + m.fat }),
-    { c: 0, p: 0, cb: 0, f: 0 },
-  );
-  const tg = state.nutritionTargets;
-  const supplements = state.supplementLogs
-    ? state.supplementLogs.filter((s) => isToday(s.createdAt))
-    : [];
 
   return (
     <div className="pb-24">
       {isDeepDive ? (
-        <>
-          <PageHeader title="Nutrition" subtitle="Deep Dive" />
-          <SubTabs tabs={NUTRITION_TABS} active={tab} onChange={setTab} />
-        </>
+        <NutritionDeepDivePremiumView
+          onOpenDaily={() => onLayoutModeChange?.("daily")}
+          onLogMeal={() => setLogOpen(true)}
+          onDeleteMeal={setConfirmDel}
+        />
       ) : (
         <NutritionDailyPremiumView
           onLogMeal={() => setLogOpen(true)}
           onDeleteMeal={setConfirmDel}
           onOpenDeepDive={() => onLayoutModeChange?.("deepDive")}
         />
-      )}
-
-      {isDeepDive && tab === "macros" && (
-        <div className="px-5 space-y-4 mt-2">
-          <SectionHeader title="Macro detail" />
-          <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
-            <MacroBar
-              label="Protein"
-              value={t.p}
-              target={tg.protein}
-              unit="g"
-              color="rgb(34 197 94)"
-            />
-            <div className="mt-4">
-              <MacroBar
-                label="Carbs"
-                value={t.cb}
-                target={tg.carbs}
-                unit="g"
-                color="rgb(245 158 11)"
-              />
-            </div>
-            <div className="mt-4">
-              <MacroBar label="Fat" value={t.f} target={tg.fat} unit="g" color="rgb(34 197 94)" />
-            </div>
-            <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-              Macro totals are calculated from meals logged today. Targets come from the existing
-              nutrition target state.
-            </p>
-          </div>
-
-          <PlannedFeatureCard
-            title="Macro Trends"
-            status="Planned"
-            description="Toggleable graphs showing Calories, Protein, Carbs, and Fat over time will be integrated here once macro-over-time trend data is supported."
-          />
-        </div>
-      )}
-
-      {isDeepDive && tab === "quality" && (
-        <div className="px-5 space-y-4 mt-2">
-          <SectionHeader title="Nutrition Quality" />
-          <PlannedFeatureCard
-            title="Food Quality Score"
-            status="Not connected yet"
-            description="Overall food quality, meal balance, and micronutrient analysis will appear here."
-          />
-          <PlannedFeatureCard
-            title="Hydration tracker"
-            status="Not connected yet"
-            description="Hydration will appear here once real hydration state exists. No water totals are fabricated."
-          />
-          <PlannedFeatureCard
-            title="Food database & Library"
-            status="Planned"
-            description="Food library, saved foods, and common foods."
-          />
-          <PlannedFeatureCard
-            title="Fiber & Micronutrients"
-            status="Coming later"
-            description="Deep analysis of fiber and micronutrients."
-          />
-          <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4 flex flex-col justify-center">
-            <div className="flex items-center gap-2 mb-2">
-              <Pill size={16} className="text-purple-400" />
-              <p className="text-xs font-bold uppercase tracking-widest text-white/60">
-                Supplements
-              </p>
-            </div>
-            {supplements.length > 0 ? (
-              <p className="font-display text-xl text-white">
-                {supplements.length} <span className="text-sm text-white/40">taken</span>
-              </p>
-            ) : (
-              <p className="font-display text-xl text-white/40 italic">None logged</p>
-            )}
-          </div>
-        </div>
-      )}
-
-      {isDeepDive && tab === "timing" && (
-        <div className="px-5 space-y-4 mt-2">
-          <SectionHeader title="Timing & Windows" />
-          <PlannedFeatureCard
-            title="Meal Timing"
-            status="Coming later"
-            description="Meal timing timeline, fasting/eating window analysis, and late-night eating patterns will appear here once supported."
-          />
-          <PlannedFeatureCard
-            title="Workout Nutrition"
-            status="Planned"
-            description="Pre-workout and post-workout fuel analysis and its effect on training."
-          />
-        </div>
-      )}
-
-      {isDeepDive && tab === "insights" && (
-        <div className="px-5 space-y-4 mt-2">
-          <SectionHeader title="Insights & Relationships" />
-          <PlannedFeatureCard
-            title="Nutrition vs Weight"
-            status="Coming later"
-            description="Correlation between macro adherence and bodyweight trends."
-          />
-          <PlannedFeatureCard
-            title="Nutrition vs Performance"
-            status="Coming later"
-            description="Correlation between nutrition (e.g. carbs) and training performance."
-          />
-          <PlannedFeatureCard
-            title="Nutrition vs Recovery"
-            status="Coming later"
-            description="How food quality, hydration, and meal timing affect readiness and recovery."
-          />
-          <PlannedFeatureCard
-            title="Education & Suggestions"
-            status="Planned"
-            description="Explanations on why macros, micronutrients, and timing matter for your specific goals."
-          />
-        </div>
       )}
 
       <LogMealSheet open={logOpen} onClose={() => setLogOpen(false)} />
@@ -198,59 +51,6 @@ export function NutritionView({
         confirmLabel="Delete"
         destructive
       />
-    </div>
-  );
-}
-
-function CardLikeLogMeal({ onLog }: { onLog: () => void }) {
-  return (
-    <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-5">
-      <p className="text-xs font-bold uppercase tracking-widest text-white/45">Log Meal</p>
-      <h2 className="mt-1 text-xl font-bold text-white">Add today's nutrition</h2>
-      <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-        Use the existing meal templates, foods library, custom entry, or AI photo estimate entry
-        point.
-      </p>
-      <PrimaryButton
-        onClick={onLog}
-        className="mt-4 w-full rounded-2xl bg-green-500 hover:bg-green-600"
-      >
-        <Plus size={16} />
-        Log Meal
-      </PrimaryButton>
-    </div>
-  );
-}
-
-function MacroBar({
-  label,
-  value,
-  target,
-  unit,
-  color,
-}: {
-  label: string;
-  value: number;
-  target: number;
-  unit: string;
-  color?: string;
-}) {
-  const pct = Math.min(100, (value / Math.max(1, target)) * 100);
-  return (
-    <div>
-      <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-1.5">
-        <span className="text-white/40">{label}</span>
-        <span className="text-white/80 tabular-nums">
-          {Math.round(value)}/{target}
-          {unit}
-        </span>
-      </div>
-      <div className="h-1.5 rounded-full overflow-hidden bg-white/5">
-        <div
-          className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${pct}%`, background: color || "var(--section)" }}
-        />
-      </div>
     </div>
   );
 }
