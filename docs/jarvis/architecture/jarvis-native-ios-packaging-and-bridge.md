@@ -25,7 +25,7 @@ Custom Swift Jarvis plugin or native module
 - **Recommended bridge strategy:** Typed Capacitor plugin messages for discrete requests, combined with Capacitor event listeners for streaming.
 - **What remains in the web layer:** The complete UI (Home, Training, Fuel, Recovery, Stats), navigation, local FitCore state management, canonical frontend service logic, and visualization.
 - **What moves to native Swift:** Microphone capture, local LLM/speech inference (via Metal/Core ML), audio session configuration, and model asset file management.
-- **Why the recommendation minimizes risk:** It requires zero changes to the underlying Vite/React architecture, prevents duplicating FitCore's business logic, and clearly isolates the new native ML capabilities into a maintainable Swift plugin.
+- **Why the recommendation minimizes risk:** It requires minimal initial changes to the underlying Vite/React architecture, prevents duplicating FitCore's business logic, and clearly isolates the new native ML capabilities into a maintainable Swift plugin.
 - **Main compromise:** Debugging bridge issues between React and Swift is more complex than pure web development, and large streaming event payloads must be optimized to not block the WKWebView UI thread.
 - **Fallback if the primary approach proves infeasible:** A fully custom `WKWebView` container with manual `WKScriptMessageHandler` bridging, should Capacitor's event throughput prove insufficient for high-frequency token streams.
 
@@ -36,9 +36,9 @@ Custom Swift Jarvis plugin or native module
 - Preserve existing UI: Avoid rewriting the current React/Tailwind frontend.
 - Preserve canonical FitCore services: Do not duplicate domain logic in Swift.
 - Avoid a full rewrite: Limit native code to Jarvis-specific ML and hardware tasks.
-- Access native iOS audio and local inference: Metal and Core ML are required for performant local execution on iPhone 15/16.
+- Access native iOS audio and local inference: The approved inference provider may use Metal, Core ML, MLX, or another validated native runtime.
 - Maintain offline behavior: Core capabilities must work without the internet.
-- Support both target phones: Regular iPhone 15 (8GB RAM) and iPhone 16.
+- Support both target phones: Regular iPhone 15 baseline and iPhone 16. Actual usable memory is controlled by iOS, application state, native models, WKWebView, audio components, and Jetsam behavior.
 - Allow streaming bridge events: Token generation and partial speech transcripts must render smoothly.
 - Permit cancellation: The user must be able to interrupt generation or speech immediately.
 - Keep provider implementations replaceable: The native ML backend should be abstracted.
@@ -84,7 +84,7 @@ Based on the latest repository state, FitCore is a Single Page Application (SPA)
 | **Expo**             | No                   | Excellent           | High                | High (Rewrite)   | High                    | Yes           | Total UI rewrite required             |
 | **Full SwiftUI**     | No                   | Native              | Highest             | Highest          | Highest                 | Yes           | Abandoning web codebase               |
 
-**Decision:** Capacitor is the primary selection. It balances UI preservation with structured native Swift extensibility.
+**Decision:** Capacitor is the preferred first feasibility candidate because it preserves most of the existing React interface. A physical-device spike must prove app loading, offline behavior, storage behavior, lifecycle handling, event streaming, cancellation, and bridge stability. Final approval occurs only after the spike. A custom WKWebView remains a fallback if Capacitor proves insufficient. No full frontend rewrite should occur without explicit approval.
 
 ## 7. Final packaging selection
 
@@ -241,11 +241,11 @@ ios/
 | Web Layer     |                                   | Native Layer  |
 +---------------+                                   +---------------+
        |                                                   |
-       | 1. JavaScript calls Capacitor.invoke()            |
+       | 1. JavaScript calls conceptual plugin interface            |
        |-------------------------------------------------->|
        |                                                   | 2. Swift parses JSON
        |                                                   | 3. Execution (e.g. Prepare Models)
-       | 4. Swift returns JSON result via Capacitor        |
+       | 4. Swift returns structured response        |
        |<--------------------------------------------------|
        |                                                   |
 ```
@@ -464,7 +464,7 @@ ios/
 ## 25. Storage boundaries
 
 - **Existing FitCore storage (`src/lib/store.tsx`):** Owns workouts, nutrition, recovery, goals, user preferences.
-- **Native Jarvis storage:** Owns large downloaded model assets, audio config, ML diagnostics, potential encrypted secrets (Keychain).
+- **Native Jarvis storage:** Owns large downloaded model assets (in application-support storage), audio config, ML diagnostics, potential encrypted secrets (in Keychain).
 - **Rule:** No duplicate canonical records. Web remains the source of truth for fitness data.
 
 ## 26. Secrets and credentials
