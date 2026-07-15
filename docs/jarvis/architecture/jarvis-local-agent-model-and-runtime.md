@@ -20,10 +20,13 @@ User Input (Text/Voice) -> Mode/Context Builder -> MLX Swift Runtime (Llama 3.2 
 
 ## 3. Executive recommendation
 
-Common baseline:
-Llama 3.2 3B Instruct in INT4 quantization (Q4_K_M equivalent)
+This document defines a bounded feasibility candidate set. Final selection depends on physical device benchmarks.
+
+
+Preferred Feasibility Configuration:
+1B-3B model candidates (Llama 3.2, Qwen 2.5) in 4-bit quantization
     ↓
-MLX Swift runtime
+MLX Swift or llama.cpp evaluation
     ↓
 Swift provider wrapper
     ↓
@@ -98,39 +101,36 @@ Apple Foundation Models behind the same provider interface
 
 ## 6. Candidate-model comparison
 
-| Model | Parameters | Typical quantized size | Tool or structured-output support | Context | License | Strengths | Risks | iPhone 15 suitability |
-|-------|------------|------------------------|-----------------------------------|---------|---------|-----------|-------|-----------------------|
-| Qwen2.5-1.5B-Instruct | 1.5B | ~1.1GB (INT4) | Yes | 32k | Apache 2.0 | Very fast, small footprint | Weaker reasoning | High |
-| Llama 3.2 1B Instruct | 1.23B | ~1.3GB (INT4) | Yes | 128k | Llama 3.2 (Custom) | Official mobile focus | Tool-calling accuracy | High |
-| **Llama 3.2 3B Instruct** | 3.2B | ~2.6GB (INT4) | Yes | 128k | Llama 3.2 (Custom) | Excellent tool calling, good reasoning | Memory pressure | Medium-High (Requires testing) |
-| Gemma-2-2b-it | 2.6B | ~2GB (INT4) | Yes | 8k | Gemma | High quality generation | Tool calling can be brittle | Medium |
-| Phi-3-mini-4k-instruct | 3.8B | ~2.3GB (INT4) | Yes | 4k | MIT | Strong reasoning | Specific prompt format, context limit | Medium |
+| Model Identifier | Parameters | Expected Quantized Formats | Tool or structured-output | License | Known mobile constraints |
+|------------------|------------|----------------------------|---------------------------|---------|--------------------------|
+| `Qwen/Qwen2.5-1.5B-Instruct` | 1.5B | MLX 4-bit, GGUF | Yes | Apache 2.0 | Weaker reasoning |
+| `meta-llama/Llama-3.2-1B-Instruct` | 1.23B | MLX 4-bit, GGUF | Yes | Llama 3.2 (Custom) | Tool-calling accuracy limits |
+| `meta-llama/Llama-3.2-3B-Instruct` | 3.2B | MLX 4-bit, GGUF | Yes | Llama 3.2 (Custom) | Potential memory pressure on 6GB RAM |
 
-*(Sizes are estimated for 4-bit INT4 / Q4 formats)*
+## 7. Preferred feasibility candidates
 
-## 7. Final baseline-model selection
+The final model selection is subject to strict performance gating. We will evaluate the following initial candidate set:
 
-**Baseline Model:** Llama 3.2 3B Instruct
+1. **Llama 3.2 3B Instruct** (Primary ~3B candidate)
+2. **Qwen 2.5 1.5B Instruct** (Primary ~1.5B candidate, fallback for strict memory constraints)
+3. **Llama 3.2 1B Instruct** (Secondary ~1B candidate)
 
-* **Exact official model family:** Meta Llama 3.2 (Instruct)
-* **Recommended initial parameter size:** 3.2 Billion
-* **Recommended quantization range to test:** 4-bit (INT4 / Q4_K_M equivalent)
-* **Expected model-file-size range:** 2.0GB - 2.8GB
-* **Recommended context range:** 4k - 8k tokens (mobile bounded)
-* **Recommended non-thinking or thinking mode:** Non-thinking (direct generation for speed)
+For the preferred ~3B candidate define testing ranges:
+* **Context range:** 4k - 8k tokens
+* **Stop conditions:** Standard tokenizer-specific tokens (e.g., `eot_id`, `eom_id`)
 * **Maximum output limits:** ~150-250 tokens per turn
-* **Stop conditions:** Standard Llama 3 `eot_id`, `eom_id`
-* **Repetition controls:** Enabled (penalty ~1.1)
-* **Tool-call behavior:** Official Llama 3 tool calling prompt format
-* **License:** Llama 3.2 Community License
-* **Required attribution:** Required ("Built with Llama")
-* **Known risks:** iPhone 15 has 6GB RAM; a 2.6GB model leaves ~3.4GB for OS and app, which may cause Jetsam memory terminations under heavy load. A fallback to Llama 3.2 1B must be tested if 3B fails stability gates.
+* **Tool-call behavior:** Official model tool calling prompt format
+* **Required attribution:** Varies by license (e.g., "Built with Llama")
+
+If a 3B candidate fails stability gates (Jetsam terminations), the 1.5B/1B candidates will be elevated to the primary focus.
 
 ## 8. Quantization strategy
 
-* **4-bit (INT4):** Striking the best balance between memory footprint, inference speed, and quality. A 3B model at INT4 requires ~2.6GB of memory, which is viable on a 6GB iPhone 15.
-* **8-bit (INT8):** Better quality but doubles the memory requirement to ~4-5GB, which is highly likely to cause app termination on an iPhone 15 when combined with system overhead.
-* **Recommendation:** Primary quantization for both iPhone 15 and iPhone 16 should be 4-bit. Both phones should initially use the same model file to simplify distribution and caching. We will not ship separate variants for iPhone 16 unless benchmark conditions prove 4-bit is insufficient for quality on iPhone 16 and 8-bit fits cleanly within its memory.
+Quantization formats differ significantly between runtimes (e.g., MLX uses specific safetensor layouts, llama.cpp uses GGUF, Core ML uses its own packaged formats).
+
+* **4-bit Class:** Represents the preferred target for mobile inference footprint, but physical-device measurement is required to determine viability.
+* **Memory vs. File Size:** Model-size estimates on disk must not be equated to peak memory. Memory usage must account for runtime buffers, KV cache growth, tokenizer state, and framework overhead.
+* **Recommendation:** Test 4-bit class quantizations across MLX and GGUF. We will not ship separate model variants for iPhone 16 unless benchmark conditions justify the added distribution complexity.
 
 ## 9. Context-window strategy
 
@@ -155,16 +155,12 @@ While Llama 3.2 supports up to 128k context, this is prohibitively expensive in 
 
 ## 11. Final runtime selection
 
-**Selected Runtime:** MLX Swift
+The final runtime selection will be determined by benchmarking MLX Swift against llama.cpp on the iPhone 15.
 
-* **Why it wins:** MLX is Apple's own machine learning framework tailored specifically for Apple Silicon (unified memory architecture). It provides native Swift APIs, completely bypassing C++ interop layers, leading to highly efficient Metal utilization and minimal overhead. Recent community benchmarks show MLX outperforming llama.cpp in token generation speed for smaller models on iOS.
-* **Swift integration:** Native Swift API.
-* **Wrapper:** We will wrap it behind a `JarvisModelProvider` adapter, rather than exposing MLX directly to FitCore logic.
-* **Model loading:** `MLXLLM` library utilities.
-* **Streaming:** Async sequences (`AsyncThrowingStream`).
-* **Cancellation:** Native Swift structured concurrency (`Task.cancel()`).
-* **Version:** Pin to a specific recent stable release tag of `mlx-swift`.
-* **Decision:** Wrap behind FitCore adapter.
+* **MLX Swift:** Apple's machine learning framework tailored for unified memory. Fast API evolution.
+* **llama.cpp:** Mature community standard with broad GGUF support.
+
+**Recommendation:** Conduct a timeboxed spike comparing MLX Swift and llama.cpp for peak memory and token speed before locking the final runtime.
 
 ## 12. Existing-project reuse decisions
 
@@ -179,7 +175,7 @@ While Llama 3.2 supports up to 128k context, this is prohibitively expensive in 
 
 ## 13. Provider abstraction
 
-The system will use a `JarvisModelProvider` protocol to decouple the runtime from FitCore logic.
+The system will use a `JarvisModelProvider` protocol to decouple the runtime from FitCore logic. The interface must remain independent of MLX, llama.cpp, Apple Foundation Models, and optional future cloud providers, specifying capability negotiation and replaceability without defining implementation code.
 
 Required capabilities (conceptual):
 * `initialize()`
@@ -216,7 +212,7 @@ FitCore Services <--> Tool Gateway <--> JarvisModelProvider Interface <--> MLX S
 
 ## 14. Common provider versus optional enhanced provider
 
-### Common local provider (MLX Swift)
+### Common local provider
 * required on iPhone 15;
 * required on iPhone 16;
 * baseline behavior and tool contracts.
@@ -225,7 +221,7 @@ FitCore Services <--> Tool Gateway <--> JarvisModelProvider Interface <--> MLX S
 * Supported requests: General knowledge, deep OS integration.
 * Provider-routing criteria: If the user request matches an App Intent registered with Apple Intelligence.
 * Fallback: Transparent fallback to MLX Swift if Apple Intelligence cannot handle the request or is unavailable (e.g., region locks, not downloaded).
-* **Recommendation:** Included as a phase-two enhancement. The first version must focus entirely on stabilizing the common MLX Swift baseline to ensure feature parity across iPhone 15 and 16.
+* **Recommendation:** Included as a phase-two enhancement. The first version must focus entirely on stabilizing the selected local baseline runtime to ensure feature parity across iPhone 15 and 16.
 
 ### Common-Provider vs Optional-Enhanced-Provider Flow
 ```text
@@ -241,27 +237,25 @@ Model
 
 ## 15. Tool-calling representation
 
-Structured tool-request format: JSON Schema conforming to Llama 3's expected tool calling structure.
+Structured tool-request format: JSON Schema.
 
 ```json
 {
   "type": "tool_request",
   "tool": "compareExerciseSessions",
   "arguments": {
-    "exerciseId": "barbell-bench-press",
-    "comparison": "previous_matching_session"
+    "exerciseId": "barbell-bench-press"
   },
   "turn_id": "turn-123",
-  "confidence": 0.95,
-  "requires_confirmation": false
+  "confidence": 0.95
 }
 ```
 
 * Strict parsing required.
+* Model confidence (e.g., 0.95) may be diagnostic metadata only and must not bypass safeguards or authorize execution.
+* The execution gateway must rely solely on: schema validity, known tool presence, validated arguments, context freshness, risk class, confirmation state, idempotency, turn revision, and canonical service validation.
 * Unknown tools rejected immediately.
-* Argument validation is performed strictly against predefined schemas.
 * Maximum tool iterations: 3 per user request to prevent loops.
-* No text extraction from prose if structured output is available.
 
 ### Tool-Call Generation and Validation Flow
 ```text
@@ -381,13 +375,27 @@ Tool request detected OR sentence completed -> Output routed to Tool Gateway or 
 
 ## 27. Benchmark and feasibility plan
 
-**Devices:** iPhone 15, iPhone 16.
-**Model configs:** Llama 3.2 3B 4-bit (Primary), Llama 3.2 1B 4-bit (Fallback).
-**Measurements:**
-* Time to first token (Target: < 1.5s).
-* Tokens per second (Target: > 20 tok/s).
-* Memory footprint (Target: < 3GB peak).
-* Jetsam crash rate over 10 consecutive long-context turns.
+**Devices:** iPhone 15 (binding baseline), iPhone 16.
+**Measurements required for final approval:**
+* cold-load time;
+* warm-load time;
+* memory peak;
+* steady-state memory;
+* Jetsam termination;
+* tokens per second;
+* time to first token;
+* cancellation latency;
+* structured-output validity;
+* tool-selection accuracy;
+* argument accuracy;
+* conversation quality;
+* context handling;
+* long-session thermal throttling;
+* battery impact;
+* storage size;
+* license and redistribution compatibility.
+
+The regular iPhone 15 is the binding device. A larger candidate must not be selected merely because its conversational quality is higher if it fails stability or thermal gates.
 
 ## 28. Evaluation dataset requirements
 
@@ -427,14 +435,14 @@ Model Operation Error -> Is Retryable? -> Yes -> Retry (Max 1x)
 
 * **Cloud-only model:** Violates core requirement of offline availability and privacy.
 * **Apple Foundation Models as ONLY provider:** Violates requirement to support standard iPhone 15.
-* **llama.cpp:** Rejected in favor of MLX Swift for better native integration and potentially higher token throughput on recent Apple Silicon.
-* **8-bit Quantization:** Rejected due to excessive memory requirements (>4GB) for a 3B model on a 6GB iPhone 15.
+* **llama.cpp:** Remains a primary evaluation candidate alongside MLX Swift. for better native integration and potentially higher token throughput on recent Apple Silicon.
+* **8-bit Quantization:** May present memory tradeoffs that require strict device validation on the iPhone 15 to ensure FitCore UI stability.
 
 ## 32. Final recommendation summary
 
-* **Common model:** Llama 3.2 3B Instruct
-* **Runtime:** MLX Swift
-* **Swift integration:** Native wrapper around `mlx-swift`
+* **Preferred Model Candidates:** Llama 3.2 3B Instruct, Qwen 2.5 1.5B
+* **Preferred Runtime Candidates:** MLX Swift, llama.cpp
+* **Swift integration:** Custom provider abstraction
 * **Quantization:** 4-bit (INT4)
 * **Context range:** 4096 tokens
 * **Reasoning policy:** Non-thinking default
@@ -446,6 +454,9 @@ Model Operation Error -> Is Retryable? -> Yes -> Retry (Max 1x)
 
 ## 33. References
 
-* MLX Swift Repository: https://github.com/ml-explore/mlx-swift (Accessed 2024-05-18)
-* Meta Llama 3.2 Model Card: https://huggingface.co/meta-llama/Llama-3.2-3B-Instruct (Accessed 2024-05-18)
-* MLX Community Benchmarks: Various Apple Silicon LLM benchmark reports (Accessed 2024-05-18)
+* MLX Swift Official Documentation: https://swiftpackageindex.com/ml-explore/mlx-swift (Accessed 2026-07-15)
+* Llama 3.2 Model Card (Meta): https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD.md (Accessed 2026-07-15)
+* Qwen 2.5 Model Details: https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct (Accessed 2026-07-15)
+* Apple Foundation Models / Intelligence Requirements: https://support.apple.com/en-us/121115 (Accessed 2026-07-15)
+* llama.cpp Official Repository: https://github.com/ggerganov/llama.cpp (Accessed 2026-07-15)
+* Llama 3.2 Community License: https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/LICENSE (Accessed 2026-07-15)
