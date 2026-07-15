@@ -82,14 +82,14 @@ Raw audio is discarded immediately after processing.
 
 Final selection requires physical iPhone 15 tests, current framework compatibility, exact model revisions, licensing review, memory and thermal evaluation, Bluetooth validation, noisy-gym accuracy, and barge-in reliability.
 
-- **Audio-session manager:** `AVAudioSession` (Native). Why it wins: Mandatory for iOS. Known compromises: strict category rules.
-- **Microphone capture:** `AVAudioEngine` (Native). Why it wins: Integrated echo cancellation via voice processing mode.
-- **Echo cancellation:** Voice-Processing I/O node (Native). Why it wins: Hardware-accelerated, prevents TTS from feeding into STT.
-- **Speech recognition:** Parakeet Realtime EOU (via FluidAudio). Why it wins: True streaming, built-in end-of-utterance, runs on ANE. Needs validation: Gym noise robustness.
+- **Audio-session manager:** `AVAudioSession` (Native). Reason to evaluate: Mandatory for iOS. Primary risk: strict category rules.
+- **Microphone capture:** `AVAudioEngine` (Native). Reason to evaluate: Expected to reduce echo and feedback risk via voice processing mode.
+- **Echo cancellation:** Voice-Processing I/O node (Native). Reason to evaluate: Expected to improve self-transcription behavior, reducing TTS feedback into STT.
+- **Speech recognition:** Parakeet Realtime EOU (via FluidAudio). Expected benefit: True streaming, built-in end-of-utterance, runs on ANE. Required validation: Gym noise robustness.
 - **Partial transcript delivery:** FluidAudio callbacks.
-- **End-of-turn detection:** Parakeet Realtime EOU integrated detector. Why it wins: Prevents premature cut-offs better than silence timeouts.
+- **End-of-turn detection:** Parakeet Realtime EOU integrated detector. Expected benefit: May prevent premature cut-offs better than silence timeouts.
 - **Interruption detection:** Continuous acoustic monitoring via the STT engine.
-- **Speech generation:** PocketTTS (via FluidAudio). Why it wins: Fast streaming TTS allows fluid conversation.
+- **Speech generation:** PocketTTS (via FluidAudio). Expected benefit: Fast streaming TTS allows fluid conversation.
 - **System fallback:** Apple `AVSpeechSynthesizer`.
 - **Model-asset management boundary:** FluidAudio's download manager or a custom wrapper for lazy loading.
 
@@ -126,7 +126,7 @@ AVAudioEngine (Shared Instance)
        └─> Output Node (Speaker) <─ TTS
 ```
 
-A single `AVAudioEngine` with a voice-processing I/O node handles both input (mic) and output (TTS). This is crucial because Apple's voice processing mode (hardware AEC) is most effective when both input and output run through the same I/O node. It is expected to prevent the mic from capturing the TTS output (barge-in support), requiring measurement.
+A single `AVAudioEngine` with a voice-processing I/O node handles both input (mic) and output (TTS). This is crucial because Apple's voice processing mode (hardware AEC) is most effective when both input and output run through the same I/O node. It is expected to reduce echo and feedback risk, and expected to improve self-transcription behavior. This requires physical-device validation.
 
 ## 10. Voice-request sequence
 
@@ -179,7 +179,7 @@ When the user speaks while Jarvis is talking:
 ```text
 Jarvis Speaking → User Speaks (Microphone Active)
        ↓
-Hardware AEC Suppresses TTS from Mic
+Hardware AEC Reduces Echo and Feedback Risk
        ↓
 Parakeet Detects Actual User Speech
        ↓
@@ -217,7 +217,7 @@ _Example:_
 Strategies for the gym:
 
 - Push-to-talk UI available at all times.
-- Echo cancellation handles background music to some extent.
+- Echo cancellation is expected to reduce background music to some extent, requiring physical-device validation.
 - Confidence thresholds: if STT confidence is low, UI prompts "Did you mean X?".
 - Ambiguous numeric commands ("one fifteen" = 115 or 1:15?) require UI confirmation.
 - Testing is strictly required in a real gym environment to tune parameters.
@@ -225,9 +225,9 @@ Strategies for the gym:
 ## 16. Bluetooth behavior
 
 - `AVAudioSession` options `allowBluetooth` and `allowBluetoothA2DP` must be set.
-- When a headset connects (route change notification), audio seamlessly shifts.
+- When a headset connects (route change notification), the route change is expected to be handled; audio interruption and restart may occur. Session state must be reconciled, and active speech and listening state must be canceled or resumed safely.
 - Bluetooth microphone profiles (HFP) drop audio quality significantly compared to A2DP. The app must manage this tradeoff gracefully during two-way audio.
-- AirPods are expected to support seamless switching (requires validation).
+- AirPods route changes are expected to be handled, but exact behavior must be tested on physical hardware.
 
 ## 17. App lifecycle behavior
 
@@ -348,6 +348,14 @@ Go/no-go conditions before implementation:
 - **Volocal reuse strategy:** Reference only. Extract patterns for the shared audio engine and barge-in revision IDs, but do not fork.
 - **Required fallback:** Apple `AVSpeechSynthesizer` for TTS, text-input for STT.
 - **Unresolved risk:** Reliable operation in noisy gym environments with heavy background music.
+- **Physical testing scenarios required:**
+  - Built-in speaker at low, medium, and high volume.
+  - Wired or USB route where supported.
+  - Bluetooth headset microphone.
+  - AirPods or equivalent.
+  - TTS playback while user interrupts (barge-in).
+  - Route change during speech.
+  - Gym music and reflected sound.
 - **Feasibility gate:** Physical iPhone 15 testing confirming memory stability, thermal behavior, and license compatibility before final component selection.
 
 ## 27. References
