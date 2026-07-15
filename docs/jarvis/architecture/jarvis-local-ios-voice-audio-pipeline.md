@@ -83,27 +83,27 @@ Raw audio is discarded immediately after processing.
 Final selection requires physical iPhone 15 tests, current framework compatibility, exact model revisions, licensing review, memory and thermal evaluation, Bluetooth validation, noisy-gym accuracy, and barge-in reliability.
 
 - **Audio-session manager:** `AVAudioSession` (Native). Reason to evaluate: Mandatory for iOS. Primary risk: strict category rules.
-- **Microphone capture:** `AVAudioEngine` (Native). Reason to evaluate: Expected to reduce echo and feedback risk via voice processing mode.
+- **Microphone capture:** `AVAudioEngine` (Native). Reason to evaluate: Apple voice-processing modes are expected to reduce acoustic echo and feedback; effectiveness depends on route, speaker volume, microphone, environment, and OS behavior; they do not guarantee elimination of self-transcription; physical-device tests are required.
 - **Echo cancellation:** Voice-Processing I/O node (Native). Reason to evaluate: Expected to improve self-transcription behavior, reducing TTS feedback into STT.
 - **Speech recognition:** Parakeet Realtime EOU (via FluidAudio). Expected benefit: True streaming, built-in end-of-utterance, runs on ANE. Required validation: Gym noise robustness.
 - **Partial transcript delivery:** FluidAudio callbacks.
 - **End-of-turn detection:** Parakeet Realtime EOU integrated detector. Expected benefit: May prevent premature cut-offs better than silence timeouts.
 - **Interruption detection:** Continuous acoustic monitoring via the STT engine.
-- **Speech generation:** PocketTTS (via FluidAudio). Expected benefit: Fast streaming TTS allows fluid conversation.
+- **Speech generation:** PocketTTS (via FluidAudio). Reason to evaluate: Claimed fast streaming capability. Final TTS selection depends on license, first-audio latency, voice quality, pronunciation, memory, thermal behavior, interruption behavior, sentence chunking, model storage, and iPhone 15 stability.
 - **System fallback:** Apple `AVSpeechSynthesizer`.
-- **Model-asset management boundary:** FluidAudio's download manager or a custom wrapper for lazy loading.
+- **Model-asset management boundary:** FluidAudio's download manager is a candidate, but must not be treated as the final FitCore model manager. Asset sizes must be measured from the approved artifact.
 
 _Note: Language model is excluded as per task scope._
 
 ## 7. Existing-project reuse decision
 
-- **Volocal:** Reference only. FitCore should reproduce patterns (like `SharedAudioEngine` and `SentenceBuffer`) without forking the whole app to maintain control over the FitCore architecture.
-- **FluidAudio:** Preferred candidate to evaluate. Provides the CoreML wrappers for STT and TTS.
-- **Parakeet Realtime EOU (Model):** Preferred candidate to evaluate (via FluidAudio).
-- **WhisperKit:** Not prioritized for the first spike. Lacks streaming and EOU.
-- **whisper.cpp:** Not prioritized for the first spike. High battery drain.
-- **PocketTTS:** Preferred candidate to evaluate (via FluidAudio).
-- **Apple native speech APIs:** Use as fallback for TTS only.
+- **Volocal:** Reference only. FitCore should reproduce patterns without forking the whole app to maintain control over the FitCore architecture.
+- **FluidAudio:** Preferred candidate to evaluate.
+- **Parakeet Realtime EOU (Model):** Preferred first spike.
+- **WhisperKit:** Comparison candidate. Endpointing capability must be distinguished from transcription capability.
+- **whisper.cpp:** Comparison candidate.
+- **PocketTTS:** Preferred first spike feasibility candidate.
+- **Apple native speech APIs:** Conditional system fallback.
 
 ## 8. Audio-session architecture
 
@@ -112,7 +112,7 @@ _Note: Language model is excluded as per task scope._
 - **Mode:** `voiceChat`. Enables hardware acoustic echo cancellation and optimized voice processing.
 - **Options:** `allowBluetooth`, `allowBluetoothA2DP`, `defaultToSpeaker`.
 - **Lifecycle:** Session activates on Jarvis launch or workout start, deactivates when closed. Must handle `AVAudioSession.interruptionNotification` and `AVAudioSession.routeChangeNotification`.
-- **Sample Rate:** Generally 16kHz or 48kHz depending on the models, requiring conversion in `AVAudioEngine`.
+- **Sample Rate:** Generally 16kHz or 48kHz (provisional and dependent on the selected model), requiring conversion in `AVAudioEngine`.
 
 ## 9. Shared audio-engine design
 
@@ -169,17 +169,28 @@ Additional chunks queued continuously
 Response completes
 ```
 
-- **Chunking:** Max ~200 characters per chunk.
+- **Chunking:** Max ~200 characters per chunk (provisional and dependent on the selected model and testing).
 - **Fallback:** If PocketTTS fails, Apple `AVSpeechSynthesizer` speaks the buffered sentence.
 
 ## 12. Interruption and barge-in flow
 
-When the user speaks while Jarvis is talking:
+Barge-in requires:
+
+- Echo-reduction configuration.
+- Speech detection.
+- Transcript confidence or stability.
+- Active-turn revision.
+- TTS cancellation.
+- Model cancellation.
+- Stale-event rejection.
+- Route-specific testing.
+
+False interruption and missed interruption are both acceptance risks.
 
 ```text
 Jarvis Speaking → User Speaks (Microphone Active)
        ↓
-Hardware AEC Reduces Echo and Feedback Risk
+Apple voice-processing modes are expected to reduce acoustic echo and feedback
        ↓
 User-speech detection behavior requires validation
        ↓
@@ -225,9 +236,9 @@ Strategies for the gym:
 ## 16. Bluetooth behavior
 
 - `AVAudioSession` options `allowBluetooth` and `allowBluetoothA2DP` must be set.
-- When a headset connects (route change notification), the route change is expected to be handled; audio interruption and restart may occur. Session state must be reconciled, and active speech and listening state must be canceled or resumed safely.
+- When a headset connects (route change notification), audio interruption and restart may occur. Session state must be reconciled, and active speech and listening state must be canceled or resumed safely.
 - Bluetooth HFP/A2DP tradeoffs must be tested. Route changes may interrupt audio; state must be reconciled.
-- AirPods route changes may interrupt audio; state must be reconciled; active listening and speech may need cancellation or restart. No write may be replayed. Exact behavior is validated on physical hardware.
+- AirPods route changes may interrupt recording or playback; sample rate may change; the current listening or speaking turn may need cancellation; no tool write may replay after route recovery; the exact recovery flow requires testing on physical hardware.
 
 ## 17. App lifecycle behavior
 
@@ -300,7 +311,7 @@ For each selected candidate, the following must be distinguished and reviewed:
 - **FluidAudio (Framework):** MIT / Apache 2.0.
 - **Parakeet EOU (Model/Weights):** Requires verifying NVIDIA NeMo terms and CoreML conversion rights.
 - **PocketTTS (Model/Weights):** Requires verifying Kyutai terms.
-- **Redistribution:** Wrapper licensing does not establish model-weight redistribution rights. Every model revision requires separate license review. Post-install downloading does not eliminate license obligations. Final distribution cannot begin while license status is unresolved.
+- **Redistribution:** MIT or Apache licensing for a wrapper does not prove model weights may be redistributed. Core ML conversion does not automatically grant redistribution rights. Post-install downloading does not remove license obligations. Every model revision requires separate license review. Unresolved model licensing blocks production distribution. Feasibility testing may proceed only when the testing use is permitted.
 
 ## 22. Provisional performance targets
 
@@ -324,10 +335,20 @@ _Note: Do not report an exact latency as a FitCore expectation unless measured b
 
 Go/no-go conditions before implementation:
 
-- The iPhone 15 can run the STT, LLM, and TTS models simultaneously without OOM crashes.
-- Barge-in works and echo cancellation prevents infinite feedback loops.
+- Regular iPhone 15 passes all required benchmarks.
+- No normal-use OOM or Jetsam termination occurs.
+- Local-only behavior does not silently use network recognition.
+- Raw audio is not retained.
+- Partial transcripts never trigger writes.
+- Stop and cancellation work.
+- False barge-in rate is acceptable.
+- Missed barge-in rate is acceptable.
+- Physical-device testing confirms that the complete audio pipeline avoids sustained self-transcription or feedback-loop behavior under required routes and volumes.
+- Built-in speaker feedback does not create an infinite loop.
 - Bluetooth route changes recover safely.
-- Text-only fallback works reliably if models fail to load.
+- Noisy-gym transcription meets the approved rubric.
+- System TTS and text input remain available.
+- Licenses permit the intended distribution.
 
 ## 25. Failure and fallback matrix
 
@@ -347,7 +368,7 @@ Go/no-go conditions before implementation:
 - **Candidate TTS approach:** PocketTTS via FluidAudio with sentence chunking.
 - **Volocal reuse strategy:** Reference only. Extract patterns for the shared audio engine and barge-in revision IDs, but do not fork.
 - **Required fallback:** Apple `AVSpeechSynthesizer` for TTS, text-input for STT.
-- **Unresolved risk:** Reliable operation in noisy gym environments with heavy background music.
+- **Unresolved risk:** Reliable operation in noisy gym environments with heavy background music. Confidence thresholds are provisional.
 - **Physical testing scenarios required:**
   - Built-in speaker at low, medium, and high volume.
   - Wired or USB route where supported.
@@ -361,6 +382,6 @@ Go/no-go conditions before implementation:
 ## 27. References
 
 1. Apple Developer Documentation: AVAudioSession (https://developer.apple.com/documentation/avfaudio/avaudiosession), Accessed 2026-07-15. Supports audio session categorization.
-2. Apple Developer Documentation: AVAudioEngine Voice Processing (https://developer.apple.com/documentation/avfaudio/avaudiosession/mode/1616455-voicechat), Accessed 2026-07-15. Supports hardware AEC claims.
-3. FluidAudio Repository (https://github.com/FluidInference/FluidAudio), Accessed 2026-07-15. Supports CoreML implementations of Parakeet and PocketTTS.
-4. Volocal Repository (https://github.com/fikrikarim/volocal), Accessed 2026-07-15. Supports SharedAudioEngine and barge-in architectural patterns.
+2. Apple Developer Documentation: AVAudioEngine Voice Processing (https://developer.apple.com/documentation/avfaudio/avaudiosession/mode/1616455-voicechat), Accessed 2026-07-15. Expected to reduce acoustic echo.
+3. FluidAudio Repository (https://github.com/FluidInference/FluidAudio), Accessed 2026-07-15.
+4. Volocal Repository (https://github.com/fikrikarim/volocal), Accessed 2026-07-15.
