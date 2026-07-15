@@ -2,10 +2,21 @@
 
 # FitCore Jarvis Local Agent Model and iOS Inference Runtime
 
-### Local Model Request Pipeline
+### Primary Architecture Flow
 ```text
-User Input (Text/Voice) -> Mode/Context Builder -> MLX Swift Runtime (Llama 3.2 3B)
--> Token Stream -> Tool Call / Response Parser -> Action / Text Output
+User input
+    ↓
+Deterministic command routing
+    ↓
+Context and policy builder
+    ↓
+Approved JarvisModelProvider
+    ↓
+Streamed provider-neutral output
+    ↓
+Structured-output normalizer
+    ↓
+Validated tool request or user response
 ```
 
 ## 2. Document status
@@ -66,35 +77,17 @@ Apple Foundation Models behind the same provider interface
 
 ## 5. Model-role boundaries
 
-**What the local model should handle:**
-* natural-language intent;
-* conversation continuity;
-* tool selection;
-* argument extraction;
-* response phrasing;
-* concise explanations;
-* ambiguity clarification;
-* summarization;
-* structured memory suggestions.
-
-**What it should not handle directly:**
-* canonical calculations;
-* database writes;
-* raw persistence access;
-* timer state;
-* personal-record determination;
-* exact macro totals;
-* workout-volume calculations;
-* final safety validation;
-* permissions;
-* destructive-action approval;
-* arbitrary code execution;
-* unrestricted medical conclusions.
+* The model chooses or proposes an approved tool.
+* The tool gateway validates the request.
+* Canonical FitCore services perform reads and writes.
+* Deterministic code performs calculations and safeguards.
+* The model never receives raw persistence access.
+* Write authorization is independent of provider.
 
 | Responsibility | Local model | Deterministic code | FitCore service | User confirmation |
 | -------------- | ----------- | ------------------ | --------------- | ----------------- |
-| Intent parsing | Primary     | Fallback           | No              | No                |
-| Tool selection | Primary     | No                 | No              | No                |
+| Intent parsing | Proposes    | Fallback           | No              | No                |
+| Tool selection | Proposes    | No                 | No              | No                |
 | Data access    | No          | Primary            | Primary         | No                |
 | Metric math    | No          | Primary            | No              | No                |
 | App state mut  | No          | Primary            | No              | Yes (destructive) |
@@ -102,11 +95,11 @@ Apple Foundation Models behind the same provider interface
 
 ## 6. Candidate-model comparison
 
-| Exact Official Identifier | Publisher | Parameters | Release/Revision | License | Official Model Card | Tool/Structured Output | Expected Formats | Mobile Constraints | Reason to Test | Primary Risk |
-|---------------------------|-----------|------------|------------------|---------|---------------------|------------------------|------------------|--------------------|----------------|--------------|
-| `meta-llama/Llama-3.2-3B-Instruct` | Meta | 3.2B | Sept 2024 | Llama 3.2 | [Link](https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD.md) | Yes | GGUF, MLX | Memory pressure on 6GB RAM | Strong tool calling baseline | Jetsam terminations on iPhone 15 |
-| `meta-llama/Llama-3.2-1B-Instruct` | Meta | 1.23B | Sept 2024 | Llama 3.2 | [Link](https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD.md) | Yes | GGUF, MLX | Weaker reasoning | Safely fits in 6GB RAM | Tool calling accuracy drops |
-| `Qwen/Qwen2.5-1.5B-Instruct` | Alibaba | 1.5B | Sept 2024 | Apache 2.0 | [Link](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct) | Yes | GGUF, MLX | Weaker reasoning | Excellent size-to-performance ratio | Hallucination on complex tasks |
+| Exact Official Identifier | Publisher | Parameters | Release/Revision | Release Date | License | Official Model Card | Tool/Structured Output | Expected Formats | Reason to Benchmark | Primary Mobile Risk |
+|---------------------------|-----------|------------|------------------|--------------|---------|---------------------|------------------------|------------------|---------------------|---------------------|
+| `meta-llama/Llama-3.2-3B-Instruct` | Meta | 3.2B | v1.0 | Sept 2024 | Llama 3.2 | [Link](https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD.md) | Capability advertised by publisher | GGUF, MLX | Stronger-quality candidate | Memory viability requires physical-device measurement |
+| `meta-llama/Llama-3.2-1B-Instruct` | Meta | 1.23B | v1.0 | Sept 2024 | Llama 3.2 | [Link](https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD.md) | Capability advertised by publisher | GGUF, MLX | Smaller memory candidate | Tool behavior requires normalized evaluation |
+| `Qwen/Qwen2.5-1.5B-Instruct` | Alibaba | 1.5B | v1.0 | Sept 2024 | Apache 2.0 | [Link](https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct) | Capability advertised by publisher | GGUF, MLX | Permissively licensed candidate | Mobile behavior unknown |
 
 ## 7. Preferred feasibility candidates
 
@@ -127,39 +120,26 @@ If a 3B candidate fails stability gates (Jetsam terminations), the 1.5B/1B candi
 
 ## 8. Quantization strategy
 
-Quantization formats differ significantly between runtimes (e.g., MLX uses specific safetensor layouts, llama.cpp uses GGUF, Core ML uses its own packaged formats).
-
-* **4-bit Class:** Represents the preferred target for mobile inference footprint, but physical-device measurement is required to determine viability.
-* **Memory vs. File Size:** Model-size estimates on disk must not be equated to peak memory. Memory usage must account for runtime buffers, KV cache growth, tokenizer state, and framework overhead.
-* **Recommendation:** Test 4-bit class quantizations across MLX and GGUF. We will not ship separate model variants for iPhone 16 unless benchmark conditions justify the added distribution complexity.
+Candidate quantization formats are runtime-specific. MLX and GGUF quantizations are not interchangeable. Exact quantization must be identified by artifact. File size does not equal peak memory. Benchmark at least one smaller-footprint candidate for each retained runtime where available. Quality, memory, speed, and license must be evaluated together.
 
 ## 9. Context-window strategy
 
-**Strategy:** Mobile Bounded Context
-While Llama 3.2 supports up to 128k context, this is prohibitively expensive in memory and processing time (Time to First Token) on a mobile device.
+The context limit is selected from physical-device evidence. FitCore context is minimized. Recent turns and rolling summaries are bounded. Canonical tool results are filtered to needed fields. Truncation must not silently remove information required for an accurate answer.
 
-* **Recommended initial practical context range:** Provisional length (e.g., 4096 tokens).
-* **Context-overflow handling:** FIFO sliding window for recent turns, combined with a rolling summary of older turns.
-* **Summary refresh:** When context reaches 80% of limit, summarize the oldest 50% of the active conversation.
-* **Record truncation:** Database query results passed to tools must be aggressively truncated (e.g., top 5 records) before entering the prompt.
-* **Tool-result compression:** Only pass essential fields back to the model, omitting metadata.
-* **Sensitive-field filtering:** Strip identifiable keys before insertion into the context.
+### Provisional experiment variables
+* Initial evaluation length (e.g., 4096 tokens).
+* Summary triggers and thresholds.
 
 ## 10. Inference-runtime comparison
 
-| Runtime | Official Repository | Current Release/Tag | Swift integration approach | Supported model formats | Streaming | Cancellation | License | Known mobile integration risks |
-|---------|---------------------|---------------------|----------------------------|-------------------------|-----------|--------------|---------|--------------------------------|
-| MLX Swift | `ml-explore/mlx-swift` | `v0.21.0` (or latest pinned) | Native Swift API wrapper | MLX (.safetensors) | Yes | Yes | MIT | Fast changing API |
-| llama.cpp | `ggerganov/llama.cpp` | `b4600` (or latest pinned) | C++ interop wrapper | GGUF | Yes | Yes | MIT | C++ interop complexity |
+| Runtime | Official Repository | Exact Release Tag | Release Date | Swift/iOS integration method | Supported model formats | Streaming | Cancellation | License | Mobile integration risk |
+|---------|---------------------|-------------------|--------------|------------------------------|-------------------------|-----------|--------------|---------|-------------------------|
+| MLX Swift | `ml-explore/mlx-swift` | `v0.21.1` | Aug 2024 | Native Swift API wrapper | MLX (.safetensors) | Yes | Yes | MIT | Fast-changing API |
+| llama.cpp | `ggerganov/llama.cpp` | `b3600` | Aug 2024 | C++ interop wrapper | GGUF | Yes | Yes | MIT | C++ interop complexity |
 
-## 11. Final runtime selection
+## 11. Runtime feasibility decision
 
-The final runtime selection will be determined by benchmarking MLX Swift against llama.cpp on the iPhone 15.
-
-* **MLX Swift:** Apple's machine learning framework tailored for unified memory. Fast API evolution.
-* **llama.cpp:** Mature community standard with broad GGUF support.
-
-**Recommendation:** Conduct a timeboxed spike comparing MLX Swift and llama.cpp for peak memory and token speed before locking the final runtime.
+MLX Swift and llama.cpp are candidates. A timeboxed spike compares them. The regular iPhone 15 is binding. Final selection requires measured results. Implementation language alone does not decide the runtime; C++ interop is a maintenance factor, not an automatic rejection.
 
 ## 12. Existing-project reuse decisions
 
@@ -255,7 +235,7 @@ Selected local model provider available?
 
 ## 15. Tool-calling representation
 
-Provider output is normalized into the approved Jarvis tool-request envelope.
+Each provider adapter normalizes its native output. Normalized requests use the approved Jarvis tool envelope.
 
 ```json
 {
@@ -267,7 +247,7 @@ Provider output is normalized into the approved Jarvis tool-request envelope.
   "turn_id": "turn-123",
   "request_id": "req-456",
   "context_version": "v1.0",
-  "provider_identifier": "local-mlx",
+  "provider_identifier": "selected-local-provider",
   "diagnostics": {
     "confidence": 0.95
   }
@@ -275,11 +255,11 @@ Provider output is normalized into the approved Jarvis tool-request envelope.
 ```
 
 * Strict parsing required.
+* Authorization depends on schema, known tool, validated arguments, context version, turn revision, risk class, confirmation, idempotency, and canonical service validation.
+* Model confidence is optional diagnostic metadata only.
 * Unknown tools rejected immediately.
-* Argument validation is performed strictly against predefined schemas.
-* Maximum tool iterations: 3 per user request to prevent loops.
+* Maximum tool iterations: Provisional (e.g., 3 per user request to prevent loops).
 * No text extraction from prose if structured output is available.
-* A model-generated confidence value may exist only as optional diagnostics and cannot affect authorization.
 
 ### Tool-Call Generation and Validation Flow
 ```text
@@ -328,18 +308,21 @@ FitCore records must be injected as Data, strictly separated from Instructions t
 
 * **Default mode:** Non-thinking (direct generation) for speed and memory efficiency.
 * **Requests permitted to use bounded reasoning:** Complex scheduling or multi-metric analysis (Coach mode only).
-* **Maximum reasoning budget:** Strict token limit (e.g., 200 tokens) if a reasoning model is used later.
+* **Maximum reasoning budget:** Provisional strict token limit (e.g., 200 tokens) if a reasoning model is used later.
 * **User-visible behavior:** Reasoning must not delay simple commands (e.g., "Log my workout").
 * Private chain-of-thought is not exposed or persisted.
 
 ## 20. Generation controls
 
-* **Maximum output tokens:** 250
-* **Maximum tool-call steps:** 3
-* **Temperature:** 0.1 (Workout mode / Tool selection), 0.4 (Coach mode)
-* **Repetition penalty:** 1.1 - 1.15
-* **Stale-turn revision:** Discarded automatically
-* **Streaming:** Sentence-level chunking for text-to-speech synchronization.
+* Bounded output.
+* Bounded tool iterations.
+* Deterministic or low-variance configuration for tool routing where supported.
+* Provider-specific sampling settings kept in the provider adapter.
+* Cancellation.
+* Stale-turn rejection.
+* No unlimited repair loops.
+
+*(Any numeric values, such as token limits or temperatures, are explicitly marked as experiment variables, not architecture decisions.)*
 
 ## 21. Streaming and cancellation
 
@@ -364,8 +347,8 @@ Tool request detected OR sentence completed -> Output routed to Tool Gateway or 
 
 ## 22. Model lifecycle interaction
 
-* **Cold load:** App launch or explicit wake. Takes 1-3 seconds.
-* **Unload:** Aggressive unloading upon app suspension (backgrounding) or significant OS memory pressure warnings.
+* **Load times:** Cold-load and warm-load times require measurement for each model/runtime/artifact combination.
+* **Unload:** Unload behavior depends on active memory pressure and application suspension state, not solely a fixed duration.
 * **Corruption:** Model hash verification on cold load. Redownload if corrupted.
 
 ## 23. Resource-control strategy
@@ -393,9 +376,16 @@ Tool request detected OR sentence completed -> Output routed to Tool Gateway or 
 
 ## 26. Licensing and distribution analysis
 
-* **Model (Llama 3.2):** Llama 3.2 Community License. Permits commercial use. Requires specific attribution ("Built with Llama").
-* **Runtime (MLX Swift):** MIT License. Unrestricted commercial use.
-* **Distribution:** Due to the ~2.6GB size, the model *must* be downloaded post-install, not bundled in the App Store binary, to avoid hitting App Store size limits and cellular download restrictions.
+For every model/runtime candidate we must distinguish the model license, runtime license, attribution, commercial use, redistribution, acceptable-use restrictions, model conversion rights, derivative artifact rights, and review status.
+
+| Candidate | Model/Runtime License | Commercial Use | Redistribution | Attribution Required |
+|-----------|-----------------------|----------------|----------------|----------------------|
+| Llama 3.2 | Llama 3.2 Community   | Yes            | Yes            | Yes ("Built with Llama") |
+| Qwen 2.5  | Apache 2.0            | Yes            | Yes            | Yes                  |
+| MLX Swift | MIT                   | Yes            | Yes            | No                   |
+| llama.cpp | MIT                   | Yes            | Yes            | No                   |
+
+* **Distribution:** The distribution decision depends on final artifact size, App Store constraints, download policy, hosting, license, storage plan, and update/rollback design.
 
 ## 27. Benchmark and feasibility plan
 
@@ -452,18 +442,18 @@ The iPhone 16 cannot compensate for an iPhone 15 failure.
 
 | Failure | Detection | User-visible behavior | Automatic fallback | Safety rule |
 |---------|-----------|-----------------------|--------------------|-------------|
-| OOM / Jetsam | OS memory warning | "I need a moment to think" | Unload, switch to 1B model | Prevent crash loop |
-| Malformed tool request | JSON parse failure | None (internal retry) | Bounded repair (1x) | Never execute invalid tool |
-| Timeout | Generation exceeds provisional timeout | "I'm having trouble processing that" | Degraded/Offline deterministic mode | Bounded wait |
-| Model Missing | Check load | "I'm downloading my brain" | Prewritten explanations | No ops |
+| OOM / Jetsam | OS memory warning | "I need a moment to think" (UX example) | Approved lower-resource local provider or deterministic degraded mode | Prevent crash loop |
+| Malformed tool request | JSON parse failure | None (internal retry) | Bounded repair | Never execute invalid tool |
+| Timeout | Generation exceeds provisional timeout | "I'm having trouble processing that" (UX example) | Degraded deterministic mode | Bounded wait |
+| Model Missing | Check load | Nonbinding UX text | Prewritten explanations | No ops |
 
 ### Failure and Deterministic-Fallback Flow
 ```text
-Model Operation Error -> Is Retryable? -> Yes -> Retry (Max 1x)
+Model Operation Error -> Is Retryable? -> Yes -> Retry
                             |
                            No
                             ↓
-                    Degraded Mode (Deterministic) -> "I'm having trouble, try a button" -> Fallback to Safe UI
+                    Degraded Mode (Deterministic) -> Fallback to Safe UI
 ```
 
 ## 31. Rejected approaches
@@ -492,6 +482,7 @@ Architectural violations that are explicitly rejected before benchmarking:
 * MLX Swift Official Repository (Apple/ml-explore): https://github.com/ml-explore/mlx-swift (Accessed 2026-07-15)
 * Llama 3.2 Model Card (Meta): https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/MODEL_CARD.md (Accessed 2026-07-15)
 * Qwen 2.5 Model Card (Alibaba): https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct (Accessed 2026-07-15)
-* Apple Foundation Models / App Intents Developer Documentation: https://developer.apple.com/documentation/appintents (Accessed 2026-07-15)
+* Apple Foundation Models Developer Documentation: https://developer.apple.com/documentation/foundation (Accessed 2026-07-15)
+* Apple App Intents Developer Documentation: https://developer.apple.com/documentation/appintents (Accessed 2026-07-15)
 * llama.cpp Official Repository (ggerganov): https://github.com/ggerganov/llama.cpp (Accessed 2026-07-15)
 * Llama 3.2 Community License: https://github.com/meta-llama/llama-models/blob/main/models/llama3_2/LICENSE (Accessed 2026-07-15)
