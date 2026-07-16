@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { defaultState } from "../../src/lib/types";
 import {
   expectFitCoreHydrated,
+  expectFitCoreHydratedStore,
   FITCORE_STORAGE_KEY,
   seedFitCoreAppState,
 } from "./helpers/fitcore-test-state";
@@ -60,9 +61,16 @@ function seededState(label: string) {
 test.describe("Seeded hydration contract", () => {
   test("confirms fixture-specific state only after application hydration", async ({ page }) => {
     const state = seededState("contract-a");
-    await seedFitCoreAppState(page, state);
+    const requestId = await seedFitCoreAppState(page, state);
 
     await expectFitCoreHydrated(page);
+    await expectFitCoreHydratedStore(page, requestId, {
+      profileName: "contract-a",
+      workouts: ["contract-a-workout"],
+      mealEntries: ["contract-a-meal"],
+      sleepEntries: ["contract-a-sleep"],
+      recoveryCheckIns: ["contract-a-recovery"],
+    });
     await expect(page.getByText("FitCore Score", { exact: true })).toBeVisible();
     await expect
       .poll(() =>
@@ -87,7 +95,10 @@ test.describe("Seeded hydration contract", () => {
   });
 
   test("does not reseed a fixture on later reloads", async ({ page }) => {
-    await seedFitCoreAppState(page, seededState("one-shot"));
+    const requestId = await seedFitCoreAppState(page, seededState("one-shot"));
+    const initialSignature = await page
+      .locator('[data-fitcore-hydrated="true"]')
+      .getAttribute("data-fitcore-store-signature");
     await page.evaluate((key) => {
       const stored = JSON.parse(localStorage.getItem(key) || "{}");
       stored.mealEntries = [];
@@ -96,6 +107,11 @@ test.describe("Seeded hydration contract", () => {
 
     await page.reload();
     await expectFitCoreHydrated(page);
+    await expectFitCoreHydratedStore(page, requestId, { mealEntries: [] });
+    await expect(page.locator('[data-fitcore-hydrated="true"]')).not.toHaveAttribute(
+      "data-fitcore-store-signature",
+      initialSignature!,
+    );
     await expect
       .poll(() =>
         page.evaluate((key) => {
@@ -108,9 +124,13 @@ test.describe("Seeded hydration contract", () => {
 
   test("supports a new explicit fixture without reactivating an older seed", async ({ page }) => {
     await seedFitCoreAppState(page, seededState("first"));
-    await seedFitCoreAppState(page, seededState("second"));
+    const requestId = await seedFitCoreAppState(page, seededState("second"));
     await page.reload();
     await expectFitCoreHydrated(page);
+    await expectFitCoreHydratedStore(page, requestId, {
+      profileName: "second",
+      mealEntries: ["second-meal"],
+    });
 
     await expect
       .poll(() =>
@@ -120,5 +140,35 @@ test.describe("Seeded hydration contract", () => {
         }, FITCORE_STORAGE_KEY),
       )
       .toEqual(["second", "second-meal"]);
+  });
+
+  test("distinguishes storage installation from the committed React store", async ({ page }) => {
+    await seedFitCoreAppState(page, seededState("committed"));
+    await page.evaluate((key) => {
+      const stored = JSON.parse(localStorage.getItem(key) || "{}");
+      stored.profile.name = "storage-only";
+      localStorage.setItem(key, JSON.stringify(stored));
+    }, FITCORE_STORAGE_KEY);
+
+    await expect
+      .poll(() => page.evaluate(() => window.__FITCORE_HYDRATION__?.identity.profileName))
+      .toBe("committed");
+    await expect(page.getByText("Good Morning, committed", { exact: true })).toBeVisible();
+  });
+
+  test("does not accept stale or incorrect seed request correlation", async ({ page }) => {
+    const requestId = await seedFitCoreAppState(page, seededState("correlated"));
+    const app = page.locator('[data-fitcore-hydrated="true"]');
+    await expect(app).toHaveAttribute("data-fitcore-seed-request", requestId);
+    await expect(app).not.toHaveAttribute("data-fitcore-seed-request", "stale-request");
+    expect(await page.evaluate(() => window.__FITCORE_HYDRATION__?.requestId)).toBe(requestId);
+  });
+
+  test("rejects a fixture whose migrated store identity falls back", async ({ page }) => {
+    await expect(
+      seedFitCoreAppState(page, { ...seededState("invalid-version"), version: 0 }),
+    ).rejects.toThrow();
+    await expectFitCoreHydrated(page);
+    expect(await page.evaluate(() => window.__FITCORE_HYDRATION__?.identity.version)).toBe(4);
   });
 });

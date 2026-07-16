@@ -1,4 +1,8 @@
 import { Page, expect } from "@playwright/test";
+import {
+  FITCORE_SEED_APPLIED_KEY,
+  FITCORE_SEED_REQUEST_KEY,
+} from "../../../src/lib/hydration-contract";
 
 /**
  * FITCORE_STORAGE_KEY: The main localStorage key where the app persists its state.
@@ -12,8 +16,6 @@ export const FITCORE_STORAGE_KEY = "fitcore.v1";
  */
 export const FITCORE_DATA_VERSION = 4;
 
-const FITCORE_SEED_REQUEST_KEY = "fitcore.e2e.seed.request";
-const FITCORE_SEED_APPLIED_KEY = "fitcore.e2e.seed.applied";
 const HYDRATED_APP = '[data-fitcore-hydrated="true"]';
 let seedSequence = 0;
 
@@ -37,6 +39,7 @@ const ID_ARRAY_KEYS = [
 
 function fixtureSignature(state: Record<string, unknown>) {
   const signature: Record<string, unknown> = {};
+  if ("version" in state) signature.version = state.version;
   if ("onboardingComplete" in state) signature.onboardingComplete = state.onboardingComplete;
   if ("demoMode" in state) signature.demoMode = state.demoMode;
   const profile = state.profile as { name?: unknown } | undefined;
@@ -56,6 +59,26 @@ function fixtureSignature(state: Record<string, unknown>) {
 
 export async function expectFitCoreHydrated(page: Page) {
   await expect(page.locator(HYDRATED_APP)).toBeVisible();
+}
+
+export async function expectFitCoreHydratedStore(
+  page: Page,
+  requestId: string,
+  expected: Record<string, unknown>,
+) {
+  const app = page.locator(HYDRATED_APP);
+  await expect(app).toHaveAttribute("data-fitcore-seed-request", requestId);
+  await expect
+    .poll(() => page.evaluate(() => window.__FITCORE_HYDRATION__))
+    .toMatchObject({
+      phase: "react-committed",
+      requestId,
+      persisted: true,
+      identity: expected,
+    });
+  const signature = await page.evaluate(() => window.__FITCORE_HYDRATION__?.signature ?? null);
+  expect(signature).not.toBeNull();
+  await expect(app).toHaveAttribute("data-fitcore-store-signature", signature!);
 }
 
 export const FITCORE_MOBILE_VIEWPORTS = {
@@ -98,37 +121,10 @@ export async function seedFitCoreAppState(page: Page, state: Record<string, unkn
 
   if (appAlreadyBooted) await page.reload();
   else await page.goto("/");
-  await expectFitCoreHydrated(page);
 
   const expected = fixtureSignature(state);
-  await expect
-    .poll(() =>
-      page.evaluate(
-        ({ key, idArrayKeys }) => {
-          const stored = JSON.parse(window.localStorage.getItem(key) || "{}");
-          const signature: Record<string, unknown> = {};
-          if ("onboardingComplete" in stored)
-            signature.onboardingComplete = stored.onboardingComplete;
-          if ("demoMode" in stored) signature.demoMode = stored.demoMode;
-          if (stored.profile && "name" in stored.profile)
-            signature.profileName = stored.profile.name;
-          if ("nutritionTargets" in stored) signature.nutritionTargets = stored.nutritionTargets;
-          if ("activeWorkout" in stored)
-            signature.activeWorkoutId = stored.activeWorkout?.id ?? null;
-          for (const arrayKey of idArrayKeys) {
-            if (arrayKey in stored)
-              signature[arrayKey] = (stored[arrayKey] ?? []).map(
-                (entry: { id?: string }) => entry.id ?? null,
-              );
-          }
-          if ("dismissedSuggestions" in stored)
-            signature.dismissedSuggestions = stored.dismissedSuggestions;
-          return signature;
-        },
-        { key: FITCORE_STORAGE_KEY, idArrayKeys: ID_ARRAY_KEYS },
-      ),
-    )
-    .toMatchObject(expected);
+  await expectFitCoreHydratedStore(page, requestId, expected);
+  return requestId;
 }
 
 /**

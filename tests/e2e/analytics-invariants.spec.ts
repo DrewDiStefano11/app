@@ -29,6 +29,7 @@ import type {
 
 const DAY = 86400000;
 const NOW = Date.UTC(2026, 0, 15, 12);
+const realDateNow = Date.now;
 
 function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
@@ -161,6 +162,10 @@ function makeState(overrides: Partial<AppState> = {}): AppState {
 test.describe("analytics invariants", () => {
   test.beforeEach(() => {
     Date.now = () => NOW;
+  });
+
+  test.afterEach(() => {
+    Date.now = realDateNow;
   });
 
   test("empty input analytics return finite bounded values", () => {
