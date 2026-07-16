@@ -34,23 +34,44 @@ The intended voice experience requires:
 
 ## 4. Voice architecture flow
 
-The conceptual flow for the voice architecture is:
+The conceptual flow for the voice architecture requires a strict consent and routing gate:
 
+```text
 microphone
 → native audio session
 → preprocessing
 → speech recognition
 → partial transcript
 → endpointing or push-to-talk completion
-→ final transcript
-→ conversation orchestrator
-→ model or deterministic command path
+→ final local transcript
+        ↓
+Voice routing and consent gate
+        ↓
+Local deterministic command path
+        OR
+Local model path
+        OR
+Explicitly consented cloud provider path
+        ↓
 → response text
 → speech synthesis
 → playback
 → interruption or barge-in handling
+```
 
-This flow must include session, turn, stream, and revision identifiers to guarantee that stale transcripts, delayed tokens, or old audio cannot affect a subsequent turn.
+The explicitly consented cloud provider path requires **all** of the following:
+
+- cloud voice feature explicitly enabled;
+- user has acknowledged transcript transmission;
+- a provider is deliberately selected;
+- credentials are configured;
+- current turn and consent revision are valid;
+- privacy policy conditions pass;
+- transmission can be cancelled before request dispatch where feasible.
+
+Existing text-provider configuration alone does not imply voice consent.
+
+This flow must include session, turn, stream, and consent revision identifiers to guarantee that stale transcripts, delayed tokens, revoked consent, or old audio cannot affect a subsequent turn. No transcript may be sent externally before the active turn verifies the current consent state.
 
 ## 5. Responsibility boundaries
 
@@ -120,10 +141,10 @@ It cannot be assumed that one fixed audio-session configuration will seamlessly 
 
 ## 7. Bluetooth behavior
 
-Integrating Bluetooth introduces tradeoffs between:
+Integrating Bluetooth requires explicit Apple `AVAudioSession` configuration and introduces tradeoffs between:
 
-- HFP microphone support (which typically forces lower-quality playback);
-- A2DP higher-quality playback (which offers limited or no microphone input support for STT).
+- HFP (Hands-Free Profile) microphone support (which typically forces lower-quality playback);
+- A2DP (Advanced Audio Distribution Profile) higher-quality playback (which offers limited or no microphone input support for STT).
 
 Testing is required for:
 
@@ -141,7 +162,7 @@ Testing is required for:
 The following speech recognition candidates are retained for evaluation (where technically appropriate):
 
 - Parakeet Realtime EOU (via FluidAudio or another verified native integration);
-- Apple Speech framework (as a possible system fallback, subject to offline, privacy, availability, and operating-system limitations);
+- Apple Speech framework (as a possible system fallback, subject to offline, privacy, availability, and operating-system limitations. Apple Speech is not guaranteed to be universally available or fully offline across all devices/languages);
 - Push-to-talk and text input (as deterministic fallback modes).
 
 All performance characteristics below must be treated as estimates until measured on the physical device. Candidates must be compared using:
@@ -288,17 +309,26 @@ Numerical accuracy is critical for weight, reps, RPE, duration, calories, protei
 
 ## 14. Voice and existing Jarvis migration
 
-Voice input will migrate into the existing Jarvis conversation UI without bypassing current orchestration.
+Voice input will migrate into the existing Jarvis conversation UI without bypassing current orchestration, but it **must not** simply be passed blindly into the same text-chat orchestrator.
 
-- Voice inputs will be passed as text into the same web-layer conversation orchestrator used by the text chat.
-- Existing text-based provider settings will be migrated or evaluated to determine how they interact with local STT/TTS components.
-- Current voice-related UI settings (if any exist conceptually) must be interpreted consistently.
-- Cloud AI providers must remain isolated from the local voice STT/TTS baseline to preserve the local-first architecture.
-- Turn pipelines must enforce state so that old and new turns cannot run simultaneously.
-- Existing tool confirmations (`ConfirmDialog`) and Undo functionality are fully retained.
-- Any remaining direct state mutations must be replaced by canonical service wrappers over time.
+The architecture requires:
 
-Voice input must never create a second uncontrolled tool gateway.
+- an explicit voice router in front of the current orchestrator;
+- local-first routing as the baseline;
+- consent-aware provider selection to govern whether a transcript reaches the cloud;
+- preservation of current confirmation, audit, and Undo behavior after routing;
+- prevention of simultaneous local and cloud turn execution;
+- stale consent and stale-turn rejection;
+- no second uncontrolled tool gateway;
+- no direct native data mutation.
+
+The UI and logic must clearly distinguish between:
+
+- text chat provider settings;
+- microphone permission;
+- local voice enablement;
+- cloud transcript-sharing consent;
+- optional cloud fallback.
 
 ## 15. Resource-management strategy
 
@@ -328,18 +358,24 @@ No degradation step may ever corrupt or lose active-workout data.
 
 ## 16. Privacy and data handling
 
-Privacy enforcement requires:
+Privacy enforcement distinguishes between raw audio, partial transcripts, final transcripts, local visible conversation history, diagnostics, and optional cloud request payloads.
+
+Requirements:
 
 - explicit user microphone permission;
+- transcript-sharing consent stored separately from microphone permission;
 - a visible OS-level microphone indicator when active;
+- clear user-facing indication when cloud processing is active;
 - absolutely no hidden recording;
+- no raw-audio persistence;
 - discarding of raw audio immediately after processing;
-- no raw audio logs saved locally or remotely;
-- exclusion of full transcripts from generalized diagnostics;
-- no automatic external upload of voice data;
+- no external transcript upload without explicit consent;
+- consent revision included in turn validation;
+- no provider API keys in transcript or prompt content;
+- no full transcripts in general diagnostics;
+- strict cancellation and deletion behavior to discard inflight data;
 - visible conversation history must be separated from background diagnostics;
-- data exports must exclude transcripts by default;
-- explicit user review is required before sharing any transcript content;
+- transcript export excluded by default;
 - no use of user voice recordings for training purposes.
 
 ## 17. Accessibility
@@ -363,6 +399,17 @@ Accessibility support must cover:
 
 Explicit fallbacks are defined for each failure domain. No failure may repeat a write request.
 
+### Consent failure
+
+If consent is missing, revoked mid-session, the provider is unavailable or changed, credentials are removed, connectivity is lost, the user cancels before dispatch, or a stale transcript arrives after consent revocation, the system must use the following safe fallback hierarchy:
+
+1. local deterministic path;
+2. local model path if available;
+3. text-only local response;
+4. explicit user-facing error.
+
+The system must **never silently fall back to a cloud provider** if consent or routing conditions fail. If a cloud request has already been dispatched before consent revocation, the UI must reject the incoming response.
+
 ### STT failure
 
 - Retry mechanisms;
@@ -377,7 +424,7 @@ Explicit fallbacks are defined for each failure domain. No failure may repeat a 
 
 ### TTS failure
 
-- Apple system TTS (`AVSpeechSynthesizer`);
+- Apple system TTS (`AVSpeechSynthesizer`, recognizing that OS, language, locale, and device dependencies affect availability);
 - Text-only display.
 
 ### Audio-route failure
@@ -483,11 +530,49 @@ The following items are unresolved and must be assigned:
 
 ### Licensing review
 
-- Confirm exact license terms for Parakeet, PocketTTS, and FluidAudio. Note that a permissive framework license (like MIT or Apache) does not automatically grant rights to redistribute model weights.
-- Conversion of models to Core ML does not create redistribution rights.
+A narrow primary-source verification of current candidates is required before any implementation. The framework license and model license are strictly separate. Do not describe Parakeet or PocketTTS as MIT or Apache licensed unless the actual model weights use that exact license.
+
+#### FluidAudio
+
+- **Repository:** `FluidInference/FluidAudio`
+- **Framework License:** Apache License 2.0
+- **Covers:** The native Swift/iOS runtime and wrapping code.
+- **Does Not Cover:** Any third-party model weights or dependencies loaded through the framework.
+
+#### Parakeet Realtime EOU
+
+- **Model Identifier:** `FluidInference/parakeet-realtime-eou-120m-coreml` (or base `nvidia/parakeet-realtime-eou-120m`)
+- **Publisher:** FluidInference / NVIDIA
+- **Official Model Card:** `https://huggingface.co/FluidInference/parakeet-realtime-eou-120m-coreml`
+- **Model-Weight License:** `nvidia-open-model-license`
+- **Access Conditions:** Requires acceptance of the NVIDIA Open Model License Agreement.
+- **Redistribution Considerations:** Redistribution must strictly comply with the NVIDIA Open Model License Agreement terms, which may restrict certain commercial use cases or require specific distribution mechanisms.
+- **Attribution Requirements:** Must retain all NVIDIA copyright notices and licensing terms.
+- **Core ML Conversion Status:** Available as a pre-converted Core ML artifact via FluidInference. Conversion does not alter or waive the original NVIDIA license restrictions.
+- **Unresolved Legal-Review Requirements:** Final legal review is required to confirm whether embedding the NVIDIA-licensed weights directly in an iOS application bundle violates the terms, or if on-demand post-install download is required.
+
+#### PocketTTS
+
+- **Model Identifier:** `kyutai/pocket-tts`
+- **Publisher:** Kyutai
+- **Official Model Card:** `https://huggingface.co/kyutai/pocket-tts`
+- **Model-Weight License:** Creative Commons Attribution 4.0 International (`cc-by-4.0`), despite the accompanying GitHub code repository being MIT-licensed.
+- **Access Conditions:** Open access under CC-BY-4.0.
+- **Redistribution Considerations:** May be redistributed or modified for commercial or private use, provided proper attribution is given.
+- **Attribution Requirements:** Must explicitly credit Kyutai, provide a link to the CC-BY-4.0 license, and indicate if changes were made.
+- **Core ML Conversion Status:** The MLX community (`mlx-community/pocket-tts`) has ported it, but a pure Core ML/native iOS port requires specific validation.
+- **Unresolved Legal-Review Requirements:** Confirm that the exact mechanism of displaying the CC-BY-4.0 attribution within the FitCore app satisfies the license requirements.
+
+All licensing records must be verified against authoritative primary sources (e.g., official repositories, official model cards, official license files, publisher documentation).
+
+**Strict Conditions:**
+
+- Conversion to Core ML does not create redistribution rights.
 - Post-install downloading mechanisms still require license compliance.
+- Access approval or gated terms may be required.
 - Unresolved licensing formally blocks production distribution.
-- Evaluate attribution requirements, commercial-use conditions, gated-access, or acceptance requirements via primary sources (official repos, model cards, license files).
+- Feasibility testing may proceed only where the applicable terms permit it.
+- Final legal approval is outside the scope of this architecture document.
 
 ### Physical-device spike
 
