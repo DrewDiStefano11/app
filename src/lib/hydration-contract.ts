@@ -1,7 +1,33 @@
-import type { AppState } from "./types";
+import { migrateFitCoreDataIfNeeded } from "./fitcore-data";
+import {
+  defaultJarvisSettings,
+  defaultPersonalization,
+  defaultState,
+  type AppState,
+  type Personalization,
+} from "./types";
 
 export const FITCORE_SEED_REQUEST_KEY = "fitcore.e2e.seed.request";
 export const FITCORE_SEED_APPLIED_KEY = "fitcore.e2e.seed.applied";
+
+export function safeSessionStorageGet(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+export function safeSessionStorageSet(key: string, value: string): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    window.sessionStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const ID_ARRAY_KEYS = [
   "workouts",
@@ -47,6 +73,51 @@ export function getHydratedStoreIdentity(state: AppState): HydratedStoreIdentity
   };
 }
 
+/** Canonicalize a partial persisted payload using the same defaults and migration as application boot. */
+export function migrateFitCoreAppState(
+  parsed: Partial<AppState>,
+  base: AppState = defaultState,
+): AppState {
+  const personalization: Personalization = {
+    ...defaultPersonalization,
+    ...base.personalization,
+    ...(parsed.personalization ?? {}),
+    units: {
+      ...defaultPersonalization.units!,
+      ...base.personalization.units,
+      ...(parsed.personalization?.units ?? {}),
+    },
+    reminders: {
+      ...defaultPersonalization.reminders!,
+      ...base.personalization.reminders,
+      ...(parsed.personalization?.reminders ?? {}),
+    },
+    defaultGraphModes: {
+      ...defaultPersonalization.defaultGraphModes!,
+      ...base.personalization.defaultGraphModes,
+      ...(parsed.personalization?.defaultGraphModes ?? {}),
+    },
+  };
+  return migrateFitCoreDataIfNeeded({
+    ...defaultState,
+    ...base,
+    ...parsed,
+    profile: { ...defaultState.profile, ...base.profile, ...(parsed.profile ?? {}) },
+    nutritionTargets: {
+      ...defaultState.nutritionTargets,
+      ...base.nutritionTargets,
+      ...(parsed.nutritionTargets ?? {}),
+    },
+    personalization,
+    reminders: { ...defaultState.reminders, ...base.reminders, ...(parsed.reminders ?? {}) },
+    jarvisSettings: {
+      ...defaultJarvisSettings,
+      ...base.jarvisSettings,
+      ...(parsed.jarvisSettings ?? {}),
+    },
+  });
+}
+
 export function hashHydratedStoreIdentity(identity: HydratedStoreIdentity): string {
   const input = JSON.stringify(identity);
   let hash = 0x811c9dc5;
@@ -58,9 +129,8 @@ export function hashHydratedStoreIdentity(identity: HydratedStoreIdentity): stri
 }
 
 export function readAppliedSeedRequestId(): string | null {
-  if (typeof window === "undefined") return null;
-  const requested = window.sessionStorage.getItem(FITCORE_SEED_REQUEST_KEY);
-  const applied = window.sessionStorage.getItem(FITCORE_SEED_APPLIED_KEY);
+  const requested = safeSessionStorageGet(FITCORE_SEED_REQUEST_KEY);
+  const applied = safeSessionStorageGet(FITCORE_SEED_APPLIED_KEY);
   return requested && requested === applied ? requested : null;
 }
 

@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { defaultState } from "../../src/lib/types";
 import {
   expectFitCoreHydrated,
@@ -56,6 +56,19 @@ function seededState(label: string) {
       },
     ],
   };
+}
+
+async function makeSessionStorageThrow(page: Page, methods: Array<"getItem" | "setItem">) {
+  await page.addInitScript((blockedMethods) => {
+    for (const method of blockedMethods) {
+      Object.defineProperty(window.sessionStorage, method, {
+        configurable: true,
+        value: () => {
+          throw new DOMException("Session storage blocked for contract test", "SecurityError");
+        },
+      });
+    }
+  }, methods);
 }
 
 test.describe("Seeded hydration contract", () => {
@@ -164,9 +177,52 @@ test.describe("Seeded hydration contract", () => {
     expect(await page.evaluate(() => window.__FITCORE_HYDRATION__?.requestId)).toBe(requestId);
   });
 
-  test("rejects a fixture whose migrated store identity falls back", async ({ page }) => {
+  test("hydrates persisted user state when session storage is unavailable", async ({ page }) => {
+    const state = seededState("storage-unavailable");
+    await page.addInitScript(
+      ({ key, value }) => window.localStorage.setItem(key, JSON.stringify(value)),
+      { key: FITCORE_STORAGE_KEY, value: state },
+    );
+    await makeSessionStorageThrow(page, ["getItem", "setItem"]);
+
+    await page.goto("/");
+    await expectFitCoreHydrated(page);
     await expect(
-      seedFitCoreAppState(page, { ...seededState("invalid-version"), version: 0 }),
+      page.getByText("Good Morning, storage-unavailable", { exact: true }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => window.__FITCORE_HYDRATION__?.requestId)).toBeNull();
+  });
+
+  test("fails seeded correlation clearly when session storage cannot persist it", async ({
+    page,
+  }) => {
+    await makeSessionStorageThrow(page, ["setItem"]);
+
+    await expect(seedFitCoreAppState(page, seededState("uncorrelated"))).rejects.toThrow(
+      /Seed correlation failed: expected request .* application reported none/,
+    );
+    await expectFitCoreHydrated(page);
+    await expect(page.getByText("Good Morning, uncorrelated", { exact: true })).toBeVisible();
+  });
+
+  test("accepts a supported legacy fixture after canonical migration", async ({ page }) => {
+    const legacyState = { ...seededState("legacy-v3"), version: 3 };
+    const requestId = await seedFitCoreAppState(page, legacyState);
+
+    await expectFitCoreHydratedStore(page, requestId, {
+      version: 4,
+      profileName: "legacy-v3",
+      workouts: ["legacy-v3-workout"],
+    });
+    await expect(page.getByText("Good Morning, legacy-v3", { exact: true })).toBeVisible();
+  });
+
+  test("rejects a corrupted fixture whose repaired store identity differs", async ({ page }) => {
+    await expect(
+      seedFitCoreAppState(page, {
+        ...seededState("invalid-onboarding"),
+        onboardingComplete: "corrupt",
+      }),
     ).rejects.toThrow();
     await expectFitCoreHydrated(page);
     expect(await page.evaluate(() => window.__FITCORE_HYDRATION__?.identity.version)).toBe(4);

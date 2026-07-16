@@ -7,13 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import {
-  defaultState,
-  defaultPersonalization,
-  defaultJarvisSettings,
-  type AppState,
-  type Personalization,
-} from "./types";
+import { defaultState, type AppState } from "./types";
 import { buildDemoState } from "./demo-data";
 import {
   loadFitCoreData,
@@ -24,60 +18,20 @@ import {
 import {
   getHydratedStoreIdentity,
   hashHydratedStoreIdentity,
+  migrateFitCoreAppState,
   readAppliedSeedRequestId,
 } from "./hydration-contract";
 
 function load(): AppState {
   if (typeof window === "undefined") return defaultState;
   try {
-    return migrateAppState(loadFitCoreData(defaultState));
+    return migrateFitCoreAppState(loadFitCoreData(defaultState));
   } catch {
     return defaultState;
   }
 }
 
 /** Merge partial saved state with defaults so nested objects don't get blown away. */
-function migrateAppState(parsed: Partial<AppState>, base: AppState = defaultState): AppState {
-  const personalization: Personalization = {
-    ...defaultPersonalization,
-    ...base.personalization,
-    ...(parsed.personalization ?? {}),
-    units: {
-      ...defaultPersonalization.units!,
-      ...base.personalization.units,
-      ...(parsed.personalization?.units ?? {}),
-    },
-    reminders: {
-      ...defaultPersonalization.reminders!,
-      ...base.personalization.reminders,
-      ...(parsed.personalization?.reminders ?? {}),
-    },
-    defaultGraphModes: {
-      ...defaultPersonalization.defaultGraphModes!,
-      ...base.personalization.defaultGraphModes,
-      ...(parsed.personalization?.defaultGraphModes ?? {}),
-    },
-  };
-  return migrateFitCoreDataIfNeeded({
-    ...defaultState,
-    ...base,
-    ...parsed,
-    profile: { ...defaultState.profile, ...base.profile, ...(parsed.profile ?? {}) },
-    nutritionTargets: {
-      ...defaultState.nutritionTargets,
-      ...base.nutritionTargets,
-      ...(parsed.nutritionTargets ?? {}),
-    },
-    personalization,
-    reminders: { ...defaultState.reminders, ...base.reminders, ...(parsed.reminders ?? {}) },
-    jarvisSettings: {
-      ...defaultJarvisSettings,
-      ...base.jarvisSettings,
-      ...(parsed.jarvisSettings ?? {}),
-    },
-  });
-}
-
 type Updater = (s: AppState) => AppState;
 
 interface Ctx {
@@ -155,7 +109,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const parsed = parseFitCoreImport(text);
       if (!parsed) return false;
       setSnapshot((current) => {
-        const next = migrateAppState(parsed, current.state);
+        const next = migrateFitCoreAppState(parsed, current.state);
         saveFitCoreData(next);
         return { ...current, state: next };
       });

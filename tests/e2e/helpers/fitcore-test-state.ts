@@ -2,59 +2,30 @@ import { Page, expect } from "@playwright/test";
 import {
   FITCORE_SEED_APPLIED_KEY,
   FITCORE_SEED_REQUEST_KEY,
+  getHydratedStoreIdentity,
+  migrateFitCoreAppState,
+  type HydratedStoreIdentity,
 } from "../../../src/lib/hydration-contract";
+import { FITCORE_DATA_VERSION, FITCORE_STORAGE_KEY } from "../../../src/lib/fitcore-data";
+import type { AppState } from "../../../src/lib/types";
 
 /**
  * FITCORE_STORAGE_KEY: The main localStorage key where the app persists its state.
  * Verified from src/lib/fitcore-data.ts
  */
-export const FITCORE_STORAGE_KEY = "fitcore.v1";
+export { FITCORE_STORAGE_KEY };
 
 /**
  * FITCORE_DATA_VERSION: The current expected version of the data schema.
  * Verified from src/lib/fitcore-data.ts
  */
-export const FITCORE_DATA_VERSION = 4;
+export { FITCORE_DATA_VERSION };
 
 const HYDRATED_APP = '[data-fitcore-hydrated="true"]';
 let seedSequence = 0;
 
-const ID_ARRAY_KEYS = [
-  "workouts",
-  "workoutTemplates",
-  "customExercises",
-  "cardioEntries",
-  "mealEntries",
-  "bodyweightEntries",
-  "sleepEntries",
-  "recoveryCheckIns",
-  "recoverySignals",
-  "prs",
-  "goals",
-  "progressPhotos",
-  "aiMessages",
-  "jarvisAudit",
-  "supplementLogs",
-] as const;
-
-function fixtureSignature(state: Record<string, unknown>) {
-  const signature: Record<string, unknown> = {};
-  if ("version" in state) signature.version = state.version;
-  if ("onboardingComplete" in state) signature.onboardingComplete = state.onboardingComplete;
-  if ("demoMode" in state) signature.demoMode = state.demoMode;
-  const profile = state.profile as { name?: unknown } | undefined;
-  if (profile && "name" in profile) signature.profileName = profile.name;
-  if ("nutritionTargets" in state) signature.nutritionTargets = state.nutritionTargets;
-  const activeWorkout = state.activeWorkout as { id?: unknown } | null | undefined;
-  if ("activeWorkout" in state) signature.activeWorkoutId = activeWorkout?.id ?? null;
-  for (const key of ID_ARRAY_KEYS) {
-    if (key in state) {
-      const entries = state[key] as Array<{ id?: unknown }> | undefined;
-      signature[key] = (entries ?? []).map((entry) => entry.id ?? null);
-    }
-  }
-  if ("dismissedSuggestions" in state) signature.dismissedSuggestions = state.dismissedSuggestions;
-  return signature;
+function canonicalFixtureIdentity(state: Record<string, unknown>): HydratedStoreIdentity {
+  return getHydratedStoreIdentity(migrateFitCoreAppState(state as Partial<AppState>));
 }
 
 export async function expectFitCoreHydrated(page: Page) {
@@ -64,21 +35,24 @@ export async function expectFitCoreHydrated(page: Page) {
 export async function expectFitCoreHydratedStore(
   page: Page,
   requestId: string,
-  expected: Record<string, unknown>,
+  expected: Partial<HydratedStoreIdentity>,
 ) {
   const app = page.locator(HYDRATED_APP);
+  await expect.poll(() => page.evaluate(() => window.__FITCORE_HYDRATION__)).toBeDefined();
+  const hydration = await page.evaluate(() => window.__FITCORE_HYDRATION__!);
+  if (hydration.requestId !== requestId) {
+    throw new Error(
+      `Seed correlation failed: expected request ${requestId}, application reported ${hydration.requestId ?? "none"}`,
+    );
+  }
+  expect(hydration).toMatchObject({
+    phase: "react-committed",
+    requestId,
+    persisted: true,
+    identity: expected,
+  });
   await expect(app).toHaveAttribute("data-fitcore-seed-request", requestId);
-  await expect
-    .poll(() => page.evaluate(() => window.__FITCORE_HYDRATION__))
-    .toMatchObject({
-      phase: "react-committed",
-      requestId,
-      persisted: true,
-      identity: expected,
-    });
-  const signature = await page.evaluate(() => window.__FITCORE_HYDRATION__?.signature ?? null);
-  expect(signature).not.toBeNull();
-  await expect(app).toHaveAttribute("data-fitcore-store-signature", signature!);
+  await expect(app).toHaveAttribute("data-fitcore-store-signature", hydration.signature);
 }
 
 export const FITCORE_MOBILE_VIEWPORTS = {
@@ -97,18 +71,40 @@ export async function seedFitCoreAppState(page: Page, state: Record<string, unkn
   if (appAlreadyBooted) {
     await expectFitCoreHydrated(page);
     await page.evaluate(
-      ({ requestKey, requestId }) => window.sessionStorage.setItem(requestKey, requestId),
+      ({ requestKey, requestId }) => {
+        try {
+          window.sessionStorage.setItem(requestKey, requestId);
+          return true;
+        } catch {
+          return false;
+        }
+      },
       { requestKey: FITCORE_SEED_REQUEST_KEY, requestId },
     );
   }
   await page.addInitScript(
     ({ key, value, requestKey, appliedKey, requestId }) => {
-      const requested = window.sessionStorage.getItem(requestKey);
+      const safeGet = (storageKey: string) => {
+        try {
+          return window.sessionStorage.getItem(storageKey);
+        } catch {
+          return null;
+        }
+      };
+      const safeSet = (storageKey: string, storageValue: string) => {
+        try {
+          window.sessionStorage.setItem(storageKey, storageValue);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+      const requested = safeGet(requestKey);
       if (requested !== null && requested !== requestId) return;
-      if (requested === null) window.sessionStorage.setItem(requestKey, requestId);
-      if (window.sessionStorage.getItem(appliedKey) === requestId) return;
+      const requestStored = requested === requestId || safeSet(requestKey, requestId);
+      if (safeGet(appliedKey) === requestId) return;
       window.localStorage.setItem(key, JSON.stringify(value));
-      window.sessionStorage.setItem(appliedKey, requestId);
+      if (requestStored) safeSet(appliedKey, requestId);
     },
     {
       key: FITCORE_STORAGE_KEY,
@@ -122,7 +118,7 @@ export async function seedFitCoreAppState(page: Page, state: Record<string, unkn
   if (appAlreadyBooted) await page.reload();
   else await page.goto("/");
 
-  const expected = fixtureSignature(state);
+  const expected = canonicalFixtureIdentity(state);
   await expectFitCoreHydratedStore(page, requestId, expected);
   return requestId;
 }
