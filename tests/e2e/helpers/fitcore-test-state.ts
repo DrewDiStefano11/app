@@ -1,16 +1,62 @@
-import { Page, expect } from '@playwright/test';
+import { Page, expect } from "@playwright/test";
 
 /**
  * FITCORE_STORAGE_KEY: The main localStorage key where the app persists its state.
  * Verified from src/lib/fitcore-data.ts
  */
-export const FITCORE_STORAGE_KEY = 'fitcore.v1';
+export const FITCORE_STORAGE_KEY = "fitcore.v1";
 
 /**
  * FITCORE_DATA_VERSION: The current expected version of the data schema.
  * Verified from src/lib/fitcore-data.ts
  */
 export const FITCORE_DATA_VERSION = 4;
+
+const FITCORE_SEED_REQUEST_KEY = "fitcore.e2e.seed.request";
+const FITCORE_SEED_APPLIED_KEY = "fitcore.e2e.seed.applied";
+const HYDRATED_APP = '[data-fitcore-hydrated="true"]';
+let seedSequence = 0;
+
+const ID_ARRAY_KEYS = [
+  "workouts",
+  "workoutTemplates",
+  "customExercises",
+  "cardioEntries",
+  "mealEntries",
+  "bodyweightEntries",
+  "sleepEntries",
+  "recoveryCheckIns",
+  "recoverySignals",
+  "prs",
+  "goals",
+  "progressPhotos",
+  "aiMessages",
+  "jarvisAudit",
+  "supplementLogs",
+] as const;
+
+function fixtureSignature(state: Record<string, unknown>) {
+  const signature: Record<string, unknown> = {};
+  if ("onboardingComplete" in state) signature.onboardingComplete = state.onboardingComplete;
+  if ("demoMode" in state) signature.demoMode = state.demoMode;
+  const profile = state.profile as { name?: unknown } | undefined;
+  if (profile && "name" in profile) signature.profileName = profile.name;
+  if ("nutritionTargets" in state) signature.nutritionTargets = state.nutritionTargets;
+  const activeWorkout = state.activeWorkout as { id?: unknown } | null | undefined;
+  if ("activeWorkout" in state) signature.activeWorkoutId = activeWorkout?.id ?? null;
+  for (const key of ID_ARRAY_KEYS) {
+    if (key in state) {
+      const entries = state[key] as Array<{ id?: unknown }> | undefined;
+      signature[key] = (entries ?? []).map((entry) => entry.id ?? null);
+    }
+  }
+  if ("dismissedSuggestions" in state) signature.dismissedSuggestions = state.dismissedSuggestions;
+  return signature;
+}
+
+export async function expectFitCoreHydrated(page: Page) {
+  await expect(page.locator(HYDRATED_APP)).toBeVisible();
+}
 
 export const FITCORE_MOBILE_VIEWPORTS = {
   iphoneModern: { width: 390, height: 844 },
@@ -19,13 +65,70 @@ export const FITCORE_MOBILE_VIEWPORTS = {
 };
 
 /**
- * Seeds the FitCore app state in localStorage before navigation.
- * Uses page.addInitScript to ensure the state is present when the app hydrates.
+ * Seeds exactly once before an application boot, then confirms both application
+ * hydration and fixture-specific persisted state. Later reloads do not reseed.
  */
-export async function seedFitCoreAppState(page: Page, state: Record<string, any>) {
-  await page.addInitScript(({ key, value }) => {
-    window.localStorage.setItem(key, JSON.stringify(value));
-  }, { key: FITCORE_STORAGE_KEY, value: state });
+export async function seedFitCoreAppState(page: Page, state: Record<string, unknown>) {
+  const requestId = `fitcore-seed-${++seedSequence}`;
+  const appAlreadyBooted = page.url() !== "about:blank";
+  if (appAlreadyBooted) {
+    await expectFitCoreHydrated(page);
+    await page.evaluate(
+      ({ requestKey, requestId }) => window.sessionStorage.setItem(requestKey, requestId),
+      { requestKey: FITCORE_SEED_REQUEST_KEY, requestId },
+    );
+  }
+  await page.addInitScript(
+    ({ key, value, requestKey, appliedKey, requestId }) => {
+      const requested = window.sessionStorage.getItem(requestKey);
+      if (requested !== null && requested !== requestId) return;
+      if (requested === null) window.sessionStorage.setItem(requestKey, requestId);
+      if (window.sessionStorage.getItem(appliedKey) === requestId) return;
+      window.localStorage.setItem(key, JSON.stringify(value));
+      window.sessionStorage.setItem(appliedKey, requestId);
+    },
+    {
+      key: FITCORE_STORAGE_KEY,
+      value: state,
+      requestKey: FITCORE_SEED_REQUEST_KEY,
+      appliedKey: FITCORE_SEED_APPLIED_KEY,
+      requestId,
+    },
+  );
+
+  if (appAlreadyBooted) await page.reload();
+  else await page.goto("/");
+  await expectFitCoreHydrated(page);
+
+  const expected = fixtureSignature(state);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        ({ key, idArrayKeys }) => {
+          const stored = JSON.parse(window.localStorage.getItem(key) || "{}");
+          const signature: Record<string, unknown> = {};
+          if ("onboardingComplete" in stored)
+            signature.onboardingComplete = stored.onboardingComplete;
+          if ("demoMode" in stored) signature.demoMode = stored.demoMode;
+          if (stored.profile && "name" in stored.profile)
+            signature.profileName = stored.profile.name;
+          if ("nutritionTargets" in stored) signature.nutritionTargets = stored.nutritionTargets;
+          if ("activeWorkout" in stored)
+            signature.activeWorkoutId = stored.activeWorkout?.id ?? null;
+          for (const arrayKey of idArrayKeys) {
+            if (arrayKey in stored)
+              signature[arrayKey] = (stored[arrayKey] ?? []).map(
+                (entry: { id?: string }) => entry.id ?? null,
+              );
+          }
+          if ("dismissedSuggestions" in stored)
+            signature.dismissedSuggestions = stored.dismissedSuggestions;
+          return signature;
+        },
+        { key: FITCORE_STORAGE_KEY, idArrayKeys: ID_ARRAY_KEYS },
+      ),
+    )
+    .toMatchObject(expected);
 }
 
 /**
@@ -37,13 +140,13 @@ export async function seedMinimalOnboardedState(page: Page) {
     onboardingComplete: true,
     // Provide minimal profile to avoid hydration errors if the app expects it
     profile: {
-      goal: 'hypertrophy',
-      experience: 'intermediate',
+      goal: "hypertrophy",
+      experience: "intermediate",
       daysPerWeek: 5,
-      split: 'Push / Pull / Legs',
+      split: "Push / Pull / Legs",
       bodyweightLb: 180,
       targetBodyweightLb: 185,
-      units: 'lb',
+      units: "lb",
     },
     // Ensure essential arrays are present
     workouts: [],
@@ -62,7 +165,7 @@ export async function seedMinimalOnboardedState(page: Page) {
  * Navigates to the dashboard and waits for it to be ready.
  */
 export async function gotoDashboard(page: Page) {
-  await page.goto('/');
+  await page.goto("/");
   await expectDashboardReady(page);
 }
 
@@ -70,10 +173,12 @@ export async function gotoDashboard(page: Page) {
  * Verifies that the dashboard is visible.
  */
 export async function expectDashboardReady(page: Page) {
+  await expectFitCoreHydrated(page);
   // Wait for a stable dashboard element
   await expect(
-    page.getByText('FitCore Today', { exact: true })
-    .or(page.getByText('FitCore Score', { exact: true }))
+    page
+      .getByText("FitCore Today", { exact: true })
+      .or(page.getByText("FitCore Score", { exact: true })),
   ).toBeVisible({ timeout: 10000 });
 }
 

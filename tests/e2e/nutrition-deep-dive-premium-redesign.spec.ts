@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { defaultState } from "../../src/lib/types";
-import { FITCORE_STORAGE_KEY } from "./helpers/fitcore-test-state";
+import { seedFitCoreAppState } from "./helpers/fitcore-test-state";
 
 const DAY = 86_400_000;
 
@@ -91,22 +91,8 @@ function richNutritionState() {
 }
 
 async function seedState(page: Page, state: Record<string, unknown>) {
-  await page.goto("/");
-  await page.evaluate((key) => window.localStorage.removeItem(key), FITCORE_STORAGE_KEY);
-  await page.reload();
-  await expect(page.getByRole("button", { name: "Get started", exact: true })).toBeVisible({
-    timeout: 10000,
-  });
-  await page.waitForFunction(
-    (key) => window.localStorage.getItem(key) !== null,
-    FITCORE_STORAGE_KEY,
-  );
-  await page.evaluate(({ key, value }) => window.localStorage.setItem(key, JSON.stringify(value)), {
-    key: FITCORE_STORAGE_KEY,
-    value: state,
-  });
-  await page.reload();
-  await expect(page.getByText("FitCore Score", { exact: true })).toBeVisible({ timeout: 10000 });
+  await seedFitCoreAppState(page, state);
+  await expect(page.getByText("FitCore Score", { exact: true })).toBeVisible();
 }
 
 async function openFuel(page: Page) {
