@@ -136,29 +136,29 @@ Both MLX Swift and llama.cpp remain candidates until a feasibility spike selects
 - **Exact tested version/commit requirements:** To be defined in the feasibility spike.
 - **Model formats:** MLX format.
 - **Swift integration:** Native Swift framework, highly integrated with Apple Silicon.
-- **Streaming:** Supported natively.
-- **Cancellation:** Supported.
-- **Memory observability:** Standard iOS tooling.
-- **Thermal observability:** Standard iOS tooling.
+- **Streaming:** Expected to be supported natively.
+- **Cancellation:** Expected to be supported.
+- **Memory observability:** Expected via standard iOS tooling.
+- **Thermal observability:** Expected via standard iOS tooling.
 - **Maintenance burden:** Moderate (rapidly evolving).
 - **License:** MIT.
-- **Build complexity:** Low (Swift Package Manager).
+- **Build complexity:** Expected to be low (Swift Package Manager).
 - **Physical-device risk:** May lack optimization maturity compared to llama.cpp for arbitrary device constraints.
 
 ### llama.cpp
 
-- **Official repository:** [https://github.com/ggerganov/llama.cpp](https://github.com/ggerganov/llama.cpp)
+- **Official repository:** [https://github.com/ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
 - **Exact tested version/commit requirements:** To be defined in the feasibility spike.
 - **Model formats:** GGUF.
 - **Swift integration:** Requires an isolated Swift/C++ integration layer. We do not reject llama.cpp solely because it uses C++ interoperability.
-- **Streaming:** Supported.
-- **Cancellation:** Supported via context flags.
+- **Streaming:** Expected to be supported.
+- **Cancellation:** Expected to be supported (e.g., via context flags).
 - **Memory observability:** Available, but C++ allocations require careful profiling.
 - **Thermal observability:** Available via system APIs.
 - **Maintenance burden:** High (C++ bridging and rapid upstream changes).
 - **License:** MIT.
 - **Build complexity:** High (CMake/C++ integration into Xcode).
-- **Physical-device risk:** Well-tested on iOS devices, but bridging can introduce overhead.
+- **Physical-device risk:** Reported to perform well on iOS devices, but bridging can introduce overhead. To be verified during spike.
 
 ## 9. Provider abstraction
 
@@ -186,9 +186,13 @@ This abstraction must support:
 
 _Note on Apple frameworks:_
 
-- Apple Foundation Models framework and App Intents are distinct.
-- App Intents are a system-integration mechanism and are not an LLM inference provider.
-- Apple Foundation Models are an optional enhanced provider only. They may not be required for the common iPhone 15 baseline. Do not assume Apple Foundation Models are available on all iOS 18 devices. Availability is tied to supported Apple hardware, supported operating-system versions, locale and region availability, and framework capability checks at runtime.
+- Apple Foundation Models framework and App Intents are distinct technologies.
+- App Intents provide system integration and action exposure; they are not an LLM inference provider.
+- Apple Foundation Models framework requires supported Apple platforms beginning with iOS 26, iPadOS 26, and macOS 26 or later, subject to the actual SDK availability documented by Apple.
+- It is available only on Apple Intelligence-compatible hardware.
+- Apple Intelligence must be enabled and available for the user’s language and region.
+- Runtime availability and capability checks are still required. The framework cannot be assumed to exist on iOS 18.
+- Apple Foundation Models remains an optional enhanced provider and cannot be required for the regular iPhone 15 baseline.
 
 ## 10. Structured-output and tool-calling strategy
 
@@ -298,10 +302,11 @@ The solution encompasses multiple licensing domains that must be separated:
 - Redistribution rights.
 - Attribution requirements.
 - Commercial-use conditions.
-- Model-download terms.
+- Gated-access requirements.
+- Post-install download terms.
 - Exact source revision identifiers.
 
-A permissive runtime license does not grant redistribution rights for model weights. Ensure full compliance with each respective model license for distribution.
+A permissive runtime license does not grant redistribution rights for model weights. Conversion to MLX or GGUF does not create new redistribution rights. Exact model and runtime revisions must be recorded during the feasibility spike. Unresolved licensing blocks production distribution.
 
 ## 16. Security and privacy boundaries
 
