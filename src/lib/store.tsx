@@ -38,6 +38,8 @@ type Updater = (s: AppState) => AppState;
 
 interface Ctx {
   state: AppState;
+  /** True after persisted browser state has been loaded for this application boot. */
+  hydrated: boolean;
   /** Effective state: merges demo data when demoMode is true. Real data is never overwritten. */
   view: AppState;
   set: (u: Updater) => void;
@@ -89,7 +91,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const view = useMemo(() => state.demoMode ? migrateFitCoreDataIfNeeded(buildDemoState(state)) : state, [state]);
 
-  const value = useMemo(() => ({ state, view, set, reset, exportJson, importJson }), [state, view, set, reset, exportJson, importJson]);
+  const value = useMemo(
+    () => ({ state, view, hydrated, set, reset, exportJson, importJson }),
+    [state, view, hydrated, set, reset, exportJson, importJson],
+  );
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 

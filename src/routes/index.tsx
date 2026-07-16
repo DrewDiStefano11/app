@@ -58,7 +58,7 @@ export const Route = createFileRoute("/")({
 });
 
 function FitCoreApp() {
-  const { state, view } = useStore();
+  const { state, view, hydrated } = useStore();
   const [section, setSection] = useState<SectionId>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("daily");
@@ -82,9 +82,13 @@ function FitCoreApp() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [hasActiveWorkout]);
 
+  if (!hydrated) {
+    return <div className="phone-shell" data-section="home" data-fitcore-hydrated="false" aria-busy="true" />;
+  }
+
   if (!state.onboardingComplete) {
     return (
-      <div className="phone-shell" data-section="home">
+      <div className="phone-shell" data-section="home" data-fitcore-hydrated="true">
         <Onboarding />
       </div>
     );
@@ -93,7 +97,7 @@ function FitCoreApp() {
   const contextSummary = buildAICoachContext(view, section);
 
   return (
-    <div className="phone-shell" data-section={section} data-layout-mode={layoutMode} key={section}>
+    <div className="phone-shell" data-section={section} data-layout-mode={layoutMode} data-fitcore-hydrated="true" key={section}>
       <div className="animate-tile-in">
         {settingsOpen ? (
           <SettingsView onBack={() => setSettingsOpen(false)} layoutMode={layoutMode} />
