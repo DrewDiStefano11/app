@@ -65,7 +65,11 @@ export const FITCORE_MOBILE_VIEWPORTS = {
  * Seeds exactly once before an application boot, then confirms both application
  * hydration and fixture-specific persisted state. Later reloads do not reseed.
  */
-export async function seedFitCoreAppState(page: Page, state: Record<string, unknown>) {
+export async function seedFitCoreAppState(
+  page: Page,
+  state: Record<string, unknown>,
+  options: { simulateSessionStorageSetFailure?: boolean } = {},
+) {
   const requestId = `fitcore-seed-${++seedSequence}`;
   const appAlreadyBooted = page.url() !== "about:blank";
   if (appAlreadyBooted) {
@@ -83,7 +87,15 @@ export async function seedFitCoreAppState(page: Page, state: Record<string, unkn
     );
   }
   await page.addInitScript(
-    ({ key, value, requestKey, appliedKey, requestId }) => {
+    ({ key, value, requestKey, appliedKey, requestId, simulateSessionStorageSetFailure }) => {
+      if (simulateSessionStorageSetFailure) {
+        Object.defineProperty(window.sessionStorage, "setItem", {
+          configurable: true,
+          value: () => {
+            throw new DOMException("Session storage blocked for contract test", "SecurityError");
+          },
+        });
+      }
       const safeGet = (storageKey: string) => {
         try {
           return window.sessionStorage.getItem(storageKey);
@@ -112,6 +124,7 @@ export async function seedFitCoreAppState(page: Page, state: Record<string, unkn
       requestKey: FITCORE_SEED_REQUEST_KEY,
       appliedKey: FITCORE_SEED_APPLIED_KEY,
       requestId,
+      simulateSessionStorageSetFailure: options.simulateSessionStorageSetFailure ?? false,
     },
   );
 

@@ -169,6 +169,26 @@ test.describe("Seeded hydration contract", () => {
     await expect(page.getByText("Good Morning, committed", { exact: true })).toBeVisible();
   });
 
+  test("publishes a defensive copy of mutable store identity fields", async ({ page }) => {
+    await seedFitCoreAppState(page, {
+      ...seededState("defensive-copy"),
+      dismissedSuggestions: ["persisted-suggestion"],
+    });
+    await page.evaluate(() => {
+      window.__FITCORE_HYDRATION__!.identity.nutritionTargets.calories = 1;
+      window.__FITCORE_HYDRATION__!.identity.dismissedSuggestions.push("marker-only");
+    });
+
+    await expect
+      .poll(() =>
+        page.evaluate((key) => {
+          const stored = JSON.parse(localStorage.getItem(key) || "{}");
+          return [stored.nutritionTargets?.calories, stored.dismissedSuggestions];
+        }, FITCORE_STORAGE_KEY),
+      )
+      .toEqual([2345, ["persisted-suggestion"]]);
+  });
+
   test("does not accept stale or incorrect seed request correlation", async ({ page }) => {
     const requestId = await seedFitCoreAppState(page, seededState("correlated"));
     const app = page.locator('[data-fitcore-hydrated="true"]');
@@ -196,11 +216,11 @@ test.describe("Seeded hydration contract", () => {
   test("fails seeded correlation clearly when session storage cannot persist it", async ({
     page,
   }) => {
-    await makeSessionStorageThrow(page, ["setItem"]);
-
-    await expect(seedFitCoreAppState(page, seededState("uncorrelated"))).rejects.toThrow(
-      /Seed correlation failed: expected request .* application reported none/,
-    );
+    await expect(
+      seedFitCoreAppState(page, seededState("uncorrelated"), {
+        simulateSessionStorageSetFailure: true,
+      }),
+    ).rejects.toThrow(/Seed correlation failed: expected request .* application reported none/);
     await expectFitCoreHydrated(page);
     await expect(page.getByText("Good Morning, uncorrelated", { exact: true })).toBeVisible();
   });

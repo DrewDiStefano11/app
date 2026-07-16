@@ -66,9 +66,9 @@ export function getHydratedStoreIdentity(state: AppState): HydratedStoreIdentity
     onboardingComplete: state.onboardingComplete,
     demoMode: state.demoMode,
     profileName: state.profile.name ?? "",
-    nutritionTargets: state.nutritionTargets,
+    nutritionTargets: { ...state.nutritionTargets },
     activeWorkoutId: state.activeWorkout?.id ?? null,
-    dismissedSuggestions: state.dismissedSuggestions,
+    dismissedSuggestions: [...state.dismissedSuggestions],
     ...arrays,
   };
 }
