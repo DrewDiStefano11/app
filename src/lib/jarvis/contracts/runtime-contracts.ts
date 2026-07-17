@@ -6,6 +6,15 @@
 
 export const JARVIS_RUNTIME_CONTRACT_VERSION = "1.0.0";
 
+// --- Serializable Values ---
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: JsonValue | undefined }
+  | JsonValue[];
+
 // --- Identifiers ---
 // Branded string types for stable identifier safety.
 export type SessionId = string & { readonly __brand: "SessionId" };
@@ -36,7 +45,7 @@ export interface NormalizedTranscript {
 // --- Confidence & Match Outcomes ---
 export type ConfidenceLevel = "high" | "medium" | "low";
 
-export type MatchOutcome<TCandidate extends CommandCandidate = CommandCandidate> =
+export type MatchOutcome<TCandidate = CommandCandidate> =
   | {
       readonly status: "matched";
       readonly candidate: TCandidate;
@@ -172,7 +181,7 @@ export interface SessionContract extends SessionIdentity {
   readonly transitionSequence: number;
   readonly pendingClarification?: ClarificationRequirement;
   readonly pendingConfirmation?: ConfirmationRequirement;
-  readonly interruptionMetadata?: unknown;
+  readonly interruptionMetadata?: JsonValue;
   readonly terminalReason?: string;
 }
 
@@ -208,9 +217,9 @@ export interface TurnContract extends TurnIdentity {
   readonly transcriptReference?: string;
   readonly interpretationReference?: string;
   readonly responseReference?: string;
-  readonly interruptionMetadata?: unknown;
-  readonly supersessionMetadata?: unknown;
-  readonly terminalMetadata?: unknown;
+  readonly interruptionMetadata?: JsonValue;
+  readonly supersessionMetadata?: JsonValue;
+  readonly terminalMetadata?: JsonValue;
 }
 
 // --- Turn-Operation Contracts ---
@@ -254,7 +263,7 @@ export interface ToolRequestEnvelope {
   readonly idempotencyKey: IdempotencyKey;
   readonly confirmationReference?: ConfirmationId;
   readonly expectedStateVersion?: number;
-  readonly requestMetadata?: unknown;
+  readonly requestMetadata?: JsonValue;
 }
 
 export interface ToolSuccessResult<TValue = unknown> {
@@ -273,7 +282,7 @@ export interface ToolFailureResult {
   readonly status: "failure";
   readonly requestId: RequestId;
   readonly toolName?: ToolName;
-  readonly errorCode: string;
+  readonly errorCode: RuntimeErrorCode;
   readonly safeMessage: string;
   readonly retryable: boolean;
   readonly recoverable: boolean;
@@ -321,7 +330,7 @@ export interface RuntimeErrorContract {
   readonly requestId?: RequestId;
   readonly expectedRevision?: number;
   readonly receivedRevision?: number;
-  readonly metadata?: unknown;
+  readonly metadata?: JsonValue;
 }
 
 // --- Audit Event Base ---
@@ -335,7 +344,7 @@ export interface AuditEventBase {
   readonly actorType: string;
   readonly outcome: "success" | "failure" | "unknown";
   readonly riskClass?: RiskClass;
-  readonly metadata?: unknown;
+  readonly metadata?: JsonValue;
 }
 
 // --- Dependency-Injection Interfaces ---
@@ -396,8 +405,8 @@ export function isValidRevision(revision: number): boolean {
 
 export function isValidIdentifier(id: string | null | undefined): boolean {
   if (typeof id !== "string") return false;
-  const trimmed = id.trim();
-  if (trimmed.length === 0 || trimmed.length > 256) return false;
+  if (id.length === 0 || id.length > 256) return false;
+  if (id !== id.trim()) return false;
   // Disallow control characters
   return !/[\u0000-\u001F\u007F-\u009F]/.test(id);
 }

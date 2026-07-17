@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import * as assert from "node:assert/strict";
 import {
   JARVIS_RUNTIME_CONTRACT_VERSION,
   isValidSourceSpan,
@@ -22,112 +23,123 @@ import {
 describe("Jarvis Runtime Contracts", () => {
   describe("Version", () => {
     it("exports a stable version string", () => {
-      expect(typeof JARVIS_RUNTIME_CONTRACT_VERSION).toBe("string");
-      expect(JARVIS_RUNTIME_CONTRACT_VERSION.length).toBeGreaterThan(0);
-      expect(JARVIS_RUNTIME_CONTRACT_VERSION).toBe("1.0.0");
+      assert.equal(typeof JARVIS_RUNTIME_CONTRACT_VERSION, "string");
+      assert.ok(JARVIS_RUNTIME_CONTRACT_VERSION.length > 0);
+      assert.equal(JARVIS_RUNTIME_CONTRACT_VERSION, "1.0.0");
     });
   });
 
   describe("Validation Helpers", () => {
     describe("isValidIdentifier", () => {
       it("accepts valid identifiers", () => {
-        expect(isValidIdentifier("session-123")).toBe(true);
-        expect(isValidIdentifier("turn_456")).toBe(true);
-        expect(isValidIdentifier("uuid-v4-format")).toBe(true);
+        assert.equal(isValidIdentifier("session-123"), true);
+        assert.equal(isValidIdentifier("turn_456"), true);
+        assert.equal(isValidIdentifier("uuid-v4-format"), true);
       });
 
       it("rejects empty or whitespace-only strings", () => {
-        expect(isValidIdentifier("")).toBe(false);
-        expect(isValidIdentifier("   ")).toBe(false);
+        assert.equal(isValidIdentifier(""), false);
+        assert.equal(isValidIdentifier("   "), false);
+      });
+
+      it("rejects strings with leading or trailing whitespace", () => {
+        assert.equal(isValidIdentifier(" id "), false);
+        assert.equal(isValidIdentifier("id "), false);
+        assert.equal(isValidIdentifier(" id"), false);
+        assert.equal(isValidIdentifier(" ".repeat(100) + "id" + " ".repeat(100)), false);
       });
 
       it("rejects control characters", () => {
-        expect(isValidIdentifier("invalid\nid")).toBe(false);
-        expect(isValidIdentifier("invalid\tid")).toBe(false);
-        expect(isValidIdentifier("invalid\u0000id")).toBe(false);
+        assert.equal(isValidIdentifier("invalid\nid"), false);
+        assert.equal(isValidIdentifier("invalid\tid"), false);
+        assert.equal(isValidIdentifier("invalid\u0000id"), false);
       });
 
       it("rejects excessively long identifiers", () => {
         const longId = "a".repeat(257);
-        expect(isValidIdentifier(longId)).toBe(false);
+        assert.equal(isValidIdentifier(longId), false);
+        // Ensure the length check happens before trimming
+        assert.equal(isValidIdentifier(" ".repeat(257)), false);
       });
 
       it("rejects non-strings", () => {
-        expect(isValidIdentifier(null)).toBe(false);
-        expect(isValidIdentifier(undefined)).toBe(false);
+        assert.equal(isValidIdentifier(null), false);
+        assert.equal(isValidIdentifier(undefined), false);
         // @ts-expect-error Testing invalid runtime input
-        expect(isValidIdentifier(123)).toBe(false);
+        assert.equal(isValidIdentifier(123), false);
       });
     });
 
     describe("isValidSourceSpan", () => {
       it("accepts a valid span", () => {
-        expect(isValidSourceSpan({ startIndex: 0, endIndex: 5 })).toBe(true);
-        expect(isValidSourceSpan({ startIndex: 10, endIndex: 15, originalText: "hello" })).toBe(
+        assert.equal(isValidSourceSpan({ startIndex: 0, endIndex: 5 }), true);
+        assert.equal(
+          isValidSourceSpan({ startIndex: 10, endIndex: 15, originalText: "hello" }),
           true,
         );
       });
 
       it("accepts zero-length spans", () => {
-        expect(isValidSourceSpan({ startIndex: 5, endIndex: 5 })).toBe(true);
+        assert.equal(isValidSourceSpan({ startIndex: 5, endIndex: 5 }), true);
       });
 
       it("rejects negative start index", () => {
-        expect(isValidSourceSpan({ startIndex: -1, endIndex: 5 })).toBe(false);
+        assert.equal(isValidSourceSpan({ startIndex: -1, endIndex: 5 }), false);
       });
 
       it("rejects end index before start index", () => {
-        expect(isValidSourceSpan({ startIndex: 5, endIndex: 4 })).toBe(false);
+        assert.equal(isValidSourceSpan({ startIndex: 5, endIndex: 4 }), false);
       });
 
       it("rejects non-integer indexes", () => {
-        expect(isValidSourceSpan({ startIndex: 1.5, endIndex: 5 })).toBe(false);
+        assert.equal(isValidSourceSpan({ startIndex: 1.5, endIndex: 5 }), false);
       });
 
       it("rejects values beyond safe integer limits", () => {
-        expect(
+        assert.equal(
           isValidSourceSpan({
             startIndex: Number.MAX_SAFE_INTEGER + 1,
             endIndex: Number.MAX_SAFE_INTEGER + 2,
           }),
-        ).toBe(false);
+          false,
+        );
       });
     });
 
     describe("isValidRevision", () => {
       it("accepts zero", () => {
-        expect(isValidRevision(0)).toBe(true);
+        assert.equal(isValidRevision(0), true);
       });
 
       it("accepts positive safe integers", () => {
-        expect(isValidRevision(1)).toBe(true);
-        expect(isValidRevision(100)).toBe(true);
+        assert.equal(isValidRevision(1), true);
+        assert.equal(isValidRevision(100), true);
       });
 
       it("rejects negative numbers", () => {
-        expect(isValidRevision(-1)).toBe(false);
+        assert.equal(isValidRevision(-1), false);
       });
 
       it("rejects decimals", () => {
-        expect(isValidRevision(1.5)).toBe(false);
+        assert.equal(isValidRevision(1.5), false);
       });
 
       it("rejects unsafe integers", () => {
-        expect(isValidRevision(Number.MAX_SAFE_INTEGER + 1)).toBe(false);
+        assert.equal(isValidRevision(Number.MAX_SAFE_INTEGER + 1), false);
       });
 
       it("rejects string coercion", () => {
         // @ts-expect-error Testing runtime behavior
-        expect(isValidRevision("1")).toBe(false);
+        assert.equal(isValidRevision("1"), false);
       });
     });
 
     describe("Risk & Terminal State Helpers", () => {
       it("correctly identifies confirmation requirements", () => {
-        expect(requiresConfirmation("read_only")).toBe(false);
-        expect(requiresConfirmation("low_risk_reversible_write")).toBe(false);
-        expect(requiresConfirmation("confirmation_sensitive_write")).toBe(true);
-        expect(requiresConfirmation("destructive_action")).toBe(true);
+        assert.equal(requiresConfirmation("read_only"), false);
+        assert.equal(requiresConfirmation("low_risk_reversible_write"), false);
+        assert.equal(requiresConfirmation("confirmation_sensitive_write"), true);
+        assert.equal(requiresConfirmation("destructive_action"), true);
       });
 
       it("correctly identifies terminal session states", () => {
@@ -144,10 +156,10 @@ describe("Jarvis Runtime Contracts", () => {
           "paused",
           "interrupted",
         ];
-        activeStates.forEach((state) => expect(isTerminalSessionState(state)).toBe(false));
+        activeStates.forEach((state) => assert.equal(isTerminalSessionState(state), false));
 
         const terminalStates: SessionStateName[] = ["completed", "canceled", "expired", "failed"];
-        terminalStates.forEach((state) => expect(isTerminalSessionState(state)).toBe(true));
+        terminalStates.forEach((state) => assert.equal(isTerminalSessionState(state), true));
       });
 
       it("correctly identifies terminal turn states", () => {
@@ -164,7 +176,7 @@ describe("Jarvis Runtime Contracts", () => {
           "output_pending",
           "interrupted",
         ];
-        activeStates.forEach((state) => expect(isTerminalTurnState(state)).toBe(false));
+        activeStates.forEach((state) => assert.equal(isTerminalTurnState(state), false));
 
         const terminalStates: TurnLifecycleState[] = [
           "superseded",
@@ -172,7 +184,7 @@ describe("Jarvis Runtime Contracts", () => {
           "completed",
           "failed",
         ];
-        terminalStates.forEach((state) => expect(isTerminalTurnState(state)).toBe(true));
+        terminalStates.forEach((state) => assert.equal(isTerminalTurnState(state), true));
       });
     });
   });
@@ -180,9 +192,38 @@ describe("Jarvis Runtime Contracts", () => {
   describe("Serialization", () => {
     it("can be JSON serialized without losing fields", () => {
       const span: SourceSpan = { startIndex: 0, endIndex: 5, originalText: "hello" };
-      const serialized = JSON.stringify(span);
-      const deserialized = JSON.parse(serialized);
-      expect(deserialized).toEqual(span);
+      const envelope: ToolResultEnvelope = {
+        status: "success",
+        requestId: "req-1" as RequestId,
+        toolName: "test_tool" as ToolName,
+        resultValue: { ok: true },
+        completionTimestamp: 12345,
+        warnings: ["test warning"],
+      };
+
+      const auditEvent = {
+        auditEventId: "audit-1",
+        eventType: "tool_execution",
+        timestamp: 1234567890,
+        actorType: "system",
+        outcome: "success",
+        metadata: { info: "test", details: { nested: true } },
+      };
+
+      const runtimeError = {
+        code: "invalid_input",
+        category: "validation",
+        safeMessage: "Bad input",
+        recoverable: true,
+        retryable: false,
+        metadata: { input: "xyz" },
+      };
+
+      for (const obj of [span, envelope, auditEvent, runtimeError]) {
+        const serialized = JSON.stringify(obj);
+        const deserialized = JSON.parse(serialized);
+        assert.deepEqual(deserialized, obj);
+      }
     });
   });
 
@@ -209,8 +250,8 @@ describe("Jarvis Runtime Contracts", () => {
         safeMessage: "Could not match command",
       };
 
-      expect(matched.status).toBe("matched");
-      expect(noMatch.status).toBe("no_match");
+      assert.equal(matched.status, "matched");
+      assert.equal(noMatch.status, "no_match");
     });
 
     it("distinguishes ToolResultEnvelope correctly", () => {
@@ -225,14 +266,14 @@ describe("Jarvis Runtime Contracts", () => {
       const failure: ToolResultEnvelope = {
         status: "failure",
         requestId: "req-1" as RequestId,
-        errorCode: "error_1",
+        errorCode: "unknown_tool",
         safeMessage: "Failed",
         retryable: false,
         recoverable: false,
       };
 
-      expect(success.status).toBe("success");
-      expect(failure.status).toBe("failure");
+      assert.equal(success.status, "success");
+      assert.equal(failure.status, "failure");
     });
 
     it("distinguishes ConfirmationDecision correctly", () => {
@@ -244,8 +285,8 @@ describe("Jarvis Runtime Contracts", () => {
         confirmationId: "c-1" as ConfirmationId,
         decision: "rejected",
       };
-      expect(accepted.decision).toBe("accepted");
-      expect(rejected.decision).toBe("rejected");
+      assert.equal(accepted.decision, "accepted");
+      assert.equal(rejected.decision, "rejected");
     });
 
     it("distinguishes OperationStatus correctly", () => {
@@ -255,8 +296,8 @@ describe("Jarvis Runtime Contracts", () => {
       const invalidated: OperationStatus = "invalidated";
       const canceled: OperationStatus = "canceled";
       const stale: OperationStatus = "stale";
-      expect(pending).toBe("pending");
-      expect(accepted).toBe("accepted");
+      assert.equal(pending, "pending");
+      assert.equal(accepted, "accepted");
     });
   });
 
@@ -264,7 +305,7 @@ describe("Jarvis Runtime Contracts", () => {
     it("produces deterministic validation results", () => {
       const id = "test-id";
       for (let i = 0; i < 5; i++) {
-        expect(isValidIdentifier(id)).toBe(true);
+        assert.equal(isValidIdentifier(id), true);
       }
     });
   });
