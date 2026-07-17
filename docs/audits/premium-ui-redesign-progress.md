@@ -449,9 +449,57 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 - The existing Settings keyboard regression may log its fallback from Escape to the visible Done control while still passing.
 - A single pre-existing Home Daily reduced-motion case can fail after prolonged monolithic Windows runner sessions; it passed in the 186-case shared suite and in all three immediate isolated project reruns.
 
-## Task 7 next task
+## Task 8 files
 
-Task 8 — Recovery Daily View
+### Created
+
+- `src/components/app/views/recovery-daily-premium.tsx`
+- `tests/e2e/recovery-daily-premium-redesign.spec.ts`
+
+### Modified
+
+- `docs/audits/premium-ui-redesign-progress.md`
+- `src/components/app/views/recovery.tsx`
+- `src/routes/index.tsx`
+- `src/styles.css`
+
+## Task 8 architecture and data behavior
+
+- `RecoveryDailyPremiumView` replaces only the Recovery Daily surface; the existing Health, Sleep, Body, and Insights Deep Dive tabs remain available through the shared layout-mode contract.
+- The route change is limited to passing the existing `setLayoutMode` callback into `RecoveryView`. No route, section, hydration, persistence, package, schema, or analytics contract changed.
+- Daily and Deep Dive use one canonical readiness calculator. It averages the latest usable sleep and complete check-in contributors, excludes missing inputs instead of treating them as zero, and preserves explicit zero values.
+- Complete, partial, empty, invalid, and stale states remain distinct. Sleep older than 48 hours and check-ins older than 36 hours remain dated and usable but are labeled as needing an update.
+- Sleep, check-in, body-fatigue, supplements, and same-day activity use existing stored records only. Wearable signals remain explicitly planned and no HRV, heart-rate, strain, or medical claim is fabricated.
+- Existing logging sheets are preserved with labeled inputs, validation, keyboard operation, reload persistence, and confirmed deletion. Daily-to-Deep-Dive navigation preserves the current section and returns without resetting Recovery state.
+- The merged seeded-hydration contract at `80e02448b4e26de8dd067d0f9bb34d579fb516c7` is retained, including commits `7557342fdbe1cd2f88775eb7ae6f008bfafec61d`, `091322d97c7a707e01f35fa3dff10a9b40e0ae27`, and `1c3d642bec611b1be30389b2e96629a4b9c1ef54`.
+
+## Task 8 validation
+
+- Recovery Daily premium specification: 24/24 across desktop Chromium, mobile 360×800, and mobile 390×844 with one worker and zero retries.
+- Recovery interaction and route regression group: 63/63 with one worker and zero retries, covering check-ins, navigation, route restoration, mobile layout, overlays, quick actions, keyboard focus, rich seeded tabs, and reload stability.
+- Hydration and affected-feature matrix: 171/171 with one worker and zero retries. This includes the 30-case seeded-hydration helper contract, 9 legacy localStorage cases, 15 analytics invariants, the exact Home partial-readiness regression and full Home Daily suite, Nutrition Daily and Deep Dive, Training Daily and Deep Dive, and Recovery Daily.
+- Complete Playwright inventory: 44 spec files and 504 unique identities across three projects—168 desktop Chromium, 168 mobile 360×800, and 168 mobile 390×844.
+- Partition A: 168/168 desktop identities passed. Partition B: 336/336 mobile identities passed. The partitions have zero intersection; their union is all 504 identities with zero missing, extra, duplicate, skipped, interrupted, or not-run cases.
+- TypeScript: pass (`npx tsc --noEmit`).
+- Production client, SSR, and Nitro build: pass (`npm run build`).
+- Scoped ESLint: zero errors; one Task 8 Fast Refresh warning for the exported canonical readiness helper and five pre-existing Fast Refresh warnings in `store.tsx`.
+- Changed-file Prettier: pass.
+- `git diff --check`: pass.
+- Responsive widths inspected: 320, 360×800, 390×844, 430, 768, 1024, and 1280 px.
+- Visual states inspected: rich, partial, empty, invalid, stale, reduced-motion, keyboard focus, check-in sheet, deletion confirmation, desktop Daily and Deep Dive, and both mobile layouts.
+- Accessibility and interaction: semantic quality labels, named controls, visible focus, labeled range and text inputs, pressed fatigue states, reduced-motion behavior, touch targets, sheet/dialog focus paths, and keyboard Daily/Deep Dive navigation verified.
+- Layout and data honesty: no horizontal overflow, clipped values, hidden primary actions, inaccessible icon-only controls, default-state flash, hydration-shell regression, `NaN`, `Infinity`, or fabricated wearable/medical data.
+- Validation evidence is preserved outside the repository at `..\task8-post-pr263-acceptance-evidence`; all earlier Task 8 backup, race, and failure-evidence directories remain preserved.
+
+## Task 8 known warnings and limitations
+
+- Production and test output retains existing TanStack server-function `inputValidator()` deprecation notices, dependency bundling notices, and the existing large client-chunk warning.
+- The existing Settings keyboard regression may log its fallback from Escape to the visible Done control while still passing.
+- Continuous wearable metrics remain unavailable until a supported data contract exists; the Recovery Daily surface labels them as planned rather than estimating them.
+
+## Task 8 next task
+
+Task 9 — Recovery Deep Dive
 
 ## Pending Data Safety integration
 

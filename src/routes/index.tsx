@@ -116,7 +116,9 @@ function FitCoreApp() {
             {section === "nutrition" && (
               <NutritionView layoutMode={layoutMode} onLayoutModeChange={setLayoutMode} />
             )}
-            {section === "recovery" && <RecoveryView layoutMode={layoutMode} />}
+            {section === "recovery" && (
+              <RecoveryView layoutMode={layoutMode} onLayoutModeChange={setLayoutMode} />
+            )}
             {section === "progress" && <ProgressView layoutMode={layoutMode} />}
           </>
         )}
