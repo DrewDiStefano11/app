@@ -7287,3 +7287,644 @@ body {
     transition-duration: 0.00001s !important;
   }
 }
+
+/* Recovery Deep Dive Premium */
+[data-section="recovery"][data-layout-mode="deepDive"].phone-shell {
+  width: min(1280px, calc(100vw - 2rem));
+  max-width: 1280px;
+}
+
+.recovery-deep-dive-premium {
+  min-width: 0;
+  overflow: clip;
+  color: white;
+}
+
+.recovery-deep-header,
+.recovery-deep-main {
+  width: min(100%, 1200px);
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+.recovery-deep-header {
+  display: grid;
+  gap: 1rem;
+  padding-block: 1.25rem 1rem;
+}
+
+.recovery-deep-header h1 {
+  margin-top: 0.25rem;
+  font-family: var(--font-display);
+  font-size: clamp(2.25rem, 11vw, 4.6rem);
+  font-weight: 400;
+  line-height: 0.94;
+  letter-spacing: -0.045em;
+}
+
+.recovery-deep-header > div:nth-child(2) > p:last-child {
+  max-width: 38rem;
+  margin-top: 0.55rem;
+  color: rgb(255 255 255 / 50%);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.recovery-deep-back,
+.recovery-deep-range button,
+.recovery-deep-primary,
+.recovery-deep-table-toggle,
+.recovery-deep-control-card button,
+.recovery-body-side button,
+.recovery-fatigue-heading button,
+.recovery-analysis-contributor__actions button,
+.recovery-data-table button,
+.recovery-deep-empty button {
+  min-height: 2.75rem;
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.recovery-deep-back {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.45rem;
+  color: rgb(255 255 255 / 65%);
+}
+
+.recovery-deep-range,
+.recovery-deep-control-card > div:first-child,
+.recovery-body-side {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  gap: 0.25rem;
+  overflow-x: auto;
+  padding: 0.25rem;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 0.9rem;
+  background: rgb(255 255 255 / 3%);
+  scrollbar-width: none;
+}
+
+.recovery-deep-range button,
+.recovery-deep-control-card button,
+.recovery-body-side button {
+  min-width: 3.2rem;
+  flex: 0 0 auto;
+  padding-inline: 0.75rem;
+  color: rgb(255 255 255 / 52%);
+}
+
+.recovery-deep-range button[aria-pressed="true"],
+.recovery-deep-control-card button[aria-pressed="true"],
+.recovery-body-side button[aria-pressed="true"] {
+  background: var(--recovery-accent);
+  color: rgb(5 13 11);
+}
+
+.recovery-deep-main {
+  display: grid;
+  gap: 1.4rem;
+  padding-bottom: 2.5rem;
+}
+
+.recovery-deep-main > section,
+.recovery-deep-two-column > section {
+  min-width: 0;
+}
+
+.recovery-deep-hero {
+  position: relative;
+  display: grid;
+  gap: 1.2rem;
+  overflow: hidden;
+  padding: 1.15rem;
+  background:
+    radial-gradient(
+      circle at 88% 12%,
+      color-mix(in oklab, var(--recovery-accent) 18%, transparent),
+      transparent 34%
+    ),
+    linear-gradient(145deg, rgb(255 255 255 / 7%), transparent 58%), rgb(9 15 15 / 95%);
+}
+
+.recovery-deep-hero__heading,
+.recovery-analysis-contributor__heading,
+.recovery-fatigue-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.recovery-deep-hero__heading h2 {
+  margin-top: 0.25rem;
+  font-size: clamp(1.5rem, 6vw, 2.35rem);
+  letter-spacing: -0.025em;
+}
+
+.recovery-deep-explanation {
+  max-width: 42rem;
+  margin-top: 0.9rem;
+  color: rgb(255 255 255 / 74%);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.recovery-deep-hero__facts,
+.recovery-deep-metric-strip,
+.recovery-analysis-contributor__facts {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.recovery-deep-hero__facts span,
+.recovery-deep-metric-strip span,
+.recovery-analysis-contributor__facts span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.65rem;
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: 0.75rem;
+  background: rgb(255 255 255 / 3%);
+  color: rgb(255 255 255 / 46%);
+  font-size: 0.67rem;
+}
+
+.recovery-deep-hero__facts strong,
+.recovery-deep-metric-strip strong,
+.recovery-analysis-contributor__facts strong {
+  overflow-wrap: anywhere;
+  color: white;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.recovery-deep-primary {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 1rem;
+  padding-inline: 1rem;
+  background: var(--recovery-accent);
+  color: rgb(5 13 11);
+}
+
+.recovery-deep-hero__score {
+  display: flex;
+  min-height: 10rem;
+  align-items: baseline;
+  justify-content: center;
+  align-content: center;
+  flex-wrap: wrap;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 1.1rem;
+  background: rgb(0 0 0 / 18%);
+  text-align: center;
+}
+
+.recovery-deep-hero__score strong {
+  font-family: var(--font-display);
+  font-size: clamp(4rem, 22vw, 7rem);
+  font-weight: 400;
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+}
+
+.recovery-deep-hero__score span {
+  color: var(--recovery-accent);
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.recovery-deep-hero__score small {
+  width: 100%;
+  margin-top: 0.55rem;
+  color: rgb(255 255 255 / 46%);
+  font-size: 0.68rem;
+}
+
+.recovery-deep-contributors,
+.recovery-deep-two-column,
+.recovery-body-analysis {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.recovery-analysis-contributor,
+.recovery-deep-control-card,
+.recovery-training-summary,
+.recovery-wearable-disclosure,
+.recovery-quality-timeline {
+  min-width: 0;
+  padding: 1rem;
+}
+
+.recovery-analysis-contributor__heading > span {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.75rem;
+  background: color-mix(in oklab, var(--recovery-accent) 14%, transparent);
+  color: var(--recovery-accent);
+}
+
+.recovery-analysis-contributor__heading > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.recovery-analysis-contributor__heading h3 {
+  margin-top: 0.2rem;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.recovery-analysis-contributor > p,
+.recovery-direction-note,
+.recovery-fatigue-evidence > p,
+.recovery-training-summary p,
+.recovery-wearable-disclosure p:not(.eyebrow),
+.recovery-source-record p,
+.recovery-inline-missing p,
+.recovery-deep-empty p {
+  margin-top: 0.8rem;
+  color: rgb(255 255 255 / 50%);
+  font-size: 0.75rem;
+  line-height: 1.55;
+}
+
+.recovery-analysis-contributor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.recovery-analysis-contributor__actions button,
+.recovery-fatigue-heading button,
+.recovery-data-table button,
+.recovery-deep-table-toggle,
+.recovery-deep-empty button {
+  padding-inline: 0.8rem;
+  border: 1px solid rgb(255 255 255 / 11%);
+  background: rgb(255 255 255 / 5%);
+  color: white;
+}
+
+.recovery-analysis-contributor__actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.recovery-deep-table-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.recovery-data-table-wrap {
+  max-width: 100%;
+  margin-top: 0.75rem;
+  overflow-x: auto;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 0.9rem;
+}
+
+.recovery-data-table {
+  width: 100%;
+  min-width: 48rem;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.recovery-data-table caption {
+  padding: 0.75rem;
+  color: rgb(255 255 255 / 50%);
+  text-align: left;
+}
+
+.recovery-data-table th,
+.recovery-data-table td {
+  padding: 0.65rem 0.75rem;
+  border-top: 1px solid rgb(255 255 255 / 7%);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.recovery-data-table thead th {
+  color: rgb(255 255 255 / 48%);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.recovery-deep-control-card {
+  display: grid;
+  gap: 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.recovery-deep-metric-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0;
+}
+
+.recovery-direction-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.recovery-direction-note svg {
+  flex: 0 0 auto;
+  margin-top: 0.15rem;
+  color: var(--recovery-accent);
+}
+
+.recovery-body-map,
+.recovery-fatigue-evidence {
+  min-width: 0;
+  padding: 1rem;
+}
+
+.recovery-body-map .body-heatmap {
+  margin-inline: auto;
+}
+
+.recovery-fatigue-heading h3,
+.recovery-wearable-disclosure h2 {
+  margin-top: 0.25rem;
+  font-size: 1.05rem;
+}
+
+.recovery-fatigue-evidence ul {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.9rem;
+}
+
+.recovery-fatigue-evidence li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-block: 0.45rem;
+  border-bottom: 1px solid rgb(255 255 255 / 7%);
+  font-size: 0.75rem;
+  text-transform: capitalize;
+}
+
+.recovery-fatigue-evidence > small {
+  display: block;
+  margin-top: 0.85rem;
+  color: rgb(255 255 255 / 38%);
+  font-size: 0.67rem;
+  line-height: 1.5;
+}
+
+.recovery-training-summary > div:first-child,
+.recovery-wearable-disclosure,
+.recovery-inline-missing,
+.recovery-deep-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+}
+
+.recovery-training-summary > div:first-child svg,
+.recovery-wearable-disclosure > svg,
+.recovery-inline-missing > svg,
+.recovery-deep-empty > svg {
+  flex: 0 0 auto;
+  color: var(--recovery-accent);
+}
+
+.recovery-training-summary p {
+  margin: 0;
+}
+
+.recovery-training-summary .recovery-deep-metric-strip {
+  margin-top: 0.9rem;
+}
+
+.recovery-quality-timeline {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.recovery-quality-timeline ul {
+  display: grid;
+  grid-auto-columns: minmax(5.5rem, 1fr);
+  grid-auto-flow: column;
+  gap: 0.4rem;
+}
+
+.recovery-quality-timeline button {
+  width: 100%;
+  min-height: 5.5rem;
+  padding: 0.55rem;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-top: 3px solid rgb(255 255 255 / 18%);
+  border-radius: 0.7rem;
+  background: rgb(255 255 255 / 3%);
+  text-align: left;
+}
+
+.recovery-quality-timeline li[data-state="ready"] button {
+  border-top-color: var(--recovery-accent);
+}
+.recovery-quality-timeline li[data-state="partial"] button,
+.recovery-quality-timeline li[data-state="stale"] button {
+  border-top-color: oklch(0.76 0.16 85);
+}
+.recovery-quality-timeline li[data-state="invalid"] button {
+  border-top-color: oklch(0.7 0.19 28);
+}
+
+.recovery-quality-timeline span,
+.recovery-quality-timeline small {
+  display: block;
+  color: rgb(255 255 255 / 42%);
+  font-size: 0.62rem;
+}
+
+.recovery-quality-timeline strong {
+  display: block;
+  margin-block: 0.3rem;
+  font-size: 0.68rem;
+  text-transform: capitalize;
+}
+
+.recovery-wearable-disclosure {
+  align-items: center;
+}
+
+.recovery-wearable-disclosure > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.recovery-wearable-disclosure p:not(.eyebrow) {
+  margin-top: 0.3rem;
+}
+
+.recovery-source-record {
+  display: grid;
+  gap: 0.65rem;
+  padding-bottom: 1rem;
+}
+
+.recovery-source-record .premium-foundation-card {
+  padding: 0.9rem;
+}
+
+.recovery-source-record h3 {
+  margin-top: 0.25rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.recovery-source-record small {
+  display: block;
+  margin-top: 0.35rem;
+  color: rgb(255 255 255 / 40%);
+  font-size: 0.68rem;
+}
+
+.recovery-source-note {
+  margin-top: 0;
+}
+
+.recovery-inline-missing,
+.recovery-deep-empty {
+  align-items: center;
+  padding: 1rem;
+}
+
+.recovery-deep-empty > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.recovery-deep-empty h3 {
+  font-size: 0.9rem;
+}
+
+.recovery-deep-empty p,
+.recovery-inline-missing p {
+  margin: 0;
+}
+
+.recovery-deep-back:focus-visible,
+.recovery-deep-range button:focus-visible,
+.recovery-deep-primary:focus-visible,
+.recovery-deep-table-toggle:focus-visible,
+.recovery-deep-control-card button:focus-visible,
+.recovery-body-side button:focus-visible,
+.recovery-fatigue-heading button:focus-visible,
+.recovery-analysis-contributor__actions button:focus-visible,
+.recovery-data-table button:focus-visible,
+.recovery-quality-timeline button:focus-visible,
+.recovery-deep-empty button:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 3px;
+}
+
+@media (min-width: 480px) {
+  .recovery-deep-header,
+  .recovery-deep-main {
+    padding-inline: 1.5rem;
+  }
+  .recovery-deep-header {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: end;
+  }
+  .recovery-deep-header .recovery-deep-range {
+    grid-column: 2;
+  }
+  .recovery-deep-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 0.42fr);
+    align-items: stretch;
+    padding: 1.4rem;
+  }
+  .recovery-deep-hero__facts,
+  .recovery-analysis-contributor__facts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .recovery-body-analysis {
+    grid-template-columns: minmax(14rem, 0.7fr) minmax(0, 1.3fr);
+  }
+}
+
+@media (min-width: 820px) {
+  .recovery-deep-header {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    padding: 1.65rem 2rem 1.1rem;
+  }
+  .recovery-deep-header .recovery-deep-range {
+    grid-column: auto;
+  }
+  .recovery-deep-main {
+    gap: 1.75rem;
+    padding-inline: 2rem;
+  }
+  .recovery-deep-hero {
+    padding: 1.6rem 1.8rem;
+  }
+  .recovery-deep-contributors,
+  .recovery-deep-two-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 359px) {
+  [data-section="recovery"][data-layout-mode="deepDive"].phone-shell {
+    width: 100%;
+  }
+  .recovery-deep-metric-strip,
+  .recovery-deep-hero__facts,
+  .recovery-analysis-contributor__facts {
+    grid-template-columns: 1fr;
+  }
+  .recovery-deep-header,
+  .recovery-deep-main {
+    padding-inline: 0.75rem;
+  }
+  .recovery-deep-primary,
+  .recovery-deep-empty button {
+    width: 100%;
+  }
+  .recovery-deep-empty {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .recovery-deep-dive-premium *,
+  .recovery-deep-dive-premium *::before,
+  .recovery-deep-dive-premium *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.00001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.00001s !important;
+  }
+}

@@ -501,6 +501,71 @@ Deliver a premium, dark-first FitCore experience across Home, Training, Nutritio
 
 Task 9 — Recovery Deep Dive
 
+## Task 9 files
+
+### Created
+
+- `src/components/app/views/recovery-analytics.ts`
+- `src/components/app/views/recovery-deep-dive-premium.tsx`
+- `tests/e2e/recovery-deep-dive-premium-redesign.spec.ts`
+
+### Modified
+
+- `docs/audits/premium-ui-redesign-progress.md`
+- `src/components/app/views/recovery-daily-premium.tsx`
+- `src/components/app/views/recovery.tsx`
+- `src/styles.css`
+- `tests/e2e/recovery-daily-premium-redesign.spec.ts`
+
+## Task 9 architecture and data behavior
+
+- `RecoveryDeepDivePremiumView` replaces the legacy Recovery Deep Dive tabs with one dedicated analytical workspace while retaining the existing Daily/Deep layout-mode contract, logging sheets, deletion behavior, section route, and locked navigation.
+- Readiness scoring was extracted from the Task 8 presentation file into the small Recovery domain utility `recovery-analytics.ts`. Recovery Daily and Deep Dive now import the same sleep contribution, check-in contribution, stale thresholds, data-quality state, status, and recommendation path; no second formula exists.
+- The demonstrated invalid-range defect is corrected without changing valid scoring: sleep hours remain valid from 0 through 24, sleep quality and all check-in inputs remain valid from 0 through 10, explicit zero remains usable, and negative or oversized values are invalid rather than averaged or displayed as a finite contribution.
+- The analytical hero exposes the canonical score or unavailable state, readiness category, confidence, contributor count, prior comparable-period delta, last update, a concise interpretation, and one state-aware action.
+- Contributor analysis keeps sleep and check-in evidence separate, including entered values, canonical contribution, timestamp, stale/invalid/missing state, recent average, source-record access, and update action. Wording describes contribution or association rather than causation.
+- The readiness timeline uses exact logged dates only, preserves missing dates, exposes source counts and quality states, supports 7D/14D/30D/90D ranges, keyboard/pointer point selection, prior-period context, source drill-down, and an accessible underlying table.
+- Sleep analysis uses only stored duration and subjective-quality records, excludes invalid values, shows usable count, profile-goal context, averages and spread, and never invents stages or wearable metrics. Check-in analysis keeps energy, soreness, stress, and motivation in their entered direction with explicit direction help.
+- Body fatigue uses only the existing user-entered muscle state and front/back heatmap. Training/recovery comparison aligns real workout and readiness dates, reports workout/set/volume sample context, and explicitly states association rather than causation or insufficiency where applicable.
+- The data-quality timeline distinguishes usable, partial, missing, stale, and invalid evidence. Source sheets preserve the selected range and metrics while showing exact sleep, check-in, and training records; returning to Daily and reopening Deep Dive preserves the local analytical context.
+- Unsupported HRV, resting heart rate, sleep stages, strain, respiratory rate, sleep efficiency, and wearable recovery remain explicitly unavailable. No medical, injury, or causal claim was added.
+
+## Task 9 regression-test compatibility change
+
+- `recovery-daily-premium-redesign.spec.ts`: replaced only the retired Health/Sleep/Body/Insights Deep Dive tab assertions with the new `Recovery Deep Dive`, range-control, and contributor-analysis handoff assertions. Daily behavior, fixture setup, state assertions, logging, deletion, responsiveness, accessibility, and screenshots remain unchanged.
+
+## Task 9 validation
+
+- Dedicated Recovery Deep Dive specification: 24/24 across desktop Chromium, mobile 360×800, and mobile 390×844 with one worker, zero retries, and zero skips.
+- Recovery Daily preservation specification: 24/24 across the three projects with one worker and zero retries.
+- Cross-feature targeted matrix: 201/201 with one worker and zero retries. Coverage includes Recovery check-ins, navigation, rich-state route/reload behavior, the seeded-hydration contract, legacy localStorage compatibility, analytics invariants, Home partial readiness and Daily, Nutrition Daily and Deep Dive, and Training Daily and Deep Dive.
+- Complete Playwright inventory: 45 spec files and 528 unique project-qualified identities: 176 desktop Chromium, 176 mobile 360×800, and 176 mobile 390×844. Enumeration completed without listing errors.
+- Partition A command: `npx playwright test --project=desktop-chromium --workers=1 --retries=0 --reporter=line` — 176/176 passed with a normal summary.
+- Partition B command: `npx playwright test --project=mobile-360x800 --project=mobile-390x844 --workers=1 --retries=0 --reporter=line` — 352/352 passed with a normal summary.
+- Identity proof: Partition A and B intersection 0; union 528; missing 0; extra 0; duplicate execution identities 0; failures 0; skipped 0; interrupted 0; not run 0; worker crashes 0.
+- TypeScript: pass (`npx tsc --noEmit`).
+- Production client, SSR, and Nitro build: pass (`npm run build`).
+- Scoped changed-source/test ESLint: pass with zero errors and zero warnings.
+- Changed-file Prettier: pass.
+- `git diff --check`: pass.
+- Responsive behavior validated at 320, 360×800, 390×844, 430, 768, 1024, and 1280 px through the dedicated width, project, overflow, and composition coverage.
+- Visual states inspected: desktop and both mobile projects; rich, partial/zero, empty, stale, invalid, selected point, accessible table, reduced motion/reload, body fatigue, aligned and insufficient training comparison, and Daily/Deep navigation.
+- Accessibility and interaction: semantic headings, named range/metric groups, non-color status labels, chart summary names, keyboard Left/Right point navigation, accessible data table, visible focus, sheet focus/escape behavior, pressed states, touch targets, and reduced-motion overrides verified.
+- Layout and data honesty: no document-level horizontal overflow, clipping, hidden analytical action, bottom-navigation collision, `NaN`, `Infinity`, interpolated missing day, fabricated wearable metric, unsupported medical claim, or selection reset during local Daily/Deep navigation.
+- External visual evidence: `..\task9-recovery-deep-dive-visual-evidence` (18 screenshots: six states for desktop and each mobile project).
+- Task 8 stashes, backups, failure evidence, race evidence, and acceptance evidence remain preserved and unmodified.
+
+## Task 9 known warnings and limitations
+
+- Production and test output retains existing TanStack server-function `inputValidator()` deprecation notices, dependency bundling notices, and the existing large client-chunk warning.
+- The existing Settings keyboard regression may log its fallback from Escape to the visible Done control while still passing.
+- Continuous wearable signals remain unavailable until a supported data contract exists; Task 9 labels them unavailable and performs no estimation.
+- Muscle-fatigue records do not store their own update timestamp, so the Deep Dive states that limitation rather than inventing recency.
+
+## Task 9 next task
+
+Task 10 — Progress Daily View redesign
+
 ## Pending Data Safety integration
 
 Phase B must not begin until the Data Safety & Persistence dependency is merged and the redesign branch contains its transaction, revision, validation, import/export, backup, and recovery contracts.

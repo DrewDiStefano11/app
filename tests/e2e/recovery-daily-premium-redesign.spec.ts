@@ -102,9 +102,11 @@ test.describe("Recovery Daily premium redesign", () => {
 
     await page.getByRole("button", { name: "Open Deep Dive", exact: true }).click();
     await expect(page.getByRole("button", { name: "Daily View", exact: true })).toBeVisible();
-    for (const tab of ["Health", "Sleep", "Body", "Insights"]) {
-      await expect(page.getByRole("tab", { name: tab, exact: true })).toBeVisible();
-    }
+    await expect(
+      page.getByRole("heading", { name: "Recovery Deep Dive", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("group", { name: "Recovery date range" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Contributor analysis" })).toBeVisible();
     await page.getByRole("button", { name: "Daily View", exact: true }).click();
     await expect(page.getByRole("heading", { name: "High readiness" })).toBeVisible();
   });

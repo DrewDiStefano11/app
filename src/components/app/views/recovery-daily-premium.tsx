@@ -19,6 +19,12 @@ import {
   StatusBadge,
   type DataQualityDetails,
 } from "@/components/app/premium-ui";
+import {
+  calculateRecoveryReadiness,
+  isRecoveryNumber,
+  recoveryReadinessStatus,
+  recoveryRecommendation,
+} from "@/components/app/views/recovery-analytics";
 
 const MUSCLES = [
   "chest",
@@ -49,41 +55,6 @@ interface RecoveryDailyPremiumProps {
   onOpenDeepDive: () => void;
 }
 
-const isFiniteNumber = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value);
-
-function sleepContribution(entry?: SleepEntry) {
-  if (!entry) return null;
-  if (!isFiniteNumber(entry.hours) || !isFiniteNumber(entry.quality)) return null;
-  return Math.min(100, (entry.hours / 8) * 50 + entry.quality * 5);
-}
-
-function checkInContribution(entry?: RecoveryCheckIn) {
-  if (!entry) return null;
-  if (
-    !isFiniteNumber(entry.energy) ||
-    !isFiniteNumber(entry.soreness) ||
-    !isFiniteNumber(entry.stress) ||
-    !isFiniteNumber(entry.motivation)
-  )
-    return null;
-  return (entry.energy + (10 - entry.soreness) + (10 - entry.stress) + entry.motivation) * 2.5;
-}
-
-export function calculateRecoveryDailyReadiness(sleep?: SleepEntry, checkIn?: RecoveryCheckIn) {
-  const sleepScore = sleepContribution(sleep);
-  const checkInScore = checkInContribution(checkIn);
-  const scores = [sleepScore, checkInScore].filter((value): value is number => value != null);
-  return {
-    score: scores.length
-      ? Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length)
-      : null,
-    sleepScore,
-    checkInScore,
-    parts: scores.length,
-  };
-}
-
 const formatDate = (time: number) =>
   new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(
     new Date(time),
@@ -103,77 +74,28 @@ export function RecoveryDailyPremiumView({
   const { state } = useStore();
   const lastSleep = state.sleepEntries[state.sleepEntries.length - 1];
   const lastCheck = state.recoveryCheckIns[state.recoveryCheckIns.length - 1];
-  const readiness = calculateRecoveryDailyReadiness(lastSleep, lastCheck);
+  const readiness = calculateRecoveryReadiness(lastSleep, lastCheck);
   const score = readiness.score;
   const visualScore = Math.min(100, Math.max(0, score ?? 0));
-  const sleepInvalid = !!lastSleep && readiness.sleepScore == null;
-  const checkInvalid = !!lastCheck && readiness.checkInScore == null;
-  const sleepStale =
-    readiness.sleepScore != null && Date.now() - lastSleep!.createdAt > 48 * 60 * 60 * 1_000;
-  const checkStale =
-    readiness.checkInScore != null && Date.now() - lastCheck!.createdAt > 36 * 60 * 60 * 1_000;
-  const quality: DataQualityDetails =
-    sleepInvalid || checkInvalid
-      ? {
-          state: "unavailable",
-          confidence: "low",
-          reason: "Latest recovery values are invalid",
-        }
-      : sleepStale || checkStale
-        ? {
-            state: "stale",
-            confidence: readiness.parts === 2 ? "medium" : "low",
-            sourceCount: readiness.parts,
-            reason: "One or more readiness contributors need a current entry",
-          }
-        : readiness.parts === 2
-          ? { state: "ready", confidence: "high", sourceCount: 2 }
-          : readiness.parts === 1
-            ? {
-                state: "partial",
-                confidence: "medium",
-                sourceCount: 1,
-                reason: "One of two readiness contributors is usable",
-              }
-            : { state: "needs_more_data", confidence: "low", sourceCount: 0 };
-
-  const recommendation =
-    score == null
-      ? "Add sleep or a daily check-in to get a recommendation."
-      : sleepStale || checkStale
-        ? "Your latest usable entries are older, so update them before relying on today's score."
-        : score >= 75
-          ? "Great recovery — train hard today."
-          : score >= 60
-            ? "Solid recovery — follow your normal training plan."
-            : score >= 40
-              ? "Consider reducing training volume or intensity by about 20%."
-              : "Prioritize rest, mobility, or light cardio today.";
-  const status =
-    score == null
-      ? "Readiness unavailable"
-      : score >= 75
-        ? "High readiness"
-        : score >= 60
-          ? "Solid readiness"
-          : score >= 40
-            ? "Reduced readiness"
-            : "Low readiness";
+  const { sleepInvalid, checkInvalid, sleepStale, checkStale } = readiness;
+  const quality: DataQualityDetails = readiness.quality;
+  const recommendation = recoveryRecommendation(readiness);
+  const status = recoveryReadinessStatus(score);
 
   const validWeekSleep = useMemo(
     () =>
       state.sleepEntries.filter(
         (entry) =>
           entry.createdAt > Date.now() - 7 * 86_400_000 &&
-          isFiniteNumber(entry.hours) &&
-          isFiniteNumber(entry.quality),
+          isRecoveryNumber(entry.hours) &&
+          isRecoveryNumber(entry.quality),
       ),
     [state.sleepEntries],
   );
   const averageSleep = validWeekSleep.length
     ? validWeekSleep.reduce((sum, entry) => sum + entry.hours, 0) / validWeekSleep.length
     : null;
-  const sleepGoal = isFiniteNumber(state.profile.sleepGoalH) ? state.profile.sleepGoalH : null;
+  const sleepGoal = isRecoveryNumber(state.profile.sleepGoalH) ? state.profile.sleepGoalH : null;
   const loggedMuscles = MUSCLES.filter((muscle) => state.muscleFatigue[muscle] != null);
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -532,13 +454,13 @@ function ContributorCard({
             <span>
               <small>Hours</small>
               <strong>
-                {isFiniteNumber((entry as SleepEntry).hours) ? (entry as SleepEntry).hours : "—"}
+                {isRecoveryNumber((entry as SleepEntry).hours) ? (entry as SleepEntry).hours : "—"}
               </strong>
             </span>
             <span>
               <small>Quality</small>
               <strong>
-                {isFiniteNumber((entry as SleepEntry).quality)
+                {isRecoveryNumber((entry as SleepEntry).quality)
                   ? `${(entry as SleepEntry).quality}/10`
                   : "—"}
               </strong>
@@ -549,7 +471,7 @@ function ContributorCard({
             <span>
               <small>Energy</small>
               <strong>
-                {isFiniteNumber((entry as RecoveryCheckIn).energy)
+                {isRecoveryNumber((entry as RecoveryCheckIn).energy)
                   ? (entry as RecoveryCheckIn).energy
                   : "—"}
               </strong>
@@ -557,7 +479,7 @@ function ContributorCard({
             <span>
               <small>Soreness</small>
               <strong>
-                {isFiniteNumber((entry as RecoveryCheckIn).soreness)
+                {isRecoveryNumber((entry as RecoveryCheckIn).soreness)
                   ? (entry as RecoveryCheckIn).soreness
                   : "—"}
               </strong>
@@ -565,7 +487,7 @@ function ContributorCard({
             <span>
               <small>Stress</small>
               <strong>
-                {isFiniteNumber((entry as RecoveryCheckIn).stress)
+                {isRecoveryNumber((entry as RecoveryCheckIn).stress)
                   ? (entry as RecoveryCheckIn).stress
                   : "—"}
               </strong>
@@ -573,7 +495,7 @@ function ContributorCard({
             <span>
               <small>Motivation</small>
               <strong>
-                {isFiniteNumber((entry as RecoveryCheckIn).motivation)
+                {isRecoveryNumber((entry as RecoveryCheckIn).motivation)
                   ? (entry as RecoveryCheckIn).motivation
                   : "—"}
               </strong>
