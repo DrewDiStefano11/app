@@ -12,8 +12,8 @@ export type JsonValue =
   | number
   | boolean
   | null
-  | { [key: string]: JsonValue | undefined }
-  | JsonValue[];
+  | { readonly [key: string]: JsonValue }
+  | readonly JsonValue[];
 
 // --- Identifiers ---
 // Branded string types for stable identifier safety.
@@ -119,7 +119,7 @@ export interface ClarificationCategory {
 
 export interface ClarificationResolutionReference {
   readonly clarificationId: ClarificationId;
-  readonly resolvedValue: unknown;
+  readonly resolvedValue: JsonValue;
 }
 
 // --- Risk & Confirmation Contracts ---
@@ -266,7 +266,7 @@ export interface ToolRequestEnvelope {
   readonly requestMetadata?: JsonValue;
 }
 
-export interface ToolSuccessResult<TValue = unknown> {
+export interface ToolSuccessResult<TValue extends JsonValue = JsonValue> {
   readonly status: "success";
   readonly requestId: RequestId;
   readonly toolName: ToolName;
@@ -292,7 +292,9 @@ export interface ToolFailureResult {
   readonly auditReference?: AuditEventId;
 }
 
-export type ToolResultEnvelope<TValue = unknown> = ToolSuccessResult<TValue> | ToolFailureResult;
+export type ToolResultEnvelope<TValue extends JsonValue = JsonValue> =
+  | ToolSuccessResult<TValue>
+  | ToolFailureResult;
 
 // --- Runtime Errors ---
 export type RuntimeErrorCode =

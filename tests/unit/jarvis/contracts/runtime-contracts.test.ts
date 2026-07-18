@@ -18,6 +18,16 @@ import {
   type RequestId,
   type ToolName,
   type ConfirmationId,
+  type SessionId,
+  type TurnId,
+  type AuditEventId,
+  type IdempotencyKey,
+  type ToolRequestEnvelope,
+  type SessionContract,
+  type TurnContract,
+  type RuntimeErrorContract,
+  type AuditEventBase,
+  type JsonValue,
 } from "../../../../src/lib/jarvis/contracts/runtime-contracts";
 
 describe("Jarvis Runtime Contracts", () => {
@@ -191,18 +201,49 @@ describe("Jarvis Runtime Contracts", () => {
 
   describe("Serialization", () => {
     it("can be JSON serialized without losing fields", () => {
-      const span: SourceSpan = { startIndex: 0, endIndex: 5, originalText: "hello" };
-      const envelope: ToolResultEnvelope = {
+      const toolRequest: ToolRequestEnvelope = {
+        requestId: "req-1" as RequestId,
+        sessionId: "sess-1" as SessionId,
+        turnId: "turn-1" as TurnId,
+        turnRevision: 0,
+        toolName: "test_tool" as ToolName,
+        arguments: { someArg: "val" }, // unknown pre-validation
+        contextTimestamp: 123456789,
+        idempotencyKey: "idem-key-1" as IdempotencyKey,
+        requestMetadata: { origin: "client", retryCount: 0 },
+      };
+
+      const toolResult: ToolResultEnvelope = {
         status: "success",
         requestId: "req-1" as RequestId,
         toolName: "test_tool" as ToolName,
-        resultValue: { ok: true },
+        resultValue: { ok: true, nested: { value: 123 } },
         completionTimestamp: 12345,
         warnings: ["test warning"],
       };
 
-      const auditEvent = {
-        auditEventId: "audit-1",
+      const sessionContract: SessionContract = {
+        sessionId: "sess-1" as SessionId,
+        state: "listening",
+        createdTimestamp: 1000,
+        updatedTimestamp: 2000,
+        transitionSequence: 1,
+        interruptionMetadata: { cause: "user_barge_in" },
+      };
+
+      const turnContract: TurnContract = {
+        turnId: "turn-1" as TurnId,
+        sessionId: "sess-1" as SessionId,
+        revision: 2,
+        lifecycleState: "interpretation_ready",
+        createdTimestamp: 1000,
+        updatedTimestamp: 2000,
+        operationReferences: [],
+        supersessionMetadata: { newerTurnId: "turn-2" },
+      };
+
+      const auditEvent: AuditEventBase = {
+        auditEventId: "audit-1" as AuditEventId,
         eventType: "tool_execution",
         timestamp: 1234567890,
         actorType: "system",
@@ -210,7 +251,7 @@ describe("Jarvis Runtime Contracts", () => {
         metadata: { info: "test", details: { nested: true } },
       };
 
-      const runtimeError = {
+      const runtimeError: RuntimeErrorContract = {
         code: "invalid_input",
         category: "validation",
         safeMessage: "Bad input",
@@ -219,11 +260,37 @@ describe("Jarvis Runtime Contracts", () => {
         metadata: { input: "xyz" },
       };
 
-      for (const obj of [span, envelope, auditEvent, runtimeError]) {
+      for (const obj of [
+        toolRequest,
+        toolResult,
+        sessionContract,
+        turnContract,
+        auditEvent,
+        runtimeError,
+      ]) {
         const serialized = JSON.stringify(obj);
         const deserialized = JSON.parse(serialized);
         assert.deepEqual(deserialized, obj);
       }
+    });
+
+    it("prevents assigning non-JSON values to JSON fields at compile time", () => {
+      // @ts-expect-error Functions are not JSON safe
+      const err1: JsonValue = () => {};
+
+      // @ts-expect-error Dates are not JSON safe
+      const err2: JsonValue = new Date();
+
+      // @ts-expect-error Maps are not JSON safe
+      const err3: JsonValue = new Map();
+
+      // @ts-expect-error Sets are not JSON safe
+      const err4: JsonValue = new Set();
+
+      // @ts-expect-error undefined is not JSON safe for object values under the updated rule
+      const err5: JsonValue = { key: undefined };
+
+      assert.ok(true, "Compile-time checks configured via @ts-expect-error");
     });
   });
 
