@@ -58,7 +58,8 @@ export type RangeKey = "7d" | "14d" | "30d" | "3m" | "6m" | "1y" | "all" | "cust
 
 export interface ChartPoint {
   date: string;
-  [metric: string]: string | number | null;
+  label?: string;
+  [metric: string]: string | number | null | undefined;
 }
 export interface ChartSeries {
   id: string;
@@ -215,7 +216,7 @@ export function ChartToolbar({
 function normalizeData(data: ChartPoint[], series: ChartSeries[], mode: ComparisonMode) {
   if (mode === "raw" || mode === "small_multiples") return data;
   return data.map((point, index) => {
-    const next: ChartPoint = { date: point.date };
+    const next: ChartPoint = { date: point.date, label: point.label };
     series.forEach((item) => {
       const baseline = Number(data[0]?.[item.id]);
       const value = Number(point[item.id]);
@@ -293,7 +294,15 @@ export function ComparisonChart({
   const common = (
     <>
       <CartesianGrid vertical={false} strokeDasharray="3 5" />
-      <XAxis dataKey="date" tickLine={false} axisLine={false} minTickGap={24} />
+      <XAxis
+        dataKey="date"
+        tickLine={false}
+        axisLine={false}
+        minTickGap={24}
+        tickFormatter={(value) =>
+          String(plotData.find((point) => point.date === String(value))?.label ?? value)
+        }
+      />
       <YAxis yAxisId="left" tickLine={false} axisLine={false} width={42} />
       {rawAxes.has("right") && mode === "raw" && (
         <YAxis yAxisId="right" orientation="right" tickLine={false} axisLine={false} width={42} />
@@ -471,7 +480,7 @@ export function ComparisonChart({
             </button>
             <div className="text-center">
               <p className="text-xs font-semibold text-white/45">Selected date</p>
-              <p className="mt-0.5 font-semibold">{selected.date}</p>
+              <p className="mt-0.5 font-semibold">{selected.label ?? selected.date}</p>
             </div>
             <button
               type="button"
@@ -888,7 +897,7 @@ export function ChartFocusMode({
               <tbody>
                 {data.map((point) => (
                   <tr key={point.date}>
-                    <td>{point.date}</td>
+                    <td>{point.label ?? point.date}</td>
                     {series.map((item) => (
                       <td key={item.id}>{String(point[item.id] ?? "—")}</td>
                     ))}

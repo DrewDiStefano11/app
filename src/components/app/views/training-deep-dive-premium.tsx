@@ -295,8 +295,8 @@ export function TrainingDeepDivePremiumView({
     ? muscleDistribution.find((item) => item.name === selectedMuscle)
     : undefined;
   const exerciseData = useMemo(
-    () => buildExerciseData(filteredWorkouts, selectedExercise),
-    [filteredWorkouts, selectedExercise],
+    () => buildExerciseData(filteredWorkouts, selectedExercise, range),
+    [filteredWorkouts, range, selectedExercise],
   );
   const exerciseSeries: ChartSeries[] = [
     { id: "load", label: "Best logged load", unit: "lb", color: "#8b5cf6", axis: "left" },
@@ -498,7 +498,7 @@ export function TrainingDeepDivePremiumView({
               quality={quality}
               annotations={rangePrs
                 .slice(0, 3)
-                .map((record) => ({ date: dateLabel(record.date), label: "PR" }))}
+                .map((record) => ({ date: localDateKey(record.date), label: "PR" }))}
             />
           ) : (
             <DataState
@@ -1082,7 +1082,11 @@ export function TrainingDeepDivePremiumView({
       <BottomSheet
         open={!!entryDate}
         onClose={() => setEntryDate(null)}
-        title={entryDate ? `Entries · ${entryDate}` : "Logged entries"}
+        title={
+          entryDate
+            ? `Entries · ${workloadData.find((point) => point.date === entryDate)?.label ?? entryDate}`
+            : "Logged entries"
+        }
         height="tall"
       >
         <DateEntries
@@ -1597,8 +1601,8 @@ function DateEntries({
   onOpenWorkout: (id: string) => void;
 }) {
   if (!date) return null;
-  const matchingWorkouts = workouts.filter((workout) => dateLabel(workout.startedAt) === date);
-  const matchingCardio = cardio.filter((entry) => dateLabel(entry.createdAt) === date);
+  const matchingWorkouts = workouts.filter((workout) => localDateKey(workout.startedAt) === date);
+  const matchingCardio = cardio.filter((entry) => localDateKey(entry.createdAt) === date);
   return (
     <div className="training-date-entries">
       {matchingWorkouts.map((workout) => (
@@ -1650,7 +1654,7 @@ function UnderlyingTable({ data, series }: { data: ChartPoint[]; series: ChartSe
         <tbody>
           {data.map((point) => (
             <tr key={point.date}>
-              <td>{point.date}</td>
+              <td>{point.label ?? point.date}</td>
               {series.map((item) => (
                 <td key={item.id}>
                   {point[item.id] == null ? "Missing" : Number(point[item.id]).toLocaleString()}
@@ -1673,9 +1677,10 @@ function buildWorkloadData(
 ): WorkloadPoint[] {
   const map = new Map<string, WorkloadPoint>();
   const get = (timestamp: number) => {
-    const date = dateLabel(timestamp);
+    const date = localDateKey(timestamp);
     const existing = map.get(date) ?? {
       date,
+      label: dateDisplayLabel(timestamp, range),
       __index: timestamp,
       volume: null,
       sets: null,
@@ -1719,7 +1724,7 @@ function buildWorkloadData(
   return [...map.values()].sort((a, b) => Number(a.__index) - Number(b.__index));
 }
 
-function buildExerciseData(workouts: Workout[], exerciseId: string): ChartPoint[] {
+function buildExerciseData(workouts: Workout[], exerciseId: string, range: RangeKey): ChartPoint[] {
   return workouts
     .flatMap((workout) => {
       const items = workout.exercises.filter((item) => item.exerciseId === exerciseId);
@@ -1730,7 +1735,8 @@ function buildExerciseData(workouts: Workout[], exerciseId: string): ChartPoint[
         .filter((value): value is number => value != null);
       return [
         {
-          date: dateLabel(workout.startedAt),
+          date: localDateKey(workout.startedAt),
+          label: dateDisplayLabel(workout.startedAt, range),
           __index: workout.startedAt,
           load: loads.length ? Math.max(...loads) : null,
           reps: completed.reduce((sum, set) => sum + (set.reps ?? 0), 0) || null,
@@ -1827,8 +1833,20 @@ function medianGap(workouts: Workout[]) {
     .sort((a, b) => a - b);
   return gaps[Math.floor(gaps.length / 2)] ?? 0;
 }
-function dateLabel(timestamp: number) {
-  return new Date(timestamp).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+function localDateKey(timestamp: number) {
+  const date = new Date(timestamp);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+function dateDisplayLabel(timestamp: number, range: RangeKey) {
+  return new Date(timestamp).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(range === "all" ? { year: "numeric" } : {}),
+  });
 }
 function capitalize(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);

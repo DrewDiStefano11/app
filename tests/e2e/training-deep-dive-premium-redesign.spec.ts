@@ -130,6 +130,69 @@ function richTrainingState(now = Date.now()) {
   };
 }
 
+function allHistoryTrainingState() {
+  const state = richTrainingState();
+  const olderDate = new Date(2024, 2, 15, 12).getTime();
+  const newerDate = new Date(2025, 2, 15, 12).getTime();
+  const recentDate = Date.now() - DAY;
+  const workout = (id: string, name: string, startedAt: number, weight: number, reps: number) => ({
+    id,
+    name,
+    startedAt,
+    endedAt: startedAt + 3_600_000,
+    notes: `${name} notes`,
+    exercises: [
+      {
+        id: `${id}-exercise`,
+        exerciseId: "bench-press",
+        completed: true,
+        notes: "Year-specific working set",
+        sets: [
+          {
+            id: `${id}-set`,
+            weight,
+            reps,
+            completed: true,
+            modifier: "normal" as const,
+          },
+        ],
+      },
+    ],
+  });
+
+  return {
+    ...state,
+    workouts: [
+      workout("workout-2024", "2024 Strength", olderDate, 100, 5),
+      workout("workout-2025", "2025 Strength", newerDate, 200, 5),
+      workout("workout-recent", "Recent Strength", recentDate, 50, 2),
+    ],
+    cardioEntries: [
+      { id: "cardio-2024", type: "2024 Bike", minutes: 10, createdAt: olderDate },
+      { id: "cardio-2025", type: "2025 Bike", minutes: 20, createdAt: newerDate },
+    ],
+    recoveryCheckIns: [
+      {
+        id: "check-2024",
+        energy: 3,
+        soreness: 2,
+        stress: 2,
+        motivation: 4,
+        createdAt: olderDate,
+      },
+      {
+        id: "check-2025",
+        energy: 4,
+        soreness: 4,
+        stress: 2,
+        motivation: 4,
+        createdAt: newerDate,
+      },
+    ],
+    prs: [],
+  };
+}
+
 test.describe("Training Deep Dive premium redesign", () => {
   test("opens from Daily with range context and returns without resetting Daily", async ({
     page,
@@ -234,6 +297,7 @@ test.describe("Training Deep Dive premium redesign", () => {
   });
 
   test("preserves legitimate PRs, workout history, cardio, and honest empty states", async ({
+    browser,
     page,
   }, testInfo) => {
     await seedFitCoreAppState(page, richTrainingState());
@@ -250,20 +314,21 @@ test.describe("Training Deep Dive premium redesign", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByText("31 min", { exact: true })).toBeVisible();
 
-    await seedMinimalOnboardedState(page);
-    await page.reload();
-    await openDeepDive(page);
+    const emptyPage = await browser.newPage();
+    await seedMinimalOnboardedState(emptyPage);
+    await openDeepDive(emptyPage);
     await expect(
-      page.getByRole("heading", { name: "No personal records in this range" }),
+      emptyPage.getByRole("heading", { name: "No personal records in this range" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "No cardio logged in this view" }),
+      emptyPage.getByRole("heading", { name: "No cardio logged in this view" }),
     ).toBeVisible();
-    await expect(page.getByText(/not a measured zero/i).first()).toBeVisible();
-    await page.screenshot({
+    await expect(emptyPage.getByText(/not a measured zero/i).first()).toBeVisible();
+    await emptyPage.screenshot({
       path: testInfo.outputPath("training-empty-evidence.png"),
       fullPage: true,
     });
+    await emptyPage.context().close();
   });
 
   test("supports scoped comparison modes, warnings, table, focus, and session-only controls", async ({
@@ -296,6 +361,63 @@ test.describe("Training Deep Dive premium redesign", () => {
     await page.keyboard.press("Escape");
     await expect(page.getByText("Correlation unavailable", { exact: true })).toBeVisible();
     await expect(page.getByText(/Resets after reload/i)).toBeVisible();
+  });
+
+  test("keeps same month and day in different years separate across all-history charts and drilldowns", async ({
+    page,
+  }) => {
+    await seedFitCoreAppState(page, allHistoryTrainingState());
+    await page.goto("/");
+    await openDeepDive(page);
+    await page.getByRole("button", { name: "Filters" }).click();
+    await page
+      .locator(".sheet-surface")
+      .getByRole("combobox", { name: "Date range", exact: true })
+      .selectOption("all");
+    await page.keyboard.press("Escape");
+
+    await expect(page.getByText("All history", { exact: true }).first()).toBeVisible();
+    await expect(page.locator(".training-metric-strip")).toContainText("1,600");
+    await expect(page.locator(".training-metric-strip")).toContainText("12");
+    await expect(page.locator(".training-metric-strip")).toContainText("3");
+
+    await page.getByRole("button", { name: "Underlying data table" }).click();
+    const rows = page.locator(".training-underlying-table tbody tr");
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0).locator("td").nth(0)).toHaveText("Mar 15, 2024");
+    await expect(rows.nth(0).locator("td").nth(1)).toHaveText("500");
+    await expect(rows.nth(1).locator("td").nth(0)).toHaveText("Mar 15, 2025");
+    await expect(rows.nth(1).locator("td").nth(1)).toHaveText("1,000");
+    await expect(rows.nth(2).locator("td").nth(1)).toHaveText("100");
+
+    const chart = page.getByRole("img", { name: /Training workload/i }).first();
+    const chartCard = chart.locator("..");
+    await chartCard.getByRole("button", { name: "Open logged entry" }).click();
+    const firstDrilldown = page.locator(".sheet-surface");
+    await expect(firstDrilldown.getByText("2024 Strength", { exact: true })).toBeVisible();
+    await expect(firstDrilldown.getByText("2024 Bike", { exact: true })).toBeVisible();
+    await expect(firstDrilldown.getByText("2025 Strength", { exact: true })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+
+    await chart.focus();
+    await chart.press("ArrowRight");
+    await expect(chartCard.getByText("Mar 15, 2025", { exact: true })).toBeVisible();
+    await chartCard.getByRole("button", { name: "Open logged entry" }).click();
+    const secondDrilldown = page.locator(".sheet-surface");
+    await expect(secondDrilldown.getByText("2025 Strength", { exact: true })).toBeVisible();
+    await expect(secondDrilldown.getByText("2025 Bike", { exact: true })).toBeVisible();
+    await expect(secondDrilldown.getByText("2024 Strength", { exact: true })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("button", { name: "Filters" }).click();
+    await page
+      .locator(".sheet-surface")
+      .getByRole("combobox", { name: "Date range", exact: true })
+      .selectOption("7d");
+    await page.keyboard.press("Escape");
+    await expect(rows).toHaveCount(1);
+    await expect(rows.nth(0).locator("td").nth(0)).not.toContainText("2026");
+    await expect(rows.nth(0).locator("td").nth(1)).toHaveText("100");
   });
 
   test("is keyboard accessible, reduced-motion safe, and overflow-free at required widths", async ({
