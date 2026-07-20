@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { BottomSheet } from "../sheet";
+import { NeedsMoreDataState } from "../premium-ui";
 import { useStore } from "@/lib/store";
 import { readinessScore, recoveryScore, bestMuscleToTrainToday } from "@/lib/analytics";
 import {
@@ -28,7 +29,7 @@ export function ReadinessDetailSheet({
   const recovery = useMemo(() => recoveryScore(view), [view]);
   const best = useMemo(() => bestMuscleToTrainToday(view), [view]);
 
-  // 14-day trend from sleep+checkins synthesized
+  // Recorded dates only. Missing dates remain absent rather than becoming synthetic history.
   const series = useMemo(() => {
     const now = Date.now();
     const out = [];
@@ -37,6 +38,7 @@ export function ReadinessDetailSheet({
       const end = now - i * DAY;
       const sleeps = view.sleepEntries.filter((s) => s.createdAt >= start && s.createdAt < end);
       const checks = view.recoveryCheckIns.filter((c) => c.createdAt >= start && c.createdAt < end);
+      if (!sleeps.length && !checks.length) continue;
       let score = 70;
       if (sleeps.length || checks.length) {
         const sAvg = sleeps.length
@@ -109,32 +111,44 @@ export function ReadinessDetailSheet({
           <p className="text-sm">{reco}</p>
         </div>
 
-        <div className="tile p-3 h-56">
+        <div className="tile p-3 min-h-56">
           <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-1 px-2 pt-1">
             14-Day Readiness Trend
           </div>
-          <ResponsiveContainer width="100%" height="85%">
-            <LineChart data={series} margin={{ top: 6, right: 6, left: -16, bottom: 0 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="label" stroke="rgba(255,255,255,0.4)" fontSize={10} />
-              <YAxis stroke="rgba(255,255,255,0.4)" fontSize={10} domain={[0, 100]} />
-              <Tooltip
-                contentStyle={{
-                  background: "#0a0a0a",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: 12,
-                  fontSize: 12,
-                }}
+          {series.length ? (
+            <div className="h-48">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={series} margin={{ top: 6, right: 6, left: -16, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(255,255,255,0.05)" vertical={false} />
+                  <XAxis dataKey="label" stroke="rgba(255,255,255,0.4)" fontSize={10} />
+                  <YAxis stroke="rgba(255,255,255,0.4)" fontSize={10} domain={[0, 100]} />
+                  <Tooltip
+                    contentStyle={{
+                      background: "#0a0a0a",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 12,
+                      fontSize: 12,
+                    }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="readiness"
+                    stroke="rgb(96 165 250)"
+                    strokeWidth={2.5}
+                    dot={{ r: 3, fill: "rgb(96 165 250)" }}
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="mt-3">
+              <NeedsMoreDataState
+                message="Log sleep or complete a recovery check-in to start this trend."
+                requiredHistory={1}
               />
-              <Line
-                type="monotone"
-                dataKey="readiness"
-                stroke="rgb(96 165 250)"
-                strokeWidth={2.5}
-                dot={{ r: 3, fill: "rgb(96 165 250)" }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-3 gap-2">
@@ -194,7 +208,7 @@ function ScoreTile({
             strokeDasharray={c}
             strokeDashoffset={c * (1 - pct)}
             strokeLinecap="round"
-            style={{ transition: "stroke-dashoffset 1s ease-out" }}
+            className="readiness-ring-progress"
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">

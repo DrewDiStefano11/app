@@ -56,6 +56,8 @@ import { GRAPH_PREFS, usePersistentState } from "@/lib/persist";
 import { isToday, useStore } from "@/lib/store";
 import type { AppState, SectionId } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { HomeDailyPremiumView } from "@/components/app/views/home-daily-premium";
+import { HomeDeepDivePremiumView } from "@/components/app/views/home-deep-dive-premium";
 
 type Popup =
   | null
@@ -86,9 +88,18 @@ export function HomeView({
   const name = (state.profile as { name?: string }).name ?? "ATHLETE";
   const streak = useMemo(() => trainingStreak(view), [view]);
   const weekVol = useMemo(() => totalVolumeInRange(view, 7), [view]);
+  const todayLabel = useMemo(
+    () => new Date().toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" }),
+    [],
+  );
 
   const [popup, setPopup] = useState<Popup>(null);
   const [muscle, setMuscle] = useState<string | null>(null);
+  const [deepDiveFocus, setDeepDiveFocus] = useState<"comparison" | undefined>();
+  const changeLayoutMode = (mode: LayoutMode) => {
+    if (mode === "daily") setDeepDiveFocus(undefined);
+    onLayoutModeChange(mode);
+  };
 
   return (
     <div className="home-command-center pb-2">
@@ -98,6 +109,7 @@ export function HomeView({
           <h1 className="home-command-title">
             Good Morning, <span>{name}</span>
           </h1>
+          <p className="home-command-date">Today &middot; {todayLabel}</p>
           <div className="home-status-strip">
             <span className="home-status-chip">
               <Flame size={12} />
@@ -122,12 +134,27 @@ export function HomeView({
       </header>
 
       <div className="space-y-4 px-4">
-        <ViewModeToggle mode={layoutMode} onModeChange={onLayoutModeChange} />
+        <ViewModeToggle mode={layoutMode} onModeChange={changeLayoutMode} />
 
         {layoutMode === "daily" ? (
-          <HomeDailyView setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
+          <HomeDailyPremiumView
+            onOpen={(next) => setPopup(next)}
+            onOpenMuscle={setMuscle}
+            onOpenDeepDive={(focus) => {
+              setDeepDiveFocus(focus);
+              onLayoutModeChange("deepDive");
+            }}
+            onOpenProgress={() => onNavigate("progress")}
+            onResumeWorkout={() => onNavigate("training")}
+          />
         ) : (
-          <HomeDeepDive setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
+          <HomeDeepDivePremiumView
+            setPopup={setPopup}
+            setMuscle={setMuscle}
+            onNavigate={onNavigate}
+            onReturnDaily={() => changeLayoutMode("daily")}
+            initialFocus={deepDiveFocus}
+          />
         )}
       </div>
 
@@ -163,7 +190,7 @@ export function HomeView({
   );
 }
 
-function HomeDailyView({
+export function HomeDailyView({
   setPopup,
   setMuscle,
   onNavigate,
@@ -751,6 +778,10 @@ function HomeDeepDive({
     </div>
   );
 }
+
+// Retained temporarily as a tree-shaken reference while the cumulative redesign branch
+// transitions all Home Deep Dive callers to the premium implementation.
+void HomeDeepDive;
 
 // -----------------------------------------------------------------------------
 // Shared UI Components
