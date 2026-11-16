@@ -129,9 +129,9 @@ test.describe("Progress Rich Data Smoke Test", () => {
     await checkFatalTexts(page);
 
     // Scenario C: Chart/card interaction smoke
-    await page.getByRole("button", { name: "Deep Dive", exact: true }).click();
-    await page.getByRole("tab", { name: "Body", exact: true }).click();
-    await expect(page.getByText("Log Bodyweight", { exact: true })).toBeVisible();
+    await page.getByText("Current Weight", { exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Weight Trend Context" })).toBeVisible();
+    await expect(page.getByText(/Change across the last 7 days of logged weigh-ins is \+2\.0 lb/)).toBeVisible();
     await checkFatalTexts(page);
 
     // Scenario D: Reload stability
