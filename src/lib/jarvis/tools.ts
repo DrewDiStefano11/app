@@ -1,3 +1,4 @@
+import { correctMealPortion } from "./meal-portion";
 import type { AppState, UserGoalsProfile, JarvisSettings, Confidence, MealEntry, MealItem, SupplementLog, RecoveryCheckIn, Workout, WorkoutExercise, SetEntry, CardioEntry } from "../types";
 import { createAiEstimateProvenance, createJarvisProvenance, markProvenanceEdited } from "../fitcore-data";
 import { uid, todayStart, e1RM } from "../store";
@@ -28,7 +29,7 @@ export type ToolName =
   | "getJarvisSettings" | "updateJarvisSettings"
   | "logBodyWeight" | "updateBodyWeight" | "logSleep" | "logSupplement" | "logDailyCheckIn"
   | "undoLastAction" | "saveJarvisLearning" | "getJarvisLearnedPreferences"
-  | "logMeal" | "updateMeal" | "deleteMeal" | "getMealHistory"
+  | "logMeal" | "updateMeal" | "correctMealPortion" | "deleteMeal" | "getMealHistory"
   | "getUsualMeals" | "saveUsualMeal" | "logUsualMeal"
   | "getSupplementStatus" | "getMissedHabits"
   | "getDailyReviewSummary" | "updateDailyCheckIn" | "suggestNutritionAction"
@@ -176,6 +177,7 @@ function cardioSummary(entry: CardioEntry) {
 const handlers: Record<ToolName, ToolHandler> = {
   ...trainingActions,
   ...recordActions,
+  correctMealPortion,
   getTodaySummary: (_a, { state }) => {
     const tot = todaysMealsTotal(state), tgt = state.nutritionTargets, last = state.workouts.at(-1), ci = state.recoveryCheckIns.at(-1);
     return { ok: true, summary: "today snapshot", data: { calories: `${tot.calories} / ${tgt.calories}`, protein: `${tot.protein}g / ${tgt.protein}g`, lastWorkout: last ? { name: last.name, daysAgo: Math.floor((Date.now() - last.startedAt) / 86400000) } : null, lastCheckIn: ci ? { energy: ci.energy, soreness: ci.soreness, stress: ci.stress } : null } };
@@ -588,6 +590,26 @@ function stageUndo(auditId: string, state: AppState, set: Updater): ToolResult {
           ? { ...row, sets, completed: sets.length > 0 && sets.every(entry => entry.completed) }
           : item),
       } }));
+      break;
+    }
+    case "mealPortionEdit": {
+      const current = state.mealEntries.find(item => entry.entityIds?.includes(item.id));
+      const patch = entry.patch as { prev?: MealEntry; index?: number; expected?: MealItem; totals?: Pick<MealEntry, "calories"|"protein"|"carbs"|"fat"> } | undefined;
+      const index = patch?.index;
+      const item = index === undefined ? undefined : current?.items?.[index];
+      const old = index === undefined ? undefined : patch?.prev?.items?.[index];
+      const previous = patch?.prev, expected = patch?.expected, totals = patch?.totals;
+      const fields = ["calories", "protein", "carbs", "fat"] as const;
+      if (!current || !item || !old || !previous || !expected || !totals
+        || current.provenance?.editAuditId !== entry.id || item.name !== expected.name || item.qty !== expected.qty
+        || fields.some(field => item[field] !== expected[field] || current[field] !== totals[field])) {
+        return { ok: false, summary: "The meal has changed since Jarvis corrected its portion." };
+      }
+      const restored = { ...current, calories: previous.calories, protein: previous.protein,
+        carbs: previous.carbs, fat: previous.fat, provenance: previous.provenance,
+        source: previous.source, confirmed: previous.confirmed,
+        items: current.items?.map((row, position) => position === index ? old : row) };
+      set(s => ({ ...s, mealEntries: s.mealEntries.map(row => row.id === current.id ? restored : row) }));
       break;
     }
     case "mealEdit": { const prev = (entry.patch as { prev?: MealEntry } | undefined)?.prev; if (prev) set(s => ({ ...s, mealEntries: s.mealEntries.map(m => m.id === prev.id ? prev : m) })); break; }

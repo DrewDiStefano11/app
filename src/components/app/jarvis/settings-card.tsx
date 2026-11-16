@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, KeyRound, Loader2, Sparkles, XCircle } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
+import { jarvisProviderKeys } from "@/lib/jarvis/provider-keys";
 import { useStore } from "@/lib/store";
 import type { JarvisSettings } from "@/lib/types";
 import { testAiConnection } from "@/lib/ai.functions";
 import { GEMINI_MODELS, GROQ_MODELS, selectedGroqModel } from "@/lib/jarvis/provider-models";
 import { Card, GhostButton, Input, Label, PrimaryButton, Select } from "../ui";
 
-const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
-const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
 const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
 type ConnectionStatus = "not_configured" | "testing" | "connected" | "failed";
 type ConnectionResult = {
@@ -37,10 +36,6 @@ type AiDiagnostics = {
   timestamp?: number;
 };
 
-function readSavedKey(storageKey: string) {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(storageKey) ?? "";
-}
 
 function readDiagnostics(): AiDiagnostics[] {
   if (typeof window === "undefined") return [];
@@ -78,14 +73,14 @@ export function JarvisSettingsCard() {
   const geminiModel = GEMINI_MODELS[0];
 
   useEffect(() => {
-    const groqSaved = Boolean(readSavedKey(GROQ_KEY_STORAGE));
-    const geminiSaved = Boolean(readSavedKey(GEMINI_KEY_STORAGE));
-    setHasSavedGroqKey(groqSaved);
-    setHasSavedGeminiKey(geminiSaved);
+    const groqKey = jarvisProviderKeys.read("groq");
+    const geminiKey = jarvisProviderKeys.read("gemini");
+    setHasSavedGroqKey(Boolean(groqKey.key));
+    setHasSavedGeminiKey(Boolean(geminiKey.key));
     setDiagnostics(readDiagnostics());
     const patch: Partial<JarvisSettings> = {};
-    if (groqSaved && !s.groqUserKeySaved) patch.groqUserKeySaved = true;
-    if (geminiSaved && !s.geminiUserKeySaved) patch.geminiUserKeySaved = true;
+    if (groqKey.source === "saved" && !s.groqUserKeySaved) patch.groqUserKeySaved = true;
+    if (geminiKey.source === "saved" && !s.geminiUserKeySaved) patch.geminiUserKeySaved = true;
     if (s.groqKeyMode === "user") patch.groqKeyMode = "local";
     if (s.geminiKeyMode === "user") patch.geminiKeyMode = "local";
     if (s.groqModel !== groqModel) patch.groqModel = groqModel;
@@ -108,11 +103,11 @@ export function JarvisSettingsCard() {
   useEffect(() => {
     if (groqStatus !== "connected") {
       setGroqStatus("not_configured");
-      setGroqStatusText(hasSavedGroqKey || s.groqUserKeySaved ? "Saved Groq key configured. Test connection when ready." : "Jarvis needs a Groq API key. Add one in Jarvis AI Settings.");
+      setGroqStatusText(hasSavedGroqKey ? (jarvisProviderKeys.read("groq").source === "temporary" ? "Key available until this page reloads." : "Saved Groq key configured. Test connection when ready.") : "Jarvis needs a Groq API key. Add one in Jarvis AI Settings.");
     }
     if (geminiStatus !== "connected") {
       setGeminiStatus("not_configured");
-      setGeminiStatusText(hasSavedGeminiKey || s.geminiUserKeySaved ? "Saved Gemini backup key configured. Test connection when ready." : "Gemini backup is not configured.");
+      setGeminiStatusText(hasSavedGeminiKey ? (jarvisProviderKeys.read("gemini").source === "temporary" ? "Key available until this page reloads." : "Saved Gemini backup key configured. Test connection when ready.") : "Gemini backup is not configured.");
     }
   }, [hasSavedGroqKey, hasSavedGeminiKey, s.groqUserKeySaved, s.geminiUserKeySaved]);
 
@@ -136,60 +131,37 @@ export function JarvisSettingsCard() {
     </label>
   );
 
-  const persistGroqKey = (key: string) => {
-    window.localStorage.setItem(GROQ_KEY_STORAGE, key);
-    setHasSavedGroqKey(true);
-    setGroqKeyDraft("");
-    upd({ aiProvider: "groq", groqKeyMode: "local", groqUserKeySaved: true });
-  };
-
-  const persistGeminiKey = (key: string) => {
-    window.localStorage.setItem(GEMINI_KEY_STORAGE, key);
-    setHasSavedGeminiKey(true);
-    setGeminiKeyDraft("");
-    upd({ geminiKeyMode: "local", geminiUserKeySaved: true });
-  };
-
-  const saveGroqKey = () => {
-    const key = groqKeyDraft.trim();
-    if (!key) {
-      setGroqStatus("failed");
-      setGroqStatusText("Enter a Groq API key first.");
+  const configureKey = (provider: "groq" | "gemini", remember: boolean) => {
+    const groq = provider === "groq";
+    const key = groq ? groqKeyDraft : geminiKeyDraft;
+    const configured = remember ? jarvisProviderKeys.save(provider, key) : jarvisProviderKeys.useTemporary(provider, key);
+    const status = groq ? setGroqStatus : setGeminiStatus;
+    const message = groq ? setGroqStatusText : setGeminiStatusText;
+    if (!configured) {
+      status("failed");
+      message("Browser storage is unavailable. Try using the key until reload.");
       return;
     }
-    persistGroqKey(key);
-    setGroqStatus("not_configured");
-    setGroqStatusText("Saved Groq key configured. Raw key is hidden after saving.");
+
+    const settingsSaved = upd(groq
+      ? { aiProvider: "groq", groqKeyMode: "local", ...(remember ? { groqUserKeySaved: true } : {}) }
+      : { geminiKeyMode: "local", ...(remember ? { geminiUserKeySaved: true } : {}) });
+    (groq ? setHasSavedGroqKey : setHasSavedGeminiKey)(true);
+    (groq ? setGroqKeyDraft : setGeminiKeyDraft)("");
+    status(settingsSaved ? "not_configured" : "failed");
+    message(settingsSaved
+      ? remember ? "Key saved in browser storage." : "Key available until this page reloads."
+      : "The key is available, but FitCore could not save the provider settings.");
   };
 
-  const saveGeminiKey = () => {
-    const key = geminiKeyDraft.trim();
-    if (!key) {
-      setGeminiStatus("failed");
-      setGeminiStatusText("Enter a Gemini API key first.");
-      return;
-    }
-    persistGeminiKey(key);
-    setGeminiStatus("not_configured");
-    setGeminiStatusText("Saved Gemini key configured. Raw key is hidden after saving.");
-  };
-
-  const clearGroqKey = () => {
-    window.localStorage.removeItem(GROQ_KEY_STORAGE);
-    setHasSavedGroqKey(false);
-    setGroqKeyDraft("");
-    upd({ groqUserKeySaved: false });
-    setGroqStatus("not_configured");
-    setGroqStatusText("Saved Groq key cleared.");
-  };
-
-  const clearGeminiKey = () => {
-    window.localStorage.removeItem(GEMINI_KEY_STORAGE);
-    setHasSavedGeminiKey(false);
-    setGeminiKeyDraft("");
-    upd({ geminiUserKeySaved: false });
-    setGeminiStatus("not_configured");
-    setGeminiStatusText("Saved Gemini key cleared.");
+  const clearKey = (provider: "groq" | "gemini") => {
+    const groq = provider === "groq";
+    const ok = jarvisProviderKeys.clear(provider);
+    (groq ? setHasSavedGroqKey : setHasSavedGeminiKey)(false);
+    (groq ? setGroqKeyDraft : setGeminiKeyDraft)("");
+    if (ok) upd(groq ? { groqUserKeySaved: false } : { geminiUserKeySaved: false });
+    (groq ? setGroqStatus : setGeminiStatus)(ok ? "not_configured" : "failed");
+    (groq ? setGroqStatusText : setGeminiStatusText)(ok ? "Provider key cleared." : "Browser storage could not be cleared.");
   };
 
   const runConnectionTest = async (provider: "groq" | "gemini") => {
@@ -202,8 +174,8 @@ export function JarvisSettingsCard() {
     }
     const draftGroqKey = groqKeyDraft.trim();
     const draftGeminiKey = geminiKeyDraft.trim();
-    const savedGroqKey = readSavedKey(GROQ_KEY_STORAGE);
-    const savedGeminiKey = readSavedKey(GEMINI_KEY_STORAGE);
+    const savedGroqKey = jarvisProviderKeys.read("groq").key;
+    const savedGeminiKey = jarvisProviderKeys.read("gemini").key;
     try {
       const result = await testConnection({ data: {
         provider,
@@ -213,11 +185,9 @@ export function JarvisSettingsCard() {
       } }) as ConnectionResult;
       if (result.ok) {
         if (provider === "groq") {
-          if (draftGroqKey) persistGroqKey(draftGroqKey);
           setGroqStatus("connected");
           setGroqStatusText(`Connected via Groq ${result.keySource ? `(${result.keySource})` : ""}${result.model ? ` using ${modelLabel(result.model)}` : ""}.`);
         } else {
-          if (draftGeminiKey) persistGeminiKey(draftGeminiKey);
           setGeminiStatus("connected");
           setGeminiStatusText(`Connected via Gemini ${result.keySource ? `(${result.keySource})` : ""}${result.model ? ` using ${modelLabel(result.model)}` : ""}.`);
         }
@@ -258,7 +228,7 @@ export function JarvisSettingsCard() {
             onChange={v => upd({ allowCloudText: v })}
             hint="Sends your message and recent user messages to the selected provider. Those messages may include personal fitness or nutrition details."
           />
-          <p className="text-xs text-muted-foreground">Use keys from free-tier projects. Saved keys stay in this browser's storage and scripts running on this site can read them. FitCore forwards the key to its provider when making a request. Clear a saved key here at any time.</p>
+          <p className="text-xs text-muted-foreground">Use keys from free-tier projects. A temporary key stays in this page's memory until reload. Remembering a key stores it in this browser. Scripts on this site can read browser-stored keys. FitCore forwards the key to its provider when making a request.</p>
           {(s.groqKeyMode === "environment" || s.geminiKeyMode === "environment") && (
             <p className="text-xs text-muted-foreground">Shared keys are disabled. Save a personal provider key to switch that provider to local key mode.</p>
           )}
@@ -281,11 +251,12 @@ export function JarvisSettingsCard() {
             </div>
             <div>
               <Label>Groq API key</Label>
-              <Input type="password" autoComplete="off" value={groqKeyDraft} onChange={e => setGroqKeyDraft(e.target.value)} placeholder={(hasSavedGroqKey || s.groqUserKeySaved) ? "Saved Groq key configured" : "Paste Groq API key"} />
+              <Input type="password" autoComplete="off" value={groqKeyDraft} onChange={e => setGroqKeyDraft(e.target.value)} aria-label="Groq API key" placeholder={hasSavedGroqKey ? "Groq key ready" : "Paste Groq API key"} />
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <PrimaryButton type="button" onClick={saveGroqKey} disabled={!groqKeyDraft.trim()}>Save key</PrimaryButton>
-              <GhostButton type="button" onClick={clearGroqKey}>Clear key</GhostButton>
+            <div className="grid grid-cols-2 gap-2">
+              <PrimaryButton type="button" onClick={() => configureKey("groq", false)} disabled={!groqKeyDraft.trim()}>Use until reload</PrimaryButton>
+              <GhostButton type="button" onClick={() => configureKey("groq", true)} disabled={!groqKeyDraft.trim()}>Remember key</GhostButton>
+              <GhostButton type="button" onClick={() => clearKey("groq")}>Clear key</GhostButton>
               <GhostButton type="button" onClick={() => runConnectionTest("groq")} disabled={groqStatus === "testing" || (!hasSavedGroqKey && !groqKeyDraft.trim())}>{groqStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}Test</GhostButton>
             </div>
             <StatusLine status={groqStatus} text={groqStatusText} />
@@ -300,11 +271,12 @@ export function JarvisSettingsCard() {
             <p className="text-xs text-muted-foreground">{modelLabel(geminiModel)}</p>
             <div>
               <Label>Gemini API key</Label>
-              <Input type="password" autoComplete="off" value={geminiKeyDraft} onChange={e => setGeminiKeyDraft(e.target.value)} placeholder={(hasSavedGeminiKey || s.geminiUserKeySaved) ? "Saved Gemini key configured" : "Paste Gemini API key"} />
+              <Input type="password" autoComplete="off" value={geminiKeyDraft} onChange={e => setGeminiKeyDraft(e.target.value)} aria-label="Gemini API key" placeholder={hasSavedGeminiKey ? "Gemini key ready" : "Paste Gemini API key"} />
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <PrimaryButton type="button" onClick={saveGeminiKey} disabled={!geminiKeyDraft.trim()}>Save key</PrimaryButton>
-              <GhostButton type="button" onClick={clearGeminiKey}>Clear key</GhostButton>
+            <div className="grid grid-cols-2 gap-2">
+              <PrimaryButton type="button" onClick={() => configureKey("gemini", false)} disabled={!geminiKeyDraft.trim()}>Use until reload</PrimaryButton>
+              <GhostButton type="button" onClick={() => configureKey("gemini", true)} disabled={!geminiKeyDraft.trim()}>Remember key</GhostButton>
+              <GhostButton type="button" onClick={() => clearKey("gemini")}>Clear key</GhostButton>
               <GhostButton type="button" onClick={() => runConnectionTest("gemini")} disabled={geminiStatus === "testing" || (!hasSavedGeminiKey && !geminiKeyDraft.trim())}>{geminiStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}Test</GhostButton>
             </div>
             <StatusLine status={geminiStatus} text={geminiStatusText} />

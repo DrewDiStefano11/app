@@ -86,6 +86,13 @@ const schemas: Readonly<Record<string, z.ZodType<Record<string, unknown>>>> = {
     id,
     patch: nonempty({ ...mealFields, type: mealType, notes }),
   }),
+  correctMealPortion: z.strictObject({
+    ...draft,
+    id,
+    index: z.number().int().min(0).max(29),
+    quantity: z.number().positive().max(5_000),
+    unit: z.enum(["cup", "scoop", "ounce", "gram", "slice", "serving", "portion", "piece"]),
+  }),
   deleteMeal: z.strictObject({ ...draft, id }),
   logUsualMeal: z.strictObject({ ...draft, slot }),
   saveUsualMeal: z.strictObject({ ...draft, slot, name: label, ...macros }),

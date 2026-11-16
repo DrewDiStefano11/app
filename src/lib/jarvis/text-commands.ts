@@ -1,5 +1,6 @@
+import { queryMealPortion } from "./meal-portion";
 import { queryRecoveryText } from "./recovery-text";
-import { queryBenchHistory, type BenchDate } from "./workout-queries";
+import { queryBenchHistory, queryTrainingText, type BenchDate } from "./workout-queries";
 import { jarvisScheduledWorkout, WEEKDAYS } from "./scheduled-workout";
 import type { AppState } from "../types";
 import { exerciseName, findActiveExercise } from "./active-exercise";
@@ -13,6 +14,7 @@ interface ActiveExerciseReference {
 export interface JarvisTextContext {
   focusedExercise?: ActiveExerciseReference;
   benchHistory?: BenchDate[];
+  lastMealId?: string;
   sleepHours?: number;
   cardioSteps?: number;
   repeatSet?: ActiveExerciseReference & { sourceSetId: string; weight: number };
@@ -472,6 +474,12 @@ export function interpretJarvisText(
         : "There is no workout scheduled for that day.",
     };
   }
+
+  const training = queryTrainingText(text, state, now);
+  if (training) return training;
+
+  const correction = queryMealPortion(text, state, context.lastMealId);
+  if (correction) return correction;
 
   const history = queryBenchHistory(text, state, now, context.benchHistory);
   if (history) return { reply: history.reply, nextContext: { benchHistory: history.history } };

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Sparkles, Send, Loader2, Mic } from "lucide-react";
 import { BottomSheet } from "../sheet";
 import { Chip, GhostButton } from "../ui";
+import { jarvisProviderKeys } from "@/lib/jarvis/provider-keys";
 import { useStore, uid } from "@/lib/store";
 import { aiChat } from "@/lib/ai.functions";
 import { useServerFn } from "@tanstack/react-start";
@@ -51,14 +52,8 @@ const SUGGESTED = [
   "Undo that",
 ];
 
-const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
-const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
 const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
 
-function readSavedKey(storageKey: string) {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(storageKey) ?? "";
-}
 
 function normalizedKeyMode(mode: ReturnType<typeof useStore>["state"]["jarvisSettings"]["geminiKeyMode"]): "local" | "environment" {
   return mode === "environment" ? "environment" : "local";
@@ -168,7 +163,7 @@ export function JarvisPanel({ section }: { section: string }) {
       tool,
       result: {
         ...result,
-        summary: ["addPlannedExerciseSet", "logUsualMeal", "logSleep", "updateBodyWeight", "logExerciseSet", "updateExerciseSet", "deleteExerciseSet", "updateMeal", "deleteMeal", "updateWorkout", "updateActiveWorkout", "undoLastAction", "startRestTimer", "startScheduledWorkout"].includes(tool) ? result.summary : humanizeArgs(tool, args),
+        summary: ["addPlannedExerciseSet", "logUsualMeal", "logSleep", "updateBodyWeight", "logExerciseSet", "updateExerciseSet", "deleteExerciseSet", "updateMeal", "correctMealPortion", "deleteMeal", "updateWorkout", "updateActiveWorkout", "undoLastAction", "startRestTimer", "startScheduledWorkout"].includes(tool) ? result.summary : humanizeArgs(tool, args),
       },
       pending: { draftId, args: { ...(["logUsualMeal", "logWorkout"].includes(tool) ? args : result.data as Record<string, unknown>), draftId }, base: live, reviewedAt },
     };
@@ -187,7 +182,7 @@ export function JarvisPanel({ section }: { section: string }) {
     const live = stateRef.current;
     const context = conversation.current;
     const local = !live.demoMode && interpretJarvisText(content, live, new Date(), context);
-    conversation.current = { focusedExercise: context.focusedExercise, ...(local ? local.nextContext : {}) };
+    conversation.current = { focusedExercise: context.focusedExercise, lastMealId: context.lastMealId, ...(local ? local.nextContext : {}) };
     if (local) {
       setInput("");
       const createdAt = Date.now();
@@ -231,8 +226,8 @@ export function JarvisPanel({ section }: { section: string }) {
       const tools = TOOL_SPECS.filter(tool => isReadOnlyJarvisTool(tool.name)
         || (settings.permission >= 2 && canProposeJarvisMutation(tool.name)));
       const sysPrompt = jarvisSystemPrompt(stateRef.current, section);
-      const savedGeminiKey = readSavedKey(GEMINI_KEY_STORAGE);
-      const savedGroqKey = readSavedKey(GROQ_KEY_STORAGE);
+      const savedGeminiKey = jarvisProviderKeys.read("gemini").key;
+      const savedGroqKey = jarvisProviderKeys.read("groq").key;
       const provider = settings.aiProvider ?? "groq";
       const res = await chatFn({ data: {
         messages: recent,
@@ -322,6 +317,10 @@ export function JarvisPanel({ section }: { section: string }) {
     const r = pending.base === current && sameScheduleDay
       ? runTool(tool, args, { state: current, set, settings: current.jarvisSettings, confirmed: true, mealPortionEdited })
       : { ok: false, summary: "FitCore changed since this review. Ask again to review the current data." };
+    if (r.ok && r.auditId && ["logMeal", "logUsualMeal", "correctMealPortion"].includes(tool)) {
+      const saved = r.data as { id?: string } | undefined;
+      if (saved?.id) conversation.current.lastMealId = saved.id;
+    }
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId || !m.toolResults) return m;
       const next = [...m.toolResults];

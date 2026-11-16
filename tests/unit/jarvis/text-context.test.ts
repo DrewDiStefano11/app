@@ -135,3 +135,98 @@ test("an explicit bodyweight correction targets one saved date", () => {
     interpretJarvisText("Correct yesterday's weight to 183.", state, new Date(2026, 10, 16, 12)),
   ).toMatchObject({ tool: "updateBodyWeight", args: { id: "yesterday", weightLb: 183 } });
 });
+
+test("training questions distinguish prescribed load from recorded sets", () => {
+  const state = structuredClone(defaultState);
+  const now = new Date(2026, 10, 16, 12);
+  state.activeWorkout = {
+    id: "current",
+    name: "Upper A",
+    startedAt: now.getTime(),
+    exercises: [
+      {
+        id: "bench-row",
+        exerciseId: "bench-press",
+        completed: false,
+        target: { sets: 4, reps: "4", targetWeightLb: 195 },
+        sets: [
+          { id: "warmup", completed: true, modifier: "warmup", weight: 135, reps: 5 },
+          { id: "done", completed: true, weight: 190, reps: 4 },
+          { id: "plan", completed: false, weight: 900, reps: 4 },
+        ],
+      },
+    ],
+  };
+  expect(interpretJarvisText("What's my next prescribed bench weight?", state, now)).toMatchObject({
+    reply: "The next working bench set in Upper A is prescribed at 195 lb.",
+  });
+  expect(
+    interpretJarvisText("How many chest sets did I complete this week?", state, now),
+  ).toMatchObject({
+    reply: "1 completed working set this week for exercises that primarily train chest.",
+  });
+});
+
+test("leg history excludes workouts containing only planned lower-body rows", () => {
+  const state = structuredClone(defaultState);
+  const now = new Date(2026, 10, 16, 12);
+  state.workouts = [
+    {
+      id: "planned",
+      name: "Unused leg day",
+      startedAt: now.getTime() - 1000,
+      exercises: [
+        {
+          id: "plan",
+          exerciseId: "squat",
+          completed: false,
+          sets: [{ id: "s1", completed: false }],
+        },
+      ],
+    },
+    {
+      id: "actual",
+      name: "Lower A",
+      startedAt: now.getTime() - 2000,
+      exercises: [
+        {
+          id: "done",
+          exerciseId: "squat",
+          completed: true,
+          sets: [{ id: "s2", completed: true, weight: 225, reps: 4 }],
+        },
+      ],
+    },
+  ];
+  const result = interpretJarvisText("Show my last three leg workouts.", state, now);
+  expect(result && "reply" in result ? result.reply : "").toContain("Lower A");
+  expect(result && "reply" in result ? result.reply : "").not.toContain("Unused leg day");
+});
+
+test("a meal portion follow-up needs a specific saved meal and compatible units", () => {
+  const state = structuredClone(defaultState);
+  state.mealEntries = [
+    {
+      id: "meal-1",
+      name: "Dinner",
+      type: "dinner",
+      createdAt: Date.now(),
+      calories: 400,
+      protein: 35,
+      carbs: 45,
+      fat: 5,
+      items: [
+        { name: "Chicken", qty: "1 portion", calories: 195, protein: 31, carbs: 0, fat: 5 },
+        { name: "White rice", qty: "1 cup", calories: 205, protein: 4, carbs: 45, fat: 0 },
+      ],
+    },
+  ];
+  const text = "Actually, that was two cups of rice.";
+  expect(interpretJarvisText(text, state, new Date())).toMatchObject({
+    reply: "Confirm a meal in this Jarvis conversation before correcting its portion.",
+  });
+  expect(interpretJarvisText(text, state, new Date(), { lastMealId: "meal-1" })).toMatchObject({
+    tool: "correctMealPortion",
+    args: { id: "meal-1", index: 1, quantity: 2, unit: "cup" },
+  });
+});

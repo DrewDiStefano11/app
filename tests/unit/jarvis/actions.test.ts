@@ -178,13 +178,19 @@ test("a completed bench set fills the next planned row without creating an extra
   const sets = saved.activeWorkout?.exercises[0].sets;
   expect(sets).toHaveLength(2);
   expect(sets?.[0]).toMatchObject({ id: "set-1", completed: true, weight: 195, reps: 4 });
-  expect(sets?.[1]).toEqual({ id: "set-2", completed: false });
+  expect(sets?.[1]).toMatchObject({ id: "set-2", completed: false });
+  expect(sets?.[1].weight).toBeUndefined();
+  expect(sets?.[1].reps).toBeUndefined();
   expect(saved.workouts).toEqual([]);
   const undone = undoAuditEntry(result.auditId!, fitcore.snapshot(), fitcore.set);
   expect(undone.ok).toBe(true);
-  expect(fitcore.reload().activeWorkout?.exercises[0].sets).toEqual(
-    state.activeWorkout?.exercises[0].sets,
-  );
+  const restored = fitcore.reload().activeWorkout?.exercises[0].sets;
+  expect(
+    restored?.map(({ id, completed, weight, reps }) => ({ id, completed, weight, reps })),
+  ).toEqual([
+    { id: "set-1", completed: false, weight: undefined, reps: undefined },
+    { id: "set-2", completed: false, weight: undefined, reps: undefined },
+  ]);
 });
 
 test("an unknown movement cannot create an exercise row in an active workout", () => {

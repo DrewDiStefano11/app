@@ -103,3 +103,39 @@ test("malformed tool arguments fail the complete provider response", async () =>
   });
   expect(result).toMatchObject({ ok: false, code: "tool_parse" });
 });
+
+test("a Groq outage uses at most one model fallback when enabled", async () => {
+  const providerFetch = mockProvider(
+    new Response(null, { status: 503 }),
+    new Response(null, { status: 503 }),
+  );
+  const result = await callChatProvider({
+    messages: [...messages],
+    userGroqApiKey: "synthetic-groq",
+    autoAiFallback: true,
+  });
+  expect(result).toMatchObject({
+    ok: false,
+    code: "overloaded",
+    diagnostics: { provider: "groq", fallback: true, fallbackCount: 1 },
+  });
+  expect(providerFetch).toHaveBeenCalledTimes(2);
+  const models = providerFetch.mock.calls.map(
+    ([, request]) => JSON.parse(String(request?.body)).model,
+  );
+  expect(new Set(models).size).toBe(2);
+});
+
+test("an aborted provider request returns a retryable result without another request by default", async () => {
+  const request = mock(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    throw new DOMException("Synthetic timeout", "TimeoutError");
+  });
+  globalThis.fetch = request as unknown as typeof fetch;
+  const result = await callChatProvider({
+    messages: [...messages],
+    userGroqApiKey: "synthetic-groq",
+  });
+  expect(result).toMatchObject({ ok: false, code: "network" });
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(request.mock.calls[0]?.[1]?.signal).toBeInstanceOf(AbortSignal);
+});
