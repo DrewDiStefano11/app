@@ -73,7 +73,7 @@ function FitCoreApp() {
       if (!foreground() || syncing) return;
       syncing = true;
       try {
-        const response = await requestWhoopSync();
+        const response = await requestWhoopSync("automatic");
         if (!foreground()) return;
         if (response.ok) liveOnly = response.status === 200;
         const retryAfter = Number(response.headers.get("Retry-After"));

@@ -51,10 +51,14 @@ export function subscribeToWhoopChanges(onChange: (change: Change) => void) {
   return () => window.removeEventListener(whoopSnapshotChanged, listener);
 }
 
-export async function requestWhoopSync() {
+export async function requestWhoopSync(mode: "automatic" | "manual" = "manual") {
   initializeLiveDisplay();
   const revision = displayRevision;
-  const response = await fetch(whoopApi + "/sync", { method: "POST", cache: "no-store" });
+  const response = await fetch(whoopApi + "/sync", {
+    method: "POST",
+    cache: "no-store",
+    headers: { "X-FitCore-Whoop-Sync": mode },
+  });
   if (response.ok) {
     const live = response.status === 200 ? await response.json() : null;
     if (displayRevision === revision && document.visibilityState === "visible") {

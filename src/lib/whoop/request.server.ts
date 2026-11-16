@@ -3,11 +3,10 @@ import { neon } from "@neondatabase/serverless";
 import { createWhoopIntegration } from "./integration.server";
 import { createWhoopStore } from "./postgres.server";
 
+const privateHeaders = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" };
+
 function reply(status: number) {
-  return new Response(null, {
-    status,
-    headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" },
-  });
+  return new Response(null, { status, headers: privateHeaders });
 }
 
 function getIntegration() {
@@ -89,7 +88,25 @@ export async function handleWhoopRequest(request: Request, action: string) {
     if (action === "reconcile" && process.env.WHOOP_BACKGROUND_ENABLED !== "true")
       return reply(request.method === "GET" ? 204 : 405);
     const integration = getIntegration();
-    if (!integration) return reply(503);
+    if (!integration) {
+      if (request.method === "GET" && action === "records") {
+        return Response.json(null, { headers: privateHeaders });
+      }
+      if (request.method === "GET" && action === "status") {
+        return Response.json(
+          { status: "unavailable", lastSyncedAt: null, jarvisSharingAvailable: false },
+          { headers: privateHeaders },
+        );
+      }
+      if (
+        request.method === "POST" &&
+        action === "sync" &&
+        request.headers.get("X-FitCore-Whoop-Sync") === "automatic"
+      ) {
+        return reply(204);
+      }
+      return reply(503);
+    }
 
     switch (action) {
       case "session":

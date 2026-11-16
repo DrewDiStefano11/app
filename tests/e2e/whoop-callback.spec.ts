@@ -34,3 +34,22 @@ test("the registered WHOOP callback fails closed without configuration", async (
   expect(response.headers()["cache-control"]).toBe("no-store");
   expect(await response.text()).toBe("");
 });
+
+test("disabled WHOOP responds quietly to app startup checks", async ({ request }) => {
+  const status = await request.get("/api/whoop/status");
+  expect(status.status()).toBe(200);
+  expect(await status.json()).toEqual({
+    status: "unavailable",
+    lastSyncedAt: null,
+    jarvisSharingAvailable: false,
+  });
+  const records = await request.get("/api/whoop/records");
+  expect(records.status()).toBe(200);
+  expect(records.headers()["cache-control"]).toBe("no-store");
+  expect(await records.json()).toBeNull();
+  const automatic = await request.post("/api/whoop/sync", {
+    headers: { "X-FitCore-Whoop-Sync": "automatic" },
+  });
+  expect(automatic.status()).toBe(204);
+  expect((await request.post("/api/whoop/sync")).status()).toBe(503);
+});
