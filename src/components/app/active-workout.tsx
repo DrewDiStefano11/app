@@ -713,9 +713,10 @@ function FinishWorkoutSheet({ open, onClose, elapsedMs, findEx }: {
   open: boolean; onClose: () => void; elapsedMs: number;
   findEx: (id: string) => Exercise | CustomExercise | undefined;
 }) {
-  const { state, set } = useStore();
+  const { state, set, persistenceRequiresReload } = useStore();
   const w = state.activeWorkout!;
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(w?.notes ?? "");
+  const [saveFailed, setSaveFailed] = useState(false);
   const [saveMode, setSaveMode] = useState<SaveMode>("workout_only");
   const [newTemplateName, setNewTemplateName] = useState(w?.name ?? "Workout");
 
@@ -753,8 +754,6 @@ function FinishWorkoutSheet({ open, onClose, elapsedMs, findEx }: {
   const suggestions = useMemo(() => extractNoteSuggestions(notes), [notes]);
 
   const confirmSave = () => {
-    const finished: Workout = { ...w, endedAt: Date.now(), notes: notes || undefined };
-
     // Update PRs
     const prs = [...state.prs];
     for (const pr of newPRs) {
@@ -772,15 +771,21 @@ function FinishWorkoutSheet({ open, onClose, elapsedMs, findEx }: {
       if (s.muscle) muscleFatigue[s.muscle] = s.level;
     }
 
-    set(s => ({
-      ...s,
-      workouts: [...s.workouts, finished],
-      activeWorkout: null,
-      prs,
-      goals,
-      muscleFatigue,
-    }));
-    onClose();
+    const saved = set(s => {
+      if (s.activeWorkout?.id !== w.id || s.workouts.some(workout => workout.id === w.id)) {
+        return s;
+      }
+      return {
+        ...s,
+        workouts: [...s.workouts, { ...s.activeWorkout, endedAt: Date.now(), notes: notes || undefined }],
+        activeWorkout: null,
+        prs,
+        goals,
+        muscleFatigue,
+      };
+    });
+    if (saved) onClose();
+    else setSaveFailed(true);
   };
 
   if (!w) return null;
@@ -847,6 +852,14 @@ function FinishWorkoutSheet({ open, onClose, elapsedMs, findEx }: {
           )}
         </div>
 
+        {saveFailed && (
+          <p role="alert" className="text-sm text-destructive">
+            Workout could not be saved. Your workout and notes are still here.{" "}
+            {persistenceRequiresReload
+              ? "Copy your notes before reloading, then reopen the workout."
+              : "Try saving again."}
+          </p>
+        )}
         <div className="flex gap-2 pt-1">
           <GhostButton className="flex-1" onClick={onClose}>
             <Pencil size={14} />Back to edit

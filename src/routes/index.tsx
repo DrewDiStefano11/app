@@ -49,12 +49,20 @@ export const Route = createFileRoute("/")({
 });
 
 function FitCoreApp() {
-  const { state, view } = useStore();
+  const { state, view, persistenceStatus, persistenceRequiresReload } = useStore();
   const [section, setSection] = useState<SectionId>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("daily");
 
   const hasActiveWorkout = !!state.activeWorkout;
+  const persistenceProblem = persistenceRequiresReload
+    ? "FitCore needs to reload the latest saved data before it can save changes."
+    : persistenceStatus === "storage_error" || persistenceStatus === "blocked"
+      ? "FitCore could not access device storage. Changes may be unsaved."
+      : null;
+  const storageMessage = persistenceProblem && (
+    <p role="status" className="px-5 py-3 text-sm text-destructive">{persistenceProblem}</p>
+  );
 
   useEffect(() => {
     if (hasActiveWorkout) {
@@ -73,6 +81,7 @@ function FitCoreApp() {
   if (!state.onboardingComplete) {
     return (
       <div className="phone-shell" data-section="home">
+        {storageMessage}
         <Onboarding />
       </div>
     );
@@ -82,6 +91,7 @@ function FitCoreApp() {
 
   return (
     <div className="phone-shell" data-section={section} key={section}>
+      {storageMessage}
       <div className="animate-tile-in">
         {settingsOpen ? (
           <SettingsView onBack={() => setSettingsOpen(false)} layoutMode={layoutMode} />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import type { Profile } from "@/lib/types";
 import { PrimaryButton, GhostButton, Input, Label, Select } from "@/components/app/ui";
@@ -11,6 +11,9 @@ export function Onboarding() {
   const [step, setStep] = useState(0);
   const [profile, setProfile] = useState<Profile>(state.profile);
   const [targets, setTargets] = useState(state.nutritionTargets);
+  const [interactive, setInteractive] = useState(false);
+
+  useEffect(() => setInteractive(true), []);
 
   const next = () => setStep(s => Math.min(STEPS.length - 1, s + 1));
   const back = () => setStep(s => Math.max(0, s - 1));
@@ -107,7 +110,7 @@ export function Onboarding() {
       <div className="flex gap-2 mt-8">
         {step > 0 && step < STEPS.length - 1 && <GhostButton onClick={back}>Back</GhostButton>}
         {current !== "done" ? (
-          <PrimaryButton className="flex-1" onClick={next}>{current === "welcome" ? "Get started" : "Continue"}</PrimaryButton>
+          <PrimaryButton className="flex-1" onClick={next} disabled={!interactive}>{current === "welcome" ? "Get started" : "Continue"}</PrimaryButton>
         ) : (
           <PrimaryButton className="flex-1" onClick={finish}>Enter FitCore</PrimaryButton>
         )}

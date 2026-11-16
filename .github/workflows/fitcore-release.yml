@@ -1,0 +1,50 @@
+name: FitCore Release Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-workout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: npm ci
+      - run: bun test tests/unit
+      - name: Build Vercel artifact
+        run: |
+          npm run build
+          test -s .vercel/output/config.json
+          test -s .vercel/output/functions/__server.func/index.mjs
+        env:
+          VERCEL: "1"
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Test the production artifact in mobile browsers
+        run: >-
+          npm run test:e2e -- --reporter=line
+          --project=iphone-webkit --project=mobile-390x844
+          workout-release-safety settings-data-safety-lifecycle-smoke
+          active-workout-lifecycle-smoke
+        env:
+          FITCORE_TEST_IPHONE_WEBKIT: "1"
+          FITCORE_TEST_PRODUCTION_BUILD: "1"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fitcore-release-test-results
+          path: test-results/
+          retention-days: 14
