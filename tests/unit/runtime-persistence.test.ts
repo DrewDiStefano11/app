@@ -361,6 +361,73 @@ test("successful commit uses verified base and replaces the controller snapshot"
   assert.deepEqual(controller.getCurrentSnapshot()!.state, next);
 });
 
+test("100 sequential sessions survive interruptions with every committed set intact", { timeout: 60_000 }, () => {
+  const fixture = dependencies();
+  let token = 0;
+  const options = {
+    ...fixture.value,
+    createWriteToken: () => (++token).toString(16).padStart(32, "0"),
+  };
+  let controller = createFitCoreRuntimePersistenceController(options);
+  controller.hydrate();
+  let current = state();
+  const commit = (next: AppState) => {
+    const result = controller.commit(next);
+    assert.equal(result.status, "ready", JSON.stringify(result.issues));
+    assert.ok(result.state);
+    return result.state as unknown as AppState;
+  };
+
+  for (let index = 0; index < 100; index++) {
+    const workout = {
+      id: `stress-workout-${index}`,
+      name: `Synthetic workout ${index}`,
+      startedAt: 1_700_000_000_000 + index * 86_400_000,
+      exercises: [
+        { id: `squat-${index}`, exerciseId: "squat", completed: false, sets: [] },
+      ],
+    };
+    current = commit({ ...current, activeWorkout: workout });
+    const sets = Array.from({ length: 8 }, (_, set) => ({
+      id: `stress-set-${index}-${set}`,
+      reps: set + 1,
+      weight: 100 + index,
+      completed: true,
+    }));
+    const edited = {
+      ...workout,
+      exercises: [{ ...workout.exercises[0], sets, completed: true }],
+    };
+    current = commit({ ...current, activeWorkout: edited });
+
+    if (index % 20 === 0) {
+      controller = createFitCoreRuntimePersistenceController(options);
+      const reopened = controller.hydrate();
+      assert.equal(reopened.status, "ready");
+      assert.deepEqual(reopened.state?.activeWorkout, edited);
+    }
+
+    const finished = { ...edited, endedAt: edited.startedAt + 30 * 60_000, notes: "Synthetic" };
+    current = commit({ ...current, activeWorkout: null, workouts: [...current.workouts, finished] });
+  }
+
+  const reopened = createFitCoreRuntimePersistenceController(options).hydrate();
+  assert.equal(reopened.status, "ready");
+  assert.equal(reopened.state?.activeWorkout, null);
+  assert.equal(reopened.state?.workouts.length, 100);
+  assert.equal(new Set(reopened.state?.workouts.map(workout => workout.id)).size, 100);
+  for (const [index, workout] of reopened.state!.workouts.entries()) {
+    assert.equal(workout.id, `stress-workout-${index}`);
+    assert.equal(workout.notes, "Synthetic");
+    assert.equal(workout.exercises[0].sets.length, 8);
+    for (const [setIndex, set] of workout.exercises[0].sets.entries()) {
+      assert.equal(set.weight, 100 + index);
+      assert.equal(set.reps, setIndex + 1);
+      assert.equal(set.completed, true);
+    }
+  }
+});
+
 test("commit treats undefined object fields as missing without coercing invalid array entries", () => {
   const fixture = dependencies({ exportedAt: LATER_AT, token: TOKEN_2 });
   const controller = createFitCoreRuntimePersistenceController(fixture.value);
@@ -439,6 +506,10 @@ test("external revision change maps to reload and retains the previous snapshot"
   assert.equal(result.state, null);
   assert.equal(result.requiresReload, true);
   assert.equal(controller.getCurrentSnapshot(), previous);
+  const retry = controller.commit(state("proposed again"));
+  assert.equal(retry.status, "reload_required");
+  assert.equal(retry.requiresReload, true);
+  assert.equal(retry.summary.transactionWriteCount, 0);
 });
 
 test("base mismatch and Task 7 storage, verification, conflict, and indeterminate failures map conservatively", () => {

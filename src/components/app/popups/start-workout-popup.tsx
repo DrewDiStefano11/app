@@ -1,45 +1,23 @@
 import { BottomSheet } from "../sheet";
-import { useStore, uid } from "@/lib/store";
-import { WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
+import { useStore } from "@/lib/store";
+import { WORKOUT_TEMPLATES, exerciseById, type WorkoutTemplate } from "@/lib/data";
 import { Play, Plus, Dumbbell } from "lucide-react";
 
 export function StartWorkoutSheet({ open, onClose, onStarted }: {
   open: boolean; onClose: () => void; onStarted: () => void;
 }) {
-  const { set } = useStore();
+  const { startWorkout } = useStore();
 
-  const startBlank = () => {
-    set(s => ({ ...s, activeWorkout: { id: uid(), name: "Workout", startedAt: Date.now(), exercises: [] } }));
-    onClose(); onStarted();
-  };
-
-  const startTemplate = (templateId: string) => {
-    const t = WORKOUT_TEMPLATES.find(x => x.id === templateId);
-    if (!t) return;
-    set(s => ({
-      ...s,
-      activeWorkout: {
-        id: uid(),
-        name: t.name,
-        startedAt: Date.now(),
-        templateId: t.id,
-        exercises: t.exercises.map(e => ({
-          id: uid(),
-          exerciseId: e.exerciseId,
-          completed: false,
-          sets: Array.from({ length: e.sets }, () => ({
-            id: uid(), reps: undefined, weight: undefined, completed: false, modifier: "normal" as const,
-          })),
-        })),
-      },
-    }));
-    onClose(); onStarted();
+  const start = (template?: WorkoutTemplate) => {
+    if (!startWorkout(template)) return;
+    onClose();
+    onStarted();
   };
 
   return (
     <BottomSheet open={open} onClose={onClose} title="Start Workout" height="tall">
       <div className="space-y-3">
-        <button onClick={startBlank}
+        <button onClick={() => start()}
           className="w-full p-4 rounded-2xl flex items-center gap-3 press relative overflow-hidden"
           style={{ background: "linear-gradient(135deg, var(--section), color-mix(in oklab, var(--section) 50%, black))" }}>
           <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
@@ -56,7 +34,7 @@ export function StartWorkoutSheet({ open, onClose, onStarted }: {
 
         <div className="space-y-2">
           {WORKOUT_TEMPLATES.map(t => (
-            <button key={t.id} onClick={() => startTemplate(t.id)}
+            <button key={t.id} onClick={() => start(t)}
               className="w-full p-3 rounded-2xl tile press flex items-center gap-3 text-left">
               <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "var(--section-soft)", color: "var(--section)" }}>
                 <Dumbbell size={16} />

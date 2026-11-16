@@ -6,7 +6,7 @@ import {
 import { useStore, uid, e1RM } from "@/lib/store";
 import { EXERCISES, exerciseById, type Exercise, type MuscleGroup } from "@/lib/data";
 import type {
-  Workout, WorkoutExercise, SetEntry, CustomExercise, Goal,
+  AppState, Workout, WorkoutExercise, SetEntry, CustomExercise, Goal,
 } from "@/lib/types";
 import {
   Card, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea,
@@ -66,7 +66,7 @@ function makeDemoPrevSets(exerciseId: string, count: number): SetEntry[] {
 /* ===================== Main view ===================== */
 
 export function ActiveWorkoutView() {
-  const { state, set } = useStore();
+  const { state, set, persistenceRequiresReload } = useStore();
   const w = state.activeWorkout!;
   const now = useNow(1000);
 
@@ -76,6 +76,7 @@ export function ActiveWorkoutView() {
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
   const [plateFor, setPlateFor] = useState<string | null>(null);
+  const [pendingEdit, setPendingEdit] = useState<((state: AppState, workout: Workout) => AppState) | null>(null);
 
   // Compose lookup so custom exercises behave like real ones inside the workout.
   const lookup = useMemo(() => {
@@ -100,8 +101,14 @@ export function ActiveWorkoutView() {
   const toggleOpen = (id: string) =>
     setOpenMap(m => ({ ...m, [id]: !(m[id] ?? id === activeId) }));
 
+  const commitEdit = (edit: (state: AppState, workout: Workout) => AppState) => {
+    const saved = set(s => s.activeWorkout?.id === w.id ? edit(s, s.activeWorkout) : s);
+    setPendingEdit(saved ? null : () => edit);
+    return saved;
+  };
+
   const updateActive = (fn: (w: Workout) => Workout) =>
-    set(s => ({ ...s, activeWorkout: fn(s.activeWorkout!) }));
+    !pendingEdit && commitEdit((s, activeWorkout) => ({ ...s, activeWorkout: fn(activeWorkout) }));
 
   const updateExercise = (id: string, fn: (e: WorkoutExercise) => WorkoutExercise) =>
     updateActive(w => ({ ...w, exercises: w.exercises.map(x => x.id === id ? fn(x) : x) }));
@@ -130,39 +137,58 @@ export function ActiveWorkoutView() {
   };
 
   const addCustom = (c: CustomExercise) => {
-    set(s => ({ ...s, customExercises: [...s.customExercises, c] }));
+    if (pendingEdit) return;
     const we: WorkoutExercise = {
       id: uid(), exerciseId: c.id, completed: false, exerciseTags: [],
       sets: Array.from({ length: 3 }, () => ({ id: uid(), modifier: "normal", completed: false })),
     };
-    updateActive(w => ({ ...w, exercises: [...w.exercises, we] }));
+    commitEdit((s, workout) => ({
+      ...s,
+      customExercises: [...s.customExercises, c],
+      activeWorkout: { ...workout, exercises: [...workout.exercises, we] },
+    }));
     setCustomOpen(false);
     // open the newly added card by default
     setOpenMap(m => ({ ...m, [we.id]: true }));
   };
 
   const toggleExerciseComplete = (id: string) => {
-    updateExercise(id, e => ({ ...e, completed: !e.completed }));
-    // auto-collapse on complete; the next active card will auto-expand by default.
-    setOpenMap(m => ({ ...m, [id]: false }));
+    if (updateExercise(id, e => ({ ...e, completed: !e.completed }))) {
+      // The next active card expands when this one is completed.
+      setOpenMap(m => ({ ...m, [id]: false }));
+    }
   };
 
   return (
     <div className="pb-32">
       {/* Header with real timer */}
-      <div className="sticky top-0 z-10 glass border-b border-border px-5 py-3 flex items-center gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] uppercase tracking-widest text-muted-foreground">In progress</p>
-          <h2 className="text-base font-bold truncate">{w.name}</h2>
+      <div className="sticky top-0 z-10 glass border-b border-border">
+        <div className="px-5 py-3 flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">In progress</p>
+            <h2 className="text-base font-bold truncate">{w.name}</h2>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: "var(--surface-2)" }}>
+            <TimerIcon size={14} style={{ color: "var(--section)" }} />
+            <span className="font-mono tabular-nums text-sm font-bold">{fmtTime(now - w.startedAt)}</span>
+          </div>
+          <button onClick={() => setConfirmCancel(true)} aria-label="Discard workout"
+            className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-muted-foreground">
+            <X size={18} />
+          </button>
         </div>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: "var(--surface-2)" }}>
-          <TimerIcon size={14} style={{ color: "var(--section)" }} />
-          <span className="font-mono tabular-nums text-sm font-bold">{fmtTime(now - w.startedAt)}</span>
-        </div>
-        <button onClick={() => setConfirmCancel(true)} aria-label="Discard workout"
-          className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-muted-foreground">
-          <X size={18} />
-        </button>
+        {pendingEdit && (
+          <div role="alert" className="px-5 pb-3 text-sm">
+            <h3 className="font-semibold text-destructive">Workout edit could not be saved</h3>
+            {persistenceRequiresReload && <p>Reload FitCore to resume with the latest saved values.</p>}
+            <div className="flex flex-wrap gap-2 mt-2">
+              <PrimaryButton onClick={() => commitEdit(pendingEdit)} disabled={persistenceRequiresReload}>
+                Retry edit
+              </PrimaryButton>
+              <GhostButton onClick={() => setPendingEdit(null)}>Keep saved values</GhostButton>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="px-4 mt-3 space-y-2.5">
@@ -209,7 +235,7 @@ export function ActiveWorkoutView() {
         style={{ background: "linear-gradient(to top, var(--bg) 70%, transparent)" }}>
         <div className="max-w-[480px] mx-auto flex gap-2">
           <GhostButton className="flex-1" onClick={() => setConfirmCancel(true)}>Discard</GhostButton>
-          <PrimaryButton className="flex-[2]" onClick={() => setFinishOpen(true)}>
+          <PrimaryButton className="flex-[2]" onClick={() => setFinishOpen(true)} disabled={!!pendingEdit}>
             <Check size={16} />Finish workout
           </PrimaryButton>
         </div>
@@ -437,7 +463,10 @@ function ExerciseCard({
           {/* Notes — collapsed by default */}
           {notesOpen ? (
             <Textarea rows={3} autoFocus placeholder="Exercise notes…" value={we.notes ?? ""}
-              onChange={e => onChange(x => ({ ...x, notes: e.target.value }))}
+              onChange={event => {
+                const notes = event.currentTarget.value;
+                onChange(x => ({ ...x, notes }));
+              }}
               onBlur={() => { if (!we.notes) setNotesOpen(false); }}
               className="text-sm" />
           ) : (
@@ -713,9 +742,10 @@ function FinishWorkoutSheet({ open, onClose, elapsedMs, findEx }: {
   open: boolean; onClose: () => void; elapsedMs: number;
   findEx: (id: string) => Exercise | CustomExercise | undefined;
 }) {
-  const { state, set } = useStore();
+  const { state, set, persistenceRequiresReload } = useStore();
   const w = state.activeWorkout!;
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(w?.notes ?? "");
+  const [saveFailed, setSaveFailed] = useState(false);
   const [saveMode, setSaveMode] = useState<SaveMode>("workout_only");
   const [newTemplateName, setNewTemplateName] = useState(w?.name ?? "Workout");
 
@@ -753,8 +783,6 @@ function FinishWorkoutSheet({ open, onClose, elapsedMs, findEx }: {
   const suggestions = useMemo(() => extractNoteSuggestions(notes), [notes]);
 
   const confirmSave = () => {
-    const finished: Workout = { ...w, endedAt: Date.now(), notes: notes || undefined };
-
     // Update PRs
     const prs = [...state.prs];
     for (const pr of newPRs) {
@@ -772,15 +800,21 @@ function FinishWorkoutSheet({ open, onClose, elapsedMs, findEx }: {
       if (s.muscle) muscleFatigue[s.muscle] = s.level;
     }
 
-    set(s => ({
-      ...s,
-      workouts: [...s.workouts, finished],
-      activeWorkout: null,
-      prs,
-      goals,
-      muscleFatigue,
-    }));
-    onClose();
+    const saved = set(s => {
+      if (s.activeWorkout?.id !== w.id || s.workouts.some(workout => workout.id === w.id)) {
+        return s;
+      }
+      return {
+        ...s,
+        workouts: [...s.workouts, { ...s.activeWorkout, endedAt: Date.now(), notes: notes || undefined }],
+        activeWorkout: null,
+        prs,
+        goals,
+        muscleFatigue,
+      };
+    });
+    if (saved) onClose();
+    else setSaveFailed(true);
   };
 
   if (!w) return null;
@@ -847,11 +881,19 @@ function FinishWorkoutSheet({ open, onClose, elapsedMs, findEx }: {
           )}
         </div>
 
+        {(saveFailed || persistenceRequiresReload) && (
+          <p role="alert" className="text-sm text-destructive">
+            Workout could not be saved. Your workout and notes are still here.{" "}
+            {persistenceRequiresReload
+              ? "Copy your notes before reloading, then reopen the workout."
+              : "Try saving again."}
+          </p>
+        )}
         <div className="flex gap-2 pt-1">
           <GhostButton className="flex-1" onClick={onClose}>
             <Pencil size={14} />Back to edit
           </GhostButton>
-          <PrimaryButton className="flex-[2]" onClick={confirmSave}>
+          <PrimaryButton className="flex-[2]" onClick={confirmSave} disabled={persistenceRequiresReload}>
             <Check size={16} />Confirm & save
           </PrimaryButton>
         </div>

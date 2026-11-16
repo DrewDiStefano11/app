@@ -15,6 +15,7 @@ import {
   type AppState,
   type Personalization,
 } from "./types";
+import type { WorkoutTemplate } from "./data";
 import { buildDemoState } from "./demo-data";
 import { migrateFitCoreDataIfNeeded, parseFitCoreImport } from "./fitcore-data";
 import { getFitCoreRuntimePersistenceController } from "./persist";
@@ -73,7 +74,8 @@ interface Ctx {
   state: AppState;
   /** Effective state: merges demo data when demoMode is true. Real data is never overwritten. */
   view: AppState;
-  set: (u: Updater) => void;
+  set: (u: Updater) => boolean;
+  startWorkout: (template?: WorkoutTemplate) => boolean;
   reset: () => void;
   exportJson: () => string;
   importJson: (text: string) => boolean;
@@ -174,12 +176,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // Every manual and Jarvis mutation passes through this boundary. Normalizing
   // here keeps all screens, summaries, history, and recovery signals connected.
-  const set = useCallback(
-    (u: Updater) => {
-      apply(u);
-    },
-    [apply],
-  );
+  const set = apply;
+  const startWorkout = useCallback((template?: WorkoutTemplate) => {
+    if (stateRef.current.activeWorkout) return true;
+    return apply((current) => ({
+      ...current,
+      activeWorkout: {
+        id: uid(),
+        name: template?.name ?? "Workout",
+        startedAt: Date.now(),
+        templateId: template?.id,
+        exercises: template?.exercises.map(({ exerciseId, sets }) => ({
+          id: uid(),
+          exerciseId,
+          completed: false,
+          sets: Array.from({ length: sets }, () => ({
+            id: uid(), modifier: "normal" as const, completed: false,
+          })),
+        })) ?? [],
+      },
+    }));
+  }, [apply]);
   const reset = useCallback(() => {
     apply(() => defaultState);
   }, [apply]);
@@ -203,8 +220,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, view, set, reset, exportJson, importJson, ...persistence }),
-    [state, view, set, reset, exportJson, importJson, persistence],
+    () => ({ state, view, set, startWorkout, reset, exportJson, importJson, ...persistence }),
+    [state, view, set, startWorkout, reset, exportJson, importJson, persistence],
   );
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }

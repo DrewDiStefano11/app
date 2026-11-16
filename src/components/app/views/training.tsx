@@ -79,7 +79,7 @@ function DailyTrainingView({
   onOpenPanel: (panel: Exclude<TrainingPanel, null>) => void;
   onOpenActive: () => void;
 }) {
-  const { state, set } = useStore();
+  const { state, startWorkout } = useStore();
   const todays = state.workouts.filter(w => isToday(w.startedAt));
   const lastWorkout = state.workouts[state.workouts.length - 1];
   const planExercises = state.workoutTemplates[0]
@@ -92,18 +92,10 @@ function DailyTrainingView({
   const isDeepDive = layoutMode === "deepDive";
 
   const startBlank = () => {
-    set(s => ({ ...s, activeWorkout: { id: uid(), name: "Workout", startedAt: Date.now(), exercises: [] } }));
-    onOpenActive();
+    if (startWorkout()) onOpenActive();
   };
   const startPlan = () => {
-    if (!planExercises) return;
-    const t = planExercises;
-    set(s => ({ ...s, activeWorkout: {
-      id: uid(), name: t.name, startedAt: Date.now(), templateId: t.id,
-      exercises: t.exercises.map(te => ({ id: uid(), exerciseId: te.exerciseId, completed: false,
-        sets: Array.from({ length: te.sets }, () => ({ id: uid(), modifier: "normal" as const, completed: false })) })),
-    }}));
-    onOpenActive();
+    if (planExercises && startWorkout(planExercises)) onOpenActive();
   };
 
   return (
@@ -287,10 +279,9 @@ function LogWorkoutSubtab({
   onOpenTemplates: () => void;
   onOpenActive: () => void;
 }) {
-  const { set } = useStore();
+  const { startWorkout } = useStore();
   const startBlank = () => {
-    set(s => ({ ...s, activeWorkout: { id: uid(), name: "Workout", startedAt: Date.now(), exercises: [] } }));
-    onOpenActive();
+    if (startWorkout()) onOpenActive();
   };
   return (
     <div className="px-5 space-y-4">
@@ -346,16 +337,11 @@ function WorkoutsTab() {
 }
 
 function TemplatesSection({ onWorkoutStarted }: { onWorkoutStarted?: () => void }) {
-  const { set } = useStore();
+  const { startWorkout } = useStore();
   const [detail, setDetail] = useState<string | null>(null);
   const startTemplate = (tid: string) => {
     const t = WORKOUT_TEMPLATES.find(x => x.id === tid); if (!t) return;
-    set(s => ({ ...s, activeWorkout: {
-      id: uid(), name: t.name, startedAt: Date.now(), templateId: t.id,
-      exercises: t.exercises.map(te => ({ id: uid(), exerciseId: te.exerciseId, completed: false,
-        sets: Array.from({ length: te.sets }, () => ({ id: uid(), modifier: "normal" as const, completed: false })) })),
-    }}));
-    onWorkoutStarted?.();
+    if (startWorkout(t)) onWorkoutStarted?.();
   };
   const active = detail ? WORKOUT_TEMPLATES.find(t => t.id === detail) : null;
   return (
@@ -471,10 +457,16 @@ function HistorySection() {
         {w && (
           <>
             <p className="text-xs text-muted-foreground mb-3">{new Date(w.startedAt).toLocaleString()}</p>
+            {w.notes && <p className="text-sm whitespace-pre-wrap mb-3">{w.notes}</p>}
             <div className="space-y-2">
               {w.exercises.map(ex => (
                 <Card key={ex.id}>
-                  <p className="font-semibold text-sm">{exerciseById(ex.exerciseId)?.name}</p>
+                  <p className="font-semibold text-sm">
+                    {exerciseById(ex.exerciseId)?.name ??
+                      state.customExercises.find(custom => custom.id === ex.exerciseId)?.name ??
+                      "Exercise"}
+                  </p>
+                  {ex.notes && <p className="text-xs whitespace-pre-wrap mt-1">{ex.notes}</p>}
                   <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                     {ex.sets.map((st, i) => <div key={st.id}>Set {i+1}: {st.weight ?? "—"}lb × {st.reps ?? "—"} {st.completed ? "✓" : ""}</div>)}
                   </div>
