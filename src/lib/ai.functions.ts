@@ -72,7 +72,7 @@ const providerOptionsSchema = z.object({
 const toolDescriptorSchema = z.object({
   name: z.string(),
   description: z.string(),
-  parameters: z.record(z.unknown()),
+  parameters: z.record(z.string(), z.unknown()),
 });
 
 const chatInputSchema = providerOptionsSchema.extend({
