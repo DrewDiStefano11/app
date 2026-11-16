@@ -1,7 +1,30 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+function keepDialogFocus(event: KeyboardEvent<HTMLDivElement>, onClose: () => void) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    onClose();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>(
+    "button, a[href], input, select, textarea, [tabindex]",
+  )].filter((element) => element.tabIndex >= 0 && !element.matches(":disabled") && element.getClientRects().length);
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (!first) {
+    event.preventDefault();
+  } else if (event.shiftKey && (event.target === first || event.target === event.currentTarget)) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && event.target === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
 
 export function BottomSheet({
   open,
@@ -39,29 +62,6 @@ export function BottomSheet({
     };
   }, [open, manageFocus]);
 
-  const keepFocus = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onClose();
-      return;
-    }
-    if (event.key !== "Tab") return;
-    const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>(
-      "button, a[href], input, select, textarea, [tabindex]",
-    )].filter((element) => element.tabIndex >= 0 && !element.matches(":disabled") && element.getClientRects().length);
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (!first) {
-      event.preventDefault();
-    } else if (event.shiftKey && (event.target === first || event.target === event.currentTarget)) {
-      event.preventDefault();
-      last.focus();
-    } else if (!event.shiftKey && event.target === last) {
-      event.preventDefault();
-      first.focus();
-    }
-  };
-
   if (!open) return null;
   const section = typeof document !== "undefined" ? document.querySelector('.phone-shell')?.getAttribute('data-section') || 'home' : 'home';
   return createPortal(
@@ -76,7 +76,7 @@ export function BottomSheet({
         aria-label={manageFocus ? title : undefined}
         aria-modal={manageFocus || undefined}
         tabIndex={manageFocus ? -1 : undefined}
-        onKeyDown={manageFocus ? keepFocus : undefined}
+        onKeyDown={manageFocus ? (event) => keepDialogFocus(event, onClose) : undefined}
         className={cn(
           "sheet-surface relative w-full max-w-[480px] mx-auto rounded-t-[var(--radius-modal)] animate-in slide-in-from-bottom duration-300 overflow-hidden",
           height === "tall" && "max-h-[88dvh]",
@@ -116,6 +116,7 @@ export function ConfirmDialog({
   message,
   confirmLabel = "Confirm",
   destructive,
+  manageFocus = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -124,7 +125,20 @@ export function ConfirmDialog({
   message: string;
   confirmLabel?: string;
   destructive?: boolean;
+  manageFocus?: boolean;
 }) {
+  const cancel = useRef<HTMLButtonElement>(null);
+  const descriptionId = useId();
+
+  useEffect(() => {
+    if (!open || !manageFocus) return;
+    const previous = document.activeElement;
+    cancel.current?.focus({ preventScroll: true });
+    return () => {
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, [open, manageFocus]);
+
   if (!open) return null;
   const section = typeof document !== "undefined" ? document.querySelector('.phone-shell')?.getAttribute('data-section') || 'home' : 'home';
   return createPortal(
@@ -133,11 +147,17 @@ export function ConfirmDialog({
         className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md"
         onClick={onClose}
       />
-      <div className="sheet-surface relative w-full max-w-sm rounded-[var(--radius-modal)] p-5">
+      <div className="sheet-surface relative w-full max-w-sm rounded-[var(--radius-modal)] p-5"
+        role={manageFocus ? "alertdialog" : undefined}
+        aria-modal={manageFocus || undefined}
+        aria-label={manageFocus ? title : undefined}
+        aria-describedby={manageFocus ? descriptionId : undefined}
+        onKeyDown={manageFocus ? (event) => keepDialogFocus(event, onClose) : undefined}>
         <h3 className="font-semibold text-lg text-white">{title}</h3>
-        <p className="text-sm text-white/70 mt-2">{message}</p>
+        <p id={descriptionId} className="text-sm text-white/70 mt-2">{message}</p>
         <div className="mt-5 flex gap-2 border-t border-white/[0.06] pt-4">
           <button
+            ref={cancel}
             onClick={onClose}
             className="btn-control flex-1 px-4 py-2.5 rounded-xl border border-white/15 bg-white/5 font-medium text-white"
           >
