@@ -32,6 +32,9 @@ const ALL_MUSCLES: MuscleGroup[] = [
   "quads", "hamstrings", "glutes", "calves", "core", "cardio",
 ];
 
+const DEFAULT_REST_SECONDS = 90;
+const MAX_REST_SECONDS = 24 * 60 * 60;
+
 function fmtTime(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(s / 3600);
@@ -70,6 +73,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
   const { state, set, persistenceRequiresReload } = useStore();
   const w = state.activeWorkout!;
   const now = useNow(1000);
+  const restRemaining = Math.max(0, Math.ceil(((w.restEndsAt ?? 0) - Math.max(now, Date.now())) / 1000));
 
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const [exercisePicker, setExercisePicker] = useState(false);
@@ -128,8 +132,28 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const updateExercise = (id: string, fn: (e: WorkoutExercise) => WorkoutExercise) =>
-    updateActive(w => ({ ...w, exercises: w.exercises.map(x => x.id === id ? fn(x) : x) }));
+  const updateExercise = (
+    id: string, edit: (exercise: WorkoutExercise) => WorkoutExercise, editedSetId?: string,
+  ) => updateActive(workout => {
+    const current = workout.exercises.find(exercise => exercise.id === id);
+    if (!current) return workout;
+    const next = edit(current);
+    const editedSet = editedSetId ? next.sets.find(set => set.id === editedSetId) : undefined;
+    const previousSet = editedSetId ? current.sets.find(set => set.id === editedSetId) : undefined;
+    const restSeconds = Math.min(current.target?.rest ?? DEFAULT_REST_SECONDS, MAX_REST_SECONDS);
+    const loggedSetKeys = workout.restLoggedSetKeys ?? [];
+    const setKey = editedSetId ? JSON.stringify([current.id, editedSetId]) : undefined;
+    const firstSetEdit = previousSet && editedSet && setKey && !loggedSetKeys.includes(setKey);
+    const rememberSet = firstSetEdit && (previousSet.completed || editedSet.completed);
+    const startRest = restSeconds > 0 && firstSetEdit && !previousSet.completed &&
+      editedSet.completed && editedSet.durationMin == null;
+    return {
+      ...workout,
+      ...(startRest ? { restEndsAt: Date.now() + Math.round(restSeconds * 1000) } : {}),
+      ...(rememberSet ? { restLoggedSetKeys: [...loggedSetKeys, setKey] } : {}),
+      exercises: workout.exercises.map(exercise => exercise.id === id ? next : exercise),
+    };
+  });
 
   const moveExercise = (id: string, dir: -1 | 1) =>
     updateActive(w => {
@@ -201,6 +225,31 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
             <X size={18} />
           </button>
         </div>
+        <div className="flex min-h-10 items-center justify-between gap-2 px-5 pb-2 text-sm">
+          {restRemaining > 0 ? (
+            <>
+              <span className="flex items-center gap-2 text-muted-foreground">
+                Rest <span role="timer" aria-label="Rest timer" className="font-mono tabular-nums text-foreground">
+                  {Math.floor(restRemaining / 60)}:{String(restRemaining % 60).padStart(2, "0")}
+                </span>
+              </span>
+              <GhostButton className="py-1 text-xs" disabled={!!pendingEdit}
+                onClick={() => updateActive(workout => {
+                  const next = { ...workout };
+                  delete next.restEndsAt;
+                  return next;
+                })}>Stop rest timer</GhostButton>
+            </>
+          ) : (
+            <>
+              {w.restEndsAt != null && <span role="status" className="text-muted-foreground">Rest complete</span>}
+              <GhostButton className="ml-auto py-1 text-xs" disabled={!!pendingEdit}
+                onClick={() => updateActive(workout => ({ ...workout, restEndsAt: Date.now() + DEFAULT_REST_SECONDS * 1000 }))}>
+                <TimerIcon size={14} />Start rest timer
+              </GhostButton>
+            </>
+          )}
+        </div>
         {pendingEdit && (
           <div role="alert" className="px-5 pb-3 text-sm">
             <h3 className="font-semibold text-destructive">Workout edit could not be saved</h3>
@@ -245,7 +294,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
             onMove={dir => moveExercise(we.id, dir)}
             onDelete={() => updateActive(w => ({ ...w, exercises: w.exercises.filter(x => x.id !== we.id) }))}
             onComplete={() => toggleExerciseComplete(we.id)}
-            onChange={fn => updateExercise(we.id, fn)}
+            onChange={(edit, setId) => updateExercise(we.id, edit, setId)}
             onOpenPlate={() => setPlateFor(we.id)}
           />
         ))}
@@ -315,7 +364,7 @@ function ExerciseCard({
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
   onComplete: () => void;
-  onChange: (fn: (e: WorkoutExercise) => WorkoutExercise) => void;
+  onChange: (fn: (e: WorkoutExercise) => WorkoutExercise, editedSetId?: string) => void;
   onOpenPlate: () => void;
 }) {
   const tags = we.exerciseTags ?? [];
@@ -484,7 +533,7 @@ function ExerciseCard({
                     next.completed = isDone(next);
                     return next;
                   }),
-                }))}
+                }), st.id)}
                 onDelete={() => onChange(e => ({ ...e, sets: e.sets.filter(s => s.id !== st.id) }))}
               />
             ))}
@@ -881,9 +930,12 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
           );
         }
       }
+      const completed = { ...s.activeWorkout, endedAt: Date.now(), notes: notes || undefined };
+      delete completed.restEndsAt;
+      delete completed.restLoggedSetKeys;
       return {
         ...s,
-        workouts: [...s.workouts, { ...s.activeWorkout, endedAt: Date.now(), notes: notes || undefined }],
+        workouts: [...s.workouts, completed],
         workoutTemplates,
         activeWorkout: null,
         prs,
