@@ -1,3 +1,4 @@
+import { STORED_GEMINI_MODELS, STORED_GROQ_MODELS } from "./jarvis/provider-models";
 import { MAX_WORKOUT_TEMPLATE_SETS } from "./data";
 import { BENCH_PROGRAM } from "./bench-program";
 
@@ -1628,6 +1629,7 @@ function validateJarvisSettings(context: ValidationContext, value: PlainRecord):
     "autoModelRouting",
     "autoAiFallback",
     "allowGeminiFallback",
+    "allowCloudText",
     "autoLogSupplements",
     "autoLogBodyweight",
     "askBeforeMealEstimates",
@@ -1656,9 +1658,9 @@ function validateJarvisSettings(context: ValidationContext, value: PlainRecord):
     ["proactive", ["off", "low", "normal", "high"]],
     ["aiProvider", ["groq", "gemini", "legacy-lovable"]],
     ["geminiKeyMode", ["local", "environment", "user"]],
-    ["geminiModel", ["gemini-2.5-flash-lite", "gemini-2.5-flash"]],
+    ["geminiModel", STORED_GEMINI_MODELS],
     ["groqKeyMode", ["local", "environment", "user"]],
-    ["groqModel", ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen/qwen3-32b"]],
+    ["groqModel", STORED_GROQ_MODELS],
     ["foodEstimateDetail", ["simple", "normal", "detailed"]],
     ["weeklyReviewDay", ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]],
   ];

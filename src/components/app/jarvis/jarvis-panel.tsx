@@ -94,7 +94,7 @@ function friendlyAssistantContent(content: string, toolResults: RenderedMsg["too
   return (toolResults ?? []).map(item => item.result.summary).filter(Boolean).join("\n");
 }
 
-function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section: string, contextSummary: string): string {
+function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section: string): string {
   const s = state.jarvisSettings;
   const styleLine = s.responseStyle === "concise" ? "Keep replies under 40 words." : s.responseStyle === "detailed" ? "Be thorough but organized." : "Be clear and brief (under 100 words).";
   const personaLine = ({
@@ -109,13 +109,6 @@ function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section
     3: "Permission: AUTO-LOG SIMPLE. Clear supplements/bodyweight can auto-save. Uncertain meals/workouts still confirm.",
     4: "Permission: FULL CONTROL. Auto-apply low-risk; still confirm destructive/recurring/active-workout changes.",
   }[s.permission];
-  const p = state.userGoalsProfile;
-  const usualLine = [
-    p.usualBreakfast && `breakfast: ${p.usualBreakfast}`,
-    p.usualLunch && `lunch: ${p.usualLunch}`,
-    p.usualDinner && `dinner: ${p.usualDinner}`,
-    p.usualProteinShake && `shake: ${p.usualProteinShake}`,
-  ].filter(Boolean).join("; ");
   return [
     "You are Jarvis, the AI control layer for the user's FitCore fitness app.",
     "You ONLY mutate app data via the provided tools. Never claim to log something without a tool call.",
@@ -131,8 +124,7 @@ function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section
     "When uncertain, ask one short follow-up question. Never diagnose. Red-flag symptoms -> recommend medical care.",
     personaLine, styleLine, permLine,
     `Section: ${section}.`,
-    usualLine ? `User's usual meals - ${usualLine}.` : "",
-    "User context:", contextSummary,
+    "Use tool results for logged facts. If you have no verified result, say what is missing.",
   ].filter(Boolean).join("\n");
 }
 
@@ -152,7 +144,7 @@ function shouldAutoRun(name: string, args: Record<string, unknown>, settings: Re
   return false;
 }
 
-export function JarvisPanel({ section, contextSummary }: { section: string; contextSummary: string }) {
+export function JarvisPanel({ section }: { section: string }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -184,15 +176,26 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
       sendingRef.current = false;
       return;
     }
+    if (settings.allowCloudText !== true || stateRef.current.demoMode) {
+      setMessages(m => [...m, {
+        id: uid(), role: "assistant", createdAt: Date.now(),
+        content: stateRef.current.demoMode
+          ? "Cloud text is unavailable in demo mode."
+          : "To send this message, enable cloud text in Settings > Jarvis AI.",
+      }]);
+      sendingRef.current = false;
+      return;
+    }
     setInput("");
     setSending(true);
     const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now() };
     setMessages(m => [...stripToolCards(m), userMsg]);
 
     try {
-      const recent = [{ role: userMsg.role, content: userMsg.content }];
+      const recent = [...messages.filter(message => message.role === "user").slice(-4), userMsg]
+        .map(message => ({ role: "user" as const, content: message.content.slice(0, 4_096) }));
       const tools = settings.permission === 1 ? TOOL_SPECS.filter(t => t.name.startsWith("get")) : TOOL_SPECS;
-      const sysPrompt = jarvisSystemPrompt(stateRef.current, section, contextSummary);
+      const sysPrompt = jarvisSystemPrompt(stateRef.current, section);
       const savedGeminiKey = readSavedKey(GEMINI_KEY_STORAGE);
       const savedGroqKey = readSavedKey(GROQ_KEY_STORAGE);
       const res = await chatFn({ data: {
@@ -203,17 +206,18 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         provider: settings.aiProvider ?? "groq",
         geminiKeyMode: normalizedKeyMode(settings.geminiKeyMode),
         geminiModel: settings.geminiModel,
-        userGeminiApiKey: savedGeminiKey || undefined,
+        userGeminiApiKey: (settings.aiProvider === "gemini" || settings.allowGeminiFallback) && savedGeminiKey ? savedGeminiKey : undefined,
         groqKeyMode: normalizedKeyMode(settings.groqKeyMode),
-        groqModel: settings.groqModel ?? "qwen/qwen3-32b",
-        userGroqApiKey: savedGroqKey || undefined,
+        groqModel: settings.groqModel,
+        userGroqApiKey: settings.aiProvider === "groq" && savedGroqKey ? savedGroqKey : undefined,
         autoModelRouting: settings.autoModelRouting !== false,
-        autoAiFallback: settings.autoAiFallback !== false,
+        autoAiFallback: settings.autoAiFallback === true,
         allowGeminiFallback: Boolean(settings.allowGeminiFallback),
       } }) as ChatResp;
       recordDiagnostics(res.diagnostics);
 
       if (!res.ok) {
+        setInput(value => value || content);
         setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${res.error}`, createdAt: Date.now() }]);
         return;
       }
@@ -233,13 +237,14 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
 
       const assistantContent = friendlyAssistantContent(res.content, toolResults) || (toolResults.length ? "" : "I couldn't complete that request.");
       setMessages(m => [...m, { id: uid(), role: "assistant", content: assistantContent, toolResults, createdAt: Date.now() }]);
-    } catch (err) {
-      setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${err instanceof Error ? err.message : "Jarvis failed"}`, createdAt: Date.now() }]);
+    } catch {
+      setInput(value => value || content);
+      setMessages(m => [...m, { id: uid(), role: "assistant", content: "Jarvis could not complete the request. Try again.", createdAt: Date.now() }]);
     } finally {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [settings, chatFn, set, section, contextSummary]);
+  }, [settings, chatFn, messages, set, section]);
 
   useEffect(() => {
     const handleCompose = (event: Event) => {

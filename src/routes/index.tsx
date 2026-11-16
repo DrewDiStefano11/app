@@ -11,7 +11,6 @@ import { RecoveryView } from "@/components/app/views/recovery";
 import { ProgressView } from "@/components/app/views/progress";
 import { SettingsView } from "@/components/app/views/settings";
 import { Onboarding } from "@/components/app/views/onboarding";
-import { buildAICoachContext } from "@/lib/fitcore-data";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import type { SectionId } from "@/lib/types";
 
@@ -99,8 +98,6 @@ function FitCoreApp() {
     );
   }
 
-  const contextSummary = buildAICoachContext(view, displayedSection);
-
   return (
     <div className="phone-shell" data-section={displayedSection} key={displayedSection}>
       {storageMessage}
@@ -135,7 +132,7 @@ function FitCoreApp() {
         )}
       </div>
 
-      <JarvisPanel section={displayedSection} contextSummary={contextSummary} />
+      <JarvisPanel section={displayedSection} />
       <JarvisUndoSnackbar />
       {!hasActiveWorkout && (
         <BottomNav
