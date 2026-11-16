@@ -14,6 +14,7 @@ import {
   defaultJarvisSettings,
   type AppState,
   type Personalization,
+  type Workout,
 } from "./types";
 import { MAX_WORKOUT_TEMPLATE_SETS, type WorkoutTemplate } from "./data";
 import { buildDemoState } from "./demo-data";
@@ -76,7 +77,7 @@ interface Ctx {
   /** Effective state: merges demo data when demoMode is true. Real data is never overwritten. */
   view: AppState;
   set: (u: Updater) => boolean;
-  startWorkout: (template?: WorkoutTemplate) => boolean;
+  startWorkout: (template?: WorkoutTemplate, assignment?: Pick<Workout, "routineId" | "routineDayId">) => boolean;
   reset: () => void;
   exportJson: () => string;
   importJson: (text: string) => boolean;
@@ -180,7 +181,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   // Every manual and Jarvis mutation passes through this boundary. Normalizing
   // here keeps all screens, summaries, history, and recovery signals connected.
   const set = apply;
-  const startWorkout = useCallback((template?: WorkoutTemplate) => {
+  const startWorkout = useCallback((template?: WorkoutTemplate, assignment?: Pick<Workout, "routineId" | "routineDayId">) => {
     if (stateRef.current.activeWorkout) return true;
     if (template && template.exercises.reduce((sum, row) => sum + row.sets, 0) > MAX_WORKOUT_TEMPLATE_SETS) return false;
     return apply((current) => ({
@@ -190,6 +191,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         name: template?.name ?? "Workout",
         startedAt: Date.now(),
         templateId: template?.id,
+        ...assignment,
         exercises: template?.exercises.map(({ exerciseId, ...target }) => ({
           id: uid(),
           exerciseId,

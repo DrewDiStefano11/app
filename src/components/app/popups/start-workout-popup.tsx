@@ -1,5 +1,7 @@
 import { BottomSheet } from "../sheet";
 import { useStore } from "@/lib/store";
+import { activeRoutineSession } from "@/lib/training-routines";
+import type { Workout } from "@/lib/types";
 import { availableWorkoutTemplates, exerciseById, type WorkoutTemplate } from "@/lib/data";
 import { Play, Plus, Dumbbell } from "lucide-react";
 import { benchProgramWeek, configuredBenchDay, scheduledBenchDay, workoutForBenchDay } from "@/lib/bench-program";
@@ -9,11 +11,12 @@ export function StartWorkoutSheet({ open, onClose, onStarted }: {
 }) {
   const { state, startWorkout } = useStore();
   const date = new Date();
+  const custom = activeRoutineSession(state, date);
   const day = configuredBenchDay(scheduledBenchDay(date), state.workoutTemplates);
   const confirmed = state.workoutTemplates.find(row => row.id === day.id)?.pausedBenchConfirmed ?? false;
 
-  const start = (template?: WorkoutTemplate) => {
-    if (!startWorkout(template)) return;
+  const start = (template?: WorkoutTemplate, assignment?: Pick<Workout, "routineId" | "routineDayId">) => {
+    if (!startWorkout(template, assignment)) return;
     onClose();
     onStarted();
   };
@@ -21,7 +24,12 @@ export function StartWorkoutSheet({ open, onClose, onStarted }: {
   return (
     <BottomSheet open={open} onClose={onClose} title="Start Workout" height="tall">
       <div className="space-y-3">
-        {day.exercises.length > 0 && <button type="button" onClick={() => start(workoutForBenchDay(day, benchProgramWeek(date), confirmed))}
+        {custom?.day && custom.template && <button type="button"
+          onClick={() => start(custom.template, { routineId: custom.routine.id, routineDayId: custom.day?.id })}
+          className="w-full p-4 rounded-2xl tile press flex items-center gap-3 text-left">
+          <Play size={20} />Start {custom.template.name}
+        </button>}
+        {!custom && day.exercises.length > 0 && <button type="button" onClick={() => start(workoutForBenchDay(day, benchProgramWeek(date), confirmed))}
           className="w-full p-4 rounded-2xl tile press flex items-center gap-3 text-left">
           <Play size={20} />
           <span><strong className="block">Start {day.name}</strong><span className="text-xs text-muted-foreground">{day.goal}</span></span>

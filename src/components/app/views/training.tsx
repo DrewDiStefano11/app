@@ -9,7 +9,7 @@ import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chi
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { ActiveWorkoutView } from "@/components/app/active-workout";
 import { WorkoutTemplateEditor } from "@/components/app/workout-template-editor";
-import { BenchProgram } from "@/components/app/bench-program";
+import { TrainingProgram } from "@/components/app/training-program";
 import { formatWorkoutTarget } from "@/lib/bench-program";
 
 type TrainingPanel = "templates" | "cardio" | "history" | "performance" | null;
@@ -51,7 +51,7 @@ export function TrainingView({
         </div>
       )}
       {layoutMode === "deepDive" && <>
-        <div className="px-5 mb-4"><BenchProgram onStart={onOpenActive} /></div>
+        <div className="px-5 mb-4"><TrainingProgram onStart={onOpenActive} /></div>
         <SubTabs tabs={DEEP_DIVE_TABS} active={tab} onChange={setTab} />
       </>}
 
@@ -144,7 +144,7 @@ function DailyTrainingView({
         </div>
       </div>
 
-      <BenchProgram onStart={onOpenActive} />
+      <TrainingProgram onStart={onOpenActive} />
       <section>
         <SectionHeader title="Quick start" />
         <div className="grid grid-cols-2 gap-2">

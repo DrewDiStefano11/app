@@ -695,6 +695,8 @@ function validateWorkout(
     "restEndsAt",
     "restLoggedSetKeys",
     "templateId",
+    "routineId",
+    "routineDayId",
     "notes",
     "provenance",
   ]);
@@ -728,6 +730,8 @@ function validateWorkout(
     });
   }
   validateOptionalString(context, record, location, "templateId");
+  validateOptionalString(context, record, location, "routineId");
+  validateOptionalString(context, record, location, "routineDayId");
   validateOptionalString(context, record, location, "notes");
   validateOptionalProvenance(context, record, location);
   if (!Object.hasOwn(record, "exercises")) return;
@@ -1423,6 +1427,35 @@ function validateReminders(context: ValidationContext, value: PlainRecord): void
   });
 }
 
+function validateTrainingRoutine(context: ValidationContext, record: PlainRecord, location: RecordLocation) {
+  const fields = ["id", "name", "mode", "days"];
+  missingFields(context, record, location, fields);
+  unknownFields(context, record, location, [...fields, "enabled"]);
+  for (const field of ["id", "name"])
+    if (Object.hasOwn(record, field)) validateString(context, record[field], location, field, { requiredNonEmpty: true });
+  if (Object.hasOwn(record, "mode")) validateEnum(context, record.mode, location, "mode", ["weekly", "rotation"]);
+  validateOptionalBoolean(context, record, location, "enabled");
+  if (!Array.isArray(record.days) || record.days.length === 0) {
+    context.add("invalid_field_type", "error", fieldPath(location, "days"), { collection: location.collection, field: "days" });
+    return;
+  }
+  const scope = fieldPath(location, "days");
+  record.days.forEach((day, index) => {
+    validateObjectRecord(context, day, location.collection, `${scope}[${index}]`, (context, row, location) => {
+      const fields = record.mode === "weekly" ? ["id", "templateId", "weekday"] : ["id", "templateId"];
+      missingFields(context, row, location, fields);
+      unknownFields(context, row, location, fields);
+      for (const field of ["id", "templateId"])
+        if (Object.hasOwn(row, field)) validateString(context, row[field], location, field, { requiredNonEmpty: true });
+      context.registerId(scope, row.id, fieldPath(location, "id"));
+      if (record.mode === "weekly" && Object.hasOwn(row, "weekday")) {
+        validateNumber(context, row.weekday, location, "weekday", { min: 0, max: 6, integer: true });
+        if (typeof row.weekday === "number") context.registerId(`${scope}.weekday`, String(row.weekday), fieldPath(location, "weekday"));
+      }
+    });
+  });
+}
+
 function validatePersonalization(context: ValidationContext, value: PlainRecord): void {
   const allowed = [
     "themeAccent",
@@ -1434,6 +1467,7 @@ function validatePersonalization(context: ValidationContext, value: PlainRecord)
     "aiResponseLength",
     "uiComplexity",
     "showAdvancedStats",
+    "trainingRoutine",
   ];
   validateClosedObject(context, value, "personalization", [], allowed, (record, location) => {
     const enums: [string, readonly string[]][] = [
@@ -1447,6 +1481,9 @@ function validatePersonalization(context: ValidationContext, value: PlainRecord)
       if (Object.hasOwn(record, field))
         validateEnum(context, record[field], location, field, values);
     validateOptionalBoolean(context, record, location, "showAdvancedStats");
+    if (Object.hasOwn(record, "trainingRoutine")) {
+      validateObjectRecord(context, record.trainingRoutine, location.collection, fieldPath(location, "trainingRoutine"), validateTrainingRoutine);
+    }
     if (Object.hasOwn(record, "defaultGraphModes") && !isPlainRecord(record.defaultGraphModes))
       context.add("invalid_field_type", "error", fieldPath(location, "defaultGraphModes"), {
         collection: location.collection,
