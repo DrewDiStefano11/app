@@ -9,6 +9,7 @@ const testProductionBuild = process.env.FITCORE_TEST_PRODUCTION_BUILD === '1';
  */
 export default defineConfig({
   testDir: './tests/e2e',
+  testIgnore: testProductionBuild ? undefined : '**/workout-offline-reopen.spec.ts',
   /* Run tests in files in parallel */
   fullyParallel: false,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
