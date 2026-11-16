@@ -7,6 +7,7 @@ import { useStore, uid, e1RM } from "@/lib/store";
 import { DEFAULT_REST_SECONDS, restTimerAfterSet } from "@/lib/active-workout-state";
 import { applyWorkoutPersonalRecords, workoutPersonalRecords } from "@/lib/workout-personal-records";
 import { downloadFitCoreBackup } from "@/lib/fitcore-backup-download";
+import { isDefaultManualProvenance } from "@/lib/fitcore-data";
 import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, tracksWorkoutMinutes, type Exercise, type MuscleGroup } from "@/lib/data";
 import { BENCH_PROGRAM_ID, formatWorkoutTarget } from "@/lib/bench-program";
 import type {
@@ -85,6 +86,60 @@ function WorkoutBackupButton() {
   );
 }
 
+const EXERCISE_FIELDS = new Set([
+  "id", "exerciseId", "sets", "notes", "completed", "exerciseTags", "target", "provenance",
+]);
+const SET_FIELDS = new Set([
+  "id", "reps", "weight", "durationMin", "distanceMi", "modifier", "completed", "provenance",
+]);
+
+function workoutActivityIds(audit: AppState["jarvisAudit"], workout: Workout) {
+  const ids = new Set(audit.flatMap((entry) => entry.entityIds ?? []));
+  for (const entry of audit) {
+    if (entry.entityKind !== "activeSetDelete" || entry.undone) continue;
+    const patch = entry.patch as { exerciseEntryId?: unknown; exerciseId?: unknown } | undefined;
+    if (typeof patch?.exerciseEntryId === "string" && patch.exerciseEntryId) {
+      ids.add(patch.exerciseEntryId);
+    } else if (typeof patch?.exerciseId === "string") {
+      for (const exercise of workout.exercises) {
+        if (exercise.exerciseId === patch.exerciseId) ids.add(exercise.id);
+      }
+    }
+  }
+  for (const key of workout.restLoggedSetKeys ?? []) {
+    try {
+      const pair: unknown = JSON.parse(key);
+      if (Array.isArray(pair) && typeof pair[0] === "string" && typeof pair[1] === "string") {
+        ids.add(pair[0]);
+      }
+    } catch {
+      // Legacy markers that do not identify an exercise cannot protect a specific row.
+    }
+  }
+  return ids;
+}
+
+function hasExerciseLog(exercise: WorkoutExercise, activityIds: ReadonlySet<string>) {
+  return (
+    activityIds.has(exercise.id) ||
+    exercise.completed ||
+    Boolean(exercise.notes || exercise.exerciseTags?.length) ||
+    (exercise.provenance !== undefined && !isDefaultManualProvenance(exercise.provenance)) ||
+    Object.keys(exercise).some((key) => !EXERCISE_FIELDS.has(key)) ||
+    exercise.sets.some((set) =>
+      activityIds.has(set.id) ||
+      set.completed ||
+      set.weight !== undefined ||
+      set.reps !== undefined ||
+      set.durationMin !== undefined ||
+      set.distanceMi !== undefined ||
+      (set.modifier !== undefined && set.modifier !== "normal") ||
+      (set.provenance !== undefined && !isDefaultManualProvenance(set.provenance)) ||
+      Object.keys(set).some((key) => !SET_FIELDS.has(key)),
+    )
+  );
+}
+
 export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
   const { state, set, persistenceRequiresReload } = useStore();
   const w = state.activeWorkout!;
@@ -92,7 +147,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
   const restRemaining = Math.max(0, Math.ceil(((w.restEndsAt ?? 0) - Math.max(now, Date.now())) / 1000));
 
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
-  const [exercisePicker, setExercisePicker] = useState(false);
+  const [exercisePicker, setExercisePicker] = useState<"add" | { rowId: string } | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -132,9 +187,9 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
     return saved;
   };
 
-  const updateActive = (fn: (w: Workout) => Workout, onDiscard?: () => void) =>
+  const updateActive = (fn: (workout: Workout, state: AppState) => Workout, onDiscard?: () => void) =>
     !pendingEdit && commitEdit({
-      apply: (s, activeWorkout) => ({ ...s, activeWorkout: fn(activeWorkout) }),
+      apply: (s, activeWorkout) => ({ ...s, activeWorkout: fn(activeWorkout, s) }),
       onDiscard,
     });
 
@@ -173,17 +228,44 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
       return { ...w, exercises: arr };
     });
 
-  const addExercise = (exerciseId: string) => {
+  const selectedRow = exercisePicker && exercisePicker !== "add"
+    ? w.exercises.find((exercise) => exercise.id === exercisePicker.rowId)
+    : undefined;
+  const activityIds = useMemo(
+    () => workoutActivityIds(state.jarvisAudit, w),
+    [state.jarvisAudit, w],
+  );
+  const keepsOriginal = selectedRow !== undefined && hasExerciseLog(selectedRow, activityIds);
+  const pickerTitle = selectedRow
+    ? keepsOriginal ? "Add alternative" : "Swap exercise"
+    : "Add exercise";
+
+  const pickExercise = (exerciseId: string) => {
     const ex = findEx(exerciseId);
-    if (!ex) return;
+    if (!ex || !exercisePicker || exerciseId === selectedRow?.exerciseId) return;
     const we: WorkoutExercise = {
       id: uid(), exerciseId, completed: false, exerciseTags: [],
       sets: Array.from({ length: ("defaultSets" in ex ? ex.defaultSets : 3) || 3 }, () => ({
         id: uid(), modifier: "normal", completed: false,
       })),
     };
-    updateActive(w => ({ ...w, exercises: [...w.exercises, we] }));
-    setExercisePicker(false);
+    const rowId = exercisePicker === "add" ? null : exercisePicker.rowId;
+    const saved = updateActive((workout, current) => {
+      if (rowId === null) return { ...workout, exercises: [...workout.exercises, we] };
+      const index = workout.exercises.findIndex((exercise) => exercise.id === rowId);
+      if (index < 0) return workout;
+      const keepOriginal = hasExerciseLog(
+        workout.exercises[index],
+        workoutActivityIds(current.jarvisAudit, workout),
+      );
+      const exercises = [...workout.exercises];
+      exercises.splice(keepOriginal ? index + 1 : index, keepOriginal ? 0 : 1, we);
+      return { ...workout, exercises };
+    });
+    if (saved && rowId !== null) {
+      setOpenMap((current) => ({ ...current, [rowId]: false, [we.id]: true }));
+    }
+    setExercisePicker(null);
   };
 
   const addCustom = (c: CustomExercise) => {
@@ -291,7 +373,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
           <EmptyState title="No exercises yet" description="Add your first exercise to start logging sets."
             action={
               <div className="flex gap-2">
-                <PrimaryButton onClick={() => setExercisePicker(true)}><Plus size={16} />Add</PrimaryButton>
+                <PrimaryButton onClick={() => setExercisePicker("add")}><Plus size={16} />Add</PrimaryButton>
                 <GhostButton onClick={() => setCustomOpen(true)}>Custom</GhostButton>
               </div>
             } />
@@ -312,6 +394,8 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
             onToggle={() => toggleOpen(we.id)}
             onMove={dir => moveExercise(we.id, dir)}
             onDelete={() => updateActive(w => ({ ...w, exercises: w.exercises.filter(x => x.id !== we.id) }))}
+            onChooseAlternative={pendingEdit ? undefined : () => setExercisePicker({ rowId: we.id })}
+            keepOriginal={hasExerciseLog(we, activityIds)}
             onComplete={() => toggleExerciseComplete(we.id)}
             onChange={(edit, setId) => updateExercise(we.id, edit, setId)}
             onOpenPlate={() => setPlateFor(we.id)}
@@ -320,7 +404,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
 
         {w.exercises.length > 0 && (
           <div className="grid grid-cols-2 gap-2 pt-1">
-            <GhostButton onClick={() => setExercisePicker(true)}><Plus size={16} />Exercise</GhostButton>
+            <GhostButton onClick={() => setExercisePicker("add")}><Plus size={16} />Exercise</GhostButton>
             <GhostButton onClick={() => setCustomOpen(true)}><Sparkles size={14} />Custom</GhostButton>
           </div>
         )}
@@ -337,8 +421,14 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      <ExercisePicker open={exercisePicker} onClose={() => setExercisePicker(false)}
-        customExercises={state.customExercises} onPick={addExercise} />
+      <ExercisePicker open={exercisePicker !== null} onClose={() => setExercisePicker(null)}
+        title={pickerTitle} excludeExerciseId={selectedRow?.exerciseId}
+        description={selectedRow
+          ? keepsOriginal
+            ? "Your original exercise and its saved entries will stay in this workout."
+            : "The new exercise starts with blank sets for this workout."
+          : undefined}
+        customExercises={state.customExercises} onPick={pickExercise} />
 
       <CustomExerciseSheet open={customOpen} onClose={() => setCustomOpen(false)} onSave={addCustom} />
 
@@ -368,7 +458,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
 
 function ExerciseCard({
   we, exercise, isActive, isOpen, canMoveUp, canMoveDown,
-  previousWorkout, demoMode, programExercise, onToggle, onMove, onDelete, onComplete, onChange, onOpenPlate,
+  previousWorkout, demoMode, programExercise, onToggle, onMove, onDelete, onChooseAlternative, keepOriginal, onComplete, onChange, onOpenPlate,
 }: {
   we: WorkoutExercise;
   exercise: Exercise | CustomExercise | undefined;
@@ -382,6 +472,8 @@ function ExerciseCard({
   onToggle: () => void;
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
+  onChooseAlternative?: () => void;
+  keepOriginal: boolean;
   onComplete: () => void;
   onChange: (fn: (e: WorkoutExercise) => WorkoutExercise, editedSetId?: string) => void;
   onOpenPlate: () => void;
@@ -568,6 +660,9 @@ function ExerciseCard({
                 <Calculator size={14} />
               </GhostButton>
             )}
+            <GhostButton className="py-2 text-xs" onClick={onChooseAlternative} disabled={!onChooseAlternative}>
+              {keepOriginal ? "Add alternative" : "Swap exercise"}
+            </GhostButton>
             <button onClick={onDelete} aria-label="Remove exercise"
               className="px-3 py-2 rounded-xl border border-border text-muted-foreground hover:text-destructive">
               <Trash2 size={14} />
@@ -681,26 +776,35 @@ function SetRow({ index, st, prev, done, duration, bodyweight, armedTag, onArmed
 
 /* ===================== Exercise picker (built-in + custom) ===================== */
 
-export function ExercisePicker({ open, onClose, customExercises, onPick }: {
+export function ExercisePicker({
+  open, onClose, customExercises, onPick, title = "Add exercise", excludeExerciseId, description,
+}: {
   open: boolean; onClose: () => void;
   customExercises: CustomExercise[];
   onPick: (id: string) => void;
+  title?: string;
+  excludeExerciseId?: string;
+  description?: string;
 }) {
   const [q, setQ] = useState("");
   const all = useMemo(
     () => [...customExercises.map(c => ({ ...c, isCustom: true as const })), ...EXERCISES.map(e => ({ ...e, isCustom: false as const }))],
     [customExercises],
   );
+  const query = q.trim().toLowerCase();
   const filtered = all.filter(e =>
-    !q || e.name.toLowerCase().includes(q.toLowerCase())
-    || e.primary.some(p => String(p).toLowerCase().includes(q.toLowerCase())),
+    e.id !== excludeExerciseId && (
+      !query || e.name.toLowerCase().includes(query) ||
+      e.primary.some(p => String(p).toLowerCase().includes(query))
+    ),
   );
   return (
-    <BottomSheet open={open} onClose={onClose} title="Add exercise" height="tall">
+    <BottomSheet open={open} onClose={() => { setQ(""); onClose(); }} title={title} height="tall">
+      {description && <p className="mb-3 text-sm text-muted-foreground">{description}</p>}
       <Input placeholder="Search exercise or muscle…" value={q} onChange={e => setQ(e.target.value)} autoFocus />
       <div className="mt-3 space-y-1.5 max-h-[60dvh] overflow-y-auto">
         {filtered.map(e => (
-          <button key={e.id} onClick={() => onPick(e.id)}
+          <button key={e.id} onClick={() => { setQ(""); onPick(e.id); }}
             className="w-full text-left p-3 rounded-xl bg-[var(--surface-2)] hover:ring-1 hover:ring-[var(--section)]">
             <div className="flex items-center gap-2">
               <p className="font-medium text-sm">{e.name}</p>
