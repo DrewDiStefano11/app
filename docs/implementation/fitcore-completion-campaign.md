@@ -14,7 +14,25 @@ Baseline main is `c94398e6eee239c03d038f5f09bbf362470c6dcc`. Drew connected
 that SHA during dependency installation for CVE-2026-102989. The candidate
 pins a matching Vite 7-compatible TanStack package set with React Start
 1.168.61 and Start Server Core 1.169.40. The production URL and deployment
-ID are pending.
+ID are recorded below.
+
+## Initial production release
+
+- Production URL: [gym-app-jade-eight.vercel.app](https://gym-app-jade-eight.vercel.app).
+- Vercel project: `gym-app`, Drew Hobby. Deployment: [BDK8JdkikrNcMuxYNYVmWRJ5zSk9](https://vercel.com/drew-d611/gym-app/BDK8JdkikrNcMuxYNYVmWRJ5zSk9).
+- Release commit: `1d04ace4b5ca0fe31f5e12f94718b5daec78832f`, merged in [PR #276](https://github.com/DrewDiStefano11/app/pull/276).
+- GitHub passed 713 unit tests, 408 full Playwright tests, 14 focused
+  production-artifact mobile checks, CodeQL, build and dependency review.
+- The public HTTPS origin passed four fresh-context WebKit and mobile
+  Chromium cases. They verified onboarding, install assets, the sitemap
+  server route, set entry, resume after reload, and a single history
+  record with the expected set and note. The isolated backup round-trip
+  restored an actual synthetic workout in both engines.
+- Physical device confirmation is pending. In Safari over cellular, open
+  the production URL, choose **Share → Add to Home Screen**, enable
+  **Open as Web App** if offered, and launch from the new icon. Check
+  numeric entry, backgrounding, force-close/reopen, finish/history, and
+  **Settings → Data → Export** using a test session.
 
 ## Production backup and rollback
 
@@ -112,3 +130,34 @@ workout-release-safety settings-data-safety-lifecycle-smoke
 active-workout-lifecycle-smoke`. For the hosted smoke test, set
 `FITCORE_TEST_BASE_URL` to the verified HTTPS origin and select the
 first-use and normal workout cases from `workout-release-safety`.
+
+## Offline and volume follow-up
+
+An isolated server-connection outage test passed in iPhone-sized WebKit
+and Chromium with the revised service worker. It entered a set, closed
+the page, reopened and resumed while the origin was unavailable, finished
+the workout, then verified the same set and one saved history record
+after connectivity returned. WebKit's `setOffline` emulation returns an
+internal navigation error even for a literal service-worker response, so
+the test disconnects a local proxy instead.
+
+The release's synchronous persistence path was measured on Windows with
+Bun 1.4.4 and a synthetic, byte-counted 5 MiB storage adapter. Each
+workout contained 3 exercises and 15 completed sets.
+
+| Workouts | Sets | Bytes after two commits | Initial write | Edit | Reopen |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 15 | 8,411 | 11 ms | 9 ms | 1 ms |
+| 50 | 750 | 133,313 | 47 ms | 98 ms | 16 ms |
+| 250 | 3,750 | 650,213 | 273 ms | 489 ms | 73 ms |
+| 1,000 | 15,000 | 2,595,713 | 814 ms | 1,635 ms | 296 ms |
+| 2,000 | 30,000 | 5,227,713 | 2,115 ms | 4,220 ms | 631 ms |
+
+Expanding notes after the 2,000-workout case exceeded the injected
+quota. The controller reported `storage_error` and a fresh controller
+recovered all 2,000 unchanged workouts. These times cover the storage
+controller. Browser and physical-device latency measurements remain
+pending. The 250-workout edit exceeded the 250 ms target and large
+histories need a narrower write path.
+
+[Playwright WebKit offline emulation issue](https://github.com/microsoft/playwright/issues/42775)

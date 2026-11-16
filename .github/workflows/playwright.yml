@@ -10,8 +10,13 @@ permissions:
 
 jobs:
   test:
+    name: Playwright (${{ matrix.project }})
     timeout-minutes: 60
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [desktop-chromium, mobile-360x800, mobile-390x844]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
@@ -23,10 +28,12 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps chromium
     - name: Run Playwright tests
-      run: npm run test:e2e
+      run: npm run test:e2e -- --project "$PLAYWRIGHT_PROJECT"
+      env:
+        PLAYWRIGHT_PROJECT: ${{ matrix.project }}
     - uses: actions/upload-artifact@v4
       if: ${{ !cancelled() }}
       with:
-        name: playwright-report
+        name: playwright-report-${{ matrix.project }}
         path: playwright-report/
         retention-days: 30
