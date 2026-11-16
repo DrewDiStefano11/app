@@ -23,6 +23,7 @@ type WhoopIntegrationConfig = {
   clientId: string;
   clientSecret: string;
   encryptionKey: string;
+  jarvisSharingEnabled?: boolean;
   fetch?: (url: string, init: RequestInit) => Promise<Response>;
   background?: {
     store: Pick<
@@ -238,6 +239,8 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
         {
           status: connection?.status ?? "disconnected",
           lastSyncedAt: connection?.lastSyncedAt ?? null,
+          jarvisSharingAvailable:
+            config.jarvisSharingEnabled === true && connection?.status === "connected",
         },
         { headers: privateHeaders },
       );
@@ -296,7 +299,12 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
     },
 
     async jarvisSnapshot(request: Request) {
-      if (request.method !== "POST" || !isSameOriginMutation(request)) return null;
+      if (
+        config.jarvisSharingEnabled !== true ||
+        request.method !== "POST" ||
+        !isSameOriginMutation(request)
+      )
+        return null;
       const session = await getSession(request);
       return session ? store.getSnapshot(session) : null;
     },

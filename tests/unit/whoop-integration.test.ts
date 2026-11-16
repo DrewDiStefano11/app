@@ -6,7 +6,7 @@ const origin = "https://fitcore.test";
 const ownerKey = Buffer.alloc(32, 42).toString("base64url");
 const ownerKeyDigest = createHash("sha256").update(ownerKey).digest("hex");
 
-function harness() {
+function harness(jarvisSharingEnabled = true) {
   let sessions = 0;
   let attemptProof: string | undefined;
   let tokenRequests = 0;
@@ -14,6 +14,7 @@ function harness() {
   const sessionByDigest = new Map<string, { id: string; ownerId: string }>();
   const integration = createWhoopIntegration({
     origin,
+    jarvisSharingEnabled,
     ownerKeyDigest,
     clientId: "synthetic-id",
     clientSecret: "synthetic-secret",
@@ -143,6 +144,15 @@ test("Jarvis can only load WHOOP metrics for an active owner session and same-or
   );
   await h.integration.jarvisSnapshot(post("/_serverFn/example", session));
   expect(h.snapshotReads).toBe(1);
+});
+
+test("Jarvis cannot load WHOOP metrics when deployment sharing is disabled", async () => {
+  const h = harness(false);
+  const login = await h.integration.session(
+    post("/api/whoop/session", undefined, new URLSearchParams({ access_key: ownerKey })),
+  );
+  expect(await h.integration.jarvisSnapshot(post("/_serverFn/example", cookie(login)))).toBeNull();
+  expect(h.snapshotReads).toBe(0);
 });
 
 test("sync and health records require an owner session, and sync rejects cross-origin requests", async () => {

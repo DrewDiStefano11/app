@@ -4,7 +4,7 @@ import { BottomSheet } from "../sheet";
 import { Chip, GhostButton } from "../ui";
 import { useStore, uid } from "@/lib/store";
 import { aiChat } from "@/lib/ai.functions";
-import { subscribeToWhoopChanges } from "@/lib/whoop/browser";
+import { subscribeToWhoopChanges, whoopApi } from "@/lib/whoop/browser";
 import { useServerFn } from "@tanstack/react-start";
 import { TOOL_SPECS, runTool, undoAuditEntry, type ToolResult } from "@/lib/jarvis/tools";
 import { ConfirmCard } from "./confirm-card";
@@ -159,6 +159,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [shareWhoop, setShareWhoop] = useState(false);
+  const [canShareWhoop, setCanShareWhoop] = useState(false);
   const [messages, setMessages] = useState<RenderedMsg[]>([]);
   const { state, set } = useStore();
   const stateRef = useRef(state);
@@ -174,7 +175,10 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   }, []);
   useEffect(() => {
     const unsubscribe = subscribeToWhoopChanges((change) => {
-      if (change === "clear") clearWhoop();
+      if (change === "clear") {
+        clearWhoop();
+        setCanShareWhoop(false);
+      }
     });
     const onVisibility = () => {
       if (document.visibilityState === "hidden") clearWhoop();
@@ -202,6 +206,20 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   }, []);
 
   const settings = state.jarvisSettings;
+  useEffect(() => {
+    if (!open || !settings.enabled) return;
+    const request = new AbortController();
+    const statusEpoch = whoopEpoch.current;
+    void fetch(whoopApi + "/status", { cache: "no-store", signal: request.signal })
+      .then(async (response) => response.ok && (await response.json()).jarvisSharingAvailable === true)
+      .then((available) => {
+        if (!request.signal.aborted && whoopEpoch.current === statusEpoch) setCanShareWhoop(available);
+      })
+      .catch(() => {
+        if (!request.signal.aborted) setCanShareWhoop(false);
+      });
+    return () => request.abort();
+  }, [open, settings.enabled]);
   const latestToolMessageId = [...messages].reverse().find(m => m.toolResults?.length)?.id;
 
   const send = useCallback(async (text: string, includeWhoop = false) => {
@@ -330,7 +348,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
 
   return (
     <>
-      <BottomSheet open={open} onClose={() => { clearWhoop(); setOpen(false); }} title="Jarvis" height="tall">
+      <BottomSheet open={open} onClose={() => { clearWhoop(); setCanShareWhoop(false); setOpen(false); }} title="Jarvis" height="tall">
         <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--surface-2)]">
             <span className={`w-1.5 h-1.5 rounded-full ${sending ? "animate-pulse" : ""}`} style={{ background: sending ? "var(--section)" : "var(--success, #10b981)" }} />
@@ -374,7 +392,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
           {SUGGESTED.map(s => <Chip key={s} onClick={() => send(s)}>{s}</Chip>)}
         </div>
 
-        {settings.enabled && (
+        {settings.enabled && canShareWhoop && (
           <label className="flex items-start gap-2 py-2 text-xs leading-relaxed">
             <input
               type="checkbox"
@@ -393,12 +411,12 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         )}
         <div className="flex gap-2 sticky bottom-0 pb-2 pt-1" style={{ background: "var(--surface)" }}>
           <input value={input} onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) void send(input, shareWhoop); }}
+            onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) void send(input, canShareWhoop && shareWhoop); }}
             placeholder="Talk to Jarvis..." className="flex-1 px-4 py-3 rounded-xl bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)]" />
           <button disabled title="Voice mode - coming in Phase 6" className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--surface-2)] text-muted-foreground opacity-60">
             <Mic size={18} />
           </button>
-          <button onClick={() => void send(input, shareWhoop)} disabled={sending || !input.trim()}
+          <button onClick={() => void send(input, canShareWhoop && shareWhoop)} disabled={sending || !input.trim()}
             aria-label="Send message"
             className="w-12 h-12 rounded-xl flex items-center justify-center text-white disabled:opacity-50"
             style={{ background: "var(--section)" }}>

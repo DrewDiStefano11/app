@@ -5,6 +5,12 @@ import {
   seedRevisionedFitCoreState,
 } from "./helpers/fitcore-test-state";
 
+test.beforeEach(async ({ page }) => {
+  await page.route("**/api/whoop/status", (route) =>
+    route.fulfill({ json: { status: "connected", jarvisSharingAvailable: true } }),
+  );
+});
+
 test("Jarvis asks permission for each WHOOP message and fails closed without the integration", async ({
   page,
 }) => {
@@ -95,8 +101,12 @@ test("WHOOP replies clear on lock and a delayed reply stays hidden after closing
   });
   await expect(reply).toHaveCount(0);
 
+  const closeJarvis = () =>
+    page.locator(".sheet-header").filter({ hasText: "Jarvis" }).getByRole("button").click();
+  await closeJarvis();
+  await showJarvis();
   await sendWithWhoop();
-  await page.locator(".sheet-header").filter({ hasText: "Jarvis" }).getByRole("button").click();
+  await closeJarvis();
   await expect(share).toHaveCount(0);
   await showJarvis();
   release();
