@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -9,13 +9,18 @@ export function BottomSheet({
   title,
   children,
   height = "auto",
+  closeLabel,
+  manageFocus = false,
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
   children: ReactNode;
   height?: "auto" | "tall" | "full";
+  closeLabel?: string;
+  manageFocus?: boolean;
 }) {
+  const surface = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) return;
     const orig = document.body.style.overflow;
@@ -24,6 +29,38 @@ export function BottomSheet({
       document.body.style.overflow = orig;
     };
   }, [open]);
+
+  useEffect(() => {
+    if (!open || !manageFocus) return;
+    const previous = document.activeElement;
+    surface.current?.focus({ preventScroll: true });
+    return () => {
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, [open, manageFocus]);
+
+  const keepFocus = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>(
+      "button, a[href], input, select, textarea, [tabindex]",
+    )].filter((element) => element.tabIndex >= 0 && !element.matches(":disabled") && element.getClientRects().length);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first) {
+      event.preventDefault();
+    } else if (event.shiftKey && (event.target === first || event.target === event.currentTarget)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && event.target === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   if (!open) return null;
   const section = typeof document !== "undefined" ? document.querySelector('.phone-shell')?.getAttribute('data-section') || 'home' : 'home';
@@ -34,6 +71,12 @@ export function BottomSheet({
         onClick={onClose}
       />
       <div
+        ref={surface}
+        role={manageFocus ? "dialog" : undefined}
+        aria-label={manageFocus ? title : undefined}
+        aria-modal={manageFocus || undefined}
+        tabIndex={manageFocus ? -1 : undefined}
+        onKeyDown={manageFocus ? keepFocus : undefined}
         className={cn(
           "sheet-surface relative w-full max-w-[480px] mx-auto rounded-t-[var(--radius-modal)] animate-in slide-in-from-bottom duration-300 overflow-hidden",
           height === "tall" && "max-h-[88dvh]",
@@ -47,6 +90,7 @@ export function BottomSheet({
           </h3>
           <button
             onClick={onClose}
+            aria-label={closeLabel}
             className="btn-control grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white press"
           >
             <X size={18} />
