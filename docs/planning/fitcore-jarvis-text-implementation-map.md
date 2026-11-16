@@ -11,3 +11,15 @@ Remote main at the audit was `6522341` (#283). PR #284 changes scoring and the c
 | Verification        | Existing persistence tests cover the core boundary.                                                                                                                                                                                         | Use synthetic records to exercise normal views, reload, backup/restore, interrupted writes and duplicate handling. Verify the production build in mobile WebKit and Chromium. Seek approval before live provider testing or releasing. |
 
 Keep photo and voice behind the text implementation and acceptance gate. WHOOP can later supply separately authorized readings through a read-only adapter.
+
+## Text acceptance evidence
+
+- Run the unit suite with `bun test tests/unit`. Verify the app with TypeScript and a local Vercel production build.
+- Run the Jarvis workout, provider and records browser tests in iPhone WebKit and mobile Chromium. Run the offline workout, rest timer and backup cases against the same build. The provider tests intercept network calls and use synthetic responses.
+- Run the data-integrity and provenance browser tests against Vite development mode. These exercise the tool boundary using synthetic records and explicit confirmation.
+
+## Pending physical iPhone check
+
+Use a FitCore preview on a separate origin. Start with an empty preview profile and synthetic workouts and meals. Open the preview in Safari, add it to the Home Screen and launch it from there. Confirm a bench set, close and reopen FitCore, and confirm that the same set appears only once in Training. Turn on airplane mode after the app has loaded, log another set, and verify it after relaunch. Finish by checking that Undo restores the original row.
+
+After authorization, use a free-tier provider project for one synthetic Groq text request that proposes a meal. Check the estimate before saving, edit a portion, and confirm the record in Nutrition. If Gemini fallback is enabled, make one additional synthetic Gemini request to verify the configured backup. Keep provider keys out of chat and source control. Record the device, browser or Home Screen launch mode, and results before promoting the text milestone.

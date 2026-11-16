@@ -60,3 +60,68 @@ test("typed bench entry reviews, saves, reloads and undoes a planned row offline
     page.getByText("Undid: Logged Barbell Bench Press: 195 lb for 4 reps"),
   ).toBeVisible();
 });
+
+test("follow-up, correction and cancel preserve the intended set rows", async ({ page }) => {
+  await seedRevisionedFitCoreState(
+    page,
+    currentFitCoreState({
+      onboardingComplete: true,
+      activeWorkout: {
+        id: "upper-a",
+        name: "Upper A",
+        startedAt: Date.now() - 30_000,
+        exercises: [
+          {
+            id: "bench-row",
+            exerciseId: "bench-press",
+            completed: false,
+            sets: [
+              { id: "set-1", completed: false },
+              { id: "set-2", completed: false },
+              { id: "set-3", completed: false },
+            ],
+          },
+          { id: "db-row", exerciseId: "db-bench", completed: false, sets: [] },
+        ],
+      },
+    }),
+  );
+  await page.getByRole("button", { name: "Open Jarvis" }).click();
+  const input = page.getByPlaceholder("Talk to Jarvis...");
+  const send = async (text: string) => {
+    await input.fill(text);
+    await input.press("Enter");
+  };
+  const save = page.getByRole("button", { name: "Save", exact: true });
+
+  await send("195 for 4");
+  await expect(page.getByText("Log Barbell Bench Press: 195 lb for 4 reps")).toBeVisible();
+  await save.evaluate((button: HTMLButtonElement) => {
+    button.click();
+    button.click();
+  });
+  await expect(page.getByText("Logged Barbell Bench Press: 195 lb for 4 reps")).toBeVisible();
+
+  await send("I did another set with the same weight.");
+  await expect(page.getByText("How many reps at 195 lb?")).toBeVisible();
+  await send("5");
+  await expect(page.getByText("Log Barbell Bench Press: 195 lb for 5 reps")).toBeVisible();
+  await save.click();
+  await expect(page.getByText("Logged Barbell Bench Press: 195 lb for 5 reps")).toBeVisible();
+
+  await send("Make that 200 instead of 195.");
+  await expect(page.getByText(/Correct Barbell Bench Press, set 2 .*200 lb/)).toBeVisible();
+  await save.click();
+  await expect(page.getByText(/Corrected Barbell Bench Press, set 2 .*200 lb/)).toBeVisible();
+
+  const prior = await readPersistedFitCoreState(page);
+  await send("195 for 4");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(await readPersistedFitCoreState(page)).toEqual(prior);
+  expect(prior.activeWorkout?.exercises[0].sets).toMatchObject([
+    { id: "set-1", completed: true, weight: 195, reps: 4 },
+    { id: "set-2", completed: true, weight: 200, reps: 5 },
+    { id: "set-3", completed: false },
+  ]);
+  expect(prior.activeWorkout?.exercises[1].sets).toEqual([]);
+});

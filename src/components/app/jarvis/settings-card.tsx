@@ -329,19 +329,15 @@ export function JarvisSettingsCard() {
             <span>Last input size</span><span>{diagSummary.last?.inputSize ?? 0}</span>
             <span>Tools/messages sent</span><span>{diagSummary.last?.toolsSent ?? 0} / {diagSummary.last?.messagesSent ?? 0}</span>
             <span>Retry/fallback count</span><span>{diagSummary.last?.retryCount ?? 0} / {diagSummary.last?.fallbackCount ?? 0}</span>
-            <span>Model cooldowns</span><span>{diagSummary.last?.fallbackReason ? `${diagSummary.last.fallbackReason} on prior model` : "none visible"}</span>
           </div>
         </div>
 
         <div>
-          <Label>Permission level</Label>
-          <Select value={String(s.permission)} onChange={e => upd({ permission: Number(e.target.value) as JarvisSettings["permission"] })}>
-            <option value="1">L1 - Suggest only</option>
-            <option value="2">L2 - Draft & confirm</option>
-            <option value="3">L3 - Auto-log simple items</option>
-            <option value="4">L4 - Full app control (with undo)</option>
+          <Label>Action permission</Label>
+          <Select value={s.permission < 2 ? "1" : "2"} onChange={e => upd({ permission: e.target.value === "1" ? 1 : 2 })}>
+            <option value="1">Read only</option>
+            <option value="2">Review changes before saving</option>
           </Select>
-          <p className="text-xs text-muted-foreground mt-1">L3 and L4 auto-save clear bodyweight / supplements; uncertain items still ask.</p>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -364,21 +360,6 @@ export function JarvisSettingsCard() {
           <Select value={s.proactive} onChange={e => upd({ proactive: e.target.value as JarvisSettings["proactive"] })}>
             <option value="off">Off</option><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option>
           </Select>
-        </div>
-
-        <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Auto-log</p>
-          <Toggle label="Auto-log clear supplements" val={s.autoLogSupplements} onChange={v => upd({ autoLogSupplements: v })} hint='"Log creatine" saves immediately.' />
-          <Toggle label="Auto-log exact bodyweight" val={s.autoLogBodyweight} onChange={v => upd({ autoLogBodyweight: v })} />
-          <Toggle label="Auto-log high-confidence meal estimates" val={s.autoLogMealEstimates} onChange={v => upd({ autoLogMealEstimates: v })} hint="Only when Jarvis is confident; vague meals still ask." />
-          <Toggle label="Auto-apply active workout suggestions" val={s.autoApplyActiveWorkoutSuggestions} onChange={v => upd({ autoApplyActiveWorkoutSuggestions: v })} hint="When off, Jarvis asks before changing an active workout." />
-        </div>
-
-        <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Confirmation</p>
-          <Toggle label="Ask before saving meal estimates" val={s.askBeforeMealEstimates} onChange={v => upd({ askBeforeMealEstimates: v })} />
-          <Toggle label="Ask before saving workouts" val={s.askBeforeWorkouts} onChange={v => upd({ askBeforeWorkouts: v })} />
-          <Toggle label="Ask before editing active workouts" val={s.askBeforeActiveWorkoutEdits} onChange={v => upd({ askBeforeActiveWorkoutEdits: v })} />
         </div>
 
         <div className="border-t border-border pt-3">

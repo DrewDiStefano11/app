@@ -4,6 +4,7 @@ import {
   GripVertical, Calculator, Pencil, Sparkles,
 } from "lucide-react";
 import { useStore, uid, e1RM } from "@/lib/store";
+import { DEFAULT_REST_SECONDS, restTimerAfterSet } from "@/lib/active-workout-state";
 import { applyWorkoutPersonalRecords, workoutPersonalRecords } from "@/lib/workout-personal-records";
 import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, tracksWorkoutMinutes, type Exercise, type MuscleGroup } from "@/lib/data";
 import { BENCH_PROGRAM_ID, formatWorkoutTarget } from "@/lib/bench-program";
@@ -32,9 +33,6 @@ const ALL_MUSCLES: MuscleGroup[] = [
   "chest", "back", "shoulders", "biceps", "triceps",
   "quads", "hamstrings", "glutes", "calves", "core", "cardio",
 ];
-
-const DEFAULT_REST_SECONDS = 90;
-const MAX_REST_SECONDS = 24 * 60 * 60;
 
 function fmtTime(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -141,17 +139,9 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
     const next = edit(current);
     const editedSet = editedSetId ? next.sets.find(set => set.id === editedSetId) : undefined;
     const previousSet = editedSetId ? current.sets.find(set => set.id === editedSetId) : undefined;
-    const restSeconds = Math.min(current.target?.rest ?? DEFAULT_REST_SECONDS, MAX_REST_SECONDS);
-    const loggedSetKeys = workout.restLoggedSetKeys ?? [];
-    const setKey = editedSetId ? JSON.stringify([current.id, editedSetId]) : undefined;
-    const firstSetEdit = previousSet && editedSet && setKey && !loggedSetKeys.includes(setKey);
-    const rememberSet = firstSetEdit && (previousSet.completed || editedSet.completed);
-    const startRest = restSeconds > 0 && firstSetEdit && !previousSet.completed &&
-      editedSet.completed && editedSet.durationMin == null;
     return {
       ...workout,
-      ...(startRest ? { restEndsAt: Date.now() + Math.round(restSeconds * 1000) } : {}),
-      ...(rememberSet ? { restLoggedSetKeys: [...loggedSetKeys, setKey] } : {}),
+      ...restTimerAfterSet(workout, current, previousSet, editedSet, Date.now()),
       exercises: workout.exercises.map(exercise => exercise.id === id ? next : exercise),
     };
   });
@@ -222,7 +212,12 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
             <span className="font-mono tabular-nums text-sm font-bold">{fmtTime(now - w.startedAt)}</span>
           </div>
           <button type="button" aria-label="Open Jarvis"
-            onClick={() => window.dispatchEvent(new Event("fitcore:open-jarvis"))}
+            onClick={() => {
+              const expanded = w.exercises.filter(isOpen);
+              window.dispatchEvent(new CustomEvent("fitcore:open-jarvis", {
+                detail: expanded.length === 1 ? { workoutId: w.id, exerciseEntryId: expanded[0].id } : undefined,
+              }));
+            }}
             className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-muted-foreground">
             <Sparkles size={18} />
           </button>

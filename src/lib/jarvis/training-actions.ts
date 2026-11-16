@@ -1,4 +1,5 @@
-import { createActiveWorkout } from "../active-workout-state";
+import { MAX_WORKOUT_TEMPLATE_SETS, exerciseById, tracksWorkoutMinutes } from "../data";
+import { createActiveWorkout, restTimerAfterSet } from "../active-workout-state";
 import { createJarvisProvenance, markProvenanceEdited } from "../fitcore-data";
 import { uid } from "../store";
 import type { SetEntry, Workout } from "../types";
@@ -50,7 +51,7 @@ export function normalizeSet(input: Record<string, unknown>, completed = true): 
 }
 
 export const trainingActions = {
-  logExerciseSet: (args, { set, state, confirmed }) => {
+  logExerciseSet: (args, { set, state, confirmed, now = new Date() }) => {
     const active = state.activeWorkout;
     if (!active) return { ok: false, summary: "Start a workout before logging a set." };
     const row = findActiveExercise(state, {
@@ -59,6 +60,14 @@ export const trainingActions = {
       exerciseEntryId: textArg(args, "exerciseEntryId"),
     });
     if (!row) return { ok: false, summary: "Which exercise in your active workout did you mean?" };
+    const exercise =
+      exerciseById(row.exerciseId) ??
+      state.customExercises.find((item) => item.id === row.exerciseId);
+    const timed = tracksWorkoutMinutes(exercise);
+    if (timed && args.durationMin === undefined)
+      return { ok: false, summary: "Enter the completed duration for this exercise." };
+    if (args.durationMin !== undefined && args.reps !== undefined)
+      return { ok: false, summary: "Review either a timed set or a rep-based set." };
     const modifier = args.modifier as SetEntry["modifier"];
     const prev = nextSetRow(row, modifier);
     const id = prev?.id ?? uid(),
@@ -78,10 +87,12 @@ export const trainingActions = {
     const sets = prev
       ? row.sets.map((item) => (item.id === id ? recorded : item))
       : [...row.sets, recorded];
+    const rest = restTimerAfterSet(active, row, prev, recorded, now.getTime());
     set((current) => ({
       ...current,
       activeWorkout: {
         ...active,
+        ...rest,
         exercises: active.exercises.map((item) =>
           item.id === row.id
             ? { ...row, sets, completed: sets.every((entry) => entry.completed) }
@@ -100,9 +111,58 @@ export const trainingActions = {
         workoutId: active.id,
         exerciseEntryId: row.id,
         next: recorded,
+        ...(rest.restLoggedSetKeys ? { restKey: rest.restLoggedSetKeys.at(-1) } : {}),
+        ...(rest.restEndsAt === undefined
+          ? {}
+          : {
+              restEndsAt: rest.restEndsAt,
+              ...(active.restEndsAt === undefined ? {} : { previousRestEndsAt: active.restEndsAt }),
+            }),
         ...(prev ? { prev } : {}),
         actionKey: actionKey("logExerciseSet", args),
       },
+      createdAt: Date.now(),
+    });
+    return { ok: true, summary, auditId };
+  },
+  addPlannedExerciseSet: (args, { state, set, confirmed }) => {
+    const active = state.activeWorkout;
+    const row = findActiveExercise(state, { exerciseEntryId: textArg(args, "exerciseEntryId") });
+    if (!active || !row) return { ok: false, summary: "Choose an active exercise to add a set." };
+    const plannedCount = row.sets.filter((item) => item.modifier !== "warmup").length;
+    if (args.expectedCount !== undefined && plannedCount !== args.expectedCount) {
+      return {
+        ok: false,
+        summary: `This exercise has ${plannedCount} working set rows. Ask to add another set if needed.`,
+      };
+    }
+    if (
+      active.exercises.reduce((sum, item) => sum + item.sets.length, 0) >= MAX_WORKOUT_TEMPLATE_SETS
+    ) {
+      return { ok: false, summary: "This workout already has the maximum number of set rows." };
+    }
+    const item: SetEntry = { id: uid(), completed: false, modifier: "normal" };
+    const auditId = uid();
+    const summary = `${confirmed ? "Added" : "Add"} one planned set to ${exerciseName(state, row)}.`;
+    set((s) => ({
+      ...s,
+      activeWorkout: {
+        ...active,
+        exercises: active.exercises.map((exercise) =>
+          exercise.id === row.id
+            ? { ...row, completed: false, sets: [...row.sets, item] }
+            : exercise,
+        ),
+      },
+    }));
+    pushAudit(set, {
+      id: auditId,
+      tool: "addPlannedExerciseSet",
+      summary,
+      status: "logged",
+      entityKind: "activeSet",
+      entityIds: [item.id],
+      patch: { workoutId: active.id, exerciseEntryId: row.id, next: item },
       createdAt: Date.now(),
     });
     return { ok: true, summary, auditId };

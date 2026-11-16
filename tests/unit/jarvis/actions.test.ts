@@ -444,3 +444,77 @@ test("a confirmed draft fills reps and preserves a weight entered manually", () 
     reps: 4,
   });
 });
+
+test("logging a timed set preserves a manually running rest timer", () => {
+  const fitcore = storageFixture();
+  const restEndsAt = Date.now() + 60_000;
+  fitcore.set((state) => ({
+    ...state,
+    activeWorkout: {
+      id: "timed",
+      name: "Conditioning",
+      startedAt: Date.now() - 1_000,
+      restEndsAt,
+      exercises: [
+        {
+          id: "stairs",
+          exerciseId: "stairs",
+          completed: false,
+          sets: [{ id: "set-1", completed: false }],
+        },
+      ],
+    },
+  }));
+  const state = fitcore.snapshot();
+  expect(
+    runTool(
+      "logExerciseSet",
+      { exerciseId: "stairs", durationMin: 20 },
+      {
+        state,
+        set: fitcore.set,
+        settings: state.jarvisSettings,
+        confirmed: true,
+      },
+    ).ok,
+  ).toBe(true);
+  expect(fitcore.reload().activeWorkout?.restEndsAt).toBe(restEndsAt);
+});
+
+test("a confirmed working set starts the same planned rest timer as the workout view", () => {
+  const fitcore = storageFixture();
+  const start = Date.now();
+  fitcore.set((state) => ({
+    ...state,
+    activeWorkout: {
+      id: "upper-a",
+      name: "Upper A",
+      startedAt: start - 1_000,
+      exercises: [
+        {
+          id: "bench-row",
+          exerciseId: "bench-press",
+          completed: false,
+          target: { reps: "4", sets: 1, rest: 120 },
+          sets: [{ id: "set-1", completed: false }],
+        },
+      ],
+    },
+  }));
+  const state = fitcore.snapshot();
+  const result = runTool(
+    "logExerciseSet",
+    { exerciseName: "bench", weight: 195, reps: 4 },
+    {
+      state,
+      set: fitcore.set,
+      settings: state.jarvisSettings,
+      confirmed: true,
+      now: new Date(start),
+    },
+  );
+  expect(result.ok).toBe(true);
+  expect(fitcore.reload().activeWorkout?.restEndsAt).toBe(start + 120_000);
+  expect(undoAuditEntry(result.auditId!, fitcore.snapshot(), fitcore.set).ok).toBe(true);
+  expect(fitcore.reload().activeWorkout?.restEndsAt).toBeUndefined();
+});

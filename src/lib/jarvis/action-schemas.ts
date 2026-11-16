@@ -52,7 +52,24 @@ const slot = z.enum([
   "postWorkout",
 ]);
 
+const workoutSet = setValues.refine(
+  (value) =>
+    value.reps !== undefined || value.durationMin !== undefined || value.distanceMi !== undefined,
+);
+const historicalExercise = z.strictObject({
+  exerciseId: id,
+  sets: z.array(workoutSet).min(1).max(100),
+  notes: notes.optional(),
+});
+const workoutPatch = nonempty({ name: label, notes });
+
 const schemas: Readonly<Record<string, z.ZodType<Record<string, unknown>>>> = {
+  logSleep: z.strictObject({
+    ...draft,
+    hours: z.number().positive().max(24),
+    quality: z.number().int().min(1).max(10),
+  }),
+  updateBodyWeight: z.strictObject({ ...draft, id, weightLb: z.number().min(40).max(700) }),
   logBodyWeight: z.strictObject({ ...log, weightLb: z.number().min(40).max(700) }),
   logSupplement: z.strictObject({ ...log, name: label, dose: label.optional() }),
   logDailyCheckIn: z.strictObject({ ...log, ...recovery }),
@@ -72,6 +89,23 @@ const schemas: Readonly<Record<string, z.ZodType<Record<string, unknown>>>> = {
   deleteMeal: z.strictObject({ ...draft, id }),
   logUsualMeal: z.strictObject({ ...draft, slot }),
   saveUsualMeal: z.strictObject({ ...draft, slot, name: label, ...macros }),
+  logWorkout: z.strictObject({
+    ...log,
+    name: label.optional(),
+    workoutType: label.optional(),
+    startedAt: z.number().int().positive().optional(),
+    endedAt: z.number().int().positive().optional(),
+    durationMin: time.optional(),
+    confidence: confidence.optional(),
+    exercises: z.array(historicalExercise).min(1).max(100),
+  }),
+  updateWorkout: z.strictObject({ ...draft, id, patch: workoutPatch }),
+  updateActiveWorkout: z.strictObject({ ...log, patch: workoutPatch }),
+  addPlannedExerciseSet: z.strictObject({
+    ...draft,
+    exerciseEntryId: id,
+    expectedCount: z.number().int().positive().max(1_000).optional(),
+  }),
   logExerciseSet: setValues
     .extend({
       ...draft,

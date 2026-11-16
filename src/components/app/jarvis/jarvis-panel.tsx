@@ -7,7 +7,7 @@ import { aiChat } from "@/lib/ai.functions";
 import { useServerFn } from "@tanstack/react-start";
 import { reserveJarvisCloudTextRequest } from "@/lib/jarvis/cloud-usage";
 import { mealItemTotals, type JarvisMealItem } from "@/lib/jarvis/meal-math";
-import { interpretJarvisText } from "@/lib/jarvis/text-commands";
+import { interpretJarvisText, type JarvisTextContext } from "@/lib/jarvis/text-commands";
 import { canProposeJarvisMutation } from "@/lib/jarvis/action-schemas";
 import { isReadOnlyJarvisTool, TOOL_SPECS, runTool, undoAuditEntry, type ToolResult } from "@/lib/jarvis/tools";
 import { ConfirmCard } from "./confirm-card";
@@ -119,7 +119,7 @@ function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section
     "USUAL MEALS: If the user says my usual/normal X, call logUsualMeal with the matching slot. If the usual is missing, ask a short follow-up.",
     "SUPPLEMENTS: 'Log creatine' -> logSupplement. Use getSupplementStatus to answer whether supplements were taken today.",
     "BODYWEIGHT: 'Log 185.4 lb' -> logBodyWeight with originalText.",
-    "WORKOUTS: For workout descriptions, call createWorkoutDraft or logWorkout with exercises/sets/start/end if available. Respect confirmation. Cardio goes through logCardio.",
+    "WORKOUTS: Only use logWorkout for an explicitly completed separate workout with actual measurements. Planned set targets are never completed sets. Ask about missing details. Cardio goes through logCardio.",
     "ACTIVE WORKOUT: Use getActiveWorkout, logExerciseSet, updateActiveWorkout, suggestActiveWorkoutChange, finishActiveWorkout, and related tools. Ask before editing unless settings allow.",
     "If the user says yes/log that after something already saved, do not call a duplicate logging tool; answer that it is already logged.",
     "When uncertain, ask one short follow-up question. Never diagnose. Red-flag symptoms -> recommend medical care.",
@@ -137,6 +137,7 @@ export function JarvisPanel({ section }: { section: string }) {
   const { state, set } = useStore();
   const stateRef = useRef(state);
   const sendingRef = useRef(false);
+  const conversation = useRef<JarvisTextContext>({});
   const resolvedDrafts = useRef(new WeakSet<object>());
   const chatFn = useServerFn(aiChat);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -144,7 +145,11 @@ export function JarvisPanel({ section }: { section: string }) {
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [open, messages.length]);
   useEffect(() => {
-    const h = () => setOpen(true);
+    const h = (event: Event) => {
+      const detail = (event as CustomEvent<JarvisTextContext["focusedExercise"]>).detail;
+      conversation.current.focusedExercise = detail ?? undefined;
+      setOpen(true);
+    };
     window.addEventListener("fitcore:open-ai", h);
     window.addEventListener("fitcore:open-jarvis", h);
     return () => { window.removeEventListener("fitcore:open-ai", h); window.removeEventListener("fitcore:open-jarvis", h); };
@@ -163,9 +168,9 @@ export function JarvisPanel({ section }: { section: string }) {
       tool,
       result: {
         ...result,
-        summary: ["logExerciseSet", "updateExerciseSet", "deleteExerciseSet", "updateMeal", "deleteMeal", "undoLastAction", "startRestTimer", "startScheduledWorkout"].includes(tool) ? result.summary : humanizeArgs(tool, args),
+        summary: ["addPlannedExerciseSet", "logUsualMeal", "logSleep", "updateBodyWeight", "logExerciseSet", "updateExerciseSet", "deleteExerciseSet", "updateMeal", "deleteMeal", "updateWorkout", "updateActiveWorkout", "undoLastAction", "startRestTimer", "startScheduledWorkout"].includes(tool) ? result.summary : humanizeArgs(tool, args),
       },
-      pending: { draftId, args: { ...(result.data as Record<string, unknown>), draftId }, base: live, reviewedAt },
+      pending: { draftId, args: { ...(["logUsualMeal", "logWorkout"].includes(tool) ? args : result.data as Record<string, unknown>), draftId }, base: live, reviewedAt },
     };
   }, [set]);
 
@@ -180,7 +185,9 @@ export function JarvisPanel({ section }: { section: string }) {
       return;
     }
     const live = stateRef.current;
-    const local = !live.demoMode && interpretJarvisText(content, live);
+    const context = conversation.current;
+    const local = !live.demoMode && interpretJarvisText(content, live, new Date(), context);
+    conversation.current = { focusedExercise: context.focusedExercise, ...(local ? local.nextContext : {}) };
     if (local) {
       setInput("");
       const createdAt = Date.now();
@@ -226,18 +233,19 @@ export function JarvisPanel({ section }: { section: string }) {
       const sysPrompt = jarvisSystemPrompt(stateRef.current, section);
       const savedGeminiKey = readSavedKey(GEMINI_KEY_STORAGE);
       const savedGroqKey = readSavedKey(GROQ_KEY_STORAGE);
+      const provider = settings.aiProvider ?? "groq";
       const res = await chatFn({ data: {
         messages: recent,
         mode: settings.responseStyle === "detailed" ? "detailed" : "quick",
         systemOverride: sysPrompt,
         tools,
-        provider: settings.aiProvider ?? "groq",
+        provider,
         geminiKeyMode: normalizedKeyMode(settings.geminiKeyMode),
         geminiModel: settings.geminiModel,
-        userGeminiApiKey: (settings.aiProvider === "gemini" || settings.allowGeminiFallback) && savedGeminiKey ? savedGeminiKey : undefined,
+        userGeminiApiKey: (provider === "gemini" || settings.allowGeminiFallback) && savedGeminiKey ? savedGeminiKey : undefined,
         groqKeyMode: normalizedKeyMode(settings.groqKeyMode),
         groqModel: settings.groqModel,
-        userGroqApiKey: settings.aiProvider === "groq" && savedGroqKey ? savedGroqKey : undefined,
+        userGroqApiKey: provider === "groq" && savedGroqKey ? savedGroqKey : undefined,
         autoModelRouting: settings.autoModelRouting !== false,
         autoAiFallback: settings.autoAiFallback === true,
         allowGeminiFallback: Boolean(settings.allowGeminiFallback),
@@ -345,7 +353,7 @@ export function JarvisPanel({ section }: { section: string }) {
             <span className={`w-1.5 h-1.5 rounded-full ${sending ? "animate-pulse" : ""}`} style={{ background: sending ? "var(--section)" : "var(--success, #10b981)" }} />
             {sending ? "Thinking..." : "Ready"}
           </span>
-          <span className="ml-auto capitalize">{providerName} / L{settings.permission}</span>
+          <span className="ml-auto capitalize">{providerName} / {settings.permission < 2 ? "Read only" : "Review before saving"}</span>
         </div>
 
         <div ref={scrollRef} className="space-y-3 max-h-[45dvh] overflow-y-auto pb-2">
@@ -386,18 +394,18 @@ export function JarvisPanel({ section }: { section: string }) {
         <div className="flex gap-2 sticky bottom-0 pb-2 pt-1" style={{ background: "var(--surface)" }}>
           <input value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") send(input); }}
-            placeholder="Talk to Jarvis..." className="flex-1 px-4 py-3 rounded-xl bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)]" />
+            aria-label="Jarvis message" placeholder="Talk to Jarvis..." className="flex-1 px-4 py-3 rounded-xl bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)]" />
           <button disabled title="Voice mode - coming in Phase 6" className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--surface-2)] text-muted-foreground opacity-60">
             <Mic size={18} />
           </button>
-          <button onClick={() => send(input)} disabled={sending || !input.trim()}
+          <button aria-label="Send message to Jarvis" onClick={() => send(input)} disabled={sending || !input.trim()}
             className="w-12 h-12 rounded-xl flex items-center justify-center text-white disabled:opacity-50"
             style={{ background: "var(--section)" }}>
             <Send size={18} />
           </button>
         </div>
         {messages.length > 0 && (
-          <div className="mt-2"><GhostButton className="w-full text-sm" onClick={() => setMessages([])}>Clear conversation</GhostButton></div>
+          <div className="mt-2"><GhostButton className="w-full text-sm" onClick={() => { conversation.current = {}; setMessages([]); }}>Clear conversation</GhostButton></div>
         )}
       </BottomSheet>
     </>

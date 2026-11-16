@@ -1,11 +1,42 @@
-import { exerciseById } from "../data";
+import { queryRecoveryText } from "./recovery-text";
+import { queryBenchHistory, type BenchDate } from "./workout-queries";
 import { jarvisScheduledWorkout, WEEKDAYS } from "./scheduled-workout";
 import type { AppState } from "../types";
 import { exerciseName, findActiveExercise } from "./active-exercise";
 import type { ToolName } from "./tools";
 
-export type LocalJarvisCommand =
-  { reply: string } | { tool: ToolName; args: Record<string, unknown> };
+interface ActiveExerciseReference {
+  workoutId: string;
+  exerciseEntryId: string;
+}
+
+export interface JarvisTextContext {
+  focusedExercise?: ActiveExerciseReference;
+  benchHistory?: BenchDate[];
+  sleepHours?: number;
+  cardioSteps?: number;
+  repeatSet?: ActiveExerciseReference & { sourceSetId: string; weight: number };
+}
+
+export type LocalJarvisCommand = (
+  { reply: string } | { tool: ToolName; args: Record<string, unknown> }
+) & { nextContext?: Partial<JarvisTextContext> };
+
+const HOUR_WORDS = [
+  "zero",
+  "one",
+  "two",
+  "three",
+  "four",
+  "five",
+  "six",
+  "seven",
+  "eight",
+  "nine",
+  "ten",
+  "eleven",
+  "twelve",
+];
 
 const LOAD = "(\\d+(?:\\.\\d+)?)\\s*(kg|kilograms?|lbs?|pounds?)?";
 const SET = new RegExp(`^${LOAD}\\s+(?:for|x|×)\\s*(\\d+)(?:\\s+reps?)?$`, "i");
@@ -36,14 +67,56 @@ function latestActiveJarvisSet(state: AppState) {
   return row && set ? { row, set } : undefined;
 }
 
-function workoutSet(text: string, state: AppState): LocalJarvisCommand | undefined {
+function workoutSet(
+  text: string,
+  state: AppState,
+  context: JarvisTextContext,
+): LocalJarvisCommand | undefined {
+  const repeat = context.repeatSet;
+  const repeatCount = /^(\d+)(?: reps?)?$/.exec(text)?.[1];
+  const active = state.activeWorkout;
+  if (repeat && repeatCount) {
+    const row =
+      active?.id === repeat.workoutId
+        ? active.exercises.find((exercise) => exercise.id === repeat.exerciseEntryId)
+        : undefined;
+    if (
+      !row?.sets.some(
+        (set) => set.id === repeat.sourceSetId && set.completed && set.weight === repeat.weight,
+      )
+    ) {
+      return {
+        reply:
+          "The referenced set has changed. Tell me the exercise, weight, and reps for the new set.",
+      };
+    }
+    return {
+      tool: "logExerciseSet",
+      args: { exerciseEntryId: row.id, weight: repeat.weight, reps: Number(repeatCount) },
+    };
+  }
+  const focused = context.focusedExercise;
+  const focusId = active?.id === focused?.workoutId ? focused?.exerciseEntryId : undefined;
   const bench = BENCH.exec(text);
   const entry = SET.exec(bench?.[1] ?? text.replace(/^log /, ""));
   if (entry) {
     const exercise = bench ? (text.includes("dumbbell") ? "db-bench" : "bench-press") : undefined;
-    const row = findActiveExercise(state, { exerciseId: exercise });
+    const row = findActiveExercise(state, {
+      exerciseId: exercise,
+      exerciseEntryId: exercise ? undefined : focusId,
+    });
     if (!state.activeWorkout) return { reply: "Start a workout before logging a set." };
     if (!row) return { reply: "Which exercise in your active workout did you mean?" };
+    if (
+      bench &&
+      /\bfirst\b/.test(text) &&
+      row.sets.find((set) => set.modifier !== "warmup")?.completed
+    ) {
+      return {
+        reply:
+          "The first working set already has results. Ask to correct that set or log another one.",
+      };
+    }
     if (!entry[2] && state.profile.units === "kg") {
       return { reply: "Was that load in kilograms or pounds?" };
     }
@@ -57,6 +130,40 @@ function workoutSet(text: string, state: AppState): LocalJarvisCommand | undefin
     };
   }
 
+  const planned = /^add (?:another|a fifth|a 5th) (?:planned )?set$/.exec(text);
+  if (planned) {
+    const row = findActiveExercise(state, { exerciseEntryId: focusId });
+    if (!row) return { reply: "Which active exercise should get an extra planned set?" };
+    return {
+      tool: "addPlannedExerciseSet",
+      args: {
+        exerciseEntryId: row.id,
+        ...(text.includes("fifth") || text.includes("5th") ? { expectedCount: 4 } : {}),
+      },
+    };
+  }
+  if (/^i finished all (?:four|4) sets of bench$/.test(text)) {
+    const row = findActiveExercise(state, { exerciseId: "bench-press" });
+    const sets = row?.sets.filter((set) => set.modifier !== "warmup");
+    if (!sets) return { reply: "Barbell Bench Press is not in the current workout." };
+    if (sets.filter((set) => set.completed).length >= 4)
+      return { reply: "Four completed bench sets are already recorded." };
+    return {
+      reply: "Tell me the actual weight and reps for the bench sets still missing from the log.",
+    };
+  }
+  const timed = /^(?:log|i did) (.+) for (\d+(?:\.\d+)?) (minutes?|seconds?)$/.exec(text);
+  if (timed) {
+    const row = findActiveExercise(state, { exerciseName: timed[1] });
+    if (row)
+      return {
+        tool: "logExerciseSet",
+        args: {
+          exerciseEntryId: row.id,
+          durationMin: Number(timed[2]) / (timed[3].startsWith("second") ? 60 : 1),
+        },
+      };
+  }
   const correction =
     /^make that (\d+(?:\.\d+)?)(?: (lb|lbs|pounds?|kg))?(?: instead of (\d+(?:\.\d+)?))?$/.exec(
       text,
@@ -86,7 +193,18 @@ function workoutSet(text: string, state: AppState): LocalJarvisCommand | undefin
     if (!latest || latest.set.weight === undefined)
       return { reply: "Which exercise and weight should I use?" };
     const count = /for (\d+)/.exec(text)?.[1];
-    if (!count) return { reply: `How many reps at ${latest.set.weight} lb?` };
+    if (!count && active)
+      return {
+        reply: `How many reps at ${latest.set.weight} lb?`,
+        nextContext: {
+          repeatSet: {
+            workoutId: active.id,
+            exerciseEntryId: latest.row.id,
+            sourceSetId: latest.set.id,
+            weight: latest.set.weight,
+          },
+        },
+      };
     return {
       tool: "logExerciseSet",
       args: {
@@ -108,10 +226,12 @@ export function interpretJarvisText(
   raw: string,
   state: AppState,
   now = new Date(),
+  context: JarvisTextContext = {},
 ): LocalJarvisCommand | undefined {
   const text = raw
     .trim()
     .toLowerCase()
+    .replace(/\u2019/g, "'")
     .replace(/[.!?]+$/, "")
     .replace(/\s+/g, " ");
   if (/\b(?:prescription|prescribed|planned target)\b/.test(text) && /\d\s*[×x]\s*\d/.test(text)) {
@@ -120,8 +240,110 @@ export function interpretJarvisText(
     };
   }
 
-  const set = workoutSet(text, state);
+  const set = workoutSet(text, state, context);
   if (set) return set;
+  const sleep =
+    /^(?:i slept|log sleep(?: of)?) (\d+(?:\.\d+)?|[a-z]+)( and a half)? hours?(?:,? quality (\d+)(?:\s*\/\s*10)?)?$/.exec(
+      text,
+    );
+  if (sleep) {
+    const value = /^\d/.test(sleep[1]) ? Number(sleep[1]) : HOUR_WORDS.indexOf(sleep[1]);
+    const hours = value + (sleep[2] ? 0.5 : 0);
+    if (hours <= 0 || hours > 24)
+      return { reply: "Enter a sleep duration above 0 and up to 24 hours." };
+    if (!sleep[3])
+      return {
+        reply: `You reported ${hours} hours. How would you rate your sleep quality from 1 to 10?`,
+        nextContext: { sleepHours: hours },
+      };
+    return { tool: "logSleep", args: { hours, quality: Number(sleep[3]) } };
+  }
+  if (context.sleepHours !== undefined) {
+    const quality = /^(?:quality )?(\d+)(?:\s*(?:\/|out of)\s*10)?$/.exec(text);
+    if (quality)
+      return { tool: "logSleep", args: { hours: context.sleepHours, quality: Number(quality[1]) } };
+  }
+
+  const recovery = queryRecoveryText(text, state, now);
+  if (recovery) return recovery;
+
+  const cardio =
+    /^(?:(?:log|i did) (\d+(?:\.\d+)?) minutes? (?:on |of )?(?:the )?(stairmaster|(?:incline )?treadmill|rowing|bike)|i walked on (?:an? )?((?:incline )?treadmill) for (\d+(?:\.\d+)?) minutes?)$/.exec(
+      text,
+    );
+  if (cardio) {
+    return {
+      tool: "logCardio",
+      args: {
+        type: cardio[2] ?? cardio[3],
+        minutes: Number(cardio[1] ?? cardio[4]),
+        originalText: raw,
+      },
+    };
+  }
+  const steps = /^(?:log|i did) (\d{1,3}(?:,\d{3})+|\d+) steps on (?:the )?stairmaster$/.exec(text);
+  if (steps) {
+    const count = Number(steps[1].replaceAll(",", ""));
+    if (!Number.isSafeInteger(count) || count <= 0)
+      return { reply: "Enter a positive whole number of steps." };
+    return {
+      reply:
+        "How many minutes did you spend on the StairMaster? I'll include the reported steps as a note.",
+      nextContext: { cardioSteps: count },
+    };
+  }
+  if (context.cardioSteps !== undefined) {
+    const duration = /^(\d+) minutes?$/.exec(text);
+    if (duration)
+      return {
+        tool: "logCardio",
+        args: {
+          type: "StairMaster",
+          minutes: Number(duration[1]),
+          notes: `Reported steps: ${context.cardioSteps}`,
+        },
+      };
+  }
+
+  const weightCorrection = new RegExp(
+    `^(?:correct|change) (today|yesterday)(?:'s|s) (?:body)?weight to ${LOAD}$`,
+  ).exec(text);
+  if (weightCorrection) {
+    const date = new Date(now);
+    if (weightCorrection[1] === "yesterday") date.setDate(date.getDate() - 1);
+    const matches = state.bodyweightEntries.filter(
+      (entry) => new Date(entry.createdAt).toDateString() === date.toDateString(),
+    );
+    if (matches.length !== 1)
+      return {
+        reply: matches.length
+          ? "There are multiple weigh-ins on that date. Choose the one to correct in Progress."
+          : "There is no weigh-in saved on that date.",
+      };
+    return {
+      tool: "updateBodyWeight",
+      args: {
+        id: matches[0].id,
+        weightLb: pounds(weightCorrection[2], weightCorrection[3] ?? state.profile.units),
+      },
+    };
+  }
+  if (/^what was my (?:body)?weight last week$/.test(text)) {
+    const date = new Date(now);
+    date.setHours(0, 0, 0, 0);
+    date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+    const start = new Date(date);
+    start.setDate(start.getDate() - 7);
+    const latest = [...state.bodyweightEntries]
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .find((entry) => entry.createdAt >= start.getTime() && entry.createdAt < date.getTime());
+    return {
+      reply: latest
+        ? `Your latest weigh-in last week was ${latest.weightLb} lb on ${new Date(latest.createdAt).toLocaleDateString()}.`
+        : "There are no weigh-ins from last week.",
+    };
+  }
+
   const weight = BODYWEIGHT.exec(text);
   if (weight) {
     const unit = weight[2] ?? state.profile.units;
@@ -132,7 +354,7 @@ export function interpretJarvisText(
   }
 
   const supplement =
-    /^(?:log|i took) (?:(\d+(?:\.\d+)?\s*(?:g|mg|grams?|milligrams?)\s+of|my)\s+)?(creatine|multivitamin)(?: today)?$/.exec(
+    /^(?:log|i took) (?:(?:(\d+(?:\.\d+)?\s*(?:g|mg|grams?|milligrams?))\s+of|my)\s+)?(creatine|multivitamin)(?: today)?$/.exec(
       text,
     );
   if (supplement)
@@ -144,6 +366,28 @@ export function interpretJarvisText(
         originalText: raw,
       },
     };
+  const usual = /^log my usual (.+)$/.exec(text);
+  if (usual) {
+    const profile = state.userGoalsProfile;
+    const candidates: [string, string | undefined, string][] = [
+      ["breakfast", profile.usualBreakfast, "breakfast"],
+      ["lunch", profile.usualLunch, "lunch"],
+      ["dinner", profile.usualDinner, "dinner"],
+      ["snack", profile.usualSnack, "snack"],
+      ["proteinShake", profile.usualProteinShake, "protein shake"],
+      ["preWorkout", profile.usualPreWorkoutMeal, "pre-workout meal"],
+      ["postWorkout", profile.usualPostWorkoutMeal, "post-workout meal"],
+    ];
+    const matches = candidates.filter(
+      ([, name, label]) => name && (name.toLowerCase() === usual[1] || label === usual[1]),
+    );
+    if (matches.length === 1) return { tool: "logUsualMeal", args: { slot: matches[0][0] } };
+    return {
+      reply: matches.length
+        ? "Which saved meal slot do you mean?"
+        : "I couldn't find a saved usual meal with that name. Describe the meal or save it in Jarvis settings.",
+    };
+  }
   if (/^undo(?: that)?(?: (?:last|most recent)(?: (?:meal|entry|action|change))?)?$/.test(text)) {
     if (text.endsWith("meal")) {
       const last = state.jarvisAudit.find((a) => !a.undone && a.status === "logged");
@@ -229,42 +473,40 @@ export function interpretJarvisText(
     };
   }
 
-  const benchHistory =
-    /^(?:what did i bench|what was my bench weight)(?: last (sunday|monday|tuesday|wednesday|thursday|friday|saturday))?$/.exec(
-      text,
+  const history = queryBenchHistory(text, state, now, context.benchHistory);
+  if (history) return { reply: history.reply, nextContext: { benchHistory: history.history } };
+
+  if (/^show (?:everything|what) i(?:'ve| have) eaten today$/.test(text)) {
+    const meals = state.mealEntries.filter(
+      (meal) => new Date(meal.createdAt).toDateString() === now.toDateString(),
     );
-  if (benchHistory) {
-    const date = new Date(now);
-    const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-    if (benchHistory[1])
-      date.setDate(
-        date.getDate() - ((date.getDay() - weekdays.indexOf(benchHistory[1]) + 7) % 7 || 7),
-      );
-    const history = state.workouts.filter(
-      (workout) =>
-        workout.endedAt !== undefined &&
-        (!benchHistory[1] || new Date(workout.startedAt).toDateString() === date.toDateString()),
-    );
-    const results = [...history]
-      .sort((a, b) => b.startedAt - a.startedAt)
-      .flatMap((workout) => {
-        const sets = workout.exercises
-          .filter((row) => row.exerciseId === "bench-press")
-          .flatMap((row) =>
-            row.sets.filter(
-              (item) => item.completed && item.weight !== undefined && item.reps !== undefined,
-            ),
-          );
-        return sets.length
-          ? [
-              `${new Date(workout.startedAt).toLocaleDateString()}: ${sets.map((item) => `${item.weight} lb × ${item.reps}`).join(", ")}`,
-            ]
-          : [];
-      });
     return {
-      reply: results[0]
-        ? `${exerciseById("bench-press")?.name}: ${results[0]}.`
-        : "No completed barbell bench sets were logged for that request.",
+      reply: meals.length
+        ? meals
+            .slice(0, 20)
+            .map((meal) => {
+              const estimate = meal.provenance?.source === "ai-estimated" ? " (estimate)" : "";
+              return `${meal.name}: ${meal.calories} kcal, ${meal.protein} g protein${estimate}.`;
+            })
+            .join("\n")
+        : "There are no meals logged today.",
+    };
+  }
+
+  const supplementStatus = /^did i (?:log|take) (?:my )?(creatine|multivitamin)(?: today)?$/.exec(
+    text,
+  );
+  if (supplementStatus) {
+    const name = supplementStatus[1];
+    const logs = state.supplementLogs.filter(
+      (entry) =>
+        new Date(entry.createdAt).toDateString() === now.toDateString() &&
+        entry.name.toLowerCase().includes(name),
+    );
+    return {
+      reply: logs.length
+        ? `Today's log includes ${logs.map((entry) => (entry.dose ? `${entry.name} (${entry.dose})` : entry.name)).join(", ")}.`
+        : `There is no ${name} entry in today's log.`,
     };
   }
 
