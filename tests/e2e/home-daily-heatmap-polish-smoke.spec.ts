@@ -39,7 +39,7 @@ test.describe("Home Daily Heatmap Polish", () => {
     ).toBeVisible();
 
     // 6. Exactly four modes
-    const modes = ["Load", "Strength", "Imbalance", "Recovery"];
+    const modes = ["Load", "Strength", "Imbalance", "3-day load"];
     for (const mode of modes) {
       await expect(page.getByRole("button", { name: mode, exact: true })).toBeVisible();
     }
@@ -49,7 +49,7 @@ test.describe("Home Daily Heatmap Polish", () => {
       Load: "Recent training volume and muscle stress over the last 7 days.",
       Strength: "Relative strength contribution by muscle over the last 30 days.",
       Imbalance: "Highlights muscles trained above or below your overall distribution.",
-      Recovery: "Estimates which muscles are ready based on recent training load.",
+      "3-day load": "Shows relative completed sets from the last three days.",
     };
 
     for (const [mode, desc] of Object.entries(MODE_DESCRIPTIONS)) {

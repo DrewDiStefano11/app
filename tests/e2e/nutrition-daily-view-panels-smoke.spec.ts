@@ -27,7 +27,7 @@ async function persistedState(page: Page) {
 
 async function seedReloadableOnboardedState(page: Page) {
   const now = new Date();
-  const todayTs = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12).getTime();
+  const todayTs = now.getTime();
   await seedRevisionedFitCoreState(
     page,
     currentFitCoreState({
@@ -93,7 +93,8 @@ test.describe("Nutrition Daily View panels smoke", () => {
     // Scenario B — Main nutrition sections are reachable
     // Assert broad presence of important sections
     await expect(page.getByRole("button", { name: "Log Meal", exact: true }).first()).toBeVisible();
-    await expect(page.getByText("kcal remaining", { exact: false })).toBeVisible();
+    await expect(page.getByText("520 kcal logged today", { exact: true })).toBeVisible();
+    await expect(page.getByText("Logged so far", { exact: true })).toBeVisible();
 
     // Scenario C — Seeded meal data appears or persists safely
     await expect
