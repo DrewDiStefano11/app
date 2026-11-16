@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Plus, Check, X, Trash2, Timer as TimerIcon, ChevronUp, ChevronDown,
+  ArrowLeft, Plus, Check, X, Trash2, Timer as TimerIcon, ChevronUp, ChevronDown,
   GripVertical, Calculator, Pencil, Sparkles,
 } from "lucide-react";
 import { useStore, uid, e1RM } from "@/lib/store";
@@ -65,7 +65,7 @@ function makeDemoPrevSets(exerciseId: string, count: number): SetEntry[] {
 
 /* ===================== Main view ===================== */
 
-export function ActiveWorkoutView() {
+export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
   const { state, set, persistenceRequiresReload } = useStore();
   const w = state.activeWorkout!;
   const now = useNow(1000);
@@ -75,8 +75,12 @@ export function ActiveWorkoutView() {
   const [customOpen, setCustomOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
+  const [draftNotes, setDraftNotes] = useState<string | null>(null);
   const [plateFor, setPlateFor] = useState<string | null>(null);
-  const [pendingEdit, setPendingEdit] = useState<((state: AppState, workout: Workout) => AppState) | null>(null);
+  const [pendingEdit, setPendingEdit] = useState<{
+    apply: (state: AppState, workout: Workout) => AppState;
+    onDiscard?: () => void;
+  } | null>(null);
 
   // Compose lookup so custom exercises behave like real ones inside the workout.
   const lookup = useMemo(() => {
@@ -101,14 +105,27 @@ export function ActiveWorkoutView() {
   const toggleOpen = (id: string) =>
     setOpenMap(m => ({ ...m, [id]: !(m[id] ?? id === activeId) }));
 
-  const commitEdit = (edit: (state: AppState, workout: Workout) => AppState) => {
-    const saved = set(s => s.activeWorkout?.id === w.id ? edit(s, s.activeWorkout) : s);
-    setPendingEdit(saved ? null : () => edit);
+  const commitEdit = (edit: NonNullable<typeof pendingEdit>) => {
+    const saved = set(s => s.activeWorkout?.id === w.id ? edit.apply(s, s.activeWorkout) : s);
+    setPendingEdit(saved ? null : edit);
     return saved;
   };
 
-  const updateActive = (fn: (w: Workout) => Workout) =>
-    !pendingEdit && commitEdit((s, activeWorkout) => ({ ...s, activeWorkout: fn(activeWorkout) }));
+  const updateActive = (fn: (w: Workout) => Workout, onDiscard?: () => void) =>
+    !pendingEdit && commitEdit({
+      apply: (s, activeWorkout) => ({ ...s, activeWorkout: fn(activeWorkout) }),
+      onDiscard,
+    });
+
+  const backToTraining = () => {
+    const notesChanged = draftNotes !== null && draftNotes !== (w.notes ?? "");
+    if (!notesChanged || updateActive(
+      workout => ({ ...workout, notes: draftNotes || undefined }),
+      () => setDraftNotes(null),
+    )) {
+      onBack();
+    }
+  };
 
   const updateExercise = (id: string, fn: (e: WorkoutExercise) => WorkoutExercise) =>
     updateActive(w => ({ ...w, exercises: w.exercises.map(x => x.id === id ? fn(x) : x) }));
@@ -142,11 +159,13 @@ export function ActiveWorkoutView() {
       id: uid(), exerciseId: c.id, completed: false, exerciseTags: [],
       sets: Array.from({ length: 3 }, () => ({ id: uid(), modifier: "normal", completed: false })),
     };
-    commitEdit((s, workout) => ({
-      ...s,
-      customExercises: [...s.customExercises, c],
-      activeWorkout: { ...workout, exercises: [...workout.exercises, we] },
-    }));
+    commitEdit({
+      apply: (s, workout) => ({
+        ...s,
+        customExercises: [...s.customExercises, c],
+        activeWorkout: { ...workout, exercises: [...workout.exercises, we] },
+      }),
+    });
     setCustomOpen(false);
     // open the newly added card by default
     setOpenMap(m => ({ ...m, [we.id]: true }));
@@ -164,6 +183,10 @@ export function ActiveWorkoutView() {
       {/* Header with real timer */}
       <div className="sticky top-0 z-10 glass border-b border-border">
         <div className="px-5 py-3 flex items-center gap-3">
+          <button type="button" onClick={backToTraining} aria-label="Back to Training"
+            disabled={!!pendingEdit} className="grid size-10 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-[var(--surface-2)] disabled:opacity-40">
+            <ArrowLeft size={18} />
+          </button>
           <div className="flex-1 min-w-0">
             <p className="text-[10px] uppercase tracking-widest text-muted-foreground">In progress</p>
             <h2 className="text-base font-bold truncate">{w.name}</h2>
@@ -185,7 +208,10 @@ export function ActiveWorkoutView() {
               <PrimaryButton onClick={() => commitEdit(pendingEdit)} disabled={persistenceRequiresReload}>
                 Retry edit
               </PrimaryButton>
-              <GhostButton onClick={() => setPendingEdit(null)}>Keep saved values</GhostButton>
+              <GhostButton onClick={() => {
+                pendingEdit.onDiscard?.();
+                setPendingEdit(null);
+              }}>Keep saved values</GhostButton>
             </div>
           </div>
         )}
@@ -259,6 +285,8 @@ export function ActiveWorkoutView() {
       <FinishWorkoutSheet
         open={finishOpen}
         onClose={() => setFinishOpen(false)}
+        notes={draftNotes ?? w.notes ?? ""}
+        onNotesChange={setDraftNotes}
         elapsedMs={now - w.startedAt}
         findEx={findEx}
       />
@@ -738,13 +766,13 @@ function PlateCalculatorSheet({ open, onClose }: { open: boolean; onClose: () =>
 
 type SaveMode = "workout_only" | "update_template" | "save_as_new";
 
-function FinishWorkoutSheet({ open, onClose, elapsedMs, findEx }: {
+function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, findEx }: {
   open: boolean; onClose: () => void; elapsedMs: number;
+  notes: string; onNotesChange: (notes: string) => void;
   findEx: (id: string) => Exercise | CustomExercise | undefined;
 }) {
   const { state, set, persistenceRequiresReload } = useStore();
   const w = state.activeWorkout!;
-  const [notes, setNotes] = useState(w?.notes ?? "");
   const [saveFailed, setSaveFailed] = useState(false);
   const [saveMode, setSaveMode] = useState<SaveMode>("workout_only");
   const [newTemplateName, setNewTemplateName] = useState(w?.name ?? "Workout");
@@ -850,7 +878,7 @@ function FinishWorkoutSheet({ open, onClose, elapsedMs, findEx }: {
         <div>
           <Label>Workout notes (optional)</Label>
           <Textarea rows={3} placeholder="How did it feel? Pain, energy, sleep…"
-            value={notes} onChange={e => setNotes(e.target.value)} />
+            value={notes} onChange={e => onNotesChange(e.target.value)} />
           {suggestions.length > 0 && (
             <div className="mt-2 space-y-1">
               {suggestions.map((s, i) => (

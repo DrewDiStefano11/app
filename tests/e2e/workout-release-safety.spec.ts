@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import {
   expectDashboardReady,
@@ -42,19 +42,92 @@ async function rejectStorageWrites(page: Page) {
   return () => page.evaluate(() => window.dispatchEvent(new Event("fitcore-test-restore-storage")));
 }
 
+async function recordStartupOverviews(context: BrowserContext) {
+  await context.addInitScript(() => {
+    const overviews: string[] = [];
+    Object.defineProperty(window, "fitcoreTestOverviews", { value: overviews });
+    new MutationObserver(() => {
+      if (document.querySelector('.phone-shell[data-section="home"]')) {
+        if (!overviews.includes("home")) overviews.push("home");
+      }
+      const training = [...document.querySelectorAll(".phone-shell h1")].some(
+        (heading) => heading.textContent?.trim() === "Training",
+      );
+      if (training && !overviews.includes("training")) overviews.push("training");
+    }).observe(document, { childList: true, subtree: true });
+  });
+}
+
+test("reload and relaunch open the saved workout directly without an overview flash", async ({
+  page,
+  context,
+}) => {
+  await startWorkout(page);
+  await page.getByRole("button", { name: "+ Add note", exact: true }).click();
+  await page.getByPlaceholder("Exercise notes…").fill("Pause at the bottom.");
+  const before = (await readPersistedFitCoreState(page)).activeWorkout;
+  expect(before?.exercises[0]).toMatchObject({
+    notes: "Pause at the bottom.",
+    sets: [{ weight: 135, reps: 8 }, {}, {}, {}],
+  });
+  await recordStartupOverviews(context);
+
+  const expectDirectRecovery = async (view: Page) => {
+    await expect(view.getByRole("button", { name: "Finish workout", exact: true })).toBeVisible();
+    await expect(view.getByPlaceholder("lb", { exact: true }).first()).toHaveValue("135");
+    await expect(view.getByPlaceholder("reps", { exact: true }).first()).toHaveValue("8");
+    await expect(view.getByRole("button", { name: "Pause at the bottom.", exact: true })).toBeVisible();
+    expect((await readPersistedFitCoreState(view)).activeWorkout).toEqual(before);
+    expect(await view.evaluate(() =>
+      (window as Window & { fitcoreTestOverviews: string[] }).fitcoreTestOverviews,
+    )).toEqual([]);
+  };
+
+  await page.reload();
+  await expectDirectRecovery(page);
+  await page.close();
+  const reopened = await context.newPage();
+  await reopened.goto("/");
+  await expectDirectRecovery(reopened);
+});
+
+test("reload and relaunch return to Home when no workout is in progress", async ({
+  page,
+  context,
+}) => {
+  await seedMinimalOnboardedState(page);
+  await page.reload();
+  await expectDashboardReady(page);
+  await expect(page.getByRole("button", { name: "Finish workout", exact: true })).toHaveCount(0);
+  await page.close();
+  const reopened = await context.newPage();
+  await reopened.goto("/");
+  await expectDashboardReady(reopened);
+  await expect(reopened.getByRole("button", { name: "Finish workout", exact: true })).toHaveCount(0);
+  expect((await readPersistedFitCoreState(reopened)).activeWorkout).toBeNull();
+});
+
 test("a workout resumes after reload and saves the same set and notes to history", async ({ page }) => {
   await startWorkout(page);
   const before = (await readPersistedFitCoreState(page)).activeWorkout;
   expect(before?.exercises[0]?.sets[0]).toMatchObject({ weight: 135, reps: 8, completed: true });
 
   await page.reload();
+  await expect(page.getByRole("button", { name: "Finish workout", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Finish workout", exact: true }).click();
+  const notes = page.getByPlaceholder("How did it feel? Pain, energy, sleep…");
+  await notes.fill("Controlled tempo.");
+  await page.getByRole("button", { name: "Back to edit", exact: true }).click();
+  await page.getByRole("button", { name: "Back to Training", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Training", exact: true })).toBeVisible();
+  const withNotes = { ...before, notes: "Controlled tempo." };
+  expect((await readPersistedFitCoreState(page)).activeWorkout).toEqual(withNotes);
   await page.getByRole("button", { name: "Blank workout", exact: true }).click();
   await expect(page.getByPlaceholder("lb", { exact: true }).first()).toHaveValue("135");
-  expect((await readPersistedFitCoreState(page)).activeWorkout).toEqual(before);
+  expect((await readPersistedFitCoreState(page)).activeWorkout).toEqual(withNotes);
 
   await page.getByRole("button", { name: "Finish workout", exact: true }).click();
-  await page.getByPlaceholder("How did it feel? Pain, energy, sleep…").fill("Controlled tempo.");
+  await expect(notes).toHaveValue("Controlled tempo.");
   await page.getByRole("button", { name: "Confirm & save", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Training", exact: true })).toBeVisible();
 
@@ -157,6 +230,7 @@ test("a rejected set edit must be resolved before finishing the workout", async 
   await weight.fill("145");
   await expect(page.getByRole("heading", { name: "Workout edit could not be saved" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Finish workout", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Back to Training", exact: true })).toBeDisabled();
   expect((await readPersistedFitCoreState(page)).activeWorkout?.exercises[0].sets[0].weight).toBe(135);
 
   await restoreStorage();
@@ -172,6 +246,19 @@ test("a rejected set edit must be resolved before finishing the workout", async 
   expect((await readPersistedFitCoreState(page)).activeWorkout?.exercises[0].notes).toBe(
     "Pause at the bottom.",
   );
+
+  await page.getByRole("button", { name: "Finish workout", exact: true }).click();
+  await page.getByPlaceholder("How did it feel? Pain, energy, sleep…").fill("Discard this draft.");
+  await page.getByRole("button", { name: "Back to edit", exact: true }).click();
+  const restoreBackStorage = await rejectStorageWrites(page);
+  await page.getByRole("button", { name: "Back to Training", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Workout edit could not be saved" })).toBeVisible();
+  await page.getByRole("button", { name: "Keep saved values", exact: true }).click();
+  await restoreBackStorage();
+  await page.getByRole("button", { name: "Back to Training", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Training", exact: true })).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).activeWorkout?.notes).toBeUndefined();
+  await page.getByRole("button", { name: "Resume workout", exact: true }).click();
 
   await page.getByRole("button", { name: "Finish workout", exact: true }).click();
   await page.getByRole("button", { name: "Confirm & save", exact: true }).click();

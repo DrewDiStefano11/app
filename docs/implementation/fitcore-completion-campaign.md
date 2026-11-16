@@ -28,7 +28,10 @@ ID are recorded below.
   server route, set entry, resume after reload, and a single history
   record with the expected set and note. The isolated backup round-trip
   restored an actual synthetic workout in both engines.
-- Physical device confirmation is pending. In Safari over cellular, open
+- Drew confirmed the installed iPhone app preserved an unfinished workout
+  after closing and reopening. He requested that startup open that session
+  directly. The auto-resume follow-up waits for storage hydration before
+  displaying a screen. In Safari over cellular, open
   the production URL, choose **Share → Add to Home Screen**, enable
   **Open as Web App** if offered, and launch from the new icon. Check
   numeric entry, backgrounding, force-close/reopen, finish/history, and
