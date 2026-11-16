@@ -3,9 +3,9 @@ import {
   ArrowLeft, Plus, Check, X, Trash2, Timer as TimerIcon, ChevronUp, ChevronDown,
   GripVertical, Calculator, Pencil, Sparkles,
 } from "lucide-react";
-import { useStore, uid, e1RM } from "@/lib/store";
+import { useStore, uid } from "@/lib/store";
 import { DEFAULT_REST_SECONDS, restTimerAfterSet } from "@/lib/active-workout-state";
-import { applyWorkoutPersonalRecords, workoutPersonalRecords } from "@/lib/workout-personal-records";
+import { applyWorkoutPersonalRecords, workoutRecordImprovements } from "@/lib/workout-personal-records";
 import { downloadFitCoreBackup } from "@/lib/fitcore-backup-download";
 import { isDefaultManualProvenance } from "@/lib/fitcore-data";
 import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, filterExerciseCatalog, tracksWorkoutMinutes, type Exercise, type MuscleGroup } from "@/lib/data";
@@ -1004,8 +1004,10 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
   const muscles = new Set<string>();
   w?.exercises.forEach(e => findEx(e.exerciseId)?.primary.forEach(m => muscles.add(m)));
 
-  // PR detection
-  const newPRs = useMemo(() => w ? workoutPersonalRecords(w, state.prs) : [], [w, state.prs]);
+  const newPRs = useMemo(
+    () => w ? workoutRecordImprovements(w, state.workouts, state.customExercises) : [],
+    [w, state.workouts, state.customExercises],
+  );
 
   // Note → metric suggestions
   const suggestions = useMemo(() => extractNoteSuggestions(notes), [notes]);
@@ -1083,7 +1085,7 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
               {newPRs.map(pr => (
                 <p key={pr.exerciseId} className="text-sm">
                   <span className="font-semibold">{findEx(pr.exerciseId)?.name}</span>
-                  <span className="text-muted-foreground"> · est {pr.est} ({pr.weight}×{pr.reps})</span>
+                  <span className="text-muted-foreground"> · est {Math.round(pr.value)} ({pr.weight}×{pr.reps})</span>
                 </p>
               ))}
             </div>

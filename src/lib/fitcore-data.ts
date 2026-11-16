@@ -507,6 +507,30 @@ export function updateLog(state: AppState, logId: string, patch: Partial<FitCore
   return state;
 }
 
+export function replaceSavedWorkout(state: AppState, reviewed: Workout, replacement?: Workout): AppState {
+  const index = state.workouts.findIndex(workout => workout.id === reviewed.id);
+  if (index < 0 || JSON.stringify(state.workouts[index]) !== JSON.stringify(reviewed)) return state;
+
+  const changedNotes = new Set<string>();
+  if (!replacement || replacement.notes !== reviewed.notes) changedNotes.add(reviewed.id);
+  for (const [index, exercise] of reviewed.exercises.entries()) {
+    if (!replacement || replacement.exercises[index]?.notes !== exercise.notes) changedNotes.add(exercise.id);
+  }
+
+  return {
+    ...state,
+    workouts: replacement
+      ? state.workouts.map((workout, position) => position === index ? replacement : workout)
+      : state.workouts.filter((_, position) => position !== index),
+    recoverySignals: state.recoverySignals.filter(signal => !(
+      changedNotes.has(signal.sourceLogId) &&
+      signal.source === "manual" &&
+      signal.provenance?.source === "system-derived" &&
+      signal.id === `recovery:${signal.sourceLogId}:${signal.kind}:${signal.bodyArea ?? "general"}`
+    )),
+  };
+}
+
 export function deleteLog(state: AppState, logId: string): AppState {
   return migrateFitCoreDataIfNeeded({ ...state, workouts: state.workouts.filter(x => x.id !== logId), mealEntries: state.mealEntries.filter(x => x.id !== logId), bodyweightEntries: state.bodyweightEntries.filter(x => x.id !== logId), recoveryCheckIns: state.recoveryCheckIns.filter(x => x.id !== logId), cardioEntries: state.cardioEntries.filter(x => x.id !== logId), sleepEntries: state.sleepEntries.filter(x => x.id !== logId), supplementLogs: state.supplementLogs.filter(x => x.id !== logId), recoverySignals: state.recoverySignals.filter(x => x.id !== logId && x.sourceLogId !== logId) });
 }

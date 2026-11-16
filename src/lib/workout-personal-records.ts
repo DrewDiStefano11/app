@@ -1,42 +1,28 @@
-import type { PR, Workout } from "./types";
+import { workoutPersonalRecords } from "./analytics/training-detail-metrics";
+import type { CustomExercise, PR, Workout } from "./types";
 
 export const e1RM = (weight: number, reps: number) => Math.round(weight * (1 + reps / 30));
 
-export interface WorkoutRecord {
-  exerciseId: string;
-  est: number;
-  weight: number;
-  reps: number;
-}
-
-export function workoutPersonalRecords(workout: Workout, existing: PR[]): WorkoutRecord[] {
-  const records = new Map<string, WorkoutRecord>();
-  for (const exercise of workout.exercises) {
-    const previous = existing.find(
-      (record) => record.exerciseId === exercise.exerciseId && record.type === "1rm",
-    );
-    for (const set of exercise.sets) {
-      if (!set.completed || !set.weight || !set.reps || set.modifier === "warmup") continue;
-      const estimate = e1RM(set.weight, set.reps);
-      if (
-        (previous && estimate <= previous.value) ||
-        estimate <= (records.get(exercise.exerciseId)?.est ?? 0)
-      )
-        continue;
-      records.set(exercise.exerciseId, {
-        exerciseId: exercise.exerciseId,
-        est: estimate,
-        weight: set.weight,
-        reps: set.reps,
-      });
-    }
-  }
-  return [...records.values()];
+export function workoutRecordImprovements(
+  workout: Workout,
+  history: readonly Workout[],
+  customExercises: readonly CustomExercise[],
+  now = Date.now(),
+) {
+  const previous = new Map(
+    workoutPersonalRecords(history, customExercises, { now }).map((record) => [
+      record.exerciseId,
+      record.value,
+    ]),
+  );
+  return workoutPersonalRecords([workout], customExercises, { includeActive: true, now }).filter(
+    (record) => record.value > (previous.get(record.exerciseId) ?? 0),
+  );
 }
 
 export function applyWorkoutPersonalRecords(
   existing: PR[],
-  records: WorkoutRecord[],
+  records: readonly PR[],
   id: () => string,
   date: number,
 ) {
@@ -45,15 +31,7 @@ export function applyWorkoutPersonalRecords(
     const index = next.findIndex(
       (item) => item.exerciseId === record.exerciseId && item.type === "1rm",
     );
-    const entry: PR = {
-      id: id(),
-      exerciseId: record.exerciseId,
-      type: "1rm",
-      value: record.est,
-      weight: record.weight,
-      reps: record.reps,
-      date,
-    };
+    const entry: PR = { ...record, id: id(), date };
     if (index >= 0) next[index] = entry;
     else next.push(entry);
   }

@@ -7,6 +7,7 @@ import { uid, todayStart, e1RM } from "../store";
 import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "../data";
 import { buildDailyDecision } from "../daily-decision";
 import { calculatePersonalScores, scoreStatusLabel } from "../analytics/personal-scores";
+import { workoutPersonalRecords } from "../analytics/training-detail-metrics";
 import { commitJarvisAction, type CommitJarvisState } from "./action-transaction";
 import { canProposeJarvisMutation, validateJarvisMutation } from "./action-schemas";
 import { mealItemTotals, type JarvisMealItem } from "./meal-math";
@@ -215,7 +216,7 @@ const handlers: Record<ToolName, ToolHandler> = {
     ].join(" ");
     return { ok: true, summary };
   },
-  getProgressTrends: (_a, { state }) => ({ ok: true, summary: "progress trends", data: { bodyweight: state.bodyweightEntries.slice(-8), prCount: state.prs.length, goals: state.goals } }),
+  getProgressTrends: (_a, { state }) => ({ ok: true, summary: "progress trends", data: { bodyweight: state.bodyweightEntries.slice(-8), prCount: workoutPersonalRecords(state.workouts, state.customExercises).length, goals: state.goals } }),
   getUserGoalsProfile: (_a, { state }) => ({ ok: true, summary: "user profile", data: state.userGoalsProfile }),
   updateUserGoalsProfile: (args, { set, state }) => {
     const patch = (args.patch ?? {}) as Partial<UserGoalsProfile>, prev = state.userGoalsProfile, auditId = uid();

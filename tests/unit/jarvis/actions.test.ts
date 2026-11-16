@@ -687,6 +687,66 @@ test("a confirmed warm-up never consumes a planned working set", () => {
   expect(saved[1]).toMatchObject({ completed: true, modifier: "warmup", weight: 135, reps: 8 });
 });
 
+test("finishing through Jarvis uses corrected history to determine a personal record", () => {
+  const fitcore = storageFixture();
+  const now = Date.now();
+  fitcore.set((state) => ({
+    ...state,
+    activeWorkout: {
+      id: "active-bench",
+      name: "Upper A",
+      startedAt: now - 60_000,
+      exercises: [
+        {
+          id: "active-bench-row",
+          exerciseId: "bench-press",
+          completed: true,
+          sets: [{ id: "working-set", completed: true, weight: 195, reps: 4 }],
+        },
+      ],
+    },
+    workouts: [
+      {
+        id: "corrected-bench",
+        name: "Previous Bench",
+        startedAt: now - 360_000,
+        endedAt: now - 180_000,
+        exercises: [
+          {
+            id: "historic-bench-row",
+            exerciseId: "bench-press",
+            completed: true,
+            sets: [{ id: "corrected-set", completed: true, weight: 180, reps: 4 }],
+          },
+        ],
+      },
+    ],
+    prs: [
+      {
+        id: "superseded-record",
+        exerciseId: "bench-press",
+        type: "1rm",
+        weight: 255,
+        reps: 4,
+        value: 289,
+        date: now - 180_000,
+      },
+    ],
+  }));
+  const state = fitcore.snapshot();
+  expect(
+    runTool(
+      "finishActiveWorkout",
+      {},
+      { state, set: fitcore.set, settings: state.jarvisSettings, confirmed: true },
+    ).ok,
+  ).toBe(true);
+  const saved = fitcore.reload();
+  expect(saved.activeWorkout).toBeNull();
+  expect(saved.workouts.map((workout) => workout.id)).toEqual(["corrected-bench", "active-bench"]);
+  expect(saved.prs).toMatchObject([{ exerciseId: "bench-press", weight: 195, reps: 4 }]);
+});
+
 test("mixed AI meal drafts use library values where a food and serving match", () => {
   const fitcore = storageFixture();
   const state = fitcore.snapshot();

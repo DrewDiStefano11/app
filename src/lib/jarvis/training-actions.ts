@@ -3,7 +3,10 @@ import { createActiveWorkout, restTimerAfterSet } from "../active-workout-state"
 import { createJarvisProvenance, markProvenanceEdited } from "../fitcore-data";
 import { uid } from "../store";
 import type { SetEntry, Workout } from "../types";
-import { applyWorkoutPersonalRecords, workoutPersonalRecords } from "../workout-personal-records";
+import {
+  applyWorkoutPersonalRecords,
+  workoutRecordImprovements,
+} from "../workout-personal-records";
 import {
   actionKey,
   duplicateResult,
@@ -358,7 +361,7 @@ export const trainingActions = {
     delete w.restLoggedSetKeys;
     const prs = applyWorkoutPersonalRecords(
       state.prs,
-      workoutPersonalRecords(w, state.prs),
+      workoutRecordImprovements(w, state.workouts, state.customExercises, w.endedAt),
       uid,
       w.endedAt!,
     );

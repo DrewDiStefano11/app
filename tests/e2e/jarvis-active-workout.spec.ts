@@ -152,4 +152,21 @@ test("follow-up, correction and cancel preserve the intended set rows", async ({
     weight: 44.09,
     reps: 10,
   });
+
+  await send("I finished my workout.");
+  await expect(page.getByText("Finish and save the active workout")).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).workouts).toEqual([]);
+  await save.click();
+  await expect.poll(async () => (await readPersistedFitCoreState(page)).activeWorkout).toBeNull();
+  const finished = await readPersistedFitCoreState(page);
+  expect(finished.workouts).toHaveLength(1);
+  expect(finished.workouts[0].id).toBe("upper-a");
+  expect(finished.workouts[0].exercises[0].sets[1]).toMatchObject({
+    id: "set-2",
+    weight: 200,
+    reps: 5,
+  });
+  expect(finished.prs).toContainEqual(
+    expect.objectContaining({ exerciseId: "bench-press", weight: 200, reps: 5 }),
+  );
 });
