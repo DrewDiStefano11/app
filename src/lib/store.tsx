@@ -19,7 +19,12 @@ import {
 import type { WorkoutTemplate } from "./data";
 import { createActiveWorkout } from "./active-workout-state";
 import { buildDemoState } from "./demo-data";
-import { migrateFitCoreDataIfNeeded, parseFitCoreImport } from "./fitcore-data";
+import {
+  compactWorkoutProvenance,
+  expandWorkoutProvenance,
+  migrateFitCoreDataIfNeeded,
+  parseFitCoreImport,
+} from "./fitcore-data";
 import { getFitCoreRuntimePersistenceController } from "./persist";
 import type {
   FitCoreRuntimeCommitResult,
@@ -112,7 +117,9 @@ function persistenceMetadata(
 function verifiedState(
   result: FitCoreRuntimeHydrationResult | FitCoreRuntimeCommitResult,
 ): AppState | null {
-  return result.safeToApply && result.state !== null ? (result.state as unknown as AppState) : null;
+  return result.safeToApply && result.state !== null
+    ? expandWorkoutProvenance(result.state as unknown as AppState)
+    : null;
 }
 
 export function hydrateFitCoreStoreRuntime(
@@ -133,7 +140,7 @@ export function commitFitCoreStoreRuntime(
   previous: AppState,
   proposed: AppState,
 ): StoreRuntimePersistenceOutcome {
-  const result = controller.commit(proposed);
+  const result = controller.commit(compactWorkoutProvenance(proposed));
   const state = verifiedState(result);
   return Object.freeze({
     state: state ?? previous,
