@@ -2,6 +2,7 @@ import { z } from "zod";
 import { whoopRetryAfter } from "./v2.server";
 
 const CALLBACK_PATH = "/api/whoop/callback";
+const CONNECTION_PATH = "/integrations/whoop";
 
 export type WhoopSession = {
   id: string;
@@ -27,10 +28,10 @@ type CallbackDependencies = {
 
 const responseHeaders = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" };
 
-function redirect(result: "connected" | "cancelled" | "failed") {
+function redirect(result: "connected" | "cancelled" | "failed" | "restart") {
   return new Response(null, {
     status: 303,
-    headers: { ...responseHeaders, Location: "/?whoop=" + result },
+    headers: { ...responseHeaders, Location: CONNECTION_PATH + "?whoop=" + result },
   });
 }
 
@@ -66,10 +67,10 @@ export async function handleWhoopCallback(request: Request, dependencies: Callba
   // Keep provider errors and callback parameters out of application logs and HTML.
   try {
     const session = await dependencies.getSession(request);
-    if (!session) return reject();
+    if (!session) return redirect("restart");
 
     const attempt = await dependencies.claimAttempt(session, state, request);
-    if (!attempt) return reject();
+    if (!attempt) return redirect("restart");
     try {
       if (isProviderError) return redirect(error === "access_denied" ? "cancelled" : "failed");
 

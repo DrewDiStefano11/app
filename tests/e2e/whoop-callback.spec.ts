@@ -1,4 +1,31 @@
 import { expect, test } from "@playwright/test";
+
+test.use({ serviceWorkers: "block" });
+
+test("the Safari handoff works without local onboarding and checks status on resume", async ({
+  page,
+}) => {
+  let status: "locked" | "disconnected" | "connected" = "locked";
+  await page.route("**/api/whoop/status", (route) =>
+    status === "locked"
+      ? route.fulfill({ status: 401 })
+      : route.fulfill({ json: { status, lastSyncedAt: null } }),
+  );
+  await page.goto("/integrations/whoop?whoop=connected");
+  await expect(page.getByLabel("FitCore integration access key")).toBeVisible();
+  await expect(page.getByText("Connected to WHOOP")).toHaveCount(0);
+  await page.goto("/integrations/whoop?whoop=restart");
+  await expect(page.getByText(/FitCore could not verify this authorization/)).toBeVisible();
+  status = "disconnected";
+  await page.goto("/integrations/whoop?whoop=cancelled");
+  await expect(page.getByRole("heading", { name: "WHOOP connection" })).toBeVisible();
+  await expect(page.getByText("WHOOP authorization was cancelled.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Connect WHOOP" })).toBeVisible();
+  status = "connected";
+  await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
+  await expect(page.getByText("Connected to WHOOP")).toBeVisible();
+  await expect(page.getByText("WHOOP authorization was cancelled.")).toHaveCount(0);
+});
 test("the registered WHOOP callback fails closed without configuration", async ({ request }) => {
   const response = await request.get("/api/whoop/callback?code=synthetic&state=AbcDeF01", {
     maxRedirects: 0,

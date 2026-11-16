@@ -1,6 +1,11 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { GhostButton, Input } from "@/components/app/ui";
-import { announceWhoopSnapshot, requestWhoopSync, whoopApi as api } from "@/lib/whoop/browser";
+import {
+  announceWhoopSnapshot,
+  requestWhoopSync,
+  subscribeToWhoopChanges,
+  whoopApi as api,
+} from "@/lib/whoop/browser";
 
 type Status =
   | "loading"
@@ -19,28 +24,55 @@ async function getStatus(signal?: AbortSignal): Promise<StatusInfo> {
   return response.json();
 }
 
-export function WhoopSettings() {
+export function WhoopSettings({
+  returnResult,
+  showSafariHandoff = false,
+}: {
+  returnResult?: "cancelled" | "failed";
+  showSafariHandoff?: boolean;
+} = {}) {
   const [{ status, lastSyncedAt }, setStatusInfo] = useState<StatusInfo>({
     status: "loading",
     lastSyncedAt: null,
   });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [standalone, setStandalone] = useState(false);
+  const statusRequest = useRef<AbortController | undefined>(undefined);
+
+  const updateStatus = (info: StatusInfo) => {
+    statusRequest.current?.abort();
+    setStatusInfo(info);
+  };
 
   useEffect(() => {
-    const current = new AbortController();
     const readStatus = () => {
-      void getStatus(current.signal)
-        .then(setStatusInfo)
+      if (document.visibilityState !== "visible") return;
+      statusRequest.current?.abort();
+      const request = new AbortController();
+      statusRequest.current = request;
+      void getStatus(request.signal)
+        .then((info) => {
+          if (!request.signal.aborted) setStatusInfo(info);
+        })
         .catch(() => {
-          if (!current.signal.aborted) setStatusInfo({ status: "unavailable", lastSyncedAt: null });
+          if (!request.signal.aborted) setStatusInfo({ status: "unavailable", lastSyncedAt: null });
         });
     };
+    setStandalone((navigator as Navigator & { standalone?: boolean }).standalone === true);
     readStatus();
     window.addEventListener("focus", readStatus);
+    window.addEventListener("pageshow", readStatus);
+    document.addEventListener("visibilitychange", readStatus);
+    const unsubscribe = subscribeToWhoopChanges((change) => {
+      if (change === "clear") readStatus();
+    });
     return () => {
-      current.abort();
+      statusRequest.current?.abort();
+      unsubscribe();
       window.removeEventListener("focus", readStatus);
+      window.removeEventListener("pageshow", readStatus);
+      document.removeEventListener("visibilitychange", readStatus);
     };
   }, []);
 
@@ -60,7 +92,7 @@ export function WhoopSettings() {
       if (response.status === 401) {
         setMessage("That access key did not match.");
       } else if (response.ok) {
-        setStatusInfo(await getStatus());
+        updateStatus(await getStatus());
       } else {
         setMessage("WHOOP access is unavailable right now.");
       }
@@ -76,7 +108,7 @@ export function WhoopSettings() {
     setMessage("");
     try {
       const response = await requestWhoopSync();
-      setStatusInfo(await getStatus());
+      updateStatus(await getStatus());
       if (response.ok) setMessage("WHOOP sync complete.");
       else if (response.status === 409)
         setMessage("WHOOP sync is busy or cooling down. Try again shortly.");
@@ -102,7 +134,7 @@ export function WhoopSettings() {
       }
       const { revoked } = await response.json();
       announceWhoopSnapshot("clear");
-      setStatusInfo({ status: "disconnected", lastSyncedAt: null });
+      updateStatus({ status: "disconnected", lastSyncedAt: null });
       setMessage(
         revoked
           ? "WHOOP access was removed."
@@ -121,7 +153,7 @@ export function WhoopSettings() {
       const response = await fetch(api + "/session", { method: "DELETE" });
       if (!response.ok) throw new Error();
       announceWhoopSnapshot("clear");
-      setStatusInfo({ status: "locked", lastSyncedAt: null });
+      updateStatus({ status: "locked", lastSyncedAt: null });
       setMessage("");
     } catch {
       setMessage("Could not lock this session. Try again when you are online.");
@@ -165,11 +197,32 @@ export function WhoopSettings() {
         </form>
       )}
       {status === "disconnected" && (
-        <form action={api + "/connect"} method="post">
-          <GhostButton type="submit" disabled={busy}>
-            Connect WHOOP
-          </GhostButton>
-        </form>
+        <>
+          {returnResult === "cancelled" && (
+            <p role="status" className="text-sm">
+              WHOOP authorization was cancelled.
+            </p>
+          )}
+          {returnResult === "failed" && (
+            <p role="status" className="text-sm">
+              WHOOP could not be connected. Try again.
+            </p>
+          )}
+          <form action={api + "/connect"} method="post">
+            <GhostButton type="submit" disabled={busy}>
+              Connect WHOOP
+            </GhostButton>
+          </form>
+          {showSafariHandoff && standalone && (
+            <p className="text-sm text-muted-foreground">
+              If authorization opens in a separate browser, restart from the{" "}
+              <a href="/integrations/whoop" target="_blank" rel="noreferrer" className="underline">
+                WHOOP connection page
+              </a>{" "}
+              in Safari.
+            </p>
+          )}
+        </>
       )}
       {status === "disconnecting" && <p className="text-sm">WHOOP disconnection is in progress.</p>}
       {(status === "connected" || status === "reconnect_required") && (

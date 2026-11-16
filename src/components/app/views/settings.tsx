@@ -752,7 +752,7 @@ export function SettingsView({
                 expanded={expanded.integrations}
                 onToggle={toggleSection}
               >
-                <WhoopSettings />
+                <WhoopSettings showSafariHandoff />
                 <FutureRows
                   rows={[
                     {

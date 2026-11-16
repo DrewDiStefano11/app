@@ -224,9 +224,21 @@ test("requires both the initiating session and browser proof for WHOOP OAuth", a
     new Request(origin + "/api/whoop/callback?state=" + state + "&code=synthetic", {
       headers: { Cookie: cookies },
     });
-  expect((await h.integration.callback(callback(session))).status).toBe(400);
-  expect((await h.integration.callback(callback(otherSession + "; " + flow))).status).toBe(400);
-  expect((await h.integration.callback(callback(session + "; " + flow))).status).toBe(303);
-  expect((await h.integration.callback(callback(session + "; " + flow))).status).toBe(400);
+  const missingNonce = await h.integration.callback(callback(session));
+  expect(missingNonce.status).toBe(303);
+  expect(missingNonce.headers.get("cache-control")).toBe("no-store");
+  expect(missingNonce.headers.get("referrer-policy")).toBe("no-referrer");
+  expect(missingNonce.headers.get("location")).toBe("/integrations/whoop?whoop=restart");
+  expect(missingNonce.headers.has("set-cookie")).toBe(false);
+  expect(await missingNonce.text()).toBe("");
+  const wrongSession = await h.integration.callback(callback(otherSession + "; " + flow));
+  expect(wrongSession.headers.get("location")).toBe("/integrations/whoop?whoop=restart");
+  expect(wrongSession.headers.has("set-cookie")).toBe(false);
+  const valid = await h.integration.callback(callback(session + "; " + flow));
+  expect(valid.headers.get("location")).toBe("/integrations/whoop?whoop=connected");
+  expect(valid.headers.get("set-cookie")).toContain("Max-Age=0");
+  expect(
+    (await h.integration.callback(callback(session + "; " + flow))).headers.get("location"),
+  ).toBe("/integrations/whoop?whoop=restart");
   expect(h.tokenRequests).toBe(1);
 });

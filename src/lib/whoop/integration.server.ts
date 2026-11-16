@@ -172,12 +172,16 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
     },
 
     async callback(request: Request) {
+      let claimed = false;
       const response = await handleWhoopCallback(request, {
         origin,
         getSession,
         claimAttempt: async (session, state) => {
           const nonce = readCookie(request, flowCookie);
-          return nonce ? store.claimAttempt(session, flowProof(nonce, state)) : null;
+          if (!nonce) return null;
+          const attempt = await store.claimAttempt(session, flowProof(nonce, state));
+          claimed = attempt !== null;
+          return attempt;
         },
         discardAttempt: store.discardAttempt,
         exchangeCode: client.exchangeCode,
@@ -190,7 +194,7 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
           ),
       });
 
-      if (response.status === 303) response.headers.set("Set-Cookie", cookie(flowCookie, "", 0));
+      if (claimed) response.headers.set("Set-Cookie", cookie(flowCookie, "", 0));
       return response;
     },
 

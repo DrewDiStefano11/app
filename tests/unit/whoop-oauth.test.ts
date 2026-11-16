@@ -56,6 +56,12 @@ describe("WHOOP callback", () => {
     for (const request of [
       callback("code=synthetic-code&state=" + state, "session=other"),
       callback("code=synthetic-code&state=invalid1"),
+    ]) {
+      const restart = await handleWhoopCallback(request, h.dependencies);
+      expect(restart.status).toBe(303);
+      expect(restart.headers.get("location")).toBe("/integrations/whoop?whoop=restart");
+    }
+    for (const request of [
       callback("code=synthetic-code&state=" + state + "&state=" + state),
       callback("code=synthetic-code&code=duplicate&state=" + state),
     ]) {
@@ -72,11 +78,12 @@ describe("WHOOP callback", () => {
       h.dependencies,
     );
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("/?whoop=cancelled");
+    expect(response.headers.get("location")).toBe("/integrations/whoop?whoop=cancelled");
     expect(
-      (await handleWhoopCallback(callback("code=synthetic-code&state=" + state), h.dependencies))
-        .status,
-    ).toBe(400);
+      (
+        await handleWhoopCallback(callback("code=synthetic-code&state=" + state), h.dependencies)
+      ).headers.get("location"),
+    ).toBe("/integrations/whoop?whoop=restart");
     expect(h.exchanges).toBe(0);
   });
 
@@ -86,11 +93,16 @@ describe("WHOOP callback", () => {
       handleWhoopCallback(callback("code=synthetic-code&state=" + state), h.dependencies),
       handleWhoopCallback(callback("code=synthetic-code&state=" + state), h.dependencies),
     ]);
-    expect(responses.map((response) => response.status).sort()).toEqual([303, 400]);
+    expect(responses.map((response) => response.headers.get("location")).sort()).toEqual([
+      "/integrations/whoop?whoop=connected",
+      "/integrations/whoop?whoop=restart",
+    ]);
     expect(h.exchanges).toBe(1);
     expect(h.saved).toBe(1);
-    const success = responses.find((response) => response.status === 303)!;
-    expect(success.headers.get("location")).toBe("/?whoop=connected");
+    const success = responses.find((response) =>
+      response.headers.get("location")?.endsWith("=connected"),
+    )!;
+    expect(success.headers.get("location")).toBe("/integrations/whoop?whoop=connected");
     expect(success.headers.get("cache-control")).toBe("no-store");
     expect(success.headers.get("referrer-policy")).toBe("no-referrer");
     expect(await success.text()).toBe("");
@@ -105,7 +117,7 @@ describe("WHOOP callback", () => {
       callback("code=synthetic-code&state=" + state),
       h.dependencies,
     );
-    expect(failed.headers.get("location")).toBe("/?whoop=failed");
+    expect(failed.headers.get("location")).toBe("/integrations/whoop?whoop=failed");
     expect(await failed.text()).toBe("");
     expect(h.saved).toBe(0);
 
@@ -115,7 +127,7 @@ describe("WHOOP callback", () => {
       callback("code=synthetic-code&state=" + state),
       stale.dependencies,
     );
-    expect(ended.headers.get("location")).toBe("/?whoop=failed");
+    expect(ended.headers.get("location")).toBe("/integrations/whoop?whoop=failed");
   });
 });
 
