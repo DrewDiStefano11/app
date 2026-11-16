@@ -30,12 +30,14 @@ export function WorkoutTemplateEditor({
       })) ?? [],
   );
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [replacing, setReplacing] = useState<string | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
 
   const durationMin = Number(duration);
   const valid =
     name.trim().length > 0 &&
     exercises.length > 0 &&
+    exercises.reduce((sum, row) => sum + Number(row.sets), 0) <= MAX_WORKOUT_TEMPLATE_SETS &&
     Number.isInteger(durationMin) &&
     durationMin >= 0 &&
     exercises.every(({ sets }) => {
@@ -77,8 +79,10 @@ export function WorkoutTemplateEditor({
     };
     const saved = set((current) => ({
       ...current,
-      workoutTemplates: template
-        ? current.workoutTemplates.map((row) => (row.id === id ? updated : row))
+      workoutTemplates: current.workoutTemplates.some((row) => row.id === id)
+        ? current.workoutTemplates.map((row) =>
+            row.id === id ? { ...row, name: updated.name, plan: updated.plan } : row,
+          )
         : [...current.workoutTemplates, updated],
     }));
     if (saved) onClose();
@@ -174,6 +178,61 @@ export function WorkoutTemplateEditor({
                     />
                   </label>
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="text-sm">
+                    Target weight (lb)
+                    <Input
+                      type="number"
+                      min={0}
+                      step="any"
+                      inputMode="decimal"
+                      value={exercise.targetWeightLb ?? ""}
+                      onChange={(event) =>
+                        updateExercise(exercise.key, {
+                          targetWeightLb: event.target.value
+                            ? Number(event.target.value)
+                            : undefined,
+                        })
+                      }
+                    />
+                  </label>
+                  <label className="text-sm">
+                    Target minutes
+                    <Input
+                      type="number"
+                      min={0.01}
+                      step="any"
+                      inputMode="decimal"
+                      value={exercise.targetMinutes ?? ""}
+                      onChange={(event) =>
+                        updateExercise(exercise.key, {
+                          targetMinutes: event.target.value
+                            ? Number(event.target.value)
+                            : undefined,
+                        })
+                      }
+                    />
+                  </label>
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={exercise.optional ?? false}
+                    onChange={(event) =>
+                      updateExercise(exercise.key, { optional: event.target.checked })
+                    }
+                  />
+                  Optional exercise
+                </label>
+                <GhostButton
+                  type="button"
+                  onClick={() => {
+                    setReplacing(exercise.key);
+                    setPickerOpen(true);
+                  }}
+                >
+                  Replace {exerciseName}
+                </GhostButton>
                 <label className="block text-sm">
                   Notes (optional)
                   <Textarea
@@ -188,7 +247,14 @@ export function WorkoutTemplateEditor({
               </Card>
             );
           })}
-          <GhostButton type="button" className="w-full" onClick={() => setPickerOpen(true)}>
+          <GhostButton
+            type="button"
+            className="w-full"
+            onClick={() => {
+              setReplacing(null);
+              setPickerOpen(true);
+            }}
+          >
             <Plus size={16} />
             Add exercise
           </GhostButton>
@@ -207,7 +273,8 @@ export function WorkoutTemplateEditor({
         onClose={() => setPickerOpen(false)}
         customExercises={state.customExercises}
         onPick={(exerciseId) => {
-          setExercises((rows) => [...rows, { key: uid(), exerciseId, sets: "1", reps: "" }]);
+          if (replacing) updateExercise(replacing, { exerciseId, startsWeek: undefined });
+          else setExercises((rows) => [...rows, { key: uid(), exerciseId, sets: "1", reps: "" }]);
           setPickerOpen(false);
         }}
       />

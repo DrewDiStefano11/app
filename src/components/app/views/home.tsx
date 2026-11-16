@@ -51,7 +51,7 @@ import {
   type HeatMode,
 } from "@/lib/analytics";
 import { volumeByDayOfWeek, volumeByExercise, volumeByMuscle } from "@/lib/analytics-extra";
-import { WORKOUT_TEMPLATES } from "@/lib/data";
+import { configuredBenchDay, scheduledBenchDay } from "@/lib/bench-program";
 import { GRAPH_PREFS, usePersistentState } from "@/lib/persist";
 import { isToday, useStore } from "@/lib/store";
 import type { AppState, SectionId } from "@/lib/types";
@@ -200,12 +200,7 @@ function HomeDailyView({
   const hasAnyData = view.workouts.length > 0 || view.mealEntries.length > 0;
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
 
-  const assignedWorkout = useMemo(() => {
-    const assigned = state.workoutTemplates[0];
-    return assigned
-      ? WORKOUT_TEMPLATES.find((template) => template.id === assigned.templateId)
-      : undefined;
-  }, [state.workoutTemplates]);
+  const assignedWorkout = configuredBenchDay(scheduledBenchDay(new Date()), state.workoutTemplates);
 
   const dailyTargets = useMemo(
     () => [
@@ -505,7 +500,7 @@ function HomeDailyView({
           <span className="font-display text-2xl uppercase tracking-wide">Start Workout</span>
           {assignedWorkout && (
             <span>
-              {assignedWorkout.name} · {assignedWorkout.durationMin} min
+              {assignedWorkout.name}{assignedWorkout.durationLabel && ` · ${assignedWorkout.durationLabel}`}
             </span>
           )}
         </span>

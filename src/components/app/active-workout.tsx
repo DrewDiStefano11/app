@@ -4,7 +4,8 @@ import {
   GripVertical, Calculator, Pencil, Sparkles,
 } from "lucide-react";
 import { useStore, uid, e1RM } from "@/lib/store";
-import { EXERCISES, exerciseById, type Exercise, type MuscleGroup } from "@/lib/data";
+import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, type Exercise, type MuscleGroup } from "@/lib/data";
+import { BENCH_PROGRAM_ID, formatWorkoutTarget } from "@/lib/bench-program";
 import type {
   AppState, Workout, WorkoutExercise, SetEntry, CustomExercise, Goal,
 } from "@/lib/types";
@@ -239,6 +240,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
             canMoveDown={idx < w.exercises.length - 1}
             previousWorkout={state.workouts.slice().reverse().find(pw => pw.exercises.some(pe => pe.exerciseId === we.exerciseId))}
             demoMode={state.demoMode}
+            programExercise={w.templateId?.startsWith(`${BENCH_PROGRAM_ID}-`) ?? false}
             onToggle={() => toggleOpen(we.id)}
             onMove={dir => moveExercise(we.id, dir)}
             onDelete={() => updateActive(w => ({ ...w, exercises: w.exercises.filter(x => x.id !== we.id) }))}
@@ -298,7 +300,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
 
 function ExerciseCard({
   we, exercise, isActive, isOpen, canMoveUp, canMoveDown,
-  previousWorkout, demoMode, onToggle, onMove, onDelete, onComplete, onChange, onOpenPlate,
+  previousWorkout, demoMode, programExercise, onToggle, onMove, onDelete, onComplete, onChange, onOpenPlate,
 }: {
   we: WorkoutExercise;
   exercise: Exercise | undefined;
@@ -308,6 +310,7 @@ function ExerciseCard({
   canMoveDown: boolean;
   previousWorkout: Workout | undefined;
   demoMode: boolean;
+  programExercise: boolean;
   onToggle: () => void;
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
@@ -316,7 +319,10 @@ function ExerciseCard({
   onOpenPlate: () => void;
 }) {
   const tags = we.exerciseTags ?? [];
-  const isDone = (s: SetEntry) => s.weight != null && s.reps != null;
+  const duration = we.target?.targetMinutes != null;
+  const bodyweight = programExercise && !duration && exercise?.equipment === "bodyweight";
+  const isDone = (s: SetEntry) => duration ? Boolean(s.durationMin && s.durationMin > 0)
+    : s.reps != null && (bodyweight || s.weight != null);
   const workingSets = we.sets.filter(s => isDone(s) && s.modifier !== "warmup");
   const warmupSets = we.sets.filter(s => isDone(s) && s.modifier === "warmup");
   const volume = workingSets.reduce((a, s) => a + (s.weight ?? 0) * (s.reps ?? 0), 0);
@@ -387,10 +393,13 @@ function ExerciseCard({
               <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-green-500/20 text-green-400">Done</span>
             )}
           </div>
+          {we.target && <p className="text-xs text-muted-foreground">Target {formatWorkoutTarget(we.target)}{we.target.optional && " · Optional"}</p>}
           <div className="flex items-center gap-2 mt-0.5">
             <p className="text-[11px] text-muted-foreground capitalize truncate">
               {exercise?.primary.join(", ")}
-              {we.completed && ` · ${workingSets.length} sets · ${Math.round(volume)}lb · ${reps} reps`}
+              {we.completed && (duration
+                ? ` · ${workingSets.reduce((sum, set) => sum + (set.durationMin ?? 0), 0)} min logged`
+                : ` · ${workingSets.length} sets · ${Math.round(volume)}lb · ${reps} reps`)}
               {we.completed && topSet && ` · top ${topSet.weight}×${topSet.reps}`}
             </p>
             {tags.length > 0 && tags.map(t => (
@@ -406,6 +415,7 @@ function ExerciseCard({
 
       {isOpen && (
         <div className="px-3 pb-3 border-t border-border/60 pt-3 space-y-3">
+          {we.target?.notes && <p className="text-xs text-muted-foreground">{we.target.notes}</p>}
           {/* Previous performance summary — subtle */}
           {prevSets.length > 0 && (
             <div className="text-[11px] text-muted-foreground/70 px-1">
@@ -450,12 +460,17 @@ function ExerciseCard({
           <div className="space-y-1.5">
             <div className="flex items-center text-[10px] uppercase tracking-wider text-muted-foreground px-1">
               <span className="w-7">#</span>
-              <span className="flex-1">Weight</span>
-              <span className="w-20">Reps</span>
+              {duration ? <span className="flex-1">Actual minutes</span> : <>
+                {!bodyweight && <span className="flex-1">Weight</span>}
+                <span className="w-20">{we.target?.reps.includes("per side") ? "Reps / side" : "Reps"}</span>
+              </>}
             </div>
             {we.sets.map((st, i) => (
               <SetRow key={st.id} index={i} st={st}
                 prev={prevSets[i]}
+                done={isDone(st)}
+                duration={duration}
+                bodyweight={bodyweight}
                 armedTag={armedTag}
                 onArmedApply={() => applyTagToSet(st.id)}
                 onChange={(patch) => onChange(e => ({
@@ -463,7 +478,7 @@ function ExerciseCard({
                   sets: e.sets.map(s => {
                     if (s.id !== st.id) return s;
                     const next = { ...s, ...patch };
-                    next.completed = next.weight != null && next.reps != null;
+                    next.completed = isDone(next);
                     return next;
                   }),
                 }))}
@@ -524,7 +539,10 @@ function ExerciseCard({
 
 /* ===================== Set row ===================== */
 
-function SetRow({ index, st, prev, armedTag, onArmedApply, onChange, onDelete }: {
+function SetRow({ index, st, prev, done, duration, bodyweight, armedTag, onArmedApply, onChange, onDelete }: {
+  done: boolean;
+  duration: boolean;
+  bodyweight: boolean;
   index: number; st: SetEntry;
   prev?: SetEntry;
   armedTag: NonNullable<SetEntry["modifier"]> | null;
@@ -536,7 +554,6 @@ function SetRow({ index, st, prev, armedTag, onArmedApply, onChange, onDelete }:
   const m = st.modifier && st.modifier !== "normal" ? st.modifier : null;
   const color = m ? MOD_COLORS[m] : undefined;
   const isWarmup = m === "warmup";
-  const done = st.weight != null && st.reps != null;
   const doneColor = done ? (isWarmup ? "#f59e0b" : "var(--section)") : undefined;
 
   return (
@@ -555,12 +572,17 @@ function SetRow({ index, st, prev, armedTag, onArmedApply, onChange, onDelete }:
           aria-label="Set tag">
           {index + 1}
         </button>
-        <input type="number" inputMode="decimal" placeholder={prev?.weight != null ? String(prev.weight) : "lb"}
+        {duration ? <input type="number" inputMode="decimal" min={0} step="any"
+          aria-label={`Actual minutes for set ${index + 1}`}
+          value={st.durationMin ?? ""} onChange={e => onChange({ durationMin: e.target.value ? Number(e.target.value) : undefined })}
+          className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border text-sm" /> : <>
+        {!bodyweight && <input type="number" inputMode="decimal" placeholder={prev?.weight != null ? String(prev.weight) : "lb"}
           value={st.weight ?? ""} onChange={e => onChange({ weight: e.target.value ? Number(e.target.value) : undefined })}
-          className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-sm tabular-nums" />
+          className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-sm tabular-nums" />}
         <input type="number" inputMode="numeric" placeholder={prev?.reps != null ? String(prev.reps) : "reps"}
           value={st.reps ?? ""} onChange={e => onChange({ reps: e.target.value ? Number(e.target.value) : undefined })}
           className="w-20 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-sm tabular-nums" />
+        </>}
       </div>
       {tagOpen && (
         <div className="flex flex-wrap gap-1 mt-1.5 pl-9">
@@ -777,16 +799,18 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
   const [saveMode, setSaveMode] = useState<SaveMode>("workout_only");
   const [newTemplateName, setNewTemplateName] = useState(w?.name ?? "Workout");
   const savedTemplate = state.workoutTemplates.find(
-    (template) => template.id === w?.templateId && template.plan,
+    (template) => template.id === w?.templateId && template.plan && !template.id.startsWith(`${BENCH_PROGRAM_ID}-`),
   );
-  const canSaveTemplate = Boolean(w?.exercises.some(exercise => exercise.sets.length > 0));
+  const setCount = w?.exercises.reduce((total, exercise) => total + exercise.sets.length, 0) ?? 0;
+  const canSaveTemplate = setCount > 0 && setCount <= MAX_WORKOUT_TEMPLATE_SETS;
 
   // Stats
   const workingSets = w?.exercises.flatMap(e => e.sets.filter(s => s.completed && s.modifier !== "warmup")) ?? [];
   const totalSets = workingSets.length;
   const totalVolume = Math.round(workingSets.reduce((a, s) => a + (s.weight ?? 0) * (s.reps ?? 0), 0));
   const totalReps = workingSets.reduce((a, s) => a + (s.reps ?? 0), 0);
-  const completedEx = w?.exercises.filter(e => e.completed).length ?? 0;
+  const requiredExercises = w?.exercises.filter(e => !e.target?.optional) ?? [];
+  const completedEx = requiredExercises.filter(e => e.completed).length;
   const muscles = new Set<string>();
   w?.exercises.forEach(e => findEx(e.exerciseId)?.primary.forEach(m => muscles.add(m)));
 
@@ -839,10 +863,10 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
       let workoutTemplates = s.workoutTemplates;
       if (canSaveTemplate && saveMode !== "workout_only") {
         const plan = {
-          durationMin: Math.max(1, Math.round(elapsedMs / 60_000)),
+          durationMin: savedTemplate?.plan?.durationMin ?? Math.max(1, Math.round(elapsedMs / 60_000)),
           exercises: s.activeWorkout.exercises
             .filter(exercise => exercise.sets.length > 0)
-            .map(exercise => ({ exerciseId: exercise.exerciseId, sets: exercise.sets.length, reps: "" })),
+            .map(exercise => ({ reps: "", ...exercise.target, exerciseId: exercise.exerciseId, sets: exercise.sets.length })),
         };
         if (saveMode === "save_as_new" && newTemplateName.trim()) {
           const id = uid();
@@ -875,7 +899,7 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
         {/* Summary */}
         <div className="grid grid-cols-3 gap-2">
           <Stat label="Time" value={fmtTime(elapsedMs)} mono />
-          <Stat label="Exercises" value={`${completedEx}/${w.exercises.length}`} />
+          <Stat label="Exercises" value={`${completedEx}/${requiredExercises.length}`} />
           <Stat label="Sets" value={String(totalSets)} />
           <Stat label="Volume" value={`${totalVolume.toLocaleString()} lb`} accent />
           <Stat label="Reps" value={String(totalReps)} />

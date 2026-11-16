@@ -15,7 +15,7 @@ import {
   type AppState,
   type Personalization,
 } from "./types";
-import type { WorkoutTemplate } from "./data";
+import { MAX_WORKOUT_TEMPLATE_SETS, type WorkoutTemplate } from "./data";
 import { buildDemoState } from "./demo-data";
 import { migrateFitCoreDataIfNeeded, parseFitCoreImport } from "./fitcore-data";
 import { getFitCoreRuntimePersistenceController } from "./persist";
@@ -182,6 +182,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const set = apply;
   const startWorkout = useCallback((template?: WorkoutTemplate) => {
     if (stateRef.current.activeWorkout) return true;
+    if (template && template.exercises.reduce((sum, row) => sum + row.sets, 0) > MAX_WORKOUT_TEMPLATE_SETS) return false;
     return apply((current) => ({
       ...current,
       activeWorkout: {
@@ -189,12 +190,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         name: template?.name ?? "Workout",
         startedAt: Date.now(),
         templateId: template?.id,
-        exercises: template?.exercises.map(({ exerciseId, sets, notes }) => ({
+        exercises: template?.exercises.map(({ exerciseId, ...target }) => ({
           id: uid(),
           exerciseId,
-          notes,
+          target,
           completed: false,
-          sets: Array.from({ length: sets }, () => ({
+          sets: Array.from({ length: target.sets }, () => ({
             id: uid(), modifier: "normal" as const, completed: false,
           })),
         })) ?? [],

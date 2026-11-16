@@ -1,6 +1,7 @@
 // Seed data: exercises, workout templates, food library, meal templates.
 
 import type { WorkoutTemplateReference } from "./types";
+import { BENCH_PROGRAM_ID } from "./bench-program";
 
 export type MuscleGroup =
   | "chest" | "back" | "shoulders" | "biceps" | "triceps"
@@ -46,7 +47,7 @@ export const EXERCISES: Exercise[] = [
   ex("ohp", "Overhead Press", ["shoulders"], "barbell", "compound", 4, "5-8", ["triceps"]),
   ex("db-shoulder", "Dumbbell Shoulder Press", ["shoulders"], "dumbbell", "compound", 3, "8-12"),
   ex("lat-raise", "Lateral Raise", ["shoulders"], "dumbbell", "isolation", 3, "12-15"),
-  ex("cable-lat-raise", "Cable Lateral Raise", ["shoulders"], "cable", "isolation", 3, "12-15"),
+  ex("cable-lat-raise", "Cable Lateral Raises", ["shoulders"], "cable", "isolation", 3, "12-15"),
   ex("rear-delt-fly", "Rear Delt Fly", ["shoulders"], "dumbbell", "isolation", 3, "12-15"),
   ex("upright-row", "Upright Row", ["shoulders"], "barbell", "compound", 3, "10-12"),
   // Arms
@@ -71,26 +72,55 @@ export const EXERCISES: Exercise[] = [
   ex("hip-thrust", "Hip Thrust", ["glutes"], "barbell", "compound", 3, "8-12"),
   ex("glute-bridge", "Glute Bridge", ["glutes"], "bodyweight", "compound", 3, "10-15"),
   ex("standing-calf", "Standing Calf Raise", ["calves"], "machine", "isolation", 4, "10-15"),
-  ex("seated-calf", "Seated Calf Raise", ["calves"], "machine", "isolation", 4, "12-15"),
+  ex("seated-calf", "Seated Calf Raises", ["calves"], "machine", "isolation", 4, "12-15"),
   // Core
   ex("plank", "Plank", ["core"], "bodyweight", "isolation", 3, "45s"),
   ex("hlr", "Hanging Leg Raise", ["core"], "bodyweight", "isolation", 3, "10-12"),
   ex("cable-crunch", "Cable Crunch", ["core"], "cable", "isolation", 3, "12-15"),
   ex("deadbug", "Deadbug", ["core"], "bodyweight", "isolation", 3, "10"),
   ex("russian-twist", "Russian Twist", ["core"], "bodyweight", "isolation", 3, "20"),
+  // Bench Strength program variants
+  ex("chest-supported-t-bar-row", "Chest-Supported T-Bar Row", ["back"], "machine"),
+  ex("wide-grip-lat-pulldown", "Wide-Grip Lat Pulldown", ["back"], "cable"),
+  ex("incline-chest-press-machine", "Incline Chest Press Machine", ["chest"], "machine"),
+  ex("pec-deck", "Pec Deck", ["chest"], "machine", "isolation"),
+  ex("single-arm-cable-lateral-raise", "Single-Arm Cable Lateral Raise", ["shoulders"], "cable", "isolation"),
+  ex("ez-bar-preacher-curl", "EZ-Bar Preacher Curl", ["biceps"], "barbell", "isolation"),
+  ex("single-arm-cable-pushdown", "Single-Arm Cable Pushdown", ["triceps"], "cable", "isolation"),
+  ex("hip-abductor-machine", "Hip Abductor Machine", ["glutes"], "machine", "isolation"),
+  ex("hip-adductor-machine", "Hip Adductor Machine", ["quads"], "machine", "isolation"),
+  ex("leg-press-calf-raises", "Leg Press Calf Raises", ["calves"], "machine", "isolation"),
+  ex("reverse-crunches", "Reverse Crunches", ["core"], "bodyweight", "isolation"),
+  ex("slow-bicycle-crunches", "Slow Bicycle Crunches", ["core"], "bodyweight", "isolation"),
+  ex("long-arm-crunches", "Long-Arm Crunches", ["core"], "bodyweight", "isolation"),
+  ex("light-paused-bench-press", "Light Paused Bench Press", ["chest"], "barbell"),
+  ex("single-arm-cable-row", "Single-Arm Cable Row", ["back"], "cable"),
+  ex("reverse-pec-deck", "Reverse Pec Deck", ["shoulders"], "machine", "isolation"),
+  ex("bayesian-cable-curls", "Bayesian Cable Curls", ["biceps"], "cable", "isolation"),
+  ex("single-arm-preacher-curl-machine", "Single-Arm Preacher Curl Machine", ["biceps"], "machine", "isolation"),
+  ex("overhead-cable-triceps-extension", "Overhead Cable Triceps Extension", ["triceps"], "cable", "isolation"),
+  ex("parallel-bar-dips", "Parallel-Bar Dips", ["chest"], "bodyweight", "compound", 2, "8", ["triceps"]),
+  ex("incline-treadmill", "Incline Treadmill", ["cardio"], "machine", "cardio", 1, "20m"),
+  ex("full-body-mobility", "Full-Body Mobility", [], "bodyweight", "isolation", 1, "10m"),
+  ex("chest-supported-row", "Chest-Supported Row", ["back"], "machine"),
+  ex("single-arm-preacher-curls", "Single-Arm Preacher Curls", ["biceps"], "dumbbell", "isolation"),
+  ex("rope-triceps-pushdowns", "Rope Triceps Pushdowns", ["triceps"], "cable", "isolation"),
+  ex("reverse-curls", "Reverse Curls", ["biceps"], "barbell", "isolation"),
+  ex("half-squat", "Half Squat", ["quads", "glutes"], "barbell"),
+  ex("single-leg-curl-machine", "Single-Leg Curl Machine", ["hamstrings"], "machine", "isolation"),
   // Cardio
   ex("treadmill", "Treadmill Walk", ["cardio"], "machine", "cardio", 1, "30m"),
   ex("incline-walk", "Incline Walk", ["cardio"], "machine", "cardio", 1, "30m"),
   ex("run", "Outdoor Run", ["cardio"], "none", "cardio", 1, "30m"),
   ex("bike", "Bike", ["cardio"], "machine", "cardio", 1, "30m"),
-  ex("stairs", "Stairmaster", ["cardio"], "machine", "cardio", 1, "20m"),
+  ex("stairs", "StairMaster", ["cardio"], "machine", "cardio", 1, "20m"),
   ex("rower", "Rowing Machine", ["cardio"], "machine", "cardio", 1, "20m"),
   ex("elliptical", "Elliptical", ["cardio"], "machine", "cardio", 1, "20m"),
 ];
 
 export const exerciseById = (id: string) => EXERCISES.find(e => e.id === id);
 
-export interface TemplateExercise { exerciseId: string; sets: number; reps: string; rest?: number; notes?: string }
+export interface TemplateExercise { exerciseId: string; sets: number; reps: string; rest?: number; notes?: string; targetWeightLb?: number; targetMinutes?: number; optional?: boolean; startsWeek?: number }
 export const MAX_WORKOUT_TEMPLATE_SETS = 1000;
 export interface WorkoutTemplate {
   id: string; name: string; goal: string; durationMin: number;
@@ -99,7 +129,7 @@ export interface WorkoutTemplate {
 
 export function availableWorkoutTemplates(references: WorkoutTemplateReference[]): WorkoutTemplate[] {
   const saved = references.flatMap(({ id, name, plan }) =>
-    plan ? [{ id, name, goal: "Saved template", ...plan }] : [],
+    plan && !id.startsWith(`${BENCH_PROGRAM_ID}-`) ? [{ id, name, goal: "Saved template", ...plan }] : [],
   );
   return [...saved, ...WORKOUT_TEMPLATES];
 }

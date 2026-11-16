@@ -454,7 +454,21 @@ test("validates reusable layouts alongside existing starter template references"
   assert.equal(report.status, "invalid");
   assert.deepEqual(
     issues(report, "out_of_range_value").map(issue => issue.path),
-    ["$.workoutTemplates[1].plan.exercises[0].sets"],
+    ["$.workoutTemplates[1].plan.exercises", "$.workoutTemplates[1].plan.exercises[0].sets"],
+  );
+});
+
+test("rejects template layouts that exceed the aggregate set limit", () => {
+  const candidate = state();
+  candidate.workoutTemplates = [{
+    id: "too-many", templateId: "too-many", name: "Too many sets",
+    plan: { durationMin: 0, exercises: [
+      { exerciseId: "squat", sets: 600, reps: "4" }, { exerciseId: "bench-press", sets: 600, reps: "4" },
+    ] },
+  }];
+  assert.deepEqual(
+    issues(validateFitCoreDataIntegrity(candidate), "out_of_range_value").map(issue => issue.path),
+    ["$.workoutTemplates[0].plan.exercises"],
   );
 });
 

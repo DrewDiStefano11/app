@@ -9,6 +9,8 @@ import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chi
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { ActiveWorkoutView } from "@/components/app/active-workout";
 import { WorkoutTemplateEditor } from "@/components/app/workout-template-editor";
+import { BenchProgram } from "@/components/app/bench-program";
+import { formatWorkoutTarget } from "@/lib/bench-program";
 
 type TrainingPanel = "templates" | "cardio" | "history" | "performance" | null;
 
@@ -48,7 +50,10 @@ export function TrainingView({
           <PrimaryButton onClick={onOpenActive}><Play size={16} />Resume workout</PrimaryButton>
         </div>
       )}
-      {layoutMode === "deepDive" && <SubTabs tabs={DEEP_DIVE_TABS} active={tab} onChange={setTab} />}
+      {layoutMode === "deepDive" && <>
+        <div className="px-5 mb-4"><BenchProgram onStart={onOpenActive} /></div>
+        <SubTabs tabs={DEEP_DIVE_TABS} active={tab} onChange={setTab} />
+      </>}
 
       {layoutMode === "daily" ? (
         <DailyTrainingView
@@ -99,11 +104,7 @@ function DailyTrainingView({
   const { state, startWorkout } = useStore();
   const todays = state.workouts.filter(w => isToday(w.startedAt));
   const lastWorkout = state.workouts[state.workouts.length - 1];
-  const planExercises = state.workoutTemplates[0]
-    ? availableWorkoutTemplates(state.workoutTemplates).find(t =>
-        t.id === state.workoutTemplates[0].id || t.id === state.workoutTemplates[0].templateId,
-      )
-    : WORKOUT_TEMPLATES[0];
+
   const weekWorkouts = state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000);
   const weekCardio = state.cardioEntries.filter(c => c.createdAt > Date.now() - 7*86400000);
   const weekCardioMin = weekCardio.reduce((a, c) => a + c.minutes, 0);
@@ -113,9 +114,7 @@ function DailyTrainingView({
   const startBlank = () => {
     if (startWorkout()) onOpenActive();
   };
-  const startPlan = () => {
-    if (planExercises && startWorkout(planExercises)) onOpenActive();
-  };
+
 
   return (
     <div className="px-5 space-y-5">
@@ -129,7 +128,7 @@ function DailyTrainingView({
                 ? `${state.activeWorkout.name} started ${new Date(state.activeWorkout.startedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
                 : todays.length
                   ? `${todays.length} workout${todays.length === 1 ? "" : "s"} logged today`
-                  : planExercises ? `Plan: ${planExercises.name}` : "Choose a template or start blank."}
+                  : "Choose a workout below."}
             </p>
           </div>
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "var(--section)" }}>
@@ -141,15 +140,11 @@ function DailyTrainingView({
             <PrimaryButton onClick={onOpenActive} className="flex-1">
               <Play size={16} />Resume workout
             </PrimaryButton>
-          ) : (
-            <PrimaryButton onClick={planExercises ? startPlan : startBlank} className="flex-1">
-              <Play size={16} />{planExercises ? "Start today's plan" : "Start workout"}
-            </PrimaryButton>
-          )}
-          <GhostButton onClick={startBlank}><Plus size={16} />Blank</GhostButton>
+          ) : null}
         </div>
       </div>
 
+      <BenchProgram onStart={onOpenActive} />
       <section>
         <SectionHeader title="Quick start" />
         <div className="grid grid-cols-2 gap-2">
@@ -166,34 +161,6 @@ function DailyTrainingView({
           )}
         </div>
       </section>
-
-      {planExercises && (
-        <>
-          <SectionHeader title="Today's assigned workout" />
-          <Card>
-            <p className="font-semibold">{planExercises.name}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{planExercises.exercises.length} exercises • ~{planExercises.durationMin} min</p>
-            <div className="mt-3 space-y-1">
-              {planExercises.exercises.slice(0, 4).map((te, i) => (
-                <div key={i} className="text-xs text-muted-foreground flex justify-between">
-                  <span>{exerciseById(te.exerciseId)?.name}</span>
-                  <span className="tabular-nums">{te.sets}×{te.reps}</span>
-                </div>
-              ))}
-              {planExercises.exercises.length > 4 && (
-                <p className="text-xs text-muted-foreground">+{planExercises.exercises.length - 4} more</p>
-              )}
-            </div>
-          </Card>
-        </>
-      )}
-
-      {!planExercises && (
-        <>
-          <SectionHeader title="Today's assigned workout" />
-          <EmptyState icon={<CalendarDays size={22} />} title="No plan assigned" description="Pick a starter template or start blank for today's session." />
-        </>
-      )}
 
       <section>
         <SectionHeader title="Programs & templates" action={<button onClick={() => onOpenPanel("templates")} className="text-xs font-semibold text-muted-foreground">View all</button>} />
@@ -417,7 +384,7 @@ function TemplatesSection({ onWorkoutStarted }: { onWorkoutStarted?: () => void 
                       "Exercise"}
                   </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    {te.reps ? `${te.sets} × ${te.reps}` : `${te.sets} sets`}
+                    {formatWorkoutTarget(te)}
                   </span>
                 </div>
               ))}
@@ -516,9 +483,13 @@ function HistorySection() {
                       state.customExercises.find(custom => custom.id === ex.exerciseId)?.name ??
                       "Exercise"}
                   </p>
+                  {ex.target && <p className="text-xs text-muted-foreground">Target {formatWorkoutTarget(ex.target)}{ex.target.optional && " · Optional"}</p>}
                   {ex.notes && <p className="text-xs whitespace-pre-wrap mt-1">{ex.notes}</p>}
                   <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                    {ex.sets.map((st, i) => <div key={st.id}>Set {i+1}: {st.weight ?? "—"}lb × {st.reps ?? "—"} {st.completed ? "✓" : ""}</div>)}
+                    {ex.sets.map((st, i) => <div key={st.id}>Set {i+1}: {ex.target?.targetMinutes != null
+                      ? st.durationMin == null ? "—" : `${st.durationMin} min`
+                      : st.weight == null && st.reps != null ? `${st.reps} reps` : `${st.weight ?? "—"}lb × ${st.reps ?? "—"}`
+                    } {st.completed ? "✓" : ""}</div>)}
                   </div>
                 </Card>
               ))}

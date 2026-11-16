@@ -1,4 +1,5 @@
 import { MAX_WORKOUT_TEMPLATE_SETS } from "./data";
+import { BENCH_PROGRAM } from "./bench-program";
 
 export const FITCORE_DATA_INTEGRITY_POLICY = "fitcore_data_integrity_v1" as const;
 
@@ -647,7 +648,7 @@ function validateWorkoutExercise(
 ): void {
   const required = ["id", "exerciseId", "sets", "completed"];
   missingFields(context, record, location, required);
-  unknownFields(context, record, location, [...required, "notes", "exerciseTags", "provenance"]);
+  unknownFields(context, record, location, [...required, "notes", "exerciseTags", "provenance", "target"]);
   if (Object.hasOwn(record, "id")) validateString(context, record.id, location, "id", { id: true });
   if (Object.hasOwn(record, "exerciseId"))
     validateString(context, record.exerciseId, location, "exerciseId", { requiredNonEmpty: true });
@@ -669,6 +670,9 @@ function validateWorkoutExercise(
       value: record.sets,
     });
     return;
+  }
+  if (Object.hasOwn(record, "target")) {
+    validateObjectRecord(context, record.target, location.collection, fieldPath(location, "target"), validateWorkoutTarget);
   }
   const scope = `${location.path}.sets`;
   record.sets.forEach((set, index) => {
@@ -736,6 +740,23 @@ function validateWorkout(
   });
 }
 
+function validateWorkoutTarget(
+  context: ValidationContext, record: PlainRecord, location: RecordLocation, extraFields: string[] = [],
+): void {
+  missingFields(context, record, location, ["sets", "reps"]);
+  unknownFields(context, record, location, [
+    ...extraFields, "sets", "reps", "rest", "notes", "targetMinutes", "targetWeightLb", "optional", "startsWeek",
+  ]);
+  validateOptionalNumber(context, record, location, "sets", { positive: true, integer: true, max: MAX_WORKOUT_TEMPLATE_SETS });
+  validateOptionalNumber(context, record, location, "rest", { nonNegative: true });
+  validateOptionalNumber(context, record, location, "targetWeightLb", { nonNegative: true });
+  validateOptionalNumber(context, record, location, "targetMinutes", { positive: true });
+  validateOptionalNumber(context, record, location, "startsWeek", { positive: true, integer: true });
+  validateOptionalString(context, record, location, "reps");
+  validateOptionalString(context, record, location, "notes");
+  if (Object.hasOwn(record, "optional")) validateBoolean(context, record.optional, location, "optional");
+}
+
 function validateWorkoutTemplate(
   context: ValidationContext,
   record: PlainRecord,
@@ -743,7 +764,11 @@ function validateWorkoutTemplate(
 ): void {
   const required = ["id", "name", "templateId"];
   missingFields(context, record, location, required);
-  unknownFields(context, record, location, [...required, "plan"]);
+  unknownFields(context, record, location, [...required, "plan", "pausedBenchConfirmed", "reviewedBenchWorkoutId"]);
+  if (Object.hasOwn(record, "pausedBenchConfirmed")) {
+    validateBoolean(context, record.pausedBenchConfirmed, location, "pausedBenchConfirmed");
+  }
+  validateOptionalString(context, record, location, "reviewedBenchWorkoutId");
   for (const field of required) {
     if (Object.hasOwn(record, field))
       validateString(context, record[field], location, field, {
@@ -768,21 +793,17 @@ function validateWorkoutTemplate(
         });
         return;
       }
+      const total = plan.exercises.reduce((sum, row) =>
+        sum + (isPlainRecord(row) && typeof row.sets === "number" ? row.sets : 0), 0);
+      validateNumber(context, total, location, "exercises", { max: MAX_WORKOUT_TEMPLATE_SETS });
       plan.exercises.forEach((exercise, index) => {
         validateObjectRecord(context, exercise, location.collection, `${scope}[${index}]`,
           (context, exercise, location) => {
-            const fields = ["exerciseId", "sets", "reps"];
-            missingFields(context, exercise, location, fields);
-            unknownFields(context, exercise, location, [...fields, "rest", "notes"]);
+            missingFields(context, exercise, location, ["exerciseId"]);
             if (Object.hasOwn(exercise, "exerciseId")) {
               validateString(context, exercise.exerciseId, location, "exerciseId", { requiredNonEmpty: true });
             }
-            validateOptionalNumber(context, exercise, location, "sets", {
-              positive: true, integer: true, max: MAX_WORKOUT_TEMPLATE_SETS,
-            });
-            validateOptionalNumber(context, exercise, location, "rest", { nonNegative: true });
-            validateOptionalString(context, exercise, location, "reps");
-            validateOptionalString(context, exercise, location, "notes");
+            validateWorkoutTarget(context, exercise, location, ["exerciseId"]);
           },
         );
       });
@@ -1776,6 +1797,7 @@ function validateReferences(context: ValidationContext, root: PlainRecord): void
   }
 
   const templateIds = collectValidIds(root.workoutTemplates);
+  for (const day of BENCH_PROGRAM) templateIds.add(day.id);
   if (Array.isArray(root.workoutTemplates)) {
     for (const template of root.workoutTemplates)
       if (

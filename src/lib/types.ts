@@ -21,6 +21,7 @@ export interface WorkoutExercise {
   completed: boolean;
   /** Tags applied to the whole exercise (e.g. unilateral, paused). */
   exerciseTags?: NonNullable<SetEntry["modifier"]>[];
+  target?: Omit<TemplateExercise, "exerciseId">;
   provenance?: DataProvenance;
 }
 
@@ -359,6 +360,8 @@ export interface Personalization {
 export interface NutritionTargets { calories: number; protein: number; carbs: number; fat: number; }
 
 export interface WorkoutTemplateReference {
+  pausedBenchConfirmed?: boolean;
+  reviewedBenchWorkoutId?: string;
   id: string;
   name: string;
   templateId: string;
