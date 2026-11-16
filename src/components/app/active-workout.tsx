@@ -4,6 +4,7 @@ import {
   GripVertical, Calculator, Pencil, Sparkles,
 } from "lucide-react";
 import { useStore, uid, e1RM } from "@/lib/store";
+import { applyWorkoutPersonalRecords, workoutPersonalRecords } from "@/lib/workout-personal-records";
 import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, tracksWorkoutMinutes, type Exercise, type MuscleGroup } from "@/lib/data";
 import { BENCH_PROGRAM_ID, formatWorkoutTarget } from "@/lib/bench-program";
 import type {
@@ -220,6 +221,11 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
             <TimerIcon size={14} style={{ color: "var(--section)" }} />
             <span className="font-mono tabular-nums text-sm font-bold">{fmtTime(now - w.startedAt)}</span>
           </div>
+          <button type="button" aria-label="Open Jarvis"
+            onClick={() => window.dispatchEvent(new Event("fitcore:open-jarvis"))}
+            className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-muted-foreground">
+            <Sparkles size={18} />
+          </button>
           <button onClick={() => setConfirmCancel(true)} aria-label="Discard workout"
             className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-muted-foreground">
             <X size={18} />
@@ -868,37 +874,14 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
   w?.exercises.forEach(e => findEx(e.exerciseId)?.primary.forEach(m => muscles.add(m)));
 
   // PR detection
-  const newPRs = useMemo(() => {
-    if (!w) return [] as { exerciseId: string; est: number; weight: number; reps: number }[];
-    const out: { exerciseId: string; est: number; weight: number; reps: number }[] = [];
-    for (const we of w.exercises) {
-      for (const s of we.sets) {
-        if (s.completed && s.weight && s.reps && s.modifier !== "warmup") {
-          const est = e1RM(s.weight, s.reps);
-          const prev = state.prs.find(p => p.exerciseId === we.exerciseId && p.type === "1rm");
-          if (!prev || est > prev.value) {
-            const existing = out.findIndex(x => x.exerciseId === we.exerciseId);
-            const entry = { exerciseId: we.exerciseId, est, weight: s.weight, reps: s.reps };
-            if (existing >= 0) { if (out[existing].est < est) out[existing] = entry; }
-            else out.push(entry);
-          }
-        }
-      }
-    }
-    return out;
-  }, [w, state.prs]);
+  const newPRs = useMemo(() => w ? workoutPersonalRecords(w, state.prs) : [], [w, state.prs]);
 
   // Note → metric suggestions
   const suggestions = useMemo(() => extractNoteSuggestions(notes), [notes]);
 
   const confirmSave = () => {
     // Update PRs
-    const prs = [...state.prs];
-    for (const pr of newPRs) {
-      const idx = prs.findIndex(p => p.exerciseId === pr.exerciseId && p.type === "1rm");
-      const entry = { id: uid(), exerciseId: pr.exerciseId, type: "1rm" as const, value: pr.est, weight: pr.weight, reps: pr.reps, date: Date.now() };
-      if (idx >= 0) prs[idx] = entry; else prs.push(entry);
-    }
+    const prs = applyWorkoutPersonalRecords(state.prs, newPRs, uid, Date.now());
 
     // Goals — bump weekly_workouts goals
     const goals: Goal[] = state.goals.map(g => g.type === "weekly_workouts" ? { ...g, current: Math.min(g.target, g.current + 1) } : g);

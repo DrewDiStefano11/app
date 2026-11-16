@@ -5,7 +5,11 @@ import { Chip, GhostButton } from "../ui";
 import { useStore, uid } from "@/lib/store";
 import { aiChat } from "@/lib/ai.functions";
 import { useServerFn } from "@tanstack/react-start";
-import { TOOL_SPECS, runTool, undoAuditEntry, type ToolResult } from "@/lib/jarvis/tools";
+import { reserveJarvisCloudTextRequest } from "@/lib/jarvis/cloud-usage";
+import { mealItemTotals, type JarvisMealItem } from "@/lib/jarvis/meal-math";
+import { interpretJarvisText } from "@/lib/jarvis/text-commands";
+import { canProposeJarvisMutation } from "@/lib/jarvis/action-schemas";
+import { isReadOnlyJarvisTool, TOOL_SPECS, runTool, undoAuditEntry, type ToolResult } from "@/lib/jarvis/tools";
 import { ConfirmCard } from "./confirm-card";
 import { SourceBadge } from "./source-badge";
 
@@ -32,8 +36,9 @@ interface RenderedMsg {
   id: string;
   role: "user" | "assistant";
   content: string;
-  toolResults?: { tool: string; result: ToolResult; pending?: { draftId: string; args: Record<string, unknown> } }[];
+  toolResults?: { tool: string; result: ToolResult; pending?: { draftId: string; args: Record<string, unknown>; base: ReturnType<typeof useStore>["state"]; reviewedAt: Date } }[];
   createdAt: number;
+  local?: boolean;
 }
 
 const SUGGESTED = [
@@ -46,7 +51,6 @@ const SUGGESTED = [
   "Undo that",
 ];
 
-const NON_MUTATING = new Set(["undoLastAction", "getJarvisLearnedPreferences", "suggestNutritionAction"]);
 const GEMINI_KEY_STORAGE = "fitcore.jarvis.geminiApiKey.v1";
 const GROQ_KEY_STORAGE = "fitcore.jarvis.groqApiKey.v1";
 const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
@@ -86,12 +90,9 @@ function stripToolCards(messages: RenderedMsg[]): RenderedMsg[] {
 }
 
 function friendlyAssistantContent(content: string, toolResults: RenderedMsg["toolResults"]) {
+  if (toolResults?.length) return "";
   const trimmed = content.trim();
-  const normalized = trimmed.replace(/[`"'.,:]/g, "").trim();
-  const leakedToolName = TOOL_SPECS.some(tool => tool.name === normalized);
-  if (trimmed && !leakedToolName) return trimmed;
-  if (toolResults?.some(item => item.result.needsConfirmation)) return "";
-  return (toolResults ?? []).map(item => item.result.summary).filter(Boolean).join("\n");
+  return TOOL_SPECS.some(tool => tool.name === trimmed) ? "" : trimmed;
 }
 
 function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section: string): string {
@@ -106,15 +107,15 @@ function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section
   const permLine = {
     1: "Permission: SUGGEST ONLY. Do not call any logging tools - only call getter tools and answer.",
     2: "Permission: DRAFT & CONFIRM. You may call logging tools; every action will be shown to the user for confirmation.",
-    3: "Permission: AUTO-LOG SIMPLE. Clear supplements/bodyweight can auto-save. Uncertain meals/workouts still confirm.",
-    4: "Permission: FULL CONTROL. Auto-apply low-risk; still confirm destructive/recurring/active-workout changes.",
+    3: "Permission: PROPOSE CHANGES. Every data write requires user confirmation.",
+    4: "Permission: PROPOSE CHANGES. Every data write requires user confirmation.",
   }[s.permission];
   return [
     "You are Jarvis, the AI control layer for the user's FitCore fitness app.",
     "You ONLY mutate app data via the provided tools. Never claim to log something without a tool call.",
-    "Use exactly one save path per user action: auto-log OR confirmation draft, never both.",
+    "A data write is pending until the user approves it and FitCore confirms the save.",
     "Do not repeat, replay, or confirm an older user action from previous turns. Only act on the current user message.",
-    "FOOD: For natural-language meals, call logMeal with estimates. Set confidence=high only if portions are explicit; otherwise medium or low. Include assumptions and originalText.",
+    "FOOD: For natural-language meals, call logMeal with an item per food, estimated quantities and kcal, protein, carbs, and fat per item. Include assumptions and mark vague portions low confidence. Never claim a nutrition estimate is verified.",
     "USUAL MEALS: If the user says my usual/normal X, call logUsualMeal with the matching slot. If the usual is missing, ask a short follow-up.",
     "SUPPLEMENTS: 'Log creatine' -> logSupplement. Use getSupplementStatus to answer whether supplements were taken today.",
     "BODYWEIGHT: 'Log 185.4 lb' -> logBodyWeight with originalText.",
@@ -128,22 +129,6 @@ function jarvisSystemPrompt(state: ReturnType<typeof useStore>["state"], section
   ].filter(Boolean).join("\n");
 }
 
-function isMutatingTool(name: string) {
-  return !name.startsWith("get") && !NON_MUTATING.has(name);
-}
-
-function shouldAutoRun(name: string, args: Record<string, unknown>, settings: ReturnType<typeof useStore>["state"]["jarvisSettings"]) {
-  if (settings.permission < 3) return false;
-  if (name === "logBodyWeight") return settings.autoLogBodyweight;
-  if (name === "logSupplement") return settings.autoLogSupplements;
-  if (name === "logMeal") return settings.autoLogMealEstimates && args.confidence === "high";
-  if (name === "logUsualMeal") return settings.autoLogMealEstimates;
-  if (name === "logCardio") return !settings.askBeforeWorkouts && args.confidence === "high";
-  if (name === "logWorkout") return !settings.askBeforeWorkouts && args.confidence === "high";
-  if (name === "updateActiveWorkout") return settings.autoApplyActiveWorkoutSuggestions && !settings.askBeforeActiveWorkoutEdits;
-  return false;
-}
-
 export function JarvisPanel({ section }: { section: string }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -152,6 +137,7 @@ export function JarvisPanel({ section }: { section: string }) {
   const { state, set } = useStore();
   const stateRef = useRef(state);
   const sendingRef = useRef(false);
+  const resolvedDrafts = useRef(new WeakSet<object>());
   const chatFn = useServerFn(aiChat);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -167,16 +153,50 @@ export function JarvisPanel({ section }: { section: string }) {
   const settings = state.jarvisSettings;
   const latestToolMessageId = [...messages].reverse().find(m => m.toolResults?.length)?.id;
 
+  const reviewTool = useCallback((tool: string, args: Record<string, unknown>) => {
+    const live = stateRef.current;
+    const reviewedAt = new Date();
+    const result = runTool(tool, args, { state: live, set, settings: live.jarvisSettings, now: reviewedAt });
+    if (!result.needsConfirmation) return { tool, result };
+    const draftId = uid();
+    return {
+      tool,
+      result: {
+        ...result,
+        summary: ["logExerciseSet", "updateExerciseSet", "deleteExerciseSet", "updateMeal", "deleteMeal", "undoLastAction", "startRestTimer", "startScheduledWorkout"].includes(tool) ? result.summary : humanizeArgs(tool, args),
+      },
+      pending: { draftId, args: { ...(result.data as Record<string, unknown>), draftId }, base: live, reviewedAt },
+    };
+  }, [set]);
+
   const send = useCallback(async (text: string) => {
     const content = text.trim();
     if (!content || sendingRef.current) return;
     sendingRef.current = true;
     if (!settings.enabled) {
+      setInput(value => value || content);
       setMessages(m => [...m, { id: uid(), role: "assistant", content: "Jarvis is disabled. Enable it in Settings > Jarvis AI.", createdAt: Date.now() }]);
       sendingRef.current = false;
       return;
     }
+    const live = stateRef.current;
+    const local = !live.demoMode && interpretJarvisText(content, live);
+    if (local) {
+      setInput("");
+      const createdAt = Date.now();
+      const reply = "reply" in local
+        ? { content: local.reply }
+        : { content: "", toolResults: [reviewTool(local.tool, local.args)] };
+      setMessages(previous => [
+        ...stripToolCards(previous),
+        { id: uid(), role: "user", content, createdAt, local: true },
+        { ...reply, id: uid(), role: "assistant", createdAt, local: true },
+      ]);
+      sendingRef.current = false;
+      return;
+    }
     if (settings.allowCloudText !== true || stateRef.current.demoMode) {
+      setInput(value => value || content);
       setMessages(m => [...m, {
         id: uid(), role: "assistant", createdAt: Date.now(),
         content: stateRef.current.demoMode
@@ -186,15 +206,23 @@ export function JarvisPanel({ section }: { section: string }) {
       sendingRef.current = false;
       return;
     }
+    const limit = reserveJarvisCloudTextRequest(window.localStorage);
+    if (limit) {
+      setInput(value => value || content);
+      setMessages(previous => [...previous, { id: uid(), role: "assistant", content: limit, createdAt: Date.now() }]);
+      sendingRef.current = false;
+      return;
+    }
     setInput("");
     setSending(true);
     const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now() };
     setMessages(m => [...stripToolCards(m), userMsg]);
 
     try {
-      const recent = [...messages.filter(message => message.role === "user").slice(-4), userMsg]
+      const recent = [...messages.filter(message => message.role === "user" && !message.local).slice(-4), userMsg]
         .map(message => ({ role: "user" as const, content: message.content.slice(0, 4_096) }));
-      const tools = settings.permission === 1 ? TOOL_SPECS.filter(t => t.name.startsWith("get")) : TOOL_SPECS;
+      const tools = TOOL_SPECS.filter(tool => isReadOnlyJarvisTool(tool.name)
+        || (settings.permission >= 2 && canProposeJarvisMutation(tool.name)));
       const sysPrompt = jarvisSystemPrompt(stateRef.current, section);
       const savedGeminiKey = readSavedKey(GEMINI_KEY_STORAGE);
       const savedGroqKey = readSavedKey(GROQ_KEY_STORAGE);
@@ -223,19 +251,21 @@ export function JarvisPanel({ section }: { section: string }) {
       }
 
       const toolResults: RenderedMsg["toolResults"] = [];
+      const staged = new Set<string>();
       for (const tc of res.toolCalls ?? []) {
-        let args: Record<string, unknown> = {};
-        try { args = JSON.parse(tc.argsJson); } catch { /* keep empty */ }
-        if (isMutatingTool(tc.name) && settings.permission >= 2 && !shouldAutoRun(tc.name, args, settings)) {
-          const draftId = uid();
-          toolResults.push({ tool: tc.name, result: { ok: true, summary: humanizeArgs(tc.name, args), needsConfirmation: true, data: args }, pending: { draftId, args: { ...args, draftId } } });
-        } else {
-          const r = runTool(tc.name, args, { state: stateRef.current, set, settings });
-          toolResults.push({ tool: tc.name, result: r });
-        }
+        if (!tools.some(tool => tool.name === tc.name)) continue;
+        const args = JSON.parse(tc.argsJson) as Record<string, unknown>;
+        const toolArgs = { ...args };
+        delete toolArgs.draftId;
+        const fingerprint = `${tc.name}:${JSON.stringify(Object.entries(toolArgs).sort(([a], [b]) => a.localeCompare(b)))}`;
+        if (staged.has(fingerprint)) continue;
+        staged.add(fingerprint);
+
+        if (stateRef.current.jarvisSettings.allowCloudText !== true) break;
+        toolResults.push(reviewTool(tc.name, toolArgs));
       }
 
-      const assistantContent = friendlyAssistantContent(res.content, toolResults) || (toolResults.length ? "" : "I couldn't complete that request.");
+      const assistantContent = friendlyAssistantContent(res.toolCalls?.length ? "" : res.content, toolResults) || (toolResults.length ? "" : "I couldn't complete that request.");
       setMessages(m => [...m, { id: uid(), role: "assistant", content: assistantContent, toolResults, createdAt: Date.now() }]);
     } catch {
       setInput(value => value || content);
@@ -244,7 +274,7 @@ export function JarvisPanel({ section }: { section: string }) {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [settings, chatFn, messages, set, section]);
+  }, [settings, chatFn, messages, reviewTool, section]);
 
   useEffect(() => {
     const handleCompose = (event: Event) => {
@@ -257,12 +287,14 @@ export function JarvisPanel({ section }: { section: string }) {
     return () => window.removeEventListener("fitcore:jarvis-compose", handleCompose);
   }, [send]);
 
-  const applyPending = (msgId: string, idx: number) => {
+  const applyPending = (msgId: string, idx: number, editedItems?: JarvisMealItem[]) => {
     const msg = messages.find(m => m.id === msgId);
     const existing = msg?.toolResults?.[idx];
     if (!existing?.pending || !existing.result.needsConfirmation) return;
 
     const { tool, pending } = existing;
+    if (resolvedDrafts.current.has(pending)) return;
+    resolvedDrafts.current.add(pending);
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId || !m.toolResults) return m;
       const tr = m.toolResults[idx];
@@ -272,7 +304,16 @@ export function JarvisPanel({ section }: { section: string }) {
       return { ...m, toolResults: next };
     }));
 
-    const r = runTool(tool, pending.args, { state: stateRef.current, set, settings, confirmed: true });
+    const current = stateRef.current;
+    const mealPortionEdited = tool === "logMeal" && editedItems !== undefined;
+    const args = mealPortionEdited
+      ? { ...pending.args, ...mealItemTotals(editedItems), items: editedItems }
+      : pending.args;
+    const sameScheduleDay = tool !== "startScheduledWorkout"
+      || pending.reviewedAt.toDateString() === new Date().toDateString();
+    const r = pending.base === current && sameScheduleDay
+      ? runTool(tool, args, { state: current, set, settings: current.jarvisSettings, confirmed: true, mealPortionEdited })
+      : { ok: false, summary: "FitCore changed since this review. Ask again to review the current data." };
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId || !m.toolResults) return m;
       const next = [...m.toolResults];
@@ -282,6 +323,8 @@ export function JarvisPanel({ section }: { section: string }) {
   };
 
   const cancelPending = (msgId: string, idx: number) => {
+    const pending = messages.find(message => message.id === msgId)?.toolResults?.[idx]?.pending;
+    if (pending) resolvedDrafts.current.add(pending);
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId || !m.toolResults) return m;
       const tr = m.toolResults[idx];
@@ -326,9 +369,9 @@ export function JarvisPanel({ section }: { section: string }) {
                 )}
                 {visibleToolResults?.map((tr, i) => (
                   <ConfirmCard key={i} tool={tr.tool} result={tr.result}
-                    onConfirm={() => applyPending(m.id, i)}
+                    onConfirm={items => applyPending(m.id, i, items)}
                     onCancel={() => cancelPending(m.id, i)}
-                    onUndo={tr.result.auditId ? () => undoAction(tr.result.auditId!) : undefined} />
+                    onUndo={tr.result.auditId && tr.tool !== "undoLastAction" ? () => undoAction(tr.result.auditId!) : undefined} />
                 ))}
               </div>
             );
@@ -363,6 +406,7 @@ export function JarvisPanel({ section }: { section: string }) {
 
 function humanizeArgs(tool: string, args: Record<string, unknown>): string {
   switch (tool) {
+    case "finishActiveWorkout": return "Finish and save the active workout";
     case "logBodyWeight": return `Log bodyweight: ${args.weightLb} lb`;
     case "logSupplement": return `Log supplement: ${args.name}${args.dose ? ` (${args.dose})` : ""}`;
     case "logDailyCheckIn": return `Daily check-in - energy ${args.energy}, soreness ${args.soreness}, stress ${args.stress}, motivation ${args.motivation}`;
@@ -374,8 +418,6 @@ function humanizeArgs(tool: string, args: Record<string, unknown>): string {
     case "createWorkoutDraft":
     case "logWorkout": return `Review workout: ${args.name ?? args.workoutType ?? "Workout"}`;
     case "logCardio": return `Log cardio: ${args.type ?? "cardio"}${args.minutes ? ` for ${args.minutes} min` : ""}`;
-    case "updateMeal": return "Edit meal";
-    case "deleteMeal": return "Delete meal";
     case "updateDailyCheckIn": return `Update today's check-in: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
     default: return "Review requested action";
   }

@@ -16,7 +16,8 @@ import {
   type Personalization,
   type Workout,
 } from "./types";
-import { MAX_WORKOUT_TEMPLATE_SETS, type WorkoutTemplate } from "./data";
+import type { WorkoutTemplate } from "./data";
+import { createActiveWorkout } from "./active-workout-state";
 import { buildDemoState } from "./demo-data";
 import { migrateFitCoreDataIfNeeded, parseFitCoreImport } from "./fitcore-data";
 import { getFitCoreRuntimePersistenceController } from "./persist";
@@ -183,26 +184,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const set = apply;
   const startWorkout = useCallback((template?: WorkoutTemplate, assignment?: Pick<Workout, "routineId" | "routineDayId">) => {
     if (stateRef.current.activeWorkout) return true;
-    if (template && template.exercises.reduce((sum, row) => sum + row.sets, 0) > MAX_WORKOUT_TEMPLATE_SETS) return false;
-    return apply((current) => ({
-      ...current,
-      activeWorkout: {
-        id: uid(),
-        name: template?.name ?? "Workout",
-        startedAt: Date.now(),
-        templateId: template?.id,
-        ...assignment,
-        exercises: template?.exercises.map(({ exerciseId, ...target }) => ({
-          id: uid(),
-          exerciseId,
-          target,
-          completed: false,
-          sets: Array.from({ length: target.sets }, () => ({
-            id: uid(), modifier: "normal" as const, completed: false,
-          })),
-        })) ?? [],
-      },
-    }));
+    const activeWorkout = createActiveWorkout(template, assignment, uid, Date.now());
+    return activeWorkout !== null && apply(current => ({ ...current, activeWorkout }));
   }, [apply]);
   const reset = useCallback(() => {
     apply(() => defaultState);
@@ -241,7 +224,7 @@ export function useStore() {
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 
-export const e1RM = (weight: number, reps: number) => Math.round(weight * (1 + reps / 30));
+export { e1RM } from "./workout-personal-records";
 
 export function todayStart() {
   const d = new Date();

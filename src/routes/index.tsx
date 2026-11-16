@@ -99,48 +99,50 @@ function FitCoreApp() {
   }
 
   return (
-    <div className="phone-shell" data-section={displayedSection} key={displayedSection}>
-      {storageMessage}
-      <div className="animate-tile-in">
-        {settingsOpen && !hasActiveWorkout ? (
-          <SettingsView onBack={() => setSettingsOpen(false)} layoutMode={layoutMode} />
-        ) : (
-          <>
-            {displayedSection === "home" && (
-              <>
-                <HomeView
-                  onNavigate={(s) => setSection(s)}
-                  onOpenSettings={() => setSettingsOpen(true)}
+    <>
+      <div className="phone-shell" data-section={displayedSection} key={displayedSection}>
+        {storageMessage}
+        <div className="animate-tile-in">
+          {settingsOpen && !hasActiveWorkout ? (
+            <SettingsView onBack={() => setSettingsOpen(false)} layoutMode={layoutMode} />
+          ) : (
+            <>
+              {displayedSection === "home" && (
+                <>
+                  <HomeView
+                    onNavigate={(s) => setSection(s)}
+                    onOpenSettings={() => setSettingsOpen(true)}
+                    layoutMode={layoutMode}
+                    onLayoutModeChange={setLayoutMode}
+                  />
+                  <RecentActivity />
+                </>
+              )}
+              {displayedSection === "training" && (
+                <TrainingView
                   layoutMode={layoutMode}
-                  onLayoutModeChange={setLayoutMode}
+                  showActiveWorkout={showActiveWorkout}
+                  onOpenActive={() => setOverviewWorkoutId(null)}
+                  onBackFromWorkout={() => setOverviewWorkoutId(activeWorkoutId ?? null)}
                 />
-                <RecentActivity />
-              </>
-            )}
-            {displayedSection === "training" && (
-              <TrainingView
-                layoutMode={layoutMode}
-                showActiveWorkout={showActiveWorkout}
-                onOpenActive={() => setOverviewWorkoutId(null)}
-                onBackFromWorkout={() => setOverviewWorkoutId(activeWorkoutId ?? null)}
-              />
-            )}
-            {displayedSection === "nutrition" && <NutritionView layoutMode={layoutMode} />}
-            {displayedSection === "recovery" && <RecoveryView layoutMode={layoutMode} />}
-            {displayedSection === "progress" && <ProgressView layoutMode={layoutMode} />}
-          </>
+              )}
+              {displayedSection === "nutrition" && <NutritionView layoutMode={layoutMode} />}
+              {displayedSection === "recovery" && <RecoveryView layoutMode={layoutMode} />}
+              {displayedSection === "progress" && <ProgressView layoutMode={layoutMode} />}
+            </>
+          )}
+        </div>
+
+        {!hasActiveWorkout && (
+          <BottomNav
+            active={section}
+            onChange={(s) => { setSection(s); setSettingsOpen(false); }}
+            onOpenSettings={() => setSettingsOpen(true)}
+          />
         )}
       </div>
-
       <JarvisPanel section={displayedSection} />
       <JarvisUndoSnackbar />
-      {!hasActiveWorkout && (
-        <BottomNav
-          active={section}
-          onChange={(s) => { setSection(s); setSettingsOpen(false); }}
-          onOpenSettings={() => setSettingsOpen(true)}
-        />
-      )}
-    </div>
+    </>
   );
 }

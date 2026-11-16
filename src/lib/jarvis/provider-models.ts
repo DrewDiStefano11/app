@@ -30,3 +30,6 @@ export function selectedGroqModel(model: unknown): CurrentGroqModel {
 export function selectedGeminiModel(_model?: unknown): CurrentGeminiModel {
   return GEMINI_MODELS[0];
 }
+
+// Photo analysis reopens with explicit image review and consent in the photo milestone.
+export const JARVIS_PHOTO_ANALYSIS_ENABLED = false;

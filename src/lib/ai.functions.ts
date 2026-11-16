@@ -19,7 +19,11 @@ import {
   sharedAccessDisabled,
 } from "./jarvis/providers.server";
 
-import { STORED_GEMINI_MODELS, STORED_GROQ_MODELS } from "./jarvis/provider-models";
+import {
+  JARVIS_PHOTO_ANALYSIS_ENABLED,
+  STORED_GEMINI_MODELS,
+  STORED_GROQ_MODELS,
+} from "./jarvis/provider-models";
 
 const aiProviderSchema = z.enum(["groq", "gemini", "legacy-lovable"]);
 const aiKeyModeSchema = z.enum(["local", "environment", "user"]);
@@ -277,6 +281,13 @@ ${data.learnedHints ? `\nUser's known portions/preferences:\n${data.learnedHints
 export const estimateMealMacros = createServerFn({ method: "POST" })
   .inputValidator(estimateInputSchema)
   .handler(async ({ data }) => {
+    if (!JARVIS_PHOTO_ANALYSIS_ENABLED) {
+      return {
+        ok: false as const,
+        error: "AI photo analysis is unavailable.",
+        code: "permission_denied" as const,
+      };
+    }
     if (!data.imageDataUrl?.startsWith("data:image/")) {
       return {
         ok: false as const,
