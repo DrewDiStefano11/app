@@ -936,10 +936,13 @@ function validateMeal(
   record: PlainRecord,
   location: RecordLocation,
 ): void {
-  const required = ["id", "name", "type", "calories", "protein", "carbs", "fat", "createdAt"];
+  const macros = ["protein", "carbs", "fat"];
+  const unreported = record.macroStatus === "unreported";
+  const required = ["id", "name", "type", "calories", "createdAt", ...(unreported ? [] : macros)];
   missingFields(context, record, location, required);
   unknownFields(context, record, location, [
     ...required,
+    "macroStatus",
     "fiber",
     "notes",
     "items",
@@ -951,6 +954,14 @@ function validateMeal(
     "auditId",
     "provenance",
   ]);
+  if (Object.hasOwn(record, "macroStatus")) {
+    validateEnum(context, record.macroStatus, location, "macroStatus", ["unreported"]);
+  }
+  if (unreported && [...macros, "items"].some((field) => Object.hasOwn(record, field))) {
+    context.add("invalid_field_type", "error", fieldPath(location, "macroStatus"), {
+      collection: location.collection, recordId: location.recordId, field: "macroStatus",
+    });
+  }
   if (Object.hasOwn(record, "id")) validateString(context, record.id, location, "id", { id: true });
   for (const field of ["name", "type"] as const) {
     if (Object.hasOwn(record, field))

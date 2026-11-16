@@ -749,8 +749,10 @@ function macroDistribution(
   macro: "calories" | "protein",
 ): MealMacroDistribution {
   const valid = meals
-    .filter((meal) => meal.valid[macro] && meal.meal[macro] > 0)
-    .map((meal) => ({ mealId: meal.meal.id, mealName: meal.meal.name, value: meal.meal[macro] }))
+    .flatMap(({ meal, valid }) => {
+      const value = meal[macro];
+      return valid[macro] && value !== undefined && value > 0 ? [{ mealId: meal.id, mealName: meal.name, value }] : [];
+    })
     .sort((a, b) => a.mealId.localeCompare(b.mealId));
   const values = valid.map((item) => item.value);
   const total = safeSum(values);

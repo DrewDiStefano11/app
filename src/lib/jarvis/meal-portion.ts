@@ -76,7 +76,7 @@ export const correctMealPortion: ToolHandler = (args, { state, set, confirmed })
   const index = Number(args.index);
   const item = meal?.items?.[index];
   const old = item && amountOf(item);
-  if (!meal || !item || !old || old.unit !== args.unit) {
+  if (!meal || meal.macroStatus === "unreported" || !item || !old || old.unit !== args.unit) {
     return { ok: false, summary: "The saved meal portion is no longer available." };
   }
   const quantity = Number(args.quantity);

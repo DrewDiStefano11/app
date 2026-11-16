@@ -77,6 +77,13 @@ const schemas: Readonly<Record<string, z.ZodType<Record<string, unknown>>>> = {
   updateDailyCheckIn: z.strictObject({ ...draft, patch: nonempty({ ...recovery, notes }) }),
   logMeal: mealDraft,
   logReferenceMeal: mealDraft,
+  logCaloriesOnly: z.strictObject({
+    ...draft,
+    originalText: notes.optional(),
+    mealType,
+    calories: z.number().positive().max(20_000),
+    approximate: z.boolean(),
+  }),
   updateMeal: z.strictObject({
     ...draft,
     id,

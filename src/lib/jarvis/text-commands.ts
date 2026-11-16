@@ -472,6 +472,21 @@ export function interpretJarvisText(
   const training = queryTrainingText(text, state, now);
   if (training) return training;
 
+  const caloriesOnly =
+    /^(?:i (?:had|ate)|log) (about |around |roughly )?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(?:calories|kcal)(?: for (breakfast|lunch|dinner|snack))?$/.exec(
+      text,
+    );
+  if (caloriesOnly)
+    return {
+      tool: "logCaloriesOnly",
+      args: {
+        calories: Number(caloriesOnly[2].replaceAll(",", "")),
+        approximate: Boolean(caloriesOnly[1]),
+        mealType: caloriesOnly[3] ?? "snack",
+        originalText: raw,
+      },
+    };
+
   const referenceMeal = queryLibraryMeal(text, raw);
   if (referenceMeal) return referenceMeal;
 
@@ -491,7 +506,11 @@ export function interpretJarvisText(
             .slice(0, 20)
             .map((meal) => {
               const estimate = meal.provenance?.source === "ai-estimated" ? " (estimate)" : "";
-              return `${meal.name}: ${meal.calories} kcal, ${meal.protein} g protein${estimate}.`;
+              const protein =
+                meal.macroStatus === "unreported"
+                  ? "macros unreported"
+                  : `${meal.protein} g protein`;
+              return `${meal.name}: ${meal.calories} kcal, ${protein}${estimate}.`;
             })
             .join("\n")
         : "There are no meals logged today.",
@@ -521,7 +540,20 @@ export function interpretJarvisText(
     );
     if (!meals.length) return { reply: "There are no meals logged today." };
     const protein = text.includes("protein");
-    const total = meals.reduce((sum, meal) => sum + (protein ? meal.protein : meal.calories), 0);
+    const missing = meals.filter((meal) => meal.macroStatus === "unreported").length;
+    const total = meals.reduce(
+      (sum, meal) => sum + (protein ? (meal.protein ?? 0) : meal.calories),
+      0,
+    );
+    if (protein && missing) {
+      const recorded =
+        missing === meals.length
+          ? "No protein amounts have been logged today."
+          : `${Math.round(total)} g of protein are recorded so far.`;
+      return {
+        reply: `${recorded} ${missing} ${missing === 1 ? "meal has" : "meals have"} unreported macros.`,
+      };
+    }
     return {
       reply: `Today's meal log totals ${Math.round(total)} ${protein ? "g of protein" : "kcal"}, including any saved estimates.`,
     };

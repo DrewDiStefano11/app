@@ -4,6 +4,45 @@ import { commitFitCoreStoreRuntime, hydrateFitCoreStoreRuntime } from "../../../
 import { createFitCoreRuntimePersistenceController } from "../../../src/lib/runtime-persistence";
 import { defaultState, type AppState } from "../../../src/lib/types";
 import { interpretJarvisText } from "../../../src/lib/jarvis/text-commands";
+import { migrateFitCoreDataIfNeeded } from "../../../src/lib/fitcore-data";
+
+test("a calorie-only meal preserves the reported calories and leaves macros unreported", () => {
+  const fitcore = storageFixture();
+  const state = fitcore.snapshot();
+  const command = interpretJarvisText("I had about 800 calories for dinner.", state);
+  if (!command || !("tool" in command)) throw new Error("Expected a local calorie-only meal draft");
+  const set = (update: (state: AppState) => AppState) =>
+    fitcore.set((current) => migrateFitCoreDataIfNeeded(update(current)));
+  const context = { state, set, settings: state.jarvisSettings };
+  const review = runTool(command.tool, command.args, context);
+  expect(review.needsConfirmation).toBe(true);
+  expect(review.summary).toMatch(/800 kcal.*macros unreported/i);
+  expect(fitcore.reload().mealEntries).toEqual([]);
+  expect(runTool(command.tool, command.args, { ...context, confirmed: true }).ok).toBe(true);
+  expect(fitcore.reload().mealEntries[0]).toMatchObject({
+    calories: 800,
+    type: "dinner",
+    macroStatus: "unreported",
+  });
+  for (const field of ["protein", "carbs", "fat"]) {
+    expect(fitcore.reload().mealEntries[0]).not.toHaveProperty(field);
+  }
+  const reply = interpretJarvisText("How much protein have I eaten today?", fitcore.reload());
+  expect(reply).toMatchObject({
+    reply: "No protein amounts have been logged today. 1 meal has unreported macros.",
+  });
+  const beforeRetry = fitcore.commits;
+  const retry = runTool(command.tool, command.args, {
+    ...context,
+    state: fitcore.snapshot(),
+    confirmed: true,
+  });
+  expect(retry.data).toMatchObject({ duplicate: true });
+  expect(fitcore.commits).toBe(beforeRetry);
+  const audit = fitcore.reload().jarvisAudit[0];
+  expect(undoAuditEntry(audit.id, fitcore.snapshot(), fitcore.set).ok).toBe(true);
+  expect(fitcore.reload().mealEntries).toEqual([]);
+});
 
 function storageFixture() {
   const bytes = new Map<string, string>();

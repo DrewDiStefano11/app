@@ -261,6 +261,42 @@ test("a food library meal can be reviewed and saved without a cloud request", as
   expect(requests).toEqual([]);
 });
 
+test("a calorie-only dinner appears in Nutrition with unreported macros", async ({ page }) => {
+  await seedRevisionedFitCoreState(page, currentFitCoreState({ onboardingComplete: true }));
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/_serverFn/")) requests.push(request.url());
+  });
+  await gotoDashboard(page);
+  await page.getByRole("button", { name: "Open AI composer" }).click();
+  await page
+    .getByRole("textbox", { name: "Message Jarvis" })
+    .fill("I had about 800 calories for dinner.");
+  await page.getByRole("button", { name: "Send to Jarvis" }).click();
+  await expect(page.getByText("Log Dinner: about 800 kcal, macros unreported?")).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).mealEntries).toEqual([]);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Logged Dinner: about 800 kcal, macros unreported")).toBeVisible();
+  const saved = await readPersistedFitCoreState(page);
+  expect(saved.mealEntries).toHaveLength(1);
+  expect(saved.mealEntries[0]).toMatchObject({
+    calories: 800,
+    type: "dinner",
+    macroStatus: "unreported",
+  });
+  expect(saved.mealEntries[0]).not.toHaveProperty("protein");
+  await page.reload();
+  const navigation = page.getByRole("navigation", { name: "Primary navigation" });
+  await expect(navigation).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).mealEntries).toEqual(saved.mealEntries);
+  const expand = navigation.getByRole("button", { name: "Expand navigation" });
+  if (await expand.isVisible()) await expand.click();
+  await navigation.getByRole("button", { name: "Fuel", exact: true }).click();
+  await expect(page.getByText("800 kcal logged today")).toBeVisible();
+  await expect(page.getByText("Macros unreported", { exact: true })).toBeVisible();
+  expect(requests).toEqual([]);
+});
+
 test("saved meal preferences can be corrected and forgotten without changing nutrition history", async ({
   page,
 }) => {

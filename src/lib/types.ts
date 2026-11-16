@@ -70,11 +70,11 @@ export interface MealItem {
   provenance?: DataProvenance;
 }
 
-export interface MealEntry {
+interface MealEntryBase {
   id: string;
   name: string;
   type: string;
-  calories: number; protein: number; carbs: number; fat: number;
+  calories: number;
   fiber?: number;
   notes?: string;
   createdAt: number;
@@ -87,6 +87,11 @@ export interface MealEntry {
   auditId?: string;
   provenance?: DataProvenance;
 }
+
+export type MealEntry = MealEntryBase & (
+  | { macroStatus?: never; protein: number; carbs: number; fat: number }
+  | { macroStatus: "unreported"; protein?: never; carbs?: never; fat?: never }
+);
 
 export interface SupplementLog {
   id: string;

@@ -168,7 +168,7 @@ export function JarvisPanel({ section }: { section: string }) {
       tool,
       result: {
         ...result,
-        summary: ["addPlannedExerciseSet", "logUsualMeal", "saveUsualMeal", "deleteUsualMeal", "logSleep", "updateBodyWeight", "logExerciseSet", "updateExerciseSet", "deleteExerciseSet", "updateMeal", "correctMealPortion", "deleteMeal", "updateWorkout", "updateActiveWorkout", "undoLastAction", "startRestTimer", "startScheduledWorkout"].includes(tool) ? result.summary : humanizeArgs(tool, args),
+        summary: ["addPlannedExerciseSet", "logUsualMeal", "logCaloriesOnly", "saveUsualMeal", "deleteUsualMeal", "logSleep", "updateBodyWeight", "logExerciseSet", "updateExerciseSet", "deleteExerciseSet", "updateMeal", "correctMealPortion", "deleteMeal", "updateWorkout", "updateActiveWorkout", "undoLastAction", "startRestTimer", "startScheduledWorkout"].includes(tool) ? result.summary : humanizeArgs(tool, args),
       },
       pending: { draftId, args: { ...(["logUsualMeal", "logWorkout"].includes(tool) ? args : result.data as Record<string, unknown>), draftId }, base: live, reviewedAt },
     };

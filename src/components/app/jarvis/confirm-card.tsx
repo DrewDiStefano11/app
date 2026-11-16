@@ -49,6 +49,7 @@ function toolLabel(tool: string) {
     logDailyCheckIn: "Daily check-in",
     logMeal: "Meal",
     logReferenceMeal: "Meal",
+    logCaloriesOnly: "Meal",
     logUsualMeal: "Usual meal",
     saveUsualMeal: "Usual meal",
     createWorkoutDraft: "Workout",

@@ -31,7 +31,7 @@ export type ToolName =
   | "getJarvisSettings" | "updateJarvisSettings"
   | "logBodyWeight" | "updateBodyWeight" | "logSleep" | "logSupplement" | "logDailyCheckIn"
   | "undoLastAction" | "saveJarvisLearning" | "getJarvisLearnedPreferences"
-  | "logMeal" | "logReferenceMeal" | "updateMeal" | "correctMealPortion" | "deleteMeal" | "getMealHistory"
+  | "logMeal" | "logReferenceMeal" | "logCaloriesOnly" | "updateMeal" | "correctMealPortion" | "deleteMeal" | "getMealHistory"
   | "getUsualMeals" | "saveUsualMeal" | "deleteUsualMeal" | "logUsualMeal"
   | "getSupplementStatus" | "getMissedHabits"
   | "getDailyReviewSummary" | "updateDailyCheckIn" | "suggestNutritionAction"
@@ -126,8 +126,20 @@ function sameDay(a: number, b = Date.now()) { return a >= dayStart(b) && a < day
 function dayStart(ts: number) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
 function asConfidence(v: unknown, fallback: Confidence = "medium"): Confidence { return v === "high" || v === "medium" || v === "low" ? v : fallback; }
 function todaysMealsTotal(s: AppState) {
-  const t = todayStart();
-  return s.mealEntries.filter(m => m.createdAt >= t).reduce((a, m) => ({ calories: a.calories + m.calories, protein: a.protein + m.protein, carbs: a.carbs + m.carbs, fat: a.fat + m.fat }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  const start = todayStart();
+  const totals = s.mealEntries.filter(meal => meal.createdAt >= start).reduce(
+    (totals, meal) => ({
+      calories: totals.calories + meal.calories,
+      protein: totals.protein + (meal.protein ?? 0),
+      carbs: totals.carbs + (meal.carbs ?? 0),
+      fat: totals.fat + (meal.fat ?? 0),
+      mealsWithoutMacros: totals.mealsWithoutMacros + Number(meal.macroStatus === "unreported"),
+    }),
+    { calories: 0, protein: 0, carbs: 0, fat: 0, mealsWithoutMacros: 0 },
+  );
+  return totals.mealsWithoutMacros
+    ? { ...totals, protein: null, carbs: null, fat: null }
+    : totals;
 }
 
 function findExerciseId(nameOrId: unknown): string {
@@ -183,13 +195,14 @@ const handlers: Record<ToolName, ToolHandler> = {
   correctMealPortion,
   getTodaySummary: (_a, { state }) => {
     const tot = todaysMealsTotal(state), tgt = state.nutritionTargets, last = state.workouts.at(-1), ci = state.recoveryCheckIns.at(-1);
-    return { ok: true, summary: "today snapshot", data: { calories: `${tot.calories} / ${tgt.calories}`, protein: `${tot.protein}g / ${tgt.protein}g`, lastWorkout: last ? { name: last.name, daysAgo: Math.floor((Date.now() - last.startedAt) / 86400000) } : null, lastCheckIn: ci ? { energy: ci.energy, soreness: ci.soreness, stress: ci.stress } : null } };
+    return { ok: true, summary: "today snapshot", data: { calories: `${tot.calories} / ${tgt.calories}`, protein: tot.protein === null ? "Some meals have unreported macros." : `${tot.protein}g / ${tgt.protein}g`, lastWorkout: last ? { name: last.name, daysAgo: Math.floor((Date.now() - last.startedAt) / 86400000) } : null, lastCheckIn: ci ? { energy: ci.energy, soreness: ci.soreness, stress: ci.stress } : null } };
   },
   getNutritionStatus: (_a, { state }) => {
     const meals = state.mealEntries.filter(item => sameDay(item.createdAt));
     if (!meals.length) return { ok: true, summary: "There are no meals logged today." };
     const totals = todaysMealsTotal(state);
-    return { ok: true, summary: `Today's meal log: ${totals.calories} kcal and ${totals.protein} g protein, including saved estimates.`,
+    const summary = totals.protein === null ? `Today's meal log: ${totals.calories} kcal. Some meals have unreported macros.` : `Today's meal log: ${totals.calories} kcal and ${totals.protein} g protein, including saved estimates.`;
+    return { ok: true, summary,
       data: { totals, targets: state.nutritionTargets } };
   },
   getTrainingStatus: (_a, { state }) => ({ ok: true, summary: "training status", data: { thisWeek: state.workouts.filter(w => w.startedAt > Date.now() - 7 * 86400000).length, recent: state.workouts.slice(-5), activeWorkout: state.activeWorkout?.name ?? null } }),
@@ -258,6 +271,39 @@ const handlers: Record<ToolName, ToolHandler> = {
   saveJarvisLearning: (args, { set, settings }) => { if (!settings.learningEnabled) return { ok: false, summary: "learning disabled", error: "Memory/learning is off" }; const key = String(args.key ?? "").trim(); if (!key) return { ok: false, summary: "missing key", error: "key required" }; set(s => ({ ...s, jarvisLearning: { ...s.jarvisLearning, [key]: args.value } })); return { ok: true, summary: `Learned: ${key}` }; },
   getJarvisLearnedPreferences: (_a, { state }) => ({ ok: true, summary: "learned prefs", data: state.jarvisLearning }),
   logReferenceMeal: (args, ctx) => handlers.logMeal({ ...args, source: "jarvis-confirmed" }, { ...ctx, referenceMeal: true }),
+  logCaloriesOnly: (args, { state, set, confirmed, now = new Date() }) => {
+    const originalText = textArg(args, "originalText");
+    const existing = state.mealEntries.find(meal => originalText
+      && sameDay(meal.createdAt, now.getTime())
+      && normalizeText(meal.originalText) === normalizeText(originalText));
+    if (existing) {
+      return { ok: true, summary: "That's already logged.", data: { duplicate: true, existing: [existing.id] } };
+    }
+    const type = String(args.mealType);
+    const calories = Number(args.calories);
+    const name = type[0].toUpperCase() + type.slice(1);
+    const approximate = args.approximate === true;
+    const amounts = `${approximate ? "about " : ""}${calories} kcal, macros unreported`;
+    if (!confirmed) return { ok: true, summary: `Log ${name}: ${amounts}?` };
+    const id = uid();
+    const auditId = uid();
+    const createdAt = now.getTime();
+    const assumptions = [approximate ? "User-reported approximate calories. Macros were not reported." : "User-reported calories. Macros were not reported."];
+    const provenance = createJarvisProvenance({
+      confirmed, auditId, originalText, assumptions, confidence: approximate ? "medium" : "high",
+    });
+    const meal: MealEntry = {
+      id, name, type, calories, macroStatus: "unreported", source: "jarvis-confirmed",
+      confirmed, provenance, auditId, originalText, createdAt,
+    };
+    const summary = `Logged ${name}: ${amounts}`;
+    set(s => ({ ...s, mealEntries: [...s.mealEntries, meal] }));
+    pushAudit(set, {
+      id: auditId, tool: "logCaloriesOnly", summary, status: "logged", entityIds: [id], entityKind: "meal",
+      patch: { name, mealType: type, calories }, createdAt,
+    });
+    return { ok: true, summary, auditId, data: { id } };
+  },
   logMeal: (args, { set, state, confirmed, mealPortionEdited, referenceMeal }) => {
     const dupeAudit = hasAuditKey(state, "logMeal", args); if (dupeAudit) return duplicateResult(dupeAudit);
     const name = String(args.name ?? "").trim() || "Meal";
@@ -296,13 +342,21 @@ const handlers: Record<ToolName, ToolHandler> = {
     const id = String(args.id ?? ""), meal = state.mealEntries.find(m => m.id === id);
     if (!meal) return { ok: false, summary: "meal not found", error: "Meal id not found" };
     const patch = (args.patch ?? {}) as Partial<MealEntry>, auditId = uid(), editedAt = Date.now();
+    if (meal.macroStatus === "unreported" && ["protein", "carbs", "fat", "items"].some(field => Object.hasOwn(patch, field))
+      && (patch.protein === undefined || patch.carbs === undefined || patch.fat === undefined)) {
+      return { ok: false, summary: "Enter protein, carbs, and fat together to complete this meal's macros." };
+    }
     if (!confirmed) {
       const changes = Object.entries(patch).map(([field, value]) =>
         field === "items" ? "replace the item list" : `${field}: ${String(meal[field as keyof MealEntry] ?? "unset")} to ${String(value)}`);
       return { ok: true, summary: `Edit ${meal.name} (${new Date(meal.createdAt).toLocaleDateString()}). ${changes.join(", ")}.` };
     }
     const provenance = markProvenanceEdited(meal.provenance, { editedBy: confirmed ? "user" : "jarvis", editedAt, auditId });
-    set(s => ({ ...s, mealEntries: s.mealEntries.map(m => m.id === id ? { ...m, ...patch, source: "edited", confirmed: confirmed ? true : m.confirmed, provenance } : m) }));
+    const updated = { ...meal, ...patch, source: "edited" as const, confirmed: confirmed ? true : meal.confirmed, provenance };
+    const next: MealEntry = updated.protein === undefined || updated.carbs === undefined || updated.fat === undefined
+      ? { ...updated, macroStatus: "unreported", protein: undefined, carbs: undefined, fat: undefined }
+      : { ...updated, macroStatus: undefined, protein: updated.protein, carbs: updated.carbs, fat: updated.fat };
+    set(s => ({ ...s, mealEntries: s.mealEntries.map(m => m.id === id ? next : m) }));
     pushAudit(set, { id: auditId, tool: "updateMeal", summary: `Edited meal: ${meal.name}`, status: "logged", entityIds: [id], entityKind: "mealEdit", patch: { prev: meal, next: patch }, createdAt: editedAt });
     return { ok: true, summary: `Updated ${meal.name}`, auditId };
   },
@@ -353,8 +407,8 @@ const handlers: Record<ToolName, ToolHandler> = {
     }, ctx);
   },
   getSupplementStatus: (_a, { state }) => { const today = state.supplementLogs.filter(s => s.createdAt >= todayStart()), routine = state.userGoalsProfile.supplementRoutine ?? [], taken = today.map(s => s.name.toLowerCase()); return { ok: true, summary: `${today.length} taken today`, data: { takenToday: today, routine, missing: routine.filter(r => !taken.some(t => t.includes(r.toLowerCase()))) } }; },
-  getMissedHabits: (_a, { state }) => { const missed: { habit: string; reason: string }[] = [], totals = todaysMealsTotal(state), target = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein; if (totals.protein < ptarget * 0.7 && Date.now() - todayStart() > 12 * 3600000) missed.push({ habit: "protein", reason: `${totals.protein}g / ${ptarget}g target` }); if (totals.calories < target * 0.5 && Date.now() - todayStart() > 14 * 3600000) missed.push({ habit: "calories", reason: `${totals.calories} / ${target} kcal` }); if (!state.bodyweightEntries.some(b => b.createdAt >= todayStart()) && state.userGoalsProfile.normalWeighInTime) missed.push({ habit: "weigh-in", reason: "not logged today" }); if (!state.recoveryCheckIns.some(c => c.createdAt >= todayStart())) missed.push({ habit: "check-in", reason: "no daily check-in yet" }); return { ok: true, summary: `${missed.length} missed habits`, data: missed }; },
-  getDailyReviewSummary: (_a, { state }) => { const totals = todaysMealsTotal(state), target = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein, meals = state.mealEntries.filter(m => m.createdAt >= todayStart()), supps = state.supplementLogs.filter(s => s.createdAt >= todayStart()), ci = state.recoveryCheckIns.filter(c => c.createdAt >= todayStart()).at(-1), bw = state.bodyweightEntries.filter(b => b.createdAt >= todayStart()).at(-1), workout = state.workouts.find(w => w.startedAt >= todayStart()); return { ok: true, summary: "daily review", data: { calories: { logged: totals.calories, target, remaining: Math.max(0, target - totals.calories) }, protein: { logged: totals.protein, target: ptarget, remaining: Math.max(0, ptarget - totals.protein) }, macros: totals, mealsLogged: meals.length, lowConfidenceMeals: meals.filter(m => m.confidence === "low").length, supplementsToday: supps.map(s => s.name), bodyweight: bw?.weightLb ?? null, checkIn: ci ?? null, workoutToday: workout?.name ?? null } }; },
+  getMissedHabits: (_a, { state }) => { const missed: { habit: string; reason: string }[] = [], totals = todaysMealsTotal(state), target = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein; if (totals.protein !== null && totals.protein < ptarget * 0.7 && Date.now() - todayStart() > 12 * 3600000) missed.push({ habit: "protein", reason: `${totals.protein}g / ${ptarget}g target` }); if (totals.calories < target * 0.5 && Date.now() - todayStart() > 14 * 3600000) missed.push({ habit: "calories", reason: `${totals.calories} / ${target} kcal` }); if (!state.bodyweightEntries.some(b => b.createdAt >= todayStart()) && state.userGoalsProfile.normalWeighInTime) missed.push({ habit: "weigh-in", reason: "not logged today" }); if (!state.recoveryCheckIns.some(c => c.createdAt >= todayStart())) missed.push({ habit: "check-in", reason: "no daily check-in yet" }); return { ok: true, summary: `${missed.length} missed habits`, data: missed }; },
+  getDailyReviewSummary: (_a, { state }) => { const totals = todaysMealsTotal(state), target = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein, meals = state.mealEntries.filter(m => m.createdAt >= todayStart()), supps = state.supplementLogs.filter(s => s.createdAt >= todayStart()), ci = state.recoveryCheckIns.filter(c => c.createdAt >= todayStart()).at(-1), bw = state.bodyweightEntries.filter(b => b.createdAt >= todayStart()).at(-1), workout = state.workouts.find(w => w.startedAt >= todayStart()); return { ok: true, summary: "daily review", data: { calories: { logged: totals.calories, target, remaining: Math.max(0, target - totals.calories) }, protein: { logged: totals.protein, target: ptarget, remaining: totals.protein === null ? null : Math.max(0, ptarget - totals.protein) }, macros: totals, mealsLogged: meals.length, lowConfidenceMeals: meals.filter(m => m.confidence === "low").length, supplementsToday: supps.map(s => s.name), bodyweight: bw?.weightLb ?? null, checkIn: ci ?? null, workoutToday: workout?.name ?? null } }; },
   updateDailyCheckIn: (args, { set, state, confirmed }) => {
     const last = [...state.recoveryCheckIns].reverse().find(c => c.createdAt >= todayStart());
     if (!last) return { ok: false, summary: "no check-in today", error: "Run logDailyCheckIn first." };
@@ -364,7 +418,7 @@ const handlers: Record<ToolName, ToolHandler> = {
     pushAudit(set, { id: auditId, tool: "updateDailyCheckIn", summary: "Updated today's check-in", status: "logged", entityIds: [last.id], entityKind: "checkinEdit", patch: { prev: last, next: patch }, createdAt: editedAt });
     return { ok: true, summary: "Check-in updated", auditId };
   },
-  suggestNutritionAction: (_a, { state, settings }) => { if (!settings.nutritionSuggestions) return { ok: true, summary: "nutrition suggestions off", data: { suggestion: null } }; const totals = todaysMealsTotal(state), ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein, ctarget = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, proteinGap = ptarget - totals.protein, calorieGap = ctarget - totals.calories; const suggestion = proteinGap > 30 ? `You're ${proteinGap}g short on protein.` : calorieGap > 500 ? `Still ${calorieGap} kcal under target.` : "Macros look on track."; return { ok: true, summary: suggestion, data: { suggestion, proteinGap, calorieGap } }; },
+  suggestNutritionAction: (_a, { state, settings }) => { if (!settings.nutritionSuggestions) return { ok: true, summary: "nutrition suggestions off", data: { suggestion: null } }; const totals = todaysMealsTotal(state), ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein, ctarget = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, proteinGap = totals.protein === null ? null : ptarget - totals.protein, calorieGap = ctarget - totals.calories; const suggestion = proteinGap === null ? "Some meals have unreported macros." : proteinGap > 30 ? `You're ${proteinGap}g short on protein.` : calorieGap > 500 ? `Still ${calorieGap} kcal under target.` : "Macros look on track."; return { ok: true, summary: suggestion, data: { suggestion, proteinGap, calorieGap } }; },
   createWorkoutDraft: (args) => { const draft = workoutPayload(args); if (!draft.exercises.length) return { ok: false, summary: "no exercises found", error: "Add at least one exercise." }; return { ok: true, summary: `Review ${draft.name}: ${draft.exercises.length} exercises`, needsConfirmation: true, data: { ...draft, durationMin: Math.round((draft.endedAt - draft.startedAt) / 60000), exercises: draft.exercises.map(e => ({ ...e, name: exerciseById(e.exerciseId)?.name ?? e.exerciseId })) } }; },
   logWorkout: (args, { set, state, confirmed }) => {
     if (state.activeWorkout) return { ok: false, summary: "Finish or resume the active workout before saving a separate workout." };
@@ -647,7 +701,7 @@ function stageUndo(auditId: string, state: AppState, set: Updater): ToolResult {
       const old = index === undefined ? undefined : patch?.prev?.items?.[index];
       const previous = patch?.prev, expected = patch?.expected, totals = patch?.totals;
       const fields = ["calories", "protein", "carbs", "fat"] as const;
-      if (!current || !item || !old || !previous || !expected || !totals
+      if (!current || current.macroStatus === "unreported" || !item || !old || !previous || previous.macroStatus === "unreported" || !expected || !totals
         || current.provenance?.editAuditId !== entry.id || item.name !== expected.name || item.qty !== expected.qty
         || fields.some(field => item[field] !== expected[field] || current[field] !== totals[field])) {
         return { ok: false, summary: "The meal has changed since Jarvis corrected its portion." };

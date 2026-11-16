@@ -40,11 +40,12 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
   const now = Date.now();
   const today = state.mealEntries.filter((m) => isToday(m.createdAt) && m.createdAt <= now);
   const t = today.reduce(
-    (a, m) => ({ c: a.c + m.calories, p: a.p + m.protein, cb: a.cb + m.carbs, f: a.f + m.fat }),
+    (a, m) => ({ c: a.c + m.calories, p: a.p + (m.protein ?? 0), cb: a.cb + (m.carbs ?? 0), f: a.f + (m.fat ?? 0) }),
     { c: 0, p: 0, cb: 0, f: 0 },
   );
   const tg = state.nutritionTargets;
   const hasMeals = today.length > 0;
+  const missingMacros = today.some((meal) => meal.macroStatus === "unreported");
 
   const supplements = state.supplementLogs
     ? state.supplementLogs.filter((s) => isToday(s.createdAt))
@@ -80,7 +81,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                   {Math.round((t.c / Math.max(1, tg.calories)) * 100)}% Goal
                 </p>
               </div>
-              <div className="flex-1 space-y-3">
+              {missingMacros ? <p className="flex-1 text-sm text-muted-foreground">Some meals have unreported macros.</p> : <div className="flex-1 space-y-3">
                 <MacroBar
                   label="Protein"
                   value={t.p}
@@ -96,7 +97,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                   color="rgb(245 158 11)"
                 />
                 <MacroBar label="Fat" value={t.f} target={tg.fat} unit="g" color="rgb(34 197 94)" />
-              </div>
+              </div>}
             </div>}
           </Tile>
 
@@ -192,7 +193,9 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                         {Math.round(m.calories)}
                       </p>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mt-1">
-                        P{Math.round(m.protein)} C{Math.round(m.carbs)} F{Math.round(m.fat)}
+                        {m.macroStatus === "unreported"
+                          ? "Macros unreported"
+                          : `P${Math.round(m.protein)} C${Math.round(m.carbs)} F${Math.round(m.fat)}`}
                       </p>
                     </div>
                     <button
@@ -214,7 +217,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
         <div className="px-5 space-y-4 mt-2">
           <SectionHeader title="Macro detail" />
           <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
-            {hasMeals ? <>
+            {missingMacros ? <p className="text-sm text-muted-foreground">Some meals have unreported macros.</p> : hasMeals ? <>
             <MacroBar
               label="Protein"
               value={t.p}
