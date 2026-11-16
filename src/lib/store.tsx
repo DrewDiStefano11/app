@@ -189,9 +189,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         name: template?.name ?? "Workout",
         startedAt: Date.now(),
         templateId: template?.id,
-        exercises: template?.exercises.map(({ exerciseId, sets }) => ({
+        exercises: template?.exercises.map(({ exerciseId, sets, notes }) => ({
           id: uid(),
           exerciseId,
+          notes,
           completed: false,
           sets: Array.from({ length: sets }, () => ({
             id: uid(), modifier: "normal" as const, completed: false,

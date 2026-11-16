@@ -1,12 +1,12 @@
 import { BottomSheet } from "../sheet";
 import { useStore } from "@/lib/store";
-import { WORKOUT_TEMPLATES, exerciseById, type WorkoutTemplate } from "@/lib/data";
+import { availableWorkoutTemplates, exerciseById, type WorkoutTemplate } from "@/lib/data";
 import { Play, Plus, Dumbbell } from "lucide-react";
 
 export function StartWorkoutSheet({ open, onClose, onStarted }: {
   open: boolean; onClose: () => void; onStarted: () => void;
 }) {
-  const { startWorkout } = useStore();
+  const { state, startWorkout } = useStore();
 
   const start = (template?: WorkoutTemplate) => {
     if (!startWorkout(template)) return;
@@ -33,7 +33,7 @@ export function StartWorkoutSheet({ open, onClose, onStarted }: {
         <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold pt-2 px-1">From Template</div>
 
         <div className="space-y-2">
-          {WORKOUT_TEMPLATES.map(t => (
+          {availableWorkoutTemplates(state.workoutTemplates).map(t => (
             <button key={t.id} onClick={() => start(t)}
               className="w-full p-3 rounded-2xl tile press flex items-center gap-3 text-left">
               <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "var(--section-soft)", color: "var(--section)" }}>

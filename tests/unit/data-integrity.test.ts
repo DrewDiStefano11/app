@@ -433,6 +433,31 @@ test("workout template references resolve through both template identity fields"
   );
 });
 
+test("validates reusable layouts alongside existing starter template references", () => {
+  const candidate = state();
+  candidate.workoutTemplates = [
+    { id: "existing", name: "Push", templateId: "push" },
+    {
+      id: "lower-day",
+      name: "Lower day",
+      templateId: "lower-day",
+      plan: {
+        durationMin: 35,
+        exercises: [{ exerciseId: "squat", sets: 4, reps: "5–8", notes: "Pause." }],
+      },
+    },
+  ];
+  assert.equal(validateFitCoreDataIntegrity(candidate).status, "valid");
+
+  candidate.workoutTemplates[1].plan!.exercises[0].sets = 1_000_000;
+  const report = validateFitCoreDataIntegrity(candidate);
+  assert.equal(report.status, "invalid");
+  assert.deepEqual(
+    issues(report, "out_of_range_value").map(issue => issue.path),
+    ["$.workoutTemplates[1].plan.exercises[0].sets"],
+  );
+});
+
 test("built-in exercise, PR, and audit entity references are not treated as orphaned", () => {
   const candidate = state();
   candidate.workouts = [workout()];

@@ -741,7 +741,7 @@ function validateWorkoutTemplate(
 ): void {
   const required = ["id", "name", "templateId"];
   missingFields(context, record, location, required);
-  unknownFields(context, record, location, required);
+  unknownFields(context, record, location, [...required, "plan"]);
   for (const field of required) {
     if (Object.hasOwn(record, field))
       validateString(context, record[field], location, field, {
@@ -749,6 +749,41 @@ function validateWorkoutTemplate(
         requiredNonEmpty: field !== "id",
       });
   }
+  if (!Object.hasOwn(record, "plan")) return;
+  validateObjectRecord(context, record.plan, location.collection, fieldPath(location, "plan"),
+    (context, plan, location) => {
+      const fields = ["durationMin", "exercises"];
+      missingFields(context, plan, location, fields);
+      unknownFields(context, plan, location, fields);
+      validateOptionalNumber(context, plan, location, "durationMin", { positive: true, integer: true });
+      if (!Object.hasOwn(plan, "exercises")) return;
+      const scope = fieldPath(location, "exercises");
+      if (!Array.isArray(plan.exercises)) {
+        context.add("invalid_field_type", "error", scope, {
+          collection: location.collection,
+          field: "exercises",
+          value: plan.exercises,
+        });
+        return;
+      }
+      plan.exercises.forEach((exercise, index) => {
+        validateObjectRecord(context, exercise, location.collection, `${scope}[${index}]`,
+          (context, exercise, location) => {
+            const fields = ["exerciseId", "sets", "reps"];
+            missingFields(context, exercise, location, fields);
+            unknownFields(context, exercise, location, [...fields, "rest", "notes"]);
+            if (Object.hasOwn(exercise, "exerciseId")) {
+              validateString(context, exercise.exerciseId, location, "exerciseId", { requiredNonEmpty: true });
+            }
+            validateOptionalNumber(context, exercise, location, "sets", { positive: true, integer: true, max: 1000 });
+            validateOptionalNumber(context, exercise, location, "rest", { nonNegative: true });
+            validateOptionalString(context, exercise, location, "reps");
+            validateOptionalString(context, exercise, location, "notes");
+          },
+        );
+      });
+    },
+  );
 }
 
 function validateCustomExercise(

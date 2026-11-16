@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Play, Plus, Clock, Flame, Trash2, Trophy, Dumbbell, CalendarDays, BarChart3, ListChecks } from "lucide-react";
 import { useStore, uid, isToday } from "@/lib/store";
-import { WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
+import { availableWorkoutTemplates, WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
 import { weeklyVolumeSeries, muscleMap, MUSCLES } from "@/lib/analytics";
 import type { CardioEntry } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
@@ -99,7 +99,9 @@ function DailyTrainingView({
   const todays = state.workouts.filter(w => isToday(w.startedAt));
   const lastWorkout = state.workouts[state.workouts.length - 1];
   const planExercises = state.workoutTemplates[0]
-    ? WORKOUT_TEMPLATES.find(t => t.id === state.workoutTemplates[0].templateId)
+    ? availableWorkoutTemplates(state.workoutTemplates).find(t =>
+        t.id === state.workoutTemplates[0].id || t.id === state.workoutTemplates[0].templateId,
+      )
     : WORKOUT_TEMPLATES[0];
   const weekWorkouts = state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000);
   const weekCardio = state.cardioEntries.filter(c => c.createdAt > Date.now() - 7*86400000);
@@ -353,18 +355,19 @@ function WorkoutsTab() {
 }
 
 function TemplatesSection({ onWorkoutStarted }: { onWorkoutStarted?: () => void }) {
-  const { startWorkout } = useStore();
+  const { state, startWorkout } = useStore();
+  const templates = availableWorkoutTemplates(state.workoutTemplates);
   const [detail, setDetail] = useState<string | null>(null);
   const startTemplate = (tid: string) => {
-    const t = WORKOUT_TEMPLATES.find(x => x.id === tid); if (!t) return;
+    const t = templates.find(x => x.id === tid); if (!t) return;
     if (startWorkout(t)) onWorkoutStarted?.();
   };
-  const active = detail ? WORKOUT_TEMPLATES.find(t => t.id === detail) : null;
+  const active = detail ? templates.find(t => t.id === detail) : null;
   return (
     <>
       <p className="text-sm text-muted-foreground mb-3">{WORKOUT_TEMPLATES.length} starter templates</p>
       <div className="space-y-2">
-        {WORKOUT_TEMPLATES.map(t => (
+        {templates.map(t => (
           <Card key={t.id} onClick={() => setDetail(t.id)}>
             <div className="flex justify-between items-start">
               <div>
@@ -384,8 +387,14 @@ function TemplatesSection({ onWorkoutStarted }: { onWorkoutStarted?: () => void 
             <div className="space-y-1.5">
               {active.exercises.map((te, i) => (
                 <div key={i} className="p-3 rounded-xl bg-[var(--surface-2)] flex justify-between">
-                  <span className="text-sm font-medium">{exerciseById(te.exerciseId)?.name ?? te.exerciseId}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{te.sets}×{te.reps}</span>
+                  <span className="text-sm font-medium">
+                    {exerciseById(te.exerciseId)?.name ??
+                      state.customExercises.find(exercise => exercise.id === te.exerciseId)?.name ??
+                      "Exercise"}
+                  </span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {te.reps ? `${te.sets} × ${te.reps}` : `${te.sets} sets`}
+                  </span>
                 </div>
               ))}
             </div>

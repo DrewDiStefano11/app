@@ -1,5 +1,7 @@
 // Seed data: exercises, workout templates, food library, meal templates.
 
+import type { WorkoutTemplateReference } from "./types";
+
 export type MuscleGroup =
   | "chest" | "back" | "shoulders" | "biceps" | "triceps"
   | "quads" | "hamstrings" | "glutes" | "calves" | "core" | "cardio";
@@ -92,6 +94,13 @@ export interface TemplateExercise { exerciseId: string; sets: number; reps: stri
 export interface WorkoutTemplate {
   id: string; name: string; goal: string; durationMin: number;
   exercises: TemplateExercise[]; notes?: string;
+}
+
+export function availableWorkoutTemplates(references: WorkoutTemplateReference[]): WorkoutTemplate[] {
+  const saved = references.flatMap(({ id, name, plan }) =>
+    plan ? [{ id, name, goal: "Saved template", ...plan }] : [],
+  );
+  return [...saved, ...WORKOUT_TEMPLATES];
 }
 
 const T = (id: string, name: string, goal: string, durationMin: number, exercises: TemplateExercise[]): WorkoutTemplate =>

@@ -776,6 +776,10 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
   const [saveFailed, setSaveFailed] = useState(false);
   const [saveMode, setSaveMode] = useState<SaveMode>("workout_only");
   const [newTemplateName, setNewTemplateName] = useState(w?.name ?? "Workout");
+  const savedTemplate = state.workoutTemplates.find(
+    (template) => template.id === w?.templateId && template.plan,
+  );
+  const canSaveTemplate = Boolean(w?.exercises.some(exercise => exercise.sets.length > 0));
 
   // Stats
   const workingSets = w?.exercises.flatMap(e => e.sets.filter(s => s.completed && s.modifier !== "warmup")) ?? [];
@@ -832,9 +836,27 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
       if (s.activeWorkout?.id !== w.id || s.workouts.some(workout => workout.id === w.id)) {
         return s;
       }
+      let workoutTemplates = s.workoutTemplates;
+      if (canSaveTemplate && saveMode !== "workout_only") {
+        const plan = {
+          durationMin: Math.max(1, Math.round(elapsedMs / 60_000)),
+          exercises: s.activeWorkout.exercises
+            .filter(exercise => exercise.sets.length > 0)
+            .map(exercise => ({ exerciseId: exercise.exerciseId, sets: exercise.sets.length, reps: "" })),
+        };
+        if (saveMode === "save_as_new" && newTemplateName.trim()) {
+          const id = uid();
+          workoutTemplates = [...workoutTemplates, { id, templateId: id, name: newTemplateName.trim(), plan }];
+        } else if (saveMode === "update_template" && savedTemplate) {
+          workoutTemplates = workoutTemplates.map(template =>
+            template.id === savedTemplate.id ? { ...template, plan } : template,
+          );
+        }
+      }
       return {
         ...s,
         workouts: [...s.workouts, { ...s.activeWorkout, endedAt: Date.now(), notes: notes || undefined }],
+        workoutTemplates,
         activeWorkout: null,
         prs,
         goals,
@@ -897,14 +919,16 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
           <div className="mt-1 space-y-1.5">
             <SaveOption value="workout_only" current={saveMode} onPick={setSaveMode}
               title="Save workout only" desc="Add to history, update stats and PRs." />
-            {w.templateId && (
+            {canSaveTemplate && savedTemplate && (
               <SaveOption value="update_template" current={saveMode} onPick={setSaveMode}
                 title="Save & update template" desc="Apply changes to the original template." />
             )}
-            <SaveOption value="save_as_new" current={saveMode} onPick={setSaveMode}
-              title="Save as new template" desc="Reuse this workout layout later." />
+            {canSaveTemplate && (
+              <SaveOption value="save_as_new" current={saveMode} onPick={setSaveMode}
+                title="Save as new template" desc="Reuse this workout layout later." />
+            )}
           </div>
-          {saveMode === "save_as_new" && (
+          {canSaveTemplate && saveMode === "save_as_new" && (
             <Input className="mt-2" placeholder="Template name" value={newTemplateName} onChange={e => setNewTemplateName(e.target.value)} />
           )}
         </div>
@@ -921,7 +945,8 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
           <GhostButton className="flex-1" onClick={onClose}>
             <Pencil size={14} />Back to edit
           </GhostButton>
-          <PrimaryButton className="flex-[2]" onClick={confirmSave} disabled={persistenceRequiresReload}>
+          <PrimaryButton className="flex-[2]" onClick={confirmSave}
+            disabled={persistenceRequiresReload || (canSaveTemplate && saveMode === "save_as_new" && !newTemplateName.trim())}>
             <Check size={16} />Confirm & save
           </PrimaryButton>
         </div>

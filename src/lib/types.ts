@@ -1,3 +1,5 @@
+import type { TemplateExercise } from "./data";
+
 export type SectionId = "home" | "training" | "nutrition" | "recovery" | "progress";
 
 export interface SetEntry {
@@ -356,6 +358,13 @@ export interface Personalization {
 
 export interface NutritionTargets { calories: number; protein: number; carbs: number; fat: number; }
 
+export interface WorkoutTemplateReference {
+  id: string;
+  name: string;
+  templateId: string;
+  plan?: { durationMin: number; exercises: TemplateExercise[] };
+}
+
 export interface AppState {
   version: number;
   onboardingComplete: boolean;
@@ -364,7 +373,7 @@ export interface AppState {
   nutritionTargets: NutritionTargets;
   workouts: Workout[];
   activeWorkout: Workout | null;
-  workoutTemplates: { id: string; name: string; templateId: string }[];
+  workoutTemplates: WorkoutTemplateReference[];
   customExercises: CustomExercise[];
   cardioEntries: CardioEntry[];
   mealEntries: MealEntry[];
