@@ -212,9 +212,9 @@ function deepFreeze<T>(value: T): T {
 
 test("Task 16 integration covers all graph nodes in canonical order", () => {
   const result = report();
-  assert.equal(result.nodeCount, 85);
-  assert.equal(result.evaluations.length, 85);
-  assert.equal(new Set(result.evaluations.map((item) => item.nodeId)).size, 85);
+  assert.equal(result.nodeCount, 86);
+  assert.equal(result.evaluations.length, 86);
+  assert.equal(new Set(result.evaluations.map((item) => item.nodeId)).size, 86);
   assert.deepEqual(
     result.evaluations.map((item) => item.nodeId),
     METRIC_DEPENDENCY_GRAPH.map((node) => node.id),
@@ -312,7 +312,7 @@ test("Task 16 safe-to-present gating makes incomplete Task 12 attribution partia
 
 test("Task 16 empty and partial states are graph-complete and conservative", () => {
   const empty = getFitCoreAnalytics(defaultState, { now: NOW }).explanations;
-  assert.equal(empty.evaluations.length, 85);
+  assert.equal(empty.evaluations.length, 86);
   assert.equal(empty.packets.length, 0);
   assert.ok(
     empty.evaluations.every(
@@ -321,7 +321,7 @@ test("Task 16 empty and partial states are graph-complete and conservative", () 
   );
   const partialState = { ...defaultState, mealEntries: historicalState().mealEntries };
   const partial = getFitCoreAnalytics(partialState, { now: NOW }).explanations;
-  assert.equal(partial.evaluations.length, 85);
+  assert.equal(partial.evaluations.length, 86);
   assert.ok(
     partial.evaluations
       .filter((item) => !item.nodeId.startsWith("nutrition."))
@@ -374,13 +374,13 @@ test("Task 16 summary counts reconcile with evaluations and packets", () => {
   const summary = result.summary;
   assert.equal(
     summary.completeAttribution + summary.partialAttribution + summary.unavailableAttribution,
-    85,
+    86,
   );
   assert.equal(
     summary.completeExplanations + summary.partialExplanations + summary.unavailableExplanations,
-    85,
+    86,
   );
-  assert.equal(summary.safeToPresent + summary.notSafeToPresent, 85);
+  assert.equal(summary.safeToPresent + summary.notSafeToPresent, 86);
   assert.equal(summary.selectedCandidates, result.selectedCandidateCount);
   assert.equal(summary.packets, result.packets.length);
   assert.equal(

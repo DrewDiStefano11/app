@@ -270,11 +270,11 @@ function largeState(): AppState {
   };
 }
 
-test("Task 17 report covers exactly 85 unique canonical graph nodes", () => {
+test("Task 17 report covers exactly 86 unique canonical graph nodes", () => {
   const result = report();
-  assert.equal(result.nodeCount, 85);
-  assert.equal(result.evaluations.length, 85);
-  assert.equal(new Set(result.evaluations.map((item) => item.nodeId)).size, 85);
+  assert.equal(result.nodeCount, 86);
+  assert.equal(result.evaluations.length, 86);
+  assert.equal(new Set(result.evaluations.map((item) => item.nodeId)).size, 86);
   assert.deepEqual(
     result.evaluations.map((item) => item.nodeId),
     METRIC_DEPENDENCY_GRAPH.map((node) => node.id),
@@ -304,19 +304,19 @@ test("Task 17 packets are selected-only, unique, bounded, and preserve Task 15 o
 test("Task 17 representative fixture stays conservative across readiness levels", () => {
   const result = report();
   assert.deepEqual(result.summary, {
-    evaluationCount: 85,
+    evaluationCount: 86,
     selectedCandidateCount: 3,
     packetCount: 3,
     readyCount: 2,
     partialCount: 1,
-    unavailableCount: 82,
+    unavailableCount: 83,
     safeToRenderCount: 2,
     summaryMetricCount: 1,
     trendLineCount: 1,
     comparisonBarsCount: 1,
     progressRingCount: 0,
     heatmapCount: 0,
-    noneCount: 82,
+    noneCount: 83,
     inspectValueCount: 3,
     switchWindowCount: 1,
     comparePeriodsCount: 1,
@@ -343,14 +343,14 @@ test("Task 17 never reorders candidates based on visualization readiness", () =>
 
 test("Task 17 aggregate empty and partial states remain explicit and additive", () => {
   const empty = getFitCoreAnalytics(defaultState, { now: NOW });
-  assert.equal(empty.visualizations.evaluations.length, 85);
+  assert.equal(empty.visualizations.evaluations.length, 86);
   assert.equal(empty.visualizations.packets.length, 0);
   assert.equal(empty.visualizations.summary.safeToRenderCount, 0);
   const partial = getFitCoreAnalytics(
     { ...defaultState, mealEntries: largeState().mealEntries.slice(0, 10) },
     { now: NOW },
   );
-  assert.equal(partial.visualizations.evaluations.length, 85);
+  assert.equal(partial.visualizations.evaluations.length, 86);
   assert.ok(partial.visualizations.evaluations.every((item) => !item.safeToRender));
 });
 
@@ -406,7 +406,7 @@ test("Task 17 excludes privacy sentinels and ignores unknown upstream fields", (
 test("Task 17 summary counts reconcile with evaluations, packets, kinds, and interactions", () => {
   const result = report();
   const summary = result.summary;
-  assert.equal(summary.readyCount + summary.partialCount + summary.unavailableCount, 85);
+  assert.equal(summary.readyCount + summary.partialCount + summary.unavailableCount, 86);
   assert.equal(
     summary.summaryMetricCount +
       summary.trendLineCount +
@@ -414,7 +414,7 @@ test("Task 17 summary counts reconcile with evaluations, packets, kinds, and int
       summary.progressRingCount +
       summary.heatmapCount +
       summary.noneCount,
-    85,
+    86,
   );
   assert.equal(summary.packetCount, result.packets.length);
   assert.equal(summary.selectedCandidateCount, result.packets.length);
@@ -426,7 +426,7 @@ test("Task 17 summary counts reconcile with evaluations, packets, kinds, and int
 
 test("Task 17 stable IDs and metadata are canonical and duplicate-free", () => {
   const result = report();
-  assert.equal(new Set(result.evaluations.map((item) => item.evaluationId)).size, 85);
+  assert.equal(new Set(result.evaluations.map((item) => item.evaluationId)).size, 86);
   assert.equal(new Set(result.packets.map((item) => item.packetId)).size, result.packets.length);
   for (const packet of result.packets) {
     assert.equal(new Set(packet.interactions).size, packet.interactions.length);
@@ -442,7 +442,7 @@ test("Task 17 large aggregate fixture completes deterministically without raw ou
   const before = JSON.stringify(state);
   const first = getFitCoreAnalytics(state, { now: NOW }).visualizations;
   const second = getFitCoreAnalytics(state, { now: NOW }).visualizations;
-  assert.equal(first.evaluations.length, 85);
+  assert.equal(first.evaluations.length, 86);
   assert.ok(first.packets.length <= 10);
   assert.deepEqual(first, second);
   assert.deepEqual(JSON.parse(JSON.stringify(first)), first);

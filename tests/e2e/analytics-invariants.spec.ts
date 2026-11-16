@@ -48,8 +48,9 @@ function expectNoInvalidNumbers(value: unknown) {
   }
 }
 
-function expectScore(score: number) {
+function expectScore(score: number | null) {
   expectNoInvalidNumbers(score);
+  if (score === null) return;
   expect(score).toBeGreaterThanOrEqual(0);
   expect(score).toBeLessThanOrEqual(100);
 }
@@ -340,8 +341,8 @@ test.describe("analytics invariants", () => {
     expect(bestMuscleToTrainToday(state)).not.toEqual("");
 
     const momentum = momentumScore(state);
-    expect(momentum.hasData).toBe(true);
-    expect(momentum.factors.length).toBeGreaterThan(0);
+    expect(momentum.hasData).toBe(false);
+    expect(momentum.score).toBeNull();
     for (const factor of momentum.factors) {
       expect(factor.label).not.toEqual("");
       expect(factor.detail).not.toEqual("");

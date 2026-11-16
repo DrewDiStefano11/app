@@ -1,4 +1,7 @@
 import type { AppState, RecoveryCheckIn, Workout } from "../types";
+import { calculateRecoveryEstimate } from "./personal-scores";
+import { calculateWorkoutVolume, recordedRecoveryCheckIns, recoveryCheckInReadinessScore } from "./observed-fitness";
+export { calculateSetVolume, calculateWorkoutVolume, recoveryCheckInReadinessScore } from "./observed-fitness";
 import {
   allTimeWindow,
   calendarDayDifference,
@@ -902,7 +905,7 @@ function validCheckIn(checkIn: RecoveryCheckIn): boolean {
   return (
     validTimestamp(checkIn.createdAt) &&
     [checkIn.energy, checkIn.soreness, checkIn.stress, checkIn.motivation].every(
-      (value) => typeof value === "number" && Number.isFinite(value),
+      (value) => typeof value === "number" && Number.isFinite(value) && value >= 1 && value <= 10,
     )
   );
 }
@@ -914,34 +917,6 @@ function latestTimestamp(
     .map((entry) => entry.createdAt ?? entry.startedAt)
     .filter((value): value is number => value !== undefined && validTimestamp(value));
   return timestamps.length ? Math.max(...timestamps) : null;
-}
-
-export function calculateSetVolume(weight: unknown, repetitions: unknown): number {
-  if (
-    typeof weight !== "number" ||
-    !Number.isFinite(weight) ||
-    weight < 0 ||
-    typeof repetitions !== "number" ||
-    !Number.isFinite(repetitions) ||
-    repetitions < 0
-  ) {
-    return 0;
-  }
-  return safeNumber(weight * repetitions);
-}
-
-export function calculateWorkoutVolume(workout: Workout): number {
-  const values: number[] = [];
-  for (const exercise of workout.exercises) {
-    for (const set of exercise.sets) {
-      const weight = finiteNonNegative(set.weight);
-      const reps = finiteNonNegative(set.reps);
-      if (set.completed && weight > 0 && reps > 0) {
-        values.push(calculateSetVolume(weight, reps));
-      }
-    }
-  }
-  return safeSum(values);
 }
 
 function workoutsInDateRange(state: AppState, range: DateRange): Workout[] {
@@ -1674,16 +1649,8 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
   };
 }
 
-export function recoveryCheckInReadinessScore(checkIn: RecoveryCheckIn): number {
-  const energy = boundedCheckInValue(checkIn.energy);
-  const motivation = boundedCheckInValue(checkIn.motivation);
-  const soreness = boundedCheckInValue(checkIn.soreness);
-  const stress = boundedCheckInValue(checkIn.stress);
-  return clampScore(safeRatio(energy + motivation + (6 - soreness) + (6 - stress), 20) * 100);
-}
-
 function boundedCheckInValue(value: unknown): number {
-  return Math.max(0, Math.min(5, safeNumber(value)));
+  return Math.max(1, Math.min(10, safeNumber(value)));
 }
 
 export function getRecoveryAnalytics(state: AppState, now = Date.now()): RecoveryAnalytics {
@@ -1691,7 +1658,7 @@ export function getRecoveryAnalytics(state: AppState, now = Date.now()): Recover
   const previousRange = previous7DaysWindow(now);
   const historyRange = allTimeWindow(now);
   const validCheckIns = sortDatedEntries(
-    state.recoveryCheckIns.filter(
+    recordedRecoveryCheckIns(state).filter(
       (checkIn) => validCheckIn(checkIn) && dateRangeContains(historyRange, checkIn.createdAt),
     ),
     (checkIn) => checkIn.createdAt,
@@ -1744,7 +1711,7 @@ export function getRecoveryAnalytics(state: AppState, now = Date.now()): Recover
     ? safeAverage(previousReadinessValues)
     : null;
   const readinessDirection: TrendDirection =
-    currentReadinessAverage === null || previousReadinessAverage === null
+    recent.length < 2 || previous.length < 2 || currentReadinessAverage === null || previousReadinessAverage === null
       ? "unknown"
       : Math.abs(currentReadinessAverage - previousReadinessAverage) <= 2
         ? "stable"
@@ -1757,7 +1724,7 @@ export function getRecoveryAnalytics(state: AppState, now = Date.now()): Recover
       value: recoveryCheckInReadinessScore(checkIn),
     })),
     expectedDayCount: 14,
-    comparisonComplete: recent.length > 0 && previous.length > 0,
+    comparisonComplete: recent.length >= 2 && previous.length >= 2,
     stableThreshold: 2,
     direction: readinessDirection,
     higherIsBetter: true,
@@ -1805,13 +1772,15 @@ export function getRecoveryAnalytics(state: AppState, now = Date.now()): Recover
 
   const readiness = averageMetric(
     FITCORE_METRIC_IDS.recovery.readiness7dAverage,
-    "Average readiness — last 7 days",
+    "Average check-in readiness estimate — last 7 days",
     "score_0_100",
     readinessValues,
     [],
     readinessTrend,
   );
 
+  const recovery = calculateRecoveryEstimate(state, now);
+  const recoverySources = recovery.evidence.flatMap(group => group.records);
   return {
     domain: "recovery",
     availability: {
@@ -1848,35 +1817,41 @@ export function getRecoveryAnalytics(state: AppState, now = Date.now()): Recover
     soreness7dAverage: averageMetric(
       FITCORE_METRIC_IDS.recovery.soreness7dAverage,
       "Average soreness — last 7 days",
-      "score_1_5",
+      "score_1_10",
       recent.map((checkIn) => boundedCheckInValue(checkIn.soreness)),
     ),
     stress7dAverage: averageMetric(
       FITCORE_METRIC_IDS.recovery.stress7dAverage,
       "Average stress — last 7 days",
-      "score_1_5",
+      "score_1_10",
       recent.map((checkIn) => boundedCheckInValue(checkIn.stress)),
     ),
     energy7dAverage: averageMetric(
       FITCORE_METRIC_IDS.recovery.energy7dAverage,
       "Average energy — last 7 days",
-      "score_1_5",
+      "score_1_10",
       recent.map((checkIn) => boundedCheckInValue(checkIn.energy)),
     ),
     motivation7dAverage: averageMetric(
       FITCORE_METRIC_IDS.recovery.motivation7dAverage,
       "Average motivation — last 7 days",
-      "score_1_5",
+      "score_1_10",
       recent.map((checkIn) => boundedCheckInValue(checkIn.motivation)),
     ),
-    recoveryScore: averageMetric(
-      FITCORE_METRIC_IDS.recovery.score,
-      "Recovery score",
-      "score_0_100",
-      readinessValues,
-      [FITCORE_METRIC_IDS.recovery.readiness7dAverage],
-      readinessTrend,
-    ),
+    recoveryScore: metric({
+      id: FITCORE_METRIC_IDS.recovery.score,
+      label: "Recovery estimate",
+      domain: "recovery",
+      unit: "score_0_100",
+      value: recovery.value,
+      status: recovery.status === "available" ? "ready" : "needs_more_data",
+      confidence: recovery.status === "available" ? "medium" : "none",
+      sampleSize: recoverySources.length,
+      entryTimestamps: recoverySources.map(row => row.at),
+      reason: recovery.missing.join(". ") || null,
+      stale: recovery.status === "stale",
+      notes: [recovery.explanation],
+    }),
   };
 }
 

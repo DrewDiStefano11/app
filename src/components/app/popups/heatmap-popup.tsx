@@ -10,7 +10,7 @@ const MODES: { id: HeatMode; label: string }[] = [
   { id: "load", label: "Load" },
   { id: "strength", label: "Strength" },
   { id: "imbalance", label: "Imbalance" },
-  { id: "recovery", label: "Recovery" },
+  { id: "recovery", label: "3-day load" },
 ];
 
 export function HeatmapDetailSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -56,7 +56,7 @@ export function HeatmapDetailSheet({ open, onClose }: { open: boolean; onClose: 
                   ? "Relative strength contribution by muscle over the last 30 days."
                   : mode === "imbalance"
                     ? "Highlights muscles trained above or below your overall distribution."
-                    : "Estimates which muscles are ready based on recent training load."}
+                    : "Shows relative completed sets from the last three days."}
             </p>
           </div>
 

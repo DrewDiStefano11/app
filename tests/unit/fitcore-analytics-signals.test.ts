@@ -85,17 +85,17 @@ function assertSafe(value: unknown): void {
   if (value && typeof value === "object") Object.values(value).forEach(assertSafe);
 }
 
-test("Task 14 signal report covers all 85 graph nodes in canonical order", () => {
+test("Task 14 signal report covers all 86 graph nodes in canonical order", () => {
   const report = getFitCoreAnalytics(historicalState(), { now: NOW }).signals;
-  assert.equal(report.nodeCount, 85);
-  assert.equal(report.records.length, 85);
-  assert.equal(new Set(report.records.map((record) => record.nodeId)).size, 85);
+  assert.equal(report.nodeCount, 86);
+  assert.equal(report.records.length, 86);
+  assert.equal(new Set(report.records.map((record) => record.nodeId)).size, 86);
   assert.deepEqual(
     report.records.map((record) => record.nodeId),
     METRIC_DEPENDENCY_GRAPH.map((node) => node.id),
   );
   assert.equal(report.supportedNodeCount, 11);
-  assert.equal(report.summary.unsupported, 74);
+  assert.equal(report.summary.unsupported, 75);
 });
 
 test("Task 14 unsupported nodes remain explicit in both signal families", () => {
@@ -206,7 +206,7 @@ test("Task 14 trust and freshness gates preserve math while controlling usabilit
 
 test("Task 14 empty and partial states stay explicit without fake zeros", () => {
   const empty = getFitCoreAnalytics(state(), { now: NOW }).signals;
-  assert.equal(empty.records.length, 85);
+  assert.equal(empty.records.length, 86);
   assert.ok(empty.records.every((record) => !record.usable));
   assert.ok(empty.records.every((record) => record.anomaly.classification === "unavailable"));
   assert.ok(
@@ -255,12 +255,12 @@ test("Task 14 is additive and leaves every pre-Task-14 analytics property stable
 
 test("Task 14 summary counts are derived, non-negative, and reconcile", () => {
   const report = getFitCoreAnalytics(historicalState(), { now: NOW }).signals;
-  assert.equal(report.summary.supported + report.summary.unsupported, 85);
-  assert.equal(report.summary.usable + report.summary.unusable, 85);
+  assert.equal(report.summary.supported + report.summary.unsupported, 86);
+  assert.equal(report.summary.usable + report.summary.unusable, 86);
   const ready = report.records.filter(
     (record) => record.anomaly.status === "ready" || record.meaningfulChange.status === "ready",
   ).length;
-  assert.equal(report.summary.unavailable + report.summary.insufficientData + ready, 85);
+  assert.equal(report.summary.unavailable + report.summary.insufficientData + ready, 86);
   assert.equal(
     report.summary.noMeaningfulChange +
       report.summary.meaningfulIncrease +

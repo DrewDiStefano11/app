@@ -1,9 +1,15 @@
+import { CheckInSheet } from "@/components/app/popups/quick-popups";
+import { ReadinessDetailSheet } from "@/components/app/popups/readiness-popup";
+import { usePersonalScores } from "@/components/app/score-evidence";
+import { scoreStatusLabel } from "@/lib/analytics/personal-scores";
 import { useState, useMemo } from "react";
 import { Plus, Moon, Heart, Activity } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import type { FatigueLevel } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import { muscleMap } from "@/lib/analytics";
+import { addCalendarDays, dayKey } from "@/lib/analytics/date-time";
+import { recordedRecoveryCheckIns } from "@/lib/analytics/observed-fitness";
 import { BodyHeatmap } from "@/components/app/body-heatmap";
 import {
   Card,
@@ -14,7 +20,6 @@ import {
   EmptyState,
   Input,
   Label,
-  Ring,
   Textarea,
   SubTabs,
   SectionHeader,
@@ -51,38 +56,41 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "insights", label: "Insights" },
 ];
 
-function readiness(state: ReturnType<typeof useStore>["state"]) {
-  const lastCheck = state.recoveryCheckIns[state.recoveryCheckIns.length - 1];
-  const lastSleep = state.sleepEntries[state.sleepEntries.length - 1];
-  let total = 0,
-    parts = 0;
-  if (lastSleep) {
-    total += Math.min(100, (lastSleep.hours / 8) * 50 + lastSleep.quality * 5);
-    parts++;
-  }
-  if (lastCheck) {
-    total +=
-      (lastCheck.energy +
-        (10 - lastCheck.soreness) +
-        (10 - lastCheck.stress) +
-        lastCheck.motivation) *
-      2.5;
-    parts++;
-  }
-  return { score: parts ? Math.round(total / parts) : 0, parts };
+function RecoveryReadinessSummary() {
+  const { view } = useStore();
+  const { readiness, recovery } = usePersonalScores(view);
+  const [focus, setFocus] = useState<"readiness" | "recovery" | null>(null);
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs uppercase tracking-wider text-muted-foreground">Today's readiness</p>
+      <div className="grid grid-cols-2 gap-2">
+        {([{ id: "readiness", name: "Readiness", metric: readiness },
+          { id: "recovery", name: "Recovery", metric: recovery }] as const).map(({ id, name, metric }) => (
+          <button key={id} type="button" onClick={() => setFocus(id)}
+            className="tile p-2 text-left">
+            <span className="block text-xs font-semibold">{name}</span>
+            <span className="block text-2xl font-bold tabular-nums">{metric.value ?? "—"}</span>
+            <span className="block text-xs text-muted-foreground">{scoreStatusLabel(metric)}</span>
+          </button>
+        ))}
+      </div>
+      <ReadinessDetailSheet open={focus !== null} onClose={() => setFocus(null)} focus={focus ?? "readiness"} />
+    </div>
+  );
 }
 
 export function RecoveryView({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
   const [tab, setTab] = useState<Tab>("health");
-  const { state } = useStore();
-  const { score, parts } = readiness(state);
+  const { view } = useStore();
+  const { readiness } = usePersonalScores(view);
   const isDeepDive = layoutMode === "deepDive";
 
   return (
     <div className="pb-24">
       <PageHeader
         title="Recovery"
-        subtitle={`${parts ? `Readiness ${score}%` : "Add a check-in to start"} - ${isDeepDive ? "Deep Dive" : "Daily View"}`}
+        subtitle={`${scoreStatusLabel(readiness)} · ${isDeepDive ? "Deep Dive" : "Daily View"}`}
       />
 
       {!isDeepDive ? (
@@ -104,13 +112,12 @@ export function RecoveryView({ layoutMode = "daily" }: { layoutMode?: LayoutMode
 
 function DailyViewRecovery() {
   const { state } = useStore();
-  const { score, parts } = readiness(state);
   const [checkOpen, setCheckOpen] = useState(false);
   const [sleepOpen, setSleepOpen] = useState(false);
   const [fatigueOpen, setFatigueOpen] = useState(false);
 
   const lastSleep = state.sleepEntries[state.sleepEntries.length - 1];
-  const lastCheck = state.recoveryCheckIns[state.recoveryCheckIns.length - 1];
+  const lastCheck = recordedRecoveryCheckIns(state).sort((a, b) => b.createdAt - a.createdAt)[0];
   const weekSleep = state.sleepEntries.filter((s) => s.createdAt > Date.now() - 7 * 86400000);
   const avgSleep = weekSleep.length
     ? (weekSleep.reduce((a, s) => a + s.hours, 0) / weekSleep.length).toFixed(1)
@@ -119,29 +126,10 @@ function DailyViewRecovery() {
 
   const sore = MUSCLES.filter((m) => state.muscleFatigue[m] && state.muscleFatigue[m] !== "fresh");
 
-  const rec = !parts
-    ? "Add a check-in or sleep entry to get a recommendation."
-    : score >= 75
-      ? "Great recovery — train hard today."
-      : score >= 60
-        ? "Solid recovery — normal training day."
-        : score >= 40
-          ? "Reduce volume or intensity ~20%."
-          : "Rest, mobility, or light cardio only.";
-
   return (
     <div className="px-5 space-y-4 pt-2">
       <div className="card-elev p-5 section-gradient ring-section">
-        <div className="flex items-center gap-4">
-          <Ring value={score} max={100} size={96} label="ready" />
-          <div className="flex-1">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              Today's readiness
-            </p>
-            <p className="text-3xl font-bold tabular-nums mt-1">{parts ? `${score}%` : "—"}</p>
-            <p className="text-xs text-muted-foreground mt-1">{rec}</p>
-          </div>
-        </div>
+        <RecoveryReadinessSummary />
         <div className="flex gap-2 mt-4">
           <PrimaryButton className="flex-1" onClick={() => setCheckOpen(true)}>
             <Plus size={16} />
@@ -170,7 +158,7 @@ function DailyViewRecovery() {
           <span className="text-xs text-muted-foreground">Update &rarr;</span>
         </div>
         {sore.length === 0 ? (
-          <p className="text-xs text-muted-foreground">All muscles fresh.</p>
+          <p className="text-xs text-muted-foreground">No soreness or fatigue is currently recorded.</p>
         ) : (
           <div className="flex flex-wrap gap-1">
             {sore.map((m) => (
@@ -202,7 +190,7 @@ function DailyViewRecovery() {
               {new Date(lastCheck.createdAt).toLocaleDateString()}
             </p>
             <p>
-              ⚡{lastCheck.energy} • 💪{10 - lastCheck.soreness} • 😌{10 - lastCheck.stress} • 🔥
+              ⚡{lastCheck.energy} • Soreness {lastCheck.soreness}/10 • Stress {lastCheck.stress}/10 • 🔥
               {lastCheck.motivation}
             </p>
           </div>
@@ -222,21 +210,12 @@ function DailyViewRecovery() {
 
 function HealthTab() {
   const { state } = useStore();
-  const { score, parts } = readiness(state);
-  const lastCheck = state.recoveryCheckIns[state.recoveryCheckIns.length - 1];
+  const lastCheck = recordedRecoveryCheckIns(state).sort((a, b) => b.createdAt - a.createdAt)[0];
 
   return (
     <div className="px-5 space-y-4">
       <div className="card-elev p-5 section-gradient ring-section">
-        <div className="flex items-center gap-4">
-          <Ring value={score} max={100} size={96} label="ready" />
-          <div className="flex-1">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">
-              Today's readiness
-            </p>
-            <p className="text-3xl font-bold tabular-nums mt-1">{parts ? `${score}%` : "—"}</p>
-          </div>
-        </div>
+        <RecoveryReadinessSummary />
       </div>
 
       {lastCheck && (
@@ -249,7 +228,7 @@ function HealthTab() {
               {new Date(lastCheck.createdAt).toLocaleDateString()}
             </p>
             <p>
-              ⚡{lastCheck.energy} • 💪{10 - lastCheck.soreness} • 😌{10 - lastCheck.stress} • 🔥
+              ⚡{lastCheck.energy} • Soreness {lastCheck.soreness}/10 • Stress {lastCheck.stress}/10 • 🔥
               {lastCheck.motivation}
             </p>
           </div>
@@ -331,7 +310,7 @@ function BodyTab() {
 
   const days = 7;
   const cutoff = Date.now() - days * 86400000;
-  const checks = state.recoveryCheckIns.filter((c) => c.createdAt > cutoff);
+  const checks = recordedRecoveryCheckIns(state).filter((c) => c.createdAt > cutoff);
 
   return (
     <div className="px-5 space-y-4">
@@ -356,7 +335,7 @@ function BodyTab() {
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground text-center mt-2">
-          Green = recovered. Red = recent load.
+          Color intensity shows relative logged load over the last three days.
         </p>
       </div>
 
@@ -371,7 +350,7 @@ function BodyTab() {
       {sore.length === 0 ? (
         <Card>
           <p className="text-sm text-muted-foreground">
-            All muscles marked fresh. Tap Update if you feel sore.
+            No soreness is marked. Use Update all to record how you feel.
           </p>
         </Card>
       ) : (
@@ -393,10 +372,12 @@ function BodyTab() {
       <SectionHeader title="Quick tap" />
       <div className="grid grid-cols-2 gap-2">
         {MUSCLES.map((m) => {
-          const lvl = state.muscleFatigue[m] ?? "fresh";
+          const lvl = state.muscleFatigue[m];
           const next: FatigueLevel =
-            lvl === "fresh"
-              ? "moderate"
+            !lvl
+              ? "fresh"
+              : lvl === "fresh"
+                ? "moderate"
               : lvl === "moderate"
                 ? "fatigued"
                 : lvl === "fatigued"
@@ -413,9 +394,9 @@ function BodyTab() {
               <span className="text-sm font-medium capitalize">{m}</span>
               <span
                 className="text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full text-white"
-                style={{ background: LEVEL_COLOR[lvl] }}
+                style={{ background: lvl ? LEVEL_COLOR[lvl] : "var(--surface-2)" }}
               >
-                {lvl}
+                {lvl ?? "—"}
               </span>
             </button>
           );
@@ -501,8 +482,18 @@ function SleepDeepDiveTab() {
   const [sleepOpen, setSleepOpen] = useState(false);
 
   const days = 7;
-  const cutoff = Date.now() - days * 86400000;
-  const sleeps = state.sleepEntries.filter((s) => s.createdAt > cutoff);
+  const now = Date.now();
+  const byDate = new Map<string, typeof state.sleepEntries[number]>();
+  state.sleepEntries
+    .filter((entry) => entry.createdAt >= addCalendarDays(now, 1 - days) && entry.createdAt <= now)
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .forEach((entry) => byDate.set(dayKey(entry.createdAt), entry));
+  const sleeps = [...byDate.values()];
+  const maxHours = Math.max(8, ...sleeps.map((entry) => entry.hours));
+  const history = Array.from({ length: days }, (_, index) => {
+    const date = addCalendarDays(now, index + 1 - days);
+    return { date, hours: byDate.get(dayKey(date))?.hours ?? null };
+  });
   const sleepAvg = sleeps.length
     ? (sleeps.reduce((a, s) => a + s.hours, 0) / sleeps.length).toFixed(1)
     : "—";
@@ -519,17 +510,24 @@ function SleepDeepDiveTab() {
         <StatCard label="Logged" value={`${consistency}%`} sub="of days" />
       </div>
 
-      <SectionHeader title="Sleep trend" />
+      <SectionHeader title="Recorded sleep" />
       <Card>
-        {sleeps.length < 2 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">
-            Log at least 2 nights to see trends.
-          </p>
+        {sleeps.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4 text-center">No sleep logged in the last 7 days.</p>
         ) : (
-          <Sparkline
-            points={[...sleeps].sort((a, b) => a.createdAt - b.createdAt).map((s) => s.hours)}
-            unit="h"
-          />
+          <ol className="grid grid-cols-7 gap-1">
+            {history.map(({ date, hours }) => (
+              <li key={date} className="min-w-0 text-center text-xs tabular-nums">
+                <div className="h-20 flex items-end justify-center" aria-hidden="true">
+                  {hours !== null && <span className="w-4 rounded-t bg-[var(--section)]" style={{ height: `${(hours / maxHours) * 100}%` }} />}
+                </div>
+                <time dateTime={dayKey(date)} className="block text-muted-foreground">
+                  {new Date(date).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                </time>
+                <span>{hours === null ? "—" : `${hours}h`}</span>
+              </li>
+            ))}
+          </ol>
         )}
       </Card>
 
@@ -606,146 +604,40 @@ function InsightsTab() {
   );
 }
 
-function Sparkline({ points, unit }: { points: number[]; unit: string }) {
-  const w = 320,
-    h = 80,
-    pad = 8;
-  const min = Math.min(...points),
-    max = Math.max(...points);
-  const range = Math.max(0.1, max - min);
-  const step = (w - pad * 2) / Math.max(1, points.length - 1);
-  const path = points
-    .map(
-      (v, i) =>
-        `${i === 0 ? "M" : "L"} ${pad + i * step} ${h - pad - ((v - min) / range) * (h - pad * 2)}`,
-    )
-    .join(" ");
-  return (
-    <div>
-      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-20">
-        <path
-          d={path}
-          fill="none"
-          stroke="var(--section)"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-      <div className="flex justify-between text-xs text-muted-foreground tabular-nums mt-1">
-        <span>
-          {points[0]}
-          {unit}
-        </span>
-        <span>
-          {points[points.length - 1]}
-          {unit}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-/* ===================== SHEETS ===================== */
-
-function Slider({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: number;
-  onChange: (v: number) => void;
-}) {
-  return (
-    <div>
-      <div className="flex justify-between mb-1">
-        <Label>{label}</Label>
-        <span className="text-sm tabular-nums">{value}/10</span>
-      </div>
-      <input
-        type="range"
-        min={1}
-        max={10}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full accent-[var(--section)]"
-      />
-    </div>
-  );
-}
-
-function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { set } = useStore();
-  const [energy, setEnergy] = useState(7);
-  const [soreness, setSoreness] = useState(3);
-  const [stress, setStress] = useState(3);
-  const [motivation, setMotivation] = useState(8);
-  const [notes, setNotes] = useState("");
-  const submit = () => {
-    set((s) => ({
-      ...s,
-      recoveryCheckIns: [
-        ...s.recoveryCheckIns,
-        {
-          id: uid(),
-          energy,
-          soreness,
-          stress,
-          motivation,
-          notes: notes || undefined,
-          createdAt: Date.now(),
-        },
-      ],
-    }));
-    setNotes("");
-    onClose();
-  };
-  return (
-    <BottomSheet open={open} onClose={onClose} title="Daily check-in">
-      <div className="space-y-4">
-        <Slider label="Energy" value={energy} onChange={setEnergy} />
-        <Slider label="Soreness" value={soreness} onChange={setSoreness} />
-        <Slider label="Stress" value={stress} onChange={setStress} />
-        <Slider label="Motivation" value={motivation} onChange={setMotivation} />
-        <div>
-          <Label>Notes</Label>
-          <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-        </div>
-        <PrimaryButton className="w-full" onClick={submit}>
-          Save check-in
-        </PrimaryButton>
-      </div>
-    </BottomSheet>
-  );
-}
-
 function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { set } = useStore();
-  const [hours, setHours] = useState("7.5");
+  const [hours, setHours] = useState("");
   const [quality, setQuality] = useState(7);
   const [bed, setBed] = useState("");
   const [wake, setWake] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const valid = Number(hours) > 0 && Number(hours) <= 24;
+  const close = () => {
+    setConfirmed(false);
+    onClose();
+  };
   const submit = () => {
+    if (!valid || !confirmed) return;
     const h = Number(hours);
-    if (!h) return;
     const notes = [bed && `Bed ${bed}`, wake && `Wake ${wake}`].filter(Boolean).join(" • ");
-    set((s) => ({
+    const saved = set((s) => ({
       ...s,
       sleepEntries: [
         ...s.sleepEntries,
         { id: uid(), hours: h, quality, notes: notes || undefined, createdAt: Date.now() },
       ],
     }));
-    onClose();
+    if (!saved) return;
+    setHours("");
+    close();
   };
   return (
-    <BottomSheet open={open} onClose={onClose} title="Log sleep">
-      <div className="space-y-4">
+    <BottomSheet open={open} onClose={close} title="Log sleep">
+      <div className="space-y-4" onChange={() => { if (confirmed) setConfirmed(false); }}>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Hours</Label>
-            <Input inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} />
+            <Input aria-label="Hours" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} />
           </div>
           <div>
             <div className="flex justify-between">
@@ -753,6 +645,7 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
               <span className="text-xs tabular-nums">{quality}/10</span>
             </div>
             <input
+              aria-label="Sleep quality"
               type="range"
               min={1}
               max={10}
@@ -772,7 +665,14 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
             <Input value={wake} onChange={(e) => setWake(e.target.value)} placeholder="7:00 AM" />
           </div>
         </div>
-        <PrimaryButton className="w-full" onClick={submit}>
+        <label className="flex items-start gap-2 text-sm text-muted-foreground">
+          <input type="checkbox" checked={confirmed} onChange={(event) => {
+            event.stopPropagation();
+            setConfirmed(event.target.checked);
+          }} />
+          I confirm the sleep hours and quality I entered.
+        </label>
+        <PrimaryButton className="w-full" onClick={submit} disabled={!valid || !confirmed}>
           Save sleep
         </PrimaryButton>
       </div>

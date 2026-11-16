@@ -37,23 +37,21 @@ import type { LayoutMode } from "@/components/app/layout-primitives";
 import { ViewModeToggle } from "@/components/app/shared/view-mode-toggle";
 import { Eyebrow, Tile } from "@/components/app/tile";
 import {
-  bestMuscleToTrainToday,
-  fitcoreScore,
+
   momentumScore,
   muscleMap,
-  readinessScore,
-  recoveryScore,
+
   todayMealTotals,
   totalVolumeInRange,
-  trainingConsistencyScore,
   trainingStreak,
-  nutritionAdherenceScore,
   type HeatMode,
 } from "@/lib/analytics";
 import { volumeByDayOfWeek, volumeByExercise, volumeByMuscle } from "@/lib/analytics-extra";
 import { configuredBenchDay, scheduledBenchDay } from "@/lib/bench-program";
 import { activeRoutineSession } from "@/lib/training-routines";
 import { useLocalCalendarDate } from "@/hooks/use-local-calendar-date";
+import { scoreStatusLabel } from "@/lib/analytics/personal-scores";
+import { usePersonalScores } from "@/components/app/score-evidence";
 import { GRAPH_PREFS, usePersistentState } from "@/lib/persist";
 import { isToday, useStore } from "@/lib/store";
 import type { AppState, SectionId } from "@/lib/types";
@@ -109,7 +107,7 @@ export function HomeView({
               Week vol <CountUp value={Math.round(weekVol / 1000)} />k
             </button>
             {state.demoMode && (
-              <span className="home-status-chip home-status-chip--demo">Demo</span>
+              <span className="home-status-chip home-status-chip--demo">Demo Data</span>
             )}
           </div>
         </div>
@@ -176,12 +174,9 @@ function HomeDailyView({
 }) {
   const { view, state } = useStore();
 
-  const score = useMemo(() => fitcoreScore(view), [view]);
-  const trainingDriver = useMemo(() => trainingConsistencyScore(view), [view]);
-  const nutritionDriver = useMemo(() => nutritionAdherenceScore(view), [view]);
-  const readiness = useMemo(() => readinessScore(view), [view]);
-  const recovery = useMemo(() => recoveryScore(view), [view]);
-  const momentum = useMemo(() => momentumScore(view), [view]);
+  const { fitcore, training: trainingDriver, nutrition: nutritionDriver, readiness, recovery } = usePersonalScores(view);
+  const score = fitcore.value;
+  const momentum = momentumScore(view);
 
   const [heatMode] = usePersistentState<HeatMode>("heatmap.mode", "load");
   const loadMap = useMemo(() => muscleMap(view, heatMode), [view, heatMode]);
@@ -189,9 +184,9 @@ function HomeDailyView({
   const meals = useMemo(() => todayMealTotals(view), [view]);
   const weekVol = useMemo(() => totalVolumeInRange(view, 7), [view]);
   const lastWeekVol = useMemo(() => totalVolumeInRange(view, 14) - weekVol, [view, weekVol]);
-  const volDelta = lastWeekVol > 0 ? Math.round(((weekVol - lastWeekVol) / lastWeekVol) * 100) : 0;
-  const bestMuscle = useMemo(() => bestMuscleToTrainToday(view), [view]);
+  const volDelta = lastWeekVol > 0 && weekVol > 0 ? Math.round(((weekVol - lastWeekVol) / lastWeekVol) * 100) : null;
   const targets = state.nutritionTargets;
+  const hasMealsToday = view.mealEntries.some((meal) => isToday(meal.createdAt));
   const kcalPct =
     targets.calories > 0 ? Math.min(100, Math.round((meals.calories / targets.calories) * 100)) : 0;
   const proteinPct =
@@ -199,7 +194,6 @@ function HomeDailyView({
   const carbsPct =
     targets.carbs > 0 ? Math.min(100, Math.round((meals.carbs / targets.carbs) * 100)) : 0;
   const fatPct = targets.fat > 0 ? Math.min(100, Math.round((meals.fat / targets.fat) * 100)) : 0;
-  const hasAnyData = view.workouts.length > 0 || view.mealEntries.length > 0;
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
 
   const date = useLocalCalendarDate();
@@ -242,10 +236,10 @@ function HomeDailyView({
   }, [completedToday]);
 
   const strongestOrbit = [
-    { id: "readiness", value: readiness },
-    { id: "recovery", value: recovery },
-    { id: "momentum", value: momentum.hasData ? momentum.score : -1 },
-  ].sort((a, b) => b.value - a.value)[0].id;
+    { id: "readiness", value: readiness.value },
+    { id: "recovery", value: recovery.value },
+    { id: "momentum", value: momentum.score },
+  ].filter(item => item.value !== null).sort((a, b) => b.value! - a.value!)[0]?.id;
 
   const scoreDrivers = [
     { label: "Training", value: trainingDriver },
@@ -259,59 +253,56 @@ function HomeDailyView({
     setMuscle(nextMuscle);
   };
 
-  const insight = !hasAnyData
-    ? "Log your first workout or turn on Demo Data in Settings to see your full dashboard."
-    : readiness >= 80
-      ? `Readiness is ${readiness}. Prime day for a heavy ${bestMuscle} session.`
-      : readiness >= 60
-        ? `Readiness is ${readiness}. Solid day — train ${bestMuscle} at moderate intensity.`
-        : `Readiness is low (${readiness}). Prioritize recovery and skill work today.`;
+  const insight = readiness.status === "available"
+    ? "Readiness is an estimate from recent sleep and recovery check-ins. Tap Readiness to see its sources."
+    : "Log recent sleep and a recovery check-in to get a fuller readiness estimate.";
 
   return (
     <>
       <section className="home-orbit-hero" aria-label="FitCore status">
         <span
-          className={`home-score-connector home-score-connector--${strongestOrbit}`}
+          className={strongestOrbit ? `home-score-connector home-score-connector--${strongestOrbit}` : "hidden"}
           aria-hidden="true"
         />
         <button
           onClick={() => setPopup("score")}
           className="home-score-panel press"
-          aria-label={`FitCore Score ${score}`}
+          aria-label={`FitCore Score ${score ?? "—"} · ${scoreStatusLabel(fitcore)}`}
         >
           <span className="home-score-kicker">FitCore Score</span>
           <span className="home-score-value">
-            <CountUp value={score} duration={1100} delay={80} />
+            {score === null ? "—" : <CountUp value={score} duration={1100} delay={80} />}
           </span>
-          <span className="home-score-label">{scoreLabel(score)}</span>
+          <span className="home-score-label">{scoreStatusLabel(fitcore)}</span>
           <span className="home-score-drivers" aria-label="FitCore score drivers">
             <span className="home-score-drivers__title">Score drivers</span>
             {scoreDrivers.map((driver) => (
               <span className="home-score-driver" key={driver.label}>
                 <span>{driver.label}</span>
                 <span className="home-score-driver__track" aria-hidden="true">
-                  <span style={{ width: `${driver.value}%` }} />
+                  <span style={{ width: `${driver.value.value ?? 0}%` }} />
                 </span>
-                <b>{driverTone(driver.value)}</b>
+                <b>{scoreStatusLabel(driver.value)}</b>
               </span>
             ))}
           </span>
           <span className="home-score-progress" aria-hidden="true">
-            <span style={{ width: `${score}%` }} />
+            <span style={{ width: `${score ?? 0}%` }} />
           </span>
-          <span className="home-score-trend">
+          {volDelta !== null && <span className="home-score-trend">
             <b className={volDelta >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]"}>
               {volDelta >= 0 ? "↑" : "↓"} {Math.abs(volDelta)}%
             </b>
-            vs last week
-          </span>
+            logged volume vs last week
+          </span>}
         </button>
 
         <div className="home-orbit-field" aria-label="Daily status scores">
           <span className="home-orbit-line home-orbit-line--shared" />
           <OrbitalScore
             label="Readiness"
-            value={readiness}
+            value={readiness.value}
+            status={scoreStatusLabel(readiness)}
             color="var(--recovery)"
             className="home-orbit-score--readiness"
             onClick={() => setPopup("readiness")}
@@ -319,7 +310,8 @@ function HomeDailyView({
           />
           <OrbitalScore
             label="Recovery"
-            value={recovery}
+            value={recovery.value}
+            status={scoreStatusLabel(recovery)}
             color="var(--success)"
             className="home-orbit-score--recovery"
             onClick={() => setPopup("recovery")}
@@ -328,7 +320,7 @@ function HomeDailyView({
           <OrbitalScore
             label="Momentum"
             value={momentum.score}
-            displayValue={momentum.hasData ? undefined : "—"}
+            status={momentum.label}
             color="var(--momentum)"
             className="home-orbit-score--momentum"
             onClick={() => setPopup("momentum")}
@@ -355,7 +347,7 @@ function HomeDailyView({
           >
             <div className="flex h-full flex-col">
               <Eyebrow color="rgb(74 222 128)">
-                Muscle {heatMode === "load" ? "Load" : heatMode} ·{" "}
+                Muscle {heatMode === "load" || heatMode === "recovery" ? "Load" : heatMode} ·{" "}
                 {heatMode === "strength" ? "30d" : heatMode === "recovery" ? "3d" : "7d"}
               </Eyebrow>
               <div className="mt-1 flex flex-1 items-center justify-between gap-1">
@@ -365,15 +357,12 @@ function HomeDailyView({
                   </h2>
                   <p className="mt-0.5 font-display text-lg uppercase text-white/35">
                     {heatMode === "recovery"
-                      ? "Most recovered"
+                      ? "Most logged sets"
                       : heatMode === "imbalance"
                         ? "Biggest gap"
                         : "Most worked"}
                   </p>
-                  <p className="mt-1 text-[10px] text-white/50">
-                    Best today:{" "}
-                    <span className="font-bold capitalize text-white">{bestMuscle}</span>
-                  </p>
+
                 </div>
                 <div
                   className="home-muscle-map"
@@ -398,6 +387,7 @@ function HomeDailyView({
             className="home-section-card home-section-card--macros"
           >
             <Eyebrow color="var(--nutrition)">Macros</Eyebrow>
+            {hasMealsToday ? <>
             <div className="mt-2 font-display text-4xl leading-none">
               <CountUp value={meals.calories} />
               <span className="ml-1 text-xs font-bold uppercase text-white/30">
@@ -428,8 +418,9 @@ function HomeDailyView({
               />
             </div>
             <div className="mt-3 text-[9px] font-bold uppercase tracking-widest text-white/35">
-              {kcalPct}% of daily goal
+              {kcalPct}% of daily goal · logged so far
             </div>
+            </> : <p className="mt-2 text-sm text-muted-foreground">No meals logged today</p>}
           </Tile>
 
           <GoalsPanel compact />
@@ -452,10 +443,10 @@ function HomeDailyView({
             <div
               className="mt-3 text-[10px] font-bold uppercase tracking-widest"
               style={{
-                color: volDelta >= 0 ? "var(--success)" : "var(--danger)",
+                color: volDelta === null ? "var(--muted-foreground)" : volDelta >= 0 ? "var(--success)" : "var(--danger)",
               }}
             >
-              {volDelta >= 0 ? "↑" : "↓"} {Math.abs(volDelta)}% trend
+              {volDelta === null ? "No comparable weeks" : `${volDelta >= 0 ? "↑" : "↓"} ${Math.abs(volDelta)}% logged volume`}
             </div>
           </Tile>
 
@@ -487,13 +478,7 @@ function HomeDailyView({
         className="home-ai-insight animate-tile-in press"
         style={{ animationDelay: "260ms" }}
       >
-        <AiInsightStrip>
-          {insight.split(bestMuscle)[0]}
-          <span className="font-bold capitalize text-[var(--section)]">
-            {insight.includes(bestMuscle) ? bestMuscle : ""}
-          </span>
-          {insight.split(bestMuscle)[1] ?? ""}
-        </AiInsightStrip>
+        <AiInsightStrip>{insight}</AiInsightStrip>
       </button>
 
       <button
@@ -545,12 +530,9 @@ function HomeDeepDive({
 }) {
   const { view, state } = useStore();
 
-  const score = useMemo(() => fitcoreScore(view), [view]);
-  const trainingDriver = useMemo(() => trainingConsistencyScore(view), [view]);
-  const nutritionDriver = useMemo(() => nutritionAdherenceScore(view), [view]);
-  const readiness = useMemo(() => readinessScore(view), [view]);
-  const recovery = useMemo(() => recoveryScore(view), [view]);
-  const momentum = useMemo(() => momentumScore(view), [view]);
+  const { fitcore, training: trainingDriver, nutrition: nutritionDriver, readiness, recovery } = usePersonalScores(view);
+  const score = fitcore.value;
+  const momentum = momentumScore(view);
 
   const scoreDrivers = [
     { label: "Training", value: trainingDriver },
@@ -577,7 +559,7 @@ function HomeDeepDive({
     },
     {
       label: "Consistency vs Momentum",
-      placeholder: "Trending Up",
+      placeholder: "Needs comparable recent records",
       icon: <TrendingUp size={14} className="text-[var(--success)]" />,
     },
   ];
@@ -590,12 +572,11 @@ function HomeDeepDive({
           <div>
             <Eyebrow color="var(--section)">App-wide Status Report</Eyebrow>
             <div className="mt-1 flex items-baseline gap-2">
-              <span className="font-display text-4xl leading-none text-white">{score}</span>
-              <span className="text-sm font-bold text-white/60">{scoreLabel(score)}</span>
+              <span className="font-display text-4xl leading-none text-white">{score ?? "—"}</span>
+              <span className="text-sm font-bold text-white/60">{scoreStatusLabel(fitcore)}</span>
             </div>
             <p className="mt-3 text-[11px] leading-relaxed text-white/70 max-w-[240px]">
-              Your overall FitCore score reflects your readiness, adherence to nutrition, and
-              training consistency.
+              {fitcore.explanation}
             </p>
           </div>
           <button
@@ -613,11 +594,11 @@ function HomeDeepDive({
                 {driver.label}
               </p>
               <div className="mt-1 flex items-baseline gap-1">
-                <p className="text-lg font-bold tabular-nums text-white">{driver.value}</p>
+                <p className="text-lg font-bold tabular-nums text-white">{driver.value.value ?? "—"}</p>
                 <p className="text-[10px] text-white/40">/100</p>
               </div>
               <p className="text-[9px] text-[var(--section)] font-bold mt-1 uppercase">
-                {driverTone(driver.value)}
+                {scoreStatusLabel(driver.value)}
               </p>
             </div>
           ))}
@@ -670,7 +651,7 @@ function HomeDeepDive({
           <div>
             <p className="text-sm font-bold text-white">Readiness Analysis</p>
             <p className="text-xs text-white/50 mt-0.5">
-              View your recovery score contributors and detailed readiness data.
+              Readiness {readiness.value ?? "—"} · {scoreStatusLabel(readiness)}. Recovery {recovery.value ?? "—"}.
             </p>
           </div>
           <ChevronRight size={18} className="text-white/30" />
@@ -761,15 +742,15 @@ function HomeDeepDive({
 function OrbitalScore({
   label,
   value,
-  displayValue,
+  status,
   color,
   className,
   onClick,
   countDelay,
 }: {
   label: string;
-  value: number;
-  displayValue?: string;
+  value: number | null;
+  status: string;
   color: string;
   className: string;
   onClick: () => void;
@@ -778,15 +759,16 @@ function OrbitalScore({
   const size = 78;
   const radius = size / 2 - 5;
   const circumference = 2 * Math.PI * radius;
-  const percent = Math.min(1, value / 100);
+  const percent = Math.min(1, (value ?? 0) / 100);
   return (
     <button
       onClick={onClick}
       className={`home-orbit-score ${className} press`}
       style={{ "--orbit-color": color } as CSSProperties}
-      aria-label={`${label} ${displayValue ?? value}`}
+      aria-label={`${label} ${value ?? "—"} · ${status}`}
     >
       <span className="home-orbit-label">{label}</span>
+      {status !== "Calculated estimate" && <span className="text-[9px] text-white/60">{status}</span>}
       <span className="home-orbit-ring">
         <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
           <circle
@@ -811,25 +793,12 @@ function OrbitalScore({
           />
         </svg>
         <span className="home-orbit-value">
-          {displayValue ?? <CountUp value={value} delay={countDelay} duration={820} />}
+          {value === null ? "—" : <CountUp value={value} delay={countDelay} duration={820} />}
         </span>
         <span className="home-orbit-glint" aria-hidden="true" />
       </span>
     </button>
   );
-}
-
-function scoreLabel(score: number) {
-  if (score >= 80) return "Elite";
-  if (score >= 65) return "Strong";
-  if (score >= 45) return "Building";
-  return "Foundation";
-}
-
-function driverTone(value: number) {
-  if (value >= 70) return "Strong";
-  if (value >= 45) return "Building";
-  return "Focus";
 }
 
 function MacroBar({

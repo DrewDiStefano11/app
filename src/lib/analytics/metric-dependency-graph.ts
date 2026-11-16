@@ -50,6 +50,7 @@ const sourceNodes: readonly NodeDefinition[] = [
   node("source.state.profile.bodyweightLb", "source", [], "progress"),
   node("source.state.recoveryCheckIns", "source", [], "recovery"),
   node("source.state.recoverySignals", "source", [], "recovery"),
+  node("source.state.sleepEntries", "source", [], "recovery"),
   node("source.state.workouts", "source", [], "training"),
 ];
 
@@ -115,7 +116,7 @@ const detailNodes: readonly NodeDefinition[] = [
     "goals",
   ),
   node("progress.bodyweight.series", "detail", ["source.state.bodyweightEntries"], "progress"),
-  node("recovery.score", "detail", ["source.state.recoveryCheckIns"], "recovery"),
+  node("recovery.score", "detail", ["source.state.recoveryCheckIns", "source.state.sleepEntries", "source.state.workouts"], "recovery"),
 ];
 
 const aggregateDependencies = [

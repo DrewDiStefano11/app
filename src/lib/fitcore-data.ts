@@ -1,3 +1,5 @@
+import { recordedRecoveryCheckIns, recoveryCheckInReadinessScore } from "./analytics/observed-fitness";
+import { calculatePersonalScores, scoreStatusLabel } from "./analytics/personal-scores";
 import type {
   AppState,
   ConfirmationStatus,
@@ -451,8 +453,16 @@ export const getExercisePreviousPerformance = (s: AppState, exercise: string, be
 export function getLatestMetrics(s: AppState) { const weight = [...s.bodyweightEntries].sort((a, b) => b.createdAt - a.createdAt)[0]; return { bodyweightLb: weight?.weightLb ?? null, bodyweightAt: weight?.createdAt ?? null, checkIn: [...s.recoveryCheckIns].sort((a, b) => b.createdAt - a.createdAt)[0] ?? null }; }
 export function getDailyMacroSummary(s: AppState, at = Date.now()) { return s.mealEntries.filter(x => isoDay(x.createdAt) === isoDay(at)).reduce((n, x) => ({ calories: n.calories + x.calories, protein: n.protein + x.protein, carbs: n.carbs + x.carbs, fat: n.fat + x.fat }), { calories: 0, protein: 0, carbs: 0, fat: 0 }); }
 export function getNutritionSummary(s: AppState, at = Date.now()) { return { totals: getDailyMacroSummary(s, at), targets: s.nutritionTargets, meals: s.mealEntries.filter(x => isoDay(x.createdAt) === isoDay(at)) }; }
-export function getRecoverySummary(s: AppState) { const latest = getLatestMetrics(s).checkIn; return { latestCheckIn: latest, signals: getLogsByType(s, "recovery_signal").slice(0, 12), readiness: latest ? Math.round((latest.energy + latest.motivation + 11 - latest.soreness + 11 - latest.stress) / 40 * 100) : null }; }
-export function getProgressSeries(s: AppState) { return { workouts: getLogsByType(s, "workout_session").map(x => ({ date: x.createdAt, volume: Number(x.metrics.volume) || 0 })), bodyweight: s.bodyweightEntries.map(x => ({ date: x.createdAt, weightLb: x.weightLb })), nutrition: [...new Set(s.mealEntries.map(x => isoDay(x.createdAt)))].map(date => ({ date, ...getDailyMacroSummary(s, Date.parse(`${date}T12:00:00`)) })), recovery: s.recoveryCheckIns.map(x => ({ date: x.createdAt, score: Math.round((x.energy + x.motivation + 11 - x.soreness + 11 - x.stress) / 40 * 100) })) }; }
+export function getRecoverySummary(s: AppState) {
+  const scores = calculatePersonalScores(s);
+  return {
+    latestCheckIn: getLatestMetrics(s).checkIn,
+    signals: getLogsByType(s, "recovery_signal").slice(0, 12),
+    readiness: !s.demoMode && scores.readiness.status === "available" ? scores.readiness.value : null,
+    readinessStatus: scoreStatusLabel(scores.readiness),
+  };
+}
+export function getProgressSeries(s: AppState) { return { workouts: getLogsByType(s, "workout_session").map(x => ({ date: x.createdAt, volume: Number(x.metrics.volume) || 0 })), bodyweight: s.bodyweightEntries.map(x => ({ date: x.createdAt, weightLb: x.weightLb })), nutrition: [...new Set(s.mealEntries.map(x => isoDay(x.createdAt)))].map(date => ({ date, ...getDailyMacroSummary(s, Date.parse(`${date}T12:00:00`)) })), recovery: recordedRecoveryCheckIns(s).map(x => ({ date: x.createdAt, score: recoveryCheckInReadinessScore(x) })) }; }
 export const getRecentActivity = (s: AppState, limit = 8) => {
   const logs = allLogs(s);
   const entityIds = new Set(logs.filter(x => x.type !== "ai_event").map(x => x.id));
@@ -484,6 +494,30 @@ export function extractRecoverySignalsFromNotes(notes: string, sourceLogId = id(
 }
 
 export function buildAICoachContext(s: AppState, section: string) {
-  const nutrition = getNutritionSummary(s), latest = getLatestMetrics(s), recovery = getRecoverySummary(s);
-  return [`Section: ${section}`, `Goal: ${s.profile.goal}; ${s.profile.experience}; ${s.profile.daysPerWeek}d/wk; ${s.profile.split}`, `Latest bodyweight: ${latest.bodyweightLb ?? "not logged"} lb`, `Nutrition today: ${nutrition.totals.calories}/${nutrition.targets.calories} kcal; P${nutrition.totals.protein}/${nutrition.targets.protein} C${nutrition.totals.carbs}/${nutrition.targets.carbs} F${nutrition.totals.fat}/${nutrition.targets.fat}`, `Recovery: readiness ${recovery.readiness ?? "not enough data"}; signals ${recovery.signals.slice(0, 5).map(x => `${x.subtype}:${x.tags[0] ?? "general"}`).join(", ") || "none"}`, `Recent workouts: ${JSON.stringify(getWorkoutHistory(s).slice(0, 5))}`, `Recent saved activity: ${getRecentActivity(s, 8).map(x => `${x.type}:${x.subtype ?? x.notes ?? x.id}`).join(" | ") || "none"}`].join("\n");
+  if (s.demoMode) return `Section: ${section}\nDemo Data is enabled. Personal scores and activity are unavailable in this context.`;
+  const now = Date.now();
+  const since = new Date(now);
+  since.setHours(0, 0, 0, 0);
+  const mealEntries = s.mealEntries.filter(meal => meal.createdAt >= since.getTime() && meal.createdAt <= now &&
+    meal.confirmed !== false && meal.provenance?.confirmation !== "unconfirmed");
+  const nutrition = getNutritionSummary({ ...s, mealEntries });
+  const latestWeight = [...s.bodyweightEntries]
+    .filter((entry) => entry.createdAt <= Date.now() && entry.provenance?.confirmation !== "unconfirmed")
+    .sort((a, b) => b.createdAt - a.createdAt)[0];
+  const scores = calculatePersonalScores(s, now);
+  const describe = (metric: typeof scores.readiness) => metric.status !== "available" || metric.value === null
+    ? scoreStatusLabel(metric)
+    : `Derived estimate ${metric.value} from ${metric.evidence.map(group =>
+        `${group.label} (${[...new Set(group.records.map(row => row.source))].join(", ")})`).join(" and ")}`;
+  return [
+    `Section: ${section}`,
+    `Goal: ${s.profile.goal}; ${s.profile.experience}; ${s.profile.daysPerWeek}d/wk; ${s.profile.split}`,
+    `Latest recorded bodyweight: ${latestWeight ? `${latestWeight.weightLb} lb on ${isoDay(latestWeight.createdAt)} (${latestWeight.provenance?.source ?? "recorded in FitCore"})` : "not logged"}`,
+    `Nutrition today: ${mealEntries.length ? `recorded totals only: ${nutrition.totals.calories} kcal; ${nutrition.totals.protein} g protein` : "no confirmed meal records"}`,
+    `Readiness: ${describe(scores.readiness)}`,
+    `Recovery: ${describe(scores.recovery)}`,
+    `FitCore Score: ${describe(scores.fitcore)}`,
+    `Recent recorded workouts: ${JSON.stringify(getWorkoutHistory(s).slice(0, 5))}`,
+    `Recent saved activity: ${getRecentActivity(s, 8).map(x => `${x.type}:${x.subtype ?? x.notes ?? x.id}`).join(" | ") || "none"}`,
+  ].join("\n");
 }

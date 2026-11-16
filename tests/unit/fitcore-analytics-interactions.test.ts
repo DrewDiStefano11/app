@@ -251,10 +251,10 @@ function largeState(): AppState {
   };
 }
 
-test("Task 18 report covers 85 unique nodes in canonical order", () => {
+test("Task 18 report covers 86 unique nodes in canonical order", () => {
   const result = report();
-  assert.equal(result.evaluations.length, 85);
-  assert.equal(new Set(result.evaluations.map((item) => item.nodeId)).size, 85);
+  assert.equal(result.evaluations.length, 86);
+  assert.equal(new Set(result.evaluations.map((item) => item.nodeId)).size, 86);
   assert.deepEqual(
     result.evaluations.map((item) => item.nodeId),
     METRIC_DEPENDENCY_GRAPH.map((node) => node.id),
@@ -282,7 +282,7 @@ test("Task 18 creates one ordered contract per Task 17 packet only", () => {
 
 test("Task 18 representative summary reconciles all contracts, capabilities, and targets", () => {
   assert.deepEqual(report().summary, {
-    evaluationCount: 85,
+    evaluationCount: 86,
     contractCount: 3,
     readyContractCount: 2,
     limitedContractCount: 1,
@@ -313,14 +313,14 @@ test("Task 18 representative resolutions yield five accepted, two rejected, and 
 
 test("Task 18 empty and partial aggregates remain honest", () => {
   const empty = getFitCoreAnalytics(defaultState, { now: NOW }).interactions;
-  assert.equal(empty.evaluations.length, 85);
+  assert.equal(empty.evaluations.length, 86);
   assert.equal(empty.contracts.length, 0);
   assert.equal(empty.summary.safeToInteractCount, 0);
   const partial = getFitCoreAnalytics(
     { ...defaultState, mealEntries: largeState().mealEntries.slice(0, 10) },
     { now: NOW },
   ).interactions;
-  assert.equal(partial.evaluations.length, 85);
+  assert.equal(partial.evaluations.length, 86);
   assert.ok(partial.contracts.every((contract) => !contract.safeToInteract));
 });
 
@@ -389,7 +389,7 @@ test("Task 18 large fixture completes deterministically and remains privacy-safe
   const before = JSON.stringify(state);
   const first = getFitCoreAnalytics(state, { now: NOW }).interactions;
   const second = getFitCoreAnalytics(state, { now: NOW }).interactions;
-  assert.equal(first.evaluations.length, 85);
+  assert.equal(first.evaluations.length, 86);
   assert.ok(first.contracts.length <= 10);
   assert.deepEqual(first, second);
   assert.deepEqual(JSON.parse(JSON.stringify(first)), first);

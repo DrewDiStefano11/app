@@ -1,12 +1,11 @@
 import type { CSSProperties } from "react";
-import { ClipboardCheck, Dumbbell, Moon, TrendingUp, Utensils } from "lucide-react";
+import { Dumbbell, Moon, TrendingUp, Utensils } from "lucide-react";
 import { BottomSheet } from "@/components/app/sheet";
 import type { MomentumFactor, MomentumResult } from "@/lib/analytics";
 
 const factorIcons = {
   training: Dumbbell,
   nutrition: Utensils,
-  checkins: ClipboardCheck,
   recovery: Moon,
   progress: TrendingUp,
 } satisfies Record<MomentumFactor["id"], typeof Dumbbell>;
@@ -25,7 +24,7 @@ export function MomentumDetailSheet({
       <div className="momentum-sheet-hero">
         <div
           className="momentum-sheet-score"
-          style={{ "--momentum-score": momentum.score } as CSSProperties}
+          style={{ "--momentum-score": momentum.score ?? 0 } as CSSProperties}
         >
           <span>{momentum.hasData ? momentum.score : "—"}</span>
         </div>

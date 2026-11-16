@@ -169,6 +169,7 @@ test.describe("FitCore data integrity", () => {
 
     await clickBottomNav(page, "Recover");
     await page.getByRole("button", { name: "Check-in" }).click();
+    await page.getByRole("checkbox", { name: /I confirm these ratings/ }).check();
     await page.getByRole("button", { name: "Save check-in" }).click();
 
     await clickBottomNav(page, "Stats");

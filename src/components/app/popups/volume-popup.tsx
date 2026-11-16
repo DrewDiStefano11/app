@@ -39,11 +39,13 @@ export function VolumeDetailSheet({ open, onClose }: { open: boolean; onClose: (
           <div className="flex items-baseline gap-2 mt-1">
             <span className="font-display text-4xl">{(total / 1000).toFixed(1)}k</span>
             <span className="text-xs text-white/40 font-bold uppercase">lb</span>
-            {compare && (
+            {compare && (cmp.deltaPct === null ? (
+              <span className="text-xs text-muted-foreground ml-auto">Needs logged volume in both periods</span>
+            ) : (
               <span className={`text-xs font-bold ml-auto ${cmp.deltaPct >= 0 ? "text-green-400" : "text-red-400"}`}>
                 {cmp.deltaPct >= 0 ? "+" : ""}{cmp.deltaPct}% vs prev
               </span>
-            )}
+            ))}
           </div>
         </div>
 

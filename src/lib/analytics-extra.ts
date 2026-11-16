@@ -221,7 +221,7 @@ export function muscleStats(state: AppState, muscle: string, now = Date.now()) {
       );
     }
   }
-  const deltaPct = volPrev > 0 ? Math.round(((volWeek - volPrev) / volPrev) * 100) : 0;
+  const deltaPct = volWeek > 0 && volPrev > 0 ? Math.round(((volWeek - volPrev) / volPrev) * 100) : null;
   const recommended = EXERCISES.filter((e) => (e.primary as string[]).includes(muscle))
     .slice(0, 4)
     .map((e) => e.name);
@@ -248,7 +248,7 @@ export function compareWindows(
   state: AppState,
   days: number,
   now = Date.now(),
-): { current: number; previous: number; deltaPct: number } {
+): { current: number; previous: number; deltaPct: number | null } {
   const currentRange = calendarDaysWindow(days, now);
   const previousRange = calendarDaysWindow(days, now, days);
   const current = state.workouts
@@ -257,6 +257,6 @@ export function compareWindows(
   const previous = state.workouts
     .filter((w) => dateRangeContains(previousRange, w.startedAt))
     .reduce((s, w) => s + workoutVolume(w), 0);
-  const deltaPct = previous > 0 ? Math.round(((current - previous) / previous) * 100) : 0;
+  const deltaPct = current > 0 && previous > 0 ? Math.round(((current - previous) / previous) * 100) : null;
   return { current: Math.round(current), previous: Math.round(previous), deltaPct };
 }
