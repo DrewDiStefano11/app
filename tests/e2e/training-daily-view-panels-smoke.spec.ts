@@ -89,7 +89,12 @@ test.describe('Training Daily View Smoke', () => {
 
     await page.goto("/");
 
-    // Verify app shell routed directly to Training automatically
+    await expect(
+      page.getByRole("heading", { name: "Resume Test Workout", exact: true })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Back to Training", exact: true }).click();
+
+    // The overview stays available without discarding the active workout.
     await expect(
       page.getByRole("heading", {
         name: "Training",
@@ -185,5 +190,12 @@ test.describe('Training Daily View Smoke', () => {
     for (const errorText of fatalErrors) {
       await expect(page.getByText(errorText)).not.toBeVisible();
     }
+
+    await page.getByRole('tab', { name: 'Library' }).click();
+    await page.getByRole('button', { name: 'Start', exact: true }).first().click();
+    await page.getByRole('button', { name: 'Back to Training', exact: true }).click();
+    await expect(page.getByRole('tab', { name: 'Library' })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('button', { name: 'Resume workout', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Finish workout', exact: true })).toBeVisible();
   });
 });

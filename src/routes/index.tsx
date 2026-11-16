@@ -49,12 +49,16 @@ export const Route = createFileRoute("/")({
 });
 
 function FitCoreApp() {
-  const { state, view, persistenceStatus, persistenceRequiresReload } = useStore();
+  const { state, hasHydrated, view, persistenceStatus, persistenceRequiresReload } = useStore();
   const [section, setSection] = useState<SectionId>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("daily");
+  const [overviewWorkoutId, setOverviewWorkoutId] = useState<string | null>(null);
 
-  const hasActiveWorkout = !!state.activeWorkout;
+  const activeWorkoutId = state.activeWorkout?.id;
+  const hasActiveWorkout = activeWorkoutId !== undefined;
+  const showActiveWorkout = activeWorkoutId !== undefined && activeWorkoutId !== overviewWorkoutId;
+  const displayedSection = hasActiveWorkout ? "training" : section;
   const persistenceProblem = persistenceRequiresReload
     ? "FitCore needs to reload the latest saved data before it can save changes."
     : persistenceStatus === "storage_error" || persistenceStatus === "blocked"
@@ -66,10 +70,10 @@ function FitCoreApp() {
 
   useEffect(() => {
     if (hasActiveWorkout) {
-      if (section !== "training") setSection("training");
-      if (settingsOpen) setSettingsOpen(false);
+      setSection("training");
+      setSettingsOpen(false);
     }
-  }, [hasActiveWorkout, section, settingsOpen]);
+  }, [hasActiveWorkout]);
 
   useEffect(() => {
     if (!hasActiveWorkout) return;
@@ -78,7 +82,15 @@ function FitCoreApp() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [hasActiveWorkout]);
 
-  if (!state.onboardingComplete) {
+  if (!hasHydrated) {
+    return (
+      <div className="phone-shell grid min-h-dvh place-items-center" aria-busy="true">
+        <p role="status" className="text-muted-foreground">Loading FitCore…</p>
+      </div>
+    );
+  }
+
+  if (!state.onboardingComplete && !hasActiveWorkout) {
     return (
       <div className="phone-shell" data-section="home">
         {storageMessage}
@@ -87,17 +99,17 @@ function FitCoreApp() {
     );
   }
 
-  const contextSummary = buildAICoachContext(view, section);
+  const contextSummary = buildAICoachContext(view, displayedSection);
 
   return (
-    <div className="phone-shell" data-section={section} key={section}>
+    <div className="phone-shell" data-section={displayedSection} key={displayedSection}>
       {storageMessage}
       <div className="animate-tile-in">
-        {settingsOpen ? (
+        {settingsOpen && !hasActiveWorkout ? (
           <SettingsView onBack={() => setSettingsOpen(false)} layoutMode={layoutMode} />
         ) : (
           <>
-            {section === "home" && (
+            {displayedSection === "home" && (
               <>
                 <HomeView
                   onNavigate={(s) => setSection(s)}
@@ -108,15 +120,22 @@ function FitCoreApp() {
                 <RecentActivity />
               </>
             )}
-            {section === "training" && <TrainingView layoutMode={layoutMode} />}
-            {section === "nutrition" && <NutritionView layoutMode={layoutMode} />}
-            {section === "recovery" && <RecoveryView layoutMode={layoutMode} />}
-            {section === "progress" && <ProgressView layoutMode={layoutMode} />}
+            {displayedSection === "training" && (
+              <TrainingView
+                layoutMode={layoutMode}
+                showActiveWorkout={showActiveWorkout}
+                onOpenActive={() => setOverviewWorkoutId(null)}
+                onBackFromWorkout={() => setOverviewWorkoutId(activeWorkoutId ?? null)}
+              />
+            )}
+            {displayedSection === "nutrition" && <NutritionView layoutMode={layoutMode} />}
+            {displayedSection === "recovery" && <RecoveryView layoutMode={layoutMode} />}
+            {displayedSection === "progress" && <ProgressView layoutMode={layoutMode} />}
           </>
         )}
       </div>
 
-      <JarvisPanel section={section} contextSummary={contextSummary} />
+      <JarvisPanel section={displayedSection} contextSummary={contextSummary} />
       <JarvisUndoSnackbar />
       {!hasActiveWorkout && (
         <BottomNav

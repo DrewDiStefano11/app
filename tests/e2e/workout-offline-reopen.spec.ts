@@ -79,7 +79,7 @@ test("an initialized app can log a set offline and reopen the same session", asy
 
     const reopened = await context.newPage();
     await reopened.goto("/");
-    await reopened.getByRole("button", { name: "Resume workout", exact: true }).click();
+    await expect(reopened.getByRole("button", { name: "Finish workout", exact: true })).toBeVisible();
     await expect(reopened.getByPlaceholder("lb", { exact: true }).first()).toHaveValue("135");
     await reopened.getByRole("button", { name: "Finish workout", exact: true }).click();
     await reopened.getByRole("button", { name: "Confirm & save", exact: true }).click();

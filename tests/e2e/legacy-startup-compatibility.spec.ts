@@ -93,12 +93,10 @@ test.describe("legacy startup compatibility", () => {
     });
     await page.goto("/");
 
-    await expect(page.getByText(/Legacy workout started/)).toBeVisible();
-    await page.getByRole("button", { name: "Resume workout", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Legacy workout", exact: true })).toBeVisible();
     await expect(page.getByText("No exercises yet", { exact: true })).toBeVisible();
     await page.reload();
-    await expect(page.getByText(/Legacy workout started/)).toBeVisible();
-    await page.getByRole("button", { name: "Resume workout", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Legacy workout", exact: true })).toBeVisible();
     await expect(page.getByText("No exercises yet", { exact: true })).toBeVisible();
   });
 });

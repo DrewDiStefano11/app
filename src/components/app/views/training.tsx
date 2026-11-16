@@ -20,36 +20,52 @@ const DEEP_DIVE_TABS: { id: DeepDiveSubtab; label: string }[] = [
   { id: "insights", label: "Insights" },
 ];
 
-export function TrainingView({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
+export function TrainingView({
+  layoutMode = "daily",
+  showActiveWorkout,
+  onOpenActive,
+  onBackFromWorkout,
+}: {
+  layoutMode?: LayoutMode;
+  showActiveWorkout: boolean;
+  onOpenActive: () => void;
+  onBackFromWorkout: () => void;
+}) {
   const { state } = useStore();
   const [panel, setPanel] = useState<TrainingPanel>(null);
-  const [showActiveWorkout, setShowActiveWorkout] = useState(false);
   const [tab, setTab] = useState<DeepDiveSubtab>("performance");
 
-  if (state.activeWorkout && showActiveWorkout) return <ActiveWorkoutView />;
+  if (state.activeWorkout && showActiveWorkout) {
+    return <ActiveWorkoutView onBack={onBackFromWorkout} />;
+  }
 
   return (
     <div className="pb-24">
       <PageHeader title="Training" subtitle={`${state.profile.split} • ${state.profile.daysPerWeek}d/wk`} />
+      {layoutMode === "deepDive" && state.activeWorkout && (
+        <div className="px-5 mb-3">
+          <PrimaryButton onClick={onOpenActive}><Play size={16} />Resume workout</PrimaryButton>
+        </div>
+      )}
       {layoutMode === "deepDive" && <SubTabs tabs={DEEP_DIVE_TABS} active={tab} onChange={setTab} />}
 
       {layoutMode === "daily" ? (
         <DailyTrainingView
           layoutMode={layoutMode}
           onOpenPanel={setPanel}
-          onOpenActive={() => setShowActiveWorkout(true)}
+          onOpenActive={onOpenActive}
         />
       ) : (
         <>
           {tab === "performance" && <PerformanceTab />}
           {tab === "strength" && <StrengthTab />}
-          {tab === "library" && <div className="px-5"><TemplatesSection onWorkoutStarted={() => setShowActiveWorkout(true)} /></div>}
+          {tab === "library" && <div className="px-5"><TemplatesSection onWorkoutStarted={onOpenActive} /></div>}
           {tab === "insights" && <InsightsTab />}
         </>
       )}
 
       <BottomSheet open={panel === "templates"} onClose={() => setPanel(null)} title="Programs & templates" height="tall">
-        <TemplatesSection onWorkoutStarted={() => { setShowActiveWorkout(true); setPanel(null); }} />
+        <TemplatesSection onWorkoutStarted={() => { setPanel(null); onOpenActive(); }} />
         <div className="mt-4"><GhostButton onClick={() => setPanel(null)} aria-label="Close programs panel" className="w-full">Close</GhostButton></div>
       </BottomSheet>
       <BottomSheet open={panel === "cardio"} onClose={() => setPanel(null)} title="Cardio & sports" height="tall">

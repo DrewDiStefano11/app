@@ -72,6 +72,7 @@ type Updater = (s: AppState) => AppState;
 
 interface Ctx {
   state: AppState;
+  hasHydrated: boolean;
   /** Effective state: merges demo data when demoMode is true. Real data is never overwritten. */
   view: AppState;
   set: (u: Updater) => boolean;
@@ -143,6 +144,7 @@ const StoreContext = createContext<Ctx | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(defaultState);
+  const [hasHydrated, setHasHydrated] = useState(false);
   const stateRef = useRef<AppState>(defaultState);
   const controllerRef = useRef<FitCoreRuntimePersistenceController | null>(null);
   controllerRef.current ??= getFitCoreRuntimePersistenceController();
@@ -160,6 +162,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     stateRef.current = outcome.state;
     setState(outcome.state);
     setPersistence(outcome.metadata);
+    setHasHydrated(true);
   }, []);
 
   const apply = useCallback((createNext: Updater) => {
@@ -220,8 +223,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, view, set, startWorkout, reset, exportJson, importJson, ...persistence }),
-    [state, view, set, startWorkout, reset, exportJson, importJson, persistence],
+    () => ({ state, hasHydrated, view, set, startWorkout, reset, exportJson, importJson, ...persistence }),
+    [state, hasHydrated, view, set, startWorkout, reset, exportJson, importJson, persistence],
   );
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
