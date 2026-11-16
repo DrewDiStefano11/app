@@ -189,7 +189,7 @@ type CopyResult = CopySuccess | CopyFailure;
 
 interface EnvelopeValidation {
   status: FitCoreBackupInspectionStatus;
-  envelope: FitCoreBackupEnvelopeV1 | null;
+  json: string | null;
   requiresReview: boolean;
   issues: FitCoreBackupIssue[];
   integrity: FitCoreBackupIntegrityReport | null;
@@ -272,19 +272,6 @@ function summarize(
   };
 }
 
-function structureFromSummary(summary: FitCoreBackupSummary): FitCoreBackupStructuralSummary {
-  return {
-    nodeCount: summary.nodeCount,
-    maximumDepthObserved: summary.maximumDepthObserved,
-    objectCount: summary.objectCount,
-    arrayCount: summary.arrayCount,
-    stringCount: summary.stringCount,
-    numberCount: summary.numberCount,
-    booleanCount: summary.booleanCount,
-    nullCount: summary.nullCount,
-    topLevelFieldCount: summary.topLevelFieldCount,
-  };
-}
 
 function cloneIntegrityReport(
   report: ReturnType<typeof validateFitCoreDataIntegrity>,
@@ -643,7 +630,7 @@ function envelopeFailure(
 ): EnvelopeValidation {
   return {
     status,
-    envelope: null,
+    json: null,
     requiresReview: false,
     issues,
     integrity,
@@ -772,7 +759,7 @@ function validateEnvelopeCandidate(value: unknown): EnvelopeValidation {
       );
     return {
       status: "valid",
-      envelope,
+      json: serialized,
       requiresReview: upstreamIntegrity.status === "warnings",
       issues,
       integrity,
@@ -810,9 +797,16 @@ export function inspectFitCoreBackupEnvelope(value: unknown): FitCoreBackupInspe
   });
 }
 
+const verifiedSerializations = new WeakMap<FitCoreBackupEnvelopeV1, FitCoreBackupSerializationResult>();
+
 export function serializeFitCoreBackupEnvelope(value: unknown): FitCoreBackupSerializationResult {
+  if (value !== null && typeof value === "object") {
+    const existing = verifiedSerializations.get(value as FitCoreBackupEnvelopeV1);
+    if (existing) return existing;
+  }
   const validation = validateEnvelopeCandidate(value);
-  if (validation.status !== "valid" || validation.envelope === null) {
+  const json = validation.json;
+  if (validation.status !== "valid" || json === null) {
     const status: FitCoreBackupSerializationStatus =
       validation.status === "unsupported_version" ? "unsupported_version" : "blocked";
     return deepFreeze({
@@ -833,42 +827,6 @@ export function serializeFitCoreBackupEnvelope(value: unknown): FitCoreBackupSer
       summary: validation.summary,
     });
   }
-  let json: string;
-  try {
-    json = canonicalEnvelopeJson(validation.envelope);
-  } catch {
-    const issues = [issue("canonical_serialization_failed")];
-    return deepFreeze({
-      status: "blocked",
-      safeToExport: false,
-      requiresReview: false,
-      json: null,
-      characterCount: 0,
-      reasonKey: "backup.reason.serialization_blocked",
-      limitationKeys: limitationKeys(issues),
-      issues,
-      summary: summarize(structureFromSummary(validation.summary), issues, validation.integrity, 0),
-    });
-  }
-  if (json.length > FITCORE_BACKUP_EXPORT_LIMITS.maxSerializedCharacters) {
-    const issues = [issue("maximum_serialized_characters_exceeded")];
-    return deepFreeze({
-      status: "blocked",
-      safeToExport: false,
-      requiresReview: false,
-      json: null,
-      characterCount: 0,
-      reasonKey: "backup.reason.serialization_blocked",
-      limitationKeys: limitationKeys(issues),
-      issues,
-      summary: summarize(
-        structureFromSummary(validation.summary),
-        issues,
-        validation.integrity,
-        json.length,
-      ),
-    });
-  }
   return deepFreeze({
     status: "serialized",
     safeToExport: true,
@@ -880,4 +838,31 @@ export function serializeFitCoreBackupEnvelope(value: unknown): FitCoreBackupSer
     issues: validation.issues,
     summary: validation.summary,
   });
+}
+
+/** Accept storage bytes only when every byte matches the canonical, validated backup. */
+export function readCanonicalFitCoreBackupEnvelope(raw: string): {
+  status: "invalid_json" | "invalid_backup" | "noncanonical" | "valid";
+  envelope: FitCoreBackupEnvelopeV1 | null;
+  requiresReview: boolean;
+} {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return { status: "invalid_json", envelope: null, requiresReview: false };
+  }
+
+  const serialization = serializeFitCoreBackupEnvelope(parsed);
+  if (serialization.status !== "serialized") {
+    return { status: "invalid_backup", envelope: null, requiresReview: false };
+  }
+  if (serialization.json !== raw) {
+    return { status: "noncanonical", envelope: null, requiresReview: false };
+  }
+
+  // Only objects built from validated storage bytes enter this cache.
+  const envelope = deepFreeze(parsed as FitCoreBackupEnvelopeV1);
+  verifiedSerializations.set(envelope, serialization);
+  return { status: "valid", envelope, requiresReview: serialization.requiresReview };
 }

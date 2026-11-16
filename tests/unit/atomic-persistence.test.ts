@@ -603,6 +603,49 @@ test("active loads are detached, deeply frozen, canonical, and omit raw strings"
   assert.equal(Object.hasOwn(result, "raw"), false);
 });
 
+test("reuses frozen slot data only while storage returns the same bytes", () => {
+  const adapter = new MemoryAdapter();
+  const initial = state();
+  initial.jarvisLearning = { generation: 1 };
+  persist(adapter, initial);
+  const first = readFitCoreAtomicPersistence(adapter);
+  const sameSlotReads = adapter.getCounts.get(SLOT_A)!;
+  const second = readFitCoreAtomicPersistence(adapter);
+  assert.equal(adapter.getCounts.get(SLOT_A), sameSlotReads + 1);
+  assert.equal(second.envelope, first.envelope);
+  assertDeepFrozen(second.envelope);
+
+  const externalChange = state();
+  externalChange.jarvisLearning = { generation: 2 };
+  const replacement = serializeFitCoreBackupEnvelope(
+    createFitCoreBackupEnvelope(externalChange, { exportedAt: LATER_AT }).envelope,
+  ).json!;
+  adapter.data.set(SLOT_A, replacement);
+  const changed = readFitCoreAtomicPersistence(adapter);
+  assert.equal(changed.status, "loaded");
+  assert.notEqual(changed.envelope, first.envelope);
+  assert.deepEqual(changed.envelope!.payload.jarvisLearning, { generation: 2 });
+
+  adapter.data.set(SLOT_A, replacement + " ");
+  assert.equal(readFitCoreAtomicPersistence(adapter).status, "corrupt");
+  adapter.data.delete(SLOT_A);
+  assert.equal(readFitCoreAtomicPersistence(adapter).status, "corrupt");
+});
+
+test("cached and freshly parsed warning backups serialize identically", () => {
+  const adapter = new MemoryAdapter();
+  const candidate = state();
+  addOwn(candidate, "futureField", { preserved: true });
+  assert.equal(persist(adapter, candidate).status, "committed_with_warnings");
+  const cached = readFitCoreAtomicPersistence(adapter);
+  const raw = adapter.data.get(SLOT_A)!;
+  const cold = serializeFitCoreBackupEnvelope(JSON.parse(raw));
+  assert.equal(cached.status, "loaded_with_warnings");
+  assert.equal(cold.requiresReview, true);
+  assert.equal(cold.json, raw);
+  assert.deepEqual(serializeFitCoreBackupEnvelope(cached.envelope), cold);
+});
+
 test("invalid active slot falls back only to explicitly recorded valid previous slot", () => {
   const adapter = new MemoryAdapter();
   const previous = state();
