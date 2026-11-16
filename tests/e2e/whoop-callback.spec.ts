@@ -25,6 +25,9 @@ test("the Safari handoff works without local onboarding and checks status on res
   await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
   await expect(page.getByText("Connected to WHOOP")).toBeVisible();
   await expect(page.getByText("WHOOP authorization was cancelled.")).toHaveCount(0);
+  await page.getByRole("link", { name: "Privacy and WHOOP support" }).click();
+  await expect(page).toHaveURL(/\/privacy#support$/);
+  await expect(page.getByRole("link", { name: "ddistefano1210@gmail.com" })).toBeVisible();
 });
 test("the registered WHOOP callback fails closed without configuration", async ({ request }) => {
   const response = await request.get("/api/whoop/callback?code=synthetic&state=AbcDeF01", {

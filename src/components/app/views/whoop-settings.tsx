@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Link } from "@tanstack/react-router";
 import { GhostButton, Input } from "@/components/app/ui";
 import {
   announceWhoopSnapshot,
@@ -170,6 +171,9 @@ export function WhoopSettings({
   return (
     <section className="mb-3 space-y-3 rounded-2xl border border-border p-3">
       <h3 className="font-semibold">WHOOP</h3>
+      <Link to="/privacy" hash="support" className="text-sm text-primary underline">
+        Privacy and WHOOP support
+      </Link>
       {status === "loading" && <p role="status">Checking connection…</p>}
       {status === "unavailable" && (
         <p className="text-sm text-muted-foreground">WHOOP connection is unavailable.</p>

@@ -111,6 +111,17 @@ function PrivacyPolicy() {
             already sent to an AI provider are managed separately.
           </p>
         </section>
+
+        <section id="support" className="space-y-2">
+          <h2 className="text-xl font-semibold text-foreground">Support and privacy requests</h2>
+          <p>
+            For help connecting WHOOP or to request access to or deletion of your data, email{" "}
+            <a href="mailto:ddistefano1210@gmail.com" className="text-primary underline">
+              ddistefano1210@gmail.com
+            </a>
+            .
+          </p>
+        </section>
       </div>
     </main>
   );
