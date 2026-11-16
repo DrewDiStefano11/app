@@ -297,6 +297,17 @@ function hasLegacyWorkoutProvenance(detail: WorkoutDetail): boolean {
   );
 }
 
+export function isDefaultManualProvenance(provenance?: DataProvenance): boolean {
+  return (
+    provenance?.source === "manual" &&
+    provenance.confidence === "high" &&
+    provenance.confirmation === "confirmed" &&
+    Object.entries(provenance).every(([key, value]) =>
+      value === undefined || key === "source" || key === "confidence" || key === "confirmation",
+    )
+  );
+}
+
 export function compactWorkoutProvenance(state: AppState): AppState {
   // Older snapshots and backup readers already allow omitted provenance.
   // Preserve every field that conveys anything beyond the manual default.
@@ -306,14 +317,9 @@ export function compactWorkoutProvenance(state: AppState): AppState {
   return mapWorkoutDetails(state, (detail) => {
     const provenance = detail.provenance;
     if (
-      provenance?.source !== "manual" ||
-      provenance.confidence !== "high" ||
-      provenance.confirmation !== "confirmed" ||
+      !isDefaultManualProvenance(provenance) ||
       auditEntities.has(detail.id) ||
-      hasLegacyWorkoutProvenance(detail) ||
-      Object.entries(provenance).some(([key, value]) =>
-        value !== undefined && key !== "source" && key !== "confidence" && key !== "confirmation",
-      )
+      hasLegacyWorkoutProvenance(detail)
     ) return detail;
     const { provenance: _default, ...stored } = detail;
     return stored as typeof detail;
