@@ -551,7 +551,19 @@ function stageUndo(auditId: string, state: AppState, set: Updater): ToolResult {
     }
     case "supplement": set(s => ({ ...s, supplementLogs: s.supplementLogs.filter(e => !(entry.entityIds ?? []).includes(e.id)) })); break;
     case "checkin": set(s => ({ ...s, recoveryCheckIns: s.recoveryCheckIns.filter(e => !(entry.entityIds ?? []).includes(e.id)) })); break;
-    case "meal": set(s => ({ ...s, mealEntries: s.mealEntries.filter(e => !(entry.entityIds ?? []).includes(e.id)) })); break;
+    case "meal": {
+      const meal = state.mealEntries.find(item => entry.entityIds?.includes(item.id));
+      const saved = entry.patch;
+      const editedByAnotherAction = meal?.provenance?.editAuditId && meal.provenance.editAuditId !== entry.id;
+      if (!meal || !saved || meal.auditId !== entry.id || editedByAnotherAction
+        || meal.name !== saved.name || meal.type !== saved.mealType
+        || meal.calories !== saved.calories || meal.protein !== saved.protein
+        || meal.carbs !== saved.carbs || meal.fat !== saved.fat) {
+        return { ok: false, summary: "The meal has changed since Jarvis saved it." };
+      }
+      set(s => ({ ...s, mealEntries: s.mealEntries.filter(item => item.id !== meal.id) }));
+      break;
+    }
     case "cardio": set(s => ({ ...s, cardioEntries: s.cardioEntries.filter(e => !(entry.entityIds ?? []).includes(e.id)) })); break;
     case "workoutStart":
       return { ok: false, summary: "Use the workout screen to discard an active workout after checking for saved sets." };
@@ -626,8 +638,23 @@ function stageUndo(auditId: string, state: AppState, set: Updater): ToolResult {
       set(s => ({ ...s, mealEntries: s.mealEntries.map(row => row.id === current.id ? restored : row) }));
       break;
     }
-    case "mealEdit": { const prev = (entry.patch as { prev?: MealEntry } | undefined)?.prev; if (prev) set(s => ({ ...s, mealEntries: s.mealEntries.map(m => m.id === prev.id ? prev : m) })); break; }
-    case "mealDelete": { const prev = (entry.patch as { prev?: MealEntry } | undefined)?.prev; if (prev) set(s => ({ ...s, mealEntries: [...s.mealEntries, prev] })); break; }
+    case "mealEdit": {
+      const previous = entry.patch?.prev as MealEntry | undefined;
+      const current = state.mealEntries.find(meal => meal.id === previous?.id);
+      if (!previous || current?.provenance?.editAuditId !== entry.id) {
+        return { ok: false, summary: "The meal has changed since Jarvis edited it." };
+      }
+      set(s => ({ ...s, mealEntries: s.mealEntries.map(meal => meal.id === previous.id ? previous : meal) }));
+      break;
+    }
+    case "mealDelete": {
+      const previous = entry.patch?.prev as MealEntry | undefined;
+      if (!previous || state.mealEntries.some(meal => meal.id === previous.id)) {
+        return { ok: false, summary: "The deleted meal could not be restored safely." };
+      }
+      set(s => ({ ...s, mealEntries: [...s.mealEntries, previous] }));
+      break;
+    }
     case "checkinEdit": { const prev = (entry.patch as { prev?: RecoveryCheckIn } | undefined)?.prev; if (prev) set(s => ({ ...s, recoveryCheckIns: s.recoveryCheckIns.map(c => c.id === prev.id ? prev : c) })); break; }
     case "usualMeal": { const patch = entry.patch as { slot?: string; prev?: { name?: string; macros?: unknown } } | undefined, slot = patch?.slot, field = slot ? slotField(slot) : null; if (slot && field) set(s => ({ ...s, userGoalsProfile: { ...s.userGoalsProfile, [field]: patch?.prev?.name }, jarvisLearning: { ...s.jarvisLearning, [`usualMeal_${slot}`]: patch?.prev?.macros } })); break; }
     default: return { ok: false, summary: "This action cannot be undone here." };

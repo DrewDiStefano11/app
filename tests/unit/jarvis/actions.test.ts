@@ -141,6 +141,37 @@ test("undo commits the reversal and audit in one transaction", () => {
   );
 });
 
+test("undo preserves a meal until its later correction has been undone", () => {
+  const fitcore = storageFixture();
+  const state = fitcore.snapshot();
+  const logged = runTool(
+    "logMeal",
+    { name: "Breakfast", mealType: "breakfast", calories: 310, protein: 24, carbs: 36, fat: 8 },
+    { state, set: fitcore.set, settings: state.jarvisSettings, confirmed: true },
+  );
+  expect(logged.ok).toBe(true);
+  const meal = fitcore.snapshot().mealEntries[0];
+  const corrected = runTool(
+    "updateMeal",
+    { id: meal.id, patch: { name: "Breakfast and coffee" } },
+    {
+      state: fitcore.snapshot(),
+      set: fitcore.set,
+      settings: state.jarvisSettings,
+      confirmed: true,
+    },
+  );
+  expect(corrected.ok).toBe(true);
+
+  const beforeUndo = fitcore.commits;
+  expect(undoAuditEntry(logged.auditId!, fitcore.snapshot(), fitcore.set).ok).toBe(false);
+  expect(fitcore.commits).toBe(beforeUndo);
+  expect(fitcore.reload().mealEntries[0].name).toBe("Breakfast and coffee");
+  expect(undoAuditEntry(corrected.auditId!, fitcore.snapshot(), fitcore.set).ok).toBe(true);
+  expect(undoAuditEntry(logged.auditId!, fitcore.snapshot(), fitcore.set).ok).toBe(true);
+  expect(fitcore.reload().mealEntries).toEqual([]);
+});
+
 test("a completed bench set fills the next planned row without creating an extra row", () => {
   const fitcore = storageFixture();
   fitcore.set((state) => ({
