@@ -38,7 +38,7 @@ jobs:
           npm run test:e2e -- --reporter=line
           --project=iphone-webkit --project=mobile-390x844
           workout-release-safety settings-data-safety-lifecycle-smoke
-          active-workout-lifecycle-smoke
+          active-workout-lifecycle-smoke workout-offline-reopen
         env:
           FITCORE_TEST_IPHONE_WEBKIT: "1"
           FITCORE_TEST_PRODUCTION_BUILD: "1"
