@@ -70,6 +70,10 @@ function PrivacyPolicy() {
             provider&apos;s recovery copies for up to six hours on the configured free plan. If
             revocation fails, you can also remove the connection in WHOOP.
           </p>
+          <p>
+            FitCore displays those measurements in an unlocked browser session. The imported records
+            are excluded from FitCore tracking backups and Jarvis requests in this version.
+          </p>
         </section>
 
         <section className="space-y-2">

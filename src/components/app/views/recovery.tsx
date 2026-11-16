@@ -27,6 +27,7 @@ import {
   PlannedFeatureCard,
 } from "@/components/app/ui";
 import { BottomSheet } from "@/components/app/sheet";
+import { WhoopDashboard } from "@/components/app/whoop-dashboard";
 
 const MUSCLES = [
   "chest",
@@ -92,6 +93,10 @@ export function RecoveryView({ layoutMode = "daily" }: { layoutMode?: LayoutMode
         title="Recovery"
         subtitle={`${scoreStatusLabel(readiness)} · ${isDeepDive ? "Deep Dive" : "Daily View"}`}
       />
+
+      <div className="mx-4">
+        <WhoopDashboard />
+      </div>
 
       {!isDeepDive ? (
         <DailyViewRecovery />

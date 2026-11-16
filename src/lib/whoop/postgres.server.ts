@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { WhoopSession } from "./oauth.server";
+import type { WhoopSnapshot } from "./dashboard";
 import type { WhoopV2Record } from "./v2.server";
 
 type Query = <Row extends Record<string, unknown>>(
@@ -15,8 +16,6 @@ type Connection = {
   lastSyncedAt: string | null;
   status: "connected" | "reconnect_required" | "disconnecting";
 };
-
-type Snapshot = { lastSyncedAt: string; records: WhoopV2Record[] };
 
 export function createWhoopStore(query: Query) {
   return {
@@ -127,13 +126,14 @@ export function createWhoopStore(query: Query) {
     },
 
     async getSnapshot(session: WhoopSession) {
-      const [snapshot] = await query<Snapshot>(
-        `select to_char(last_synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "lastSyncedAt",
-           snapshot as records
-         from fitcore_whoop.connections
-         where owner_id = $1 and status = 'connected' and snapshot is not null
-           and exists (select 1 from fitcore_whoop.sessions
-             where owner_id = $1 and id = $2 and expires_at > now())`,
+      const [snapshot] = await query<WhoopSnapshot>(
+        `select to_char(connection.last_synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "lastSyncedAt",
+           to_char(browser_session.expires_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "accessExpiresAt",
+           connection.snapshot as records
+         from fitcore_whoop.connections connection
+         join fitcore_whoop.sessions browser_session on browser_session.owner_id = connection.owner_id
+         where connection.owner_id = $1 and connection.status = 'connected' and connection.snapshot is not null
+           and browser_session.id = $2 and browser_session.expires_at > now()`,
         [session.ownerId, session.id],
       );
       return snapshot ?? null;

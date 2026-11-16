@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { GhostButton, Input } from "@/components/app/ui";
-import { requestWhoopSync, whoopApi as api } from "@/lib/whoop/browser";
+import { announceWhoopSnapshot, requestWhoopSync, whoopApi as api } from "@/lib/whoop/browser";
 
 type Status =
   | "loading"
@@ -101,6 +101,7 @@ export function WhoopSettings() {
         return;
       }
       const { revoked } = await response.json();
+      announceWhoopSnapshot("clear");
       setStatusInfo({ status: "disconnected", lastSyncedAt: null });
       setMessage(
         revoked
@@ -119,6 +120,7 @@ export function WhoopSettings() {
     try {
       const response = await fetch(api + "/session", { method: "DELETE" });
       if (!response.ok) throw new Error();
+      announceWhoopSnapshot("clear");
       setStatusInfo({ status: "locked", lastSyncedAt: null });
       setMessage("");
     } catch {

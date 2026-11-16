@@ -35,6 +35,7 @@ import { StartWorkoutSheet } from "@/components/app/popups/start-workout-popup";
 import { VolumeDetailSheet } from "@/components/app/popups/volume-popup";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import { ViewModeToggle } from "@/components/app/shared/view-mode-toggle";
+import { WhoopDashboard } from "@/components/app/whoop-dashboard";
 import { Eyebrow, Tile } from "@/components/app/tile";
 import {
 
@@ -127,7 +128,10 @@ export function HomeView({
         {layoutMode === "daily" ? (
           <HomeDailyView setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
         ) : (
-          <HomeDeepDive setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
+          <>
+            <WhoopDashboard compact />
+            <HomeDeepDive setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
+          </>
         )}
       </div>
 
@@ -498,6 +502,8 @@ function HomeDailyView({
           )}
         </span>
       </button>
+
+      <WhoopDashboard compact />
 
       <div className="grid grid-cols-3 gap-3 pb-2">
         <QuickAction
