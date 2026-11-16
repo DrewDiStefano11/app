@@ -141,6 +141,31 @@ export function whoopRetryAfter(headers: Headers) {
   return undefined;
 }
 
+function cacheDeadline(headers: Headers, requestedAt: number, receivedAt: number) {
+  const directives = headers.get("Cache-Control") ?? "";
+  // A directive with an embedded comma can make a positive max-age ambiguous.
+  if (directives.includes('"')) return 0;
+  const parts = directives
+    .toLowerCase()
+    .split(",")
+    .map((part) => part.trim());
+  if (parts.some((part) => /^(no-cache|no-store)(?:\s|=|$)/.test(part))) return 0;
+  const lifetimes = parts.filter((part) => /^max-age(?:\s*=|$)/.test(part));
+  if (lifetimes.length !== 1 || !/^max-age\s*=\s*\d{1,10}$/.test(lifetimes[0])) return 0;
+  const age = headers.get("Age") ?? "0";
+  if (!/^\d{1,10}$/.test(age)) return 0;
+  const date = headers.get("Date");
+  const generatedAt = date === null ? receivedAt : Date.parse(date);
+  if (!Number.isFinite(generatedAt)) return 0;
+  const maxAgeMs = Number(lifetimes[0].split("=")[1]) * 1000;
+  const apparentAge = Math.max(
+    receivedAt - generatedAt,
+    Number(age) * 1000 + receivedAt - requestedAt,
+  );
+  const remaining = maxAgeMs - apparentAge;
+  return remaining > 0 ? receivedAt + remaining : 0;
+}
+
 async function fetchPage(url: URL, accessToken: string, options: Options) {
   const send = options.fetch ?? fetch;
   const wait = options.wait ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
@@ -150,16 +175,19 @@ async function fetchPage(url: URL, accessToken: string, options: Options) {
     if (budget?.aborted) throw new WhoopReadError("unavailable");
     const timeout = AbortSignal.timeout(4000);
     const signal = budget ? AbortSignal.any([budget, timeout]) : timeout;
+    const requestedAt = Date.now();
     const response = await send(url, {
       headers: { Authorization: "Bearer " + accessToken },
+      cache: "no-store",
       redirect: "error",
       signal,
     }).catch(() => null);
 
     if (response?.ok) {
+      const expiresAt = cacheDeadline(response.headers, requestedAt, Date.now());
       const parsed = collection.safeParse(await response.json().catch(() => null));
       if (!parsed.success) throw new WhoopReadError("invalid_data");
-      return parsed.data;
+      return { ...parsed.data, expiresAt };
     }
     if (response?.status === 401) throw new WhoopReadError("unauthorized");
     if (response?.status === 429) {
@@ -171,7 +199,7 @@ async function fetchPage(url: URL, accessToken: string, options: Options) {
   throw new WhoopReadError("unavailable");
 }
 
-export async function readWhoopCollection(
+export async function readWhoopCollectionWithCache(
   kind: Kind,
   accessToken: string,
   window: { start: string; end: string },
@@ -181,9 +209,13 @@ export async function readWhoopCollection(
   endpoint.search = new URLSearchParams({ ...window, limit: "25" }).toString();
   const records = new Map<string, WhoopV2Record>();
   const tokens = new Set<string>();
+  let expiresAt = Infinity;
+  let earliestFreshness = Infinity;
 
   for (let page = 0; page < 8; page++) {
     const result = await fetchPage(new URL(endpoint), accessToken, options);
+    expiresAt = Math.min(expiresAt, result.expiresAt);
+    if (result.expiresAt > 0) earliestFreshness = Math.min(earliestFreshness, result.expiresAt);
     for (const raw of result.records) {
       const record = normalizeOrThrow(kind, raw);
       const previous = records.get(record.id);
@@ -191,10 +223,16 @@ export async function readWhoopCollection(
         records.set(record.id, record);
       }
     }
-    if (!result.next_token) return [...records.values()];
+    if (!result.next_token) return { records: [...records.values()], expiresAt, earliestFreshness };
     if (tokens.has(result.next_token)) break;
     tokens.add(result.next_token);
     endpoint.searchParams.set("nextToken", result.next_token);
   }
   throw new WhoopReadError("pagination");
+}
+
+export async function readWhoopCollection(
+  ...args: Parameters<typeof readWhoopCollectionWithCache>
+) {
+  return (await readWhoopCollectionWithCache(...args)).records;
 }

@@ -83,7 +83,7 @@ function harness(jarvisSharingEnabled = true) {
       async failRefresh() {},
       async releaseRefresh() {},
       async saveSync() {
-        return false;
+        return null;
       },
       async releaseSync() {},
       async rejectSyncAuthorization() {},

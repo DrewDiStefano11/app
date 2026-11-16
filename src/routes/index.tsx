@@ -62,19 +62,51 @@ function FitCoreApp() {
   const displayedSection = hasActiveWorkout ? "training" : section;
   useEffect(() => {
     if (!hasHydrated || !state.onboardingComplete) return;
-    let lastAttempt = 0;
+    let nextAttempt = 0;
+    let pending: number | undefined;
+    let disposed = false;
+    let syncing = false;
+    let liveOnly = false;
+    let retryRequired = false;
+    const foreground = () => !disposed && document.visibilityState === "visible" && navigator.onLine;
+    const syncWhileOpen = async (retry: boolean) => {
+      if (!foreground() || syncing) return;
+      syncing = true;
+      try {
+        const response = await requestWhoopSync();
+        if (!foreground()) return;
+        if (response.ok) liveOnly = response.status === 200;
+        const retryAfter = Number(response.headers.get("Retry-After"));
+        nextAttempt = Date.now() + Math.max(120, retryAfter || 0) * 1000;
+        retryRequired = response.status === 409 && !retry;
+        if (retryRequired) {
+          pending = window.setTimeout(() => void syncWhileOpen(true), 120_000);
+        }
+      } catch {
+        nextAttempt = Date.now() + 120_000;
+      } finally {
+        syncing = false;
+      }
+    };
     const syncOnOpen = () => {
-      if (document.visibilityState !== "visible" || !navigator.onLine) return;
-      if (Date.now() - lastAttempt < 120_000) return;
-      lastAttempt = Date.now();
-      void requestWhoopSync().catch(() => {});
+      window.clearTimeout(pending);
+      if (!foreground() || syncing) return;
+      const delay = nextAttempt - Date.now();
+      if (delay <= 0) void syncWhileOpen(retryRequired);
+      else if (liveOnly || retryRequired) {
+        pending = window.setTimeout(() => void syncWhileOpen(retryRequired), delay);
+      }
     };
     syncOnOpen();
     document.addEventListener("visibilitychange", syncOnOpen);
     window.addEventListener("online", syncOnOpen);
+    window.addEventListener("pageshow", syncOnOpen);
     return () => {
+      disposed = true;
+      window.clearTimeout(pending);
       document.removeEventListener("visibilitychange", syncOnOpen);
       window.removeEventListener("online", syncOnOpen);
+      window.removeEventListener("pageshow", syncOnOpen);
     };
   }, [hasHydrated, state.onboardingComplete]);
   const persistenceProblem = persistenceRequiresReload

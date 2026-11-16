@@ -14,12 +14,18 @@ type Connection = {
   envelope: string | null;
   expiresAt: string;
   revision: number;
+  eventRevision: number;
   lastSyncedAt: string | null;
   status: "connected" | "reconnect_required" | "disconnecting";
 };
 
 export type WhoopBackgroundConnection = { ownerId: string; connectionId: string };
 export type WhoopSyncActor = WhoopSession | WhoopBackgroundConnection;
+export type WhoopDeletion = {
+  type: "workout.deleted" | "sleep.deleted" | "recovery.deleted";
+  recordId: string;
+  receivedAtMs: number;
+};
 
 function syncPrincipal(actor: WhoopSyncActor) {
   return "id" in actor ? [actor.id, "session"] : [actor.connectionId, "connection"];
@@ -138,6 +144,7 @@ export function createWhoopStore(query: Query) {
     async getConnection(ownerId: string) {
       const [connection] = await query<Connection>(
         `select id, token_envelope as envelope, expires_at::text as "expiresAt", revision, status,
+           event_revision as "eventRevision",
            to_char(last_synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "lastSyncedAt"
          from fitcore_whoop.connections where owner_id = $1`,
         [ownerId],
@@ -148,11 +155,12 @@ export function createWhoopStore(query: Query) {
     async getSnapshot(session: WhoopSession) {
       const [snapshot] = await query<WhoopSnapshot>(
         `select to_char(connection.last_synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "lastSyncedAt",
-           to_char(browser_session.expires_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "accessExpiresAt",
+           to_char(least(browser_session.expires_at, connection.snapshot_expires_at) at time zone 'UTC',
+             'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "accessExpiresAt",
            connection.snapshot as records
          from fitcore_whoop.connections connection
          join fitcore_whoop.sessions browser_session on browser_session.owner_id = connection.owner_id
-         where connection.owner_id = $1 and connection.status = 'connected' and connection.snapshot is not null
+         where connection.owner_id = $1 and connection.status = 'connected' and connection.snapshot_expires_at > now()
            and browser_session.id = $2 and browser_session.expires_at > now()`,
         [session.ownerId, session.id],
       );
@@ -205,12 +213,19 @@ export function createWhoopStore(query: Query) {
       records: WhoopV2Record[],
       cooldownSeconds: number,
       eventRevision: number,
+      cacheExpiresAtMs: number,
     ) {
-      const rows = await query(
-        `update fitcore_whoop.connections connection
-         set snapshot = (
+      const durable = cacheExpiresAtMs > Date.now();
+      const [saved] = await query<{
+        lastSyncedAt: string;
+        accessExpiresAt: string | null;
+        deletions: WhoopDeletion[];
+      }>(
+        `with saved as (
+         update fitcore_whoop.connections connection
+         set snapshot = case when $10::float8 = 0 then null else (
                select coalesce(jsonb_agg(item.record order by item.position), '[]'::jsonb)
-               from jsonb_array_elements($4::jsonb) with ordinality as item(record, position)
+               from jsonb_array_elements(nullif($4, '')::jsonb) with ordinality as item(record, position)
                where not exists (
                  select 1 from fitcore_whoop.webhook_events event
                  where event.connection_id = connection.id and event.received_at > now() - interval '31 days'
@@ -218,7 +233,8 @@ export function createWhoopStore(query: Query) {
                    and coalesce((item.record->>'updated_at')::timestamptz, '-infinity') <= event.received_at
                    and (${webhookDeletesRecord})
                )
-             ),
+             ) end,
+             snapshot_expires_at = to_timestamp(nullif($10::float8, 0) / 1000),
              provider_user_id = coalesce(provider_user_id, nullif($8, '')),
              last_synced_at = now(),
              sync_id = null, sync_started_at = null,
@@ -229,19 +245,36 @@ export function createWhoopStore(query: Query) {
            and (($7 = 'connection' and id = $6) or
              ($7 = 'session' and exists (select 1 from fitcore_whoop.sessions
                where owner_id = $1 and id = $6 and expires_at > now())))
-         returning id`,
+         returning id, provider_user_id, last_synced_at
+        )
+        select to_char(saved.last_synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "lastSyncedAt",
+          to_char(browser_session.expires_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "accessExpiresAt",
+          case when browser_session.id is null then '[]'::jsonb else (
+            select coalesce(jsonb_agg(jsonb_build_object(
+              'type', event.event_type, 'recordId', event.record_id::text,
+              'receivedAtMs', extract(epoch from event.received_at) * 1000
+            )), '[]'::jsonb)
+            from fitcore_whoop.webhook_events event
+            where event.connection_id = saved.id and event.provider_user_id = saved.provider_user_id
+              and event.received_at > now() - interval '31 days' and event.event_type like '%.deleted'
+          ) end as deletions
+        from saved
+        left join fitcore_whoop.sessions browser_session
+          on $10 = 0 and $7 = 'session' and browser_session.id = $6
+          and browser_session.owner_id = $1 and browser_session.expires_at > now()`,
         [
           actor.ownerId,
           id,
           syncId,
-          JSON.stringify(records),
+          durable ? JSON.stringify(records) : "",
           cooldownSeconds,
           ...syncPrincipal(actor),
           records[0]?.user_id ?? "",
           eventRevision,
+          durable ? cacheExpiresAtMs : 0,
         ],
       );
-      return rows.length === 1;
+      return saved ?? null;
     },
 
     async registerWebhook(event: WhoopWebhookEvent) {
@@ -302,6 +335,15 @@ export function createWhoopStore(query: Query) {
       );
     },
 
+    async pruneSnapshots() {
+      await query(
+        `update fitcore_whoop.connections
+         set snapshot = null, snapshot_expires_at = null
+         where snapshot_expires_at <= now()`,
+        [],
+      );
+    },
+
     async releaseSync(ownerId: string, id: string, syncId: string, cooldownSeconds: number) {
       await query(
         `update fitcore_whoop.connections
@@ -347,7 +389,8 @@ export function createWhoopStore(query: Query) {
            set status = 'disconnecting', disconnect_id = $2, disconnect_started_at = now(),
                disconnect_refresh_taken = disconnect_refresh_taken or refresh_id is not null,
                refresh_id = null, refresh_started_at = null,
-               snapshot = null, last_synced_at = null, sync_id = null, sync_started_at = null
+               snapshot = null, snapshot_expires_at = null, last_synced_at = null,
+               sync_id = null, sync_started_at = null
            where owner_id = $1
              and (refresh_id is null or refresh_started_at <= now() - interval '45 seconds')
              and (disconnect_id is null or disconnect_started_at <= now() - interval '60 seconds')

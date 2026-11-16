@@ -1,12 +1,27 @@
 import type { WhoopTokenPair } from "./oauth.server";
 import { WhoopTokenRateLimit } from "./oauth.server";
-import type { createWhoopStore, WhoopSyncActor } from "./postgres.server";
+import type { createWhoopStore, WhoopDeletion, WhoopSyncActor } from "./postgres.server";
+import type { WhoopSnapshot } from "./dashboard";
 import type { createWhoopTokenVault } from "./token-vault.server";
-import { readWhoopCollection, WhoopReadError } from "./v2.server";
+import { readWhoopCollectionWithCache, WhoopReadError, type WhoopV2Record } from "./v2.server";
 
 const collections = ["recovery", "sleep", "cycle", "workout"] as const;
 const dayMs = 24 * 60 * 60 * 1000;
 const syncCooldownSeconds = 120;
+// Allow 25 hours for the daily cleanup, six for Neon restore and one for drift.
+const cleanupReserveMs = (32 / 24) * dayMs;
+
+function deletedByWebhook(record: WhoopV2Record, event: WhoopDeletion) {
+  if (Date.parse(record.updated_at) > event.receivedAtMs) return false;
+  if (record.kind === "recovery") {
+    return (
+      (event.type === "recovery.deleted" || event.type === "sleep.deleted") &&
+      "sleep_id" in record &&
+      record.sleep_id?.toLowerCase() === event.recordId
+    );
+  }
+  return event.type === record.kind + ".deleted" && record.id.toLowerCase() === event.recordId;
+}
 
 export type WhoopSyncStore = Pick<
   ReturnType<typeof createWhoopStore>,
@@ -25,10 +40,17 @@ type SyncOptions = {
   store: WhoopSyncStore;
   vault: ReturnType<typeof createWhoopTokenVault>;
   refresh(token: string): Promise<WhoopTokenPair>;
+  durableCacheEnabled?: boolean;
   fetch?: (url: URL, init: RequestInit) => Promise<Response>;
 };
 
-export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions) {
+type SyncOutcome = {
+  status: number;
+  retryAfterSeconds?: number;
+  live?: WhoopSnapshot & { version: string };
+};
+
+export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Promise<SyncOutcome> {
   const { store, vault } = options;
   const { ownerId } = actor;
   await store.expireAbandonedRefresh(actor);
@@ -37,7 +59,7 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions) {
 
   const { id, syncId } = claim;
   let cooldownSeconds = 30;
-  let savedSnapshot = false;
+  let finished = false;
   try {
     let pair: WhoopTokenPair;
     try {
@@ -82,7 +104,10 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions) {
     const collect = async () => {
       const result = await Promise.allSettled(
         collections.map((kind) =>
-          readWhoopCollection(kind, pair.accessToken, window, { fetch: options.fetch, signal }),
+          readWhoopCollectionWithCache(kind, pair.accessToken, window, {
+            fetch: options.fetch,
+            signal,
+          }),
         ),
       );
       const failures = result.filter((part) => part.status === "rejected");
@@ -101,30 +126,53 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions) {
           throw new WhoopReadError("unauthorized");
         throw failures[0].reason;
       }
-      return result.flatMap((part) => (part.status === "fulfilled" ? part.value : []));
+      return result.flatMap((part) => (part.status === "fulfilled" ? [part.value] : []));
     };
 
-    let records;
+    let pages;
     try {
-      records = await collect();
+      pages = await collect();
     } catch (error) {
       if (refreshed || !(error instanceof WhoopReadError) || error.code !== "unauthorized")
         throw error;
       await rotate();
-      records = await collect();
+      pages = await collect();
     }
+    const records = pages.flatMap((page) => page.records);
     if (new Set(records.map((record) => record.user_id)).size > 1) {
       throw new WhoopReadError("invalid_data");
     }
-    savedSnapshot = await store.saveSync(
+    const cacheExpiresAtMs = options.durableCacheEnabled
+      ? Math.min(Date.now() + dayMs, ...pages.map((page) => page.expiresAt - cleanupReserveMs))
+      : 0;
+    const saved = await store.saveSync(
       actor,
       id,
       syncId,
       records,
       syncCooldownSeconds,
       claim.eventRevision,
+      cacheExpiresAtMs,
     );
-    return { status: savedSnapshot ? 200 : 409 };
+    if (!saved) return { status: 409 };
+    finished = true;
+    if (!saved.accessExpiresAt) return { status: 200 };
+    const displayExpiresAt = Math.min(
+      Date.parse(saved.accessExpiresAt),
+      Date.now() + syncCooldownSeconds * 1000,
+      ...pages.map((page) => page.earliestFreshness),
+    );
+    return {
+      status: 200,
+      live: {
+        lastSyncedAt: saved.lastSyncedAt,
+        accessExpiresAt: new Date(displayExpiresAt).toISOString(),
+        records: records.filter(
+          (record) => !saved.deletions.some((event) => deletedByWebhook(record, event)),
+        ),
+        version: id + ":" + claim.eventRevision,
+      },
+    };
   } catch (error) {
     if (error instanceof WhoopReadError && error.code === "rate_limited") {
       cooldownSeconds = Math.max(1, error.retryAfterSeconds ?? 60);
@@ -137,7 +185,6 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions) {
     return { status: 502 };
   } finally {
     // A successful save already relinquished this claim. A failed cleanup expires with the lease.
-    if (!savedSnapshot)
-      await store.releaseSync(ownerId, id, syncId, cooldownSeconds).catch(() => {});
+    if (!finished) await store.releaseSync(ownerId, id, syncId, cooldownSeconds).catch(() => {});
   }
 }

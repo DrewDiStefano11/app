@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/app/ui";
 import { useStore } from "@/lib/store";
-import { readWhoopSnapshot, subscribeToWhoopChanges } from "@/lib/whoop/browser";
+import { readWhoopSnapshot, requestWhoopSync, subscribeToWhoopChanges } from "@/lib/whoop/browser";
 import {
   getWhoopActivity,
   getWhoopDashboard,
@@ -38,6 +38,8 @@ function Metric({ name, value }: { name: string; value: string }) {
 
 export function WhoopDashboard({ compact = false }: { compact?: boolean }) {
   const [snapshot, setSnapshot] = useState<WhoopSnapshot | null>(null);
+  const [hasLiveDisplay, setHasLiveDisplay] = useState(false);
+  const [refreshMessage, setRefreshMessage] = useState("");
   const {
     state: { workouts },
   } = useStore();
@@ -64,6 +66,8 @@ export function WhoopDashboard({ compact = false }: { compact?: boolean }) {
           const remaining = data ? Date.parse(data.accessExpiresAt) - Date.now() : 0;
           if (remaining > 0) {
             setSnapshot(data);
+            setHasLiveDisplay(!!data && "version" in data);
+            setRefreshMessage("");
             expiry = window.setTimeout(clear, Math.min(remaining, 2_147_483_647));
           } else {
             setSnapshot(null);
@@ -74,14 +78,17 @@ export function WhoopDashboard({ compact = false }: { compact?: boolean }) {
         });
     };
     const unsubscribe = subscribeToWhoopChanges((change) => {
-      if (change === "clear") clear();
-      else refresh();
+      if (change === "clear") {
+        clear();
+        setHasLiveDisplay(false);
+      } else refresh();
     });
     const poll = window.setInterval(refresh, 120_000);
     refresh();
     document.addEventListener("visibilitychange", refresh);
     window.addEventListener("online", refresh);
     window.addEventListener("pageshow", refresh);
+    window.addEventListener("pagehide", clear);
     return () => {
       request?.abort();
       window.clearTimeout(expiry);
@@ -90,11 +97,39 @@ export function WhoopDashboard({ compact = false }: { compact?: boolean }) {
       document.removeEventListener("visibilitychange", refresh);
       window.removeEventListener("online", refresh);
       window.removeEventListener("pageshow", refresh);
+      window.removeEventListener("pagehide", clear);
     };
   }, []);
 
   const summary = useMemo(() => snapshot && getWhoopDashboard(snapshot.records), [snapshot]);
-  if (!snapshot || !summary) return null;
+  if (!snapshot || !summary) {
+    if (!hasLiveDisplay) return null;
+    return (
+      <Card className="space-y-2">
+        <p className="text-sm">WHOOP measurements need a fresh sync.</p>
+        <button
+          type="button"
+          className="text-sm font-semibold underline underline-offset-2"
+          onClick={async () => {
+            setRefreshMessage("Syncing…");
+            try {
+              const response = await requestWhoopSync();
+              setRefreshMessage(response.ok ? "" : "WHOOP could not sync yet. Try again shortly.");
+            } catch {
+              setRefreshMessage("Check your connection and try again.");
+            }
+          }}
+        >
+          Refresh WHOOP
+        </button>
+        {refreshMessage && (
+          <p role="status" className="text-xs">
+            {refreshMessage}
+          </p>
+        )}
+      </Card>
+    );
+  }
 
   const { recovery, sleep, cycle, activities, history } = summary;
   return (

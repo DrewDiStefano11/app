@@ -26,3 +26,24 @@ test("launch syncs in the background and Settings can sync again", async ({ page
   expect((await sync).method()).toBe("POST");
   await expect(page.getByText("WHOOP sync complete.")).toBeVisible();
 });
+
+test("retries an open foreground sync once after another request took the lease", async ({
+  page,
+}) => {
+  let requests = 0;
+  await page.clock.install();
+  await page.route("**/api/whoop/sync", (route) => {
+    requests++;
+    return route.fulfill({ status: 409 });
+  });
+  await seedMinimalOnboardedState(page);
+  const busy = page.waitForResponse("**/api/whoop/sync");
+  await gotoDashboard(page);
+  expect((await busy).status()).toBe(409);
+  await page.clock.runFor(1000);
+  await page.clock.fastForward(120_000);
+  await expect.poll(() => requests).toBe(2);
+  await page.clock.runFor(1000);
+  await page.clock.fastForward(120_000);
+  expect(requests).toBe(2);
+});

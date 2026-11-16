@@ -1,6 +1,57 @@
 import { expect, test } from "@playwright/test";
 import { gotoDashboard, seedMinimalOnboardedState } from "./helpers/fitcore-test-state";
 
+test.use({ serviceWorkers: "block" });
+
+test("shows a live-only WHOOP sync and clears it when the provider revision changes", async ({
+  page,
+}) => {
+  const date = "2026-11-16T06:00:00Z";
+  let version = "synthetic:1";
+  await page.route("**/api/whoop/records", (route) => route.fulfill({ json: null }));
+  await page.route("**/api/whoop/status", (route) =>
+    route.fulfill({ json: { status: "connected", version } }),
+  );
+  await page.route("**/api/whoop/sync", (route) =>
+    route.fulfill({
+      headers: { "Cache-Control": "no-store" },
+      json: {
+        version,
+        lastSyncedAt: date,
+        accessExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+        records: [
+          {
+            source: "whoop",
+            kind: "workout",
+            id: "transient",
+            user_id: "1",
+            created_at: date,
+            updated_at: date,
+            start: date,
+            score_state: "SCORED",
+            sport_name: "Transient WHOOP Cycling",
+            score: { average_heart_rate: 136 },
+          },
+        ],
+      },
+    }),
+  );
+  await seedMinimalOnboardedState(page);
+  await gotoDashboard(page);
+  const panel = page.getByRole("region", { name: "WHOOP measurements" });
+  await expect(panel).toBeVisible();
+  await page.getByRole("button", { name: "Recover", exact: true }).click();
+  await expect(panel.getByText(/Transient WHOOP Cycling/)).toBeVisible();
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain(
+    "Transient WHOOP Cycling",
+  );
+  version = "synthetic:2";
+  await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
+  await expect(panel).toHaveCount(0);
+  await page.getByRole("button", { name: "Refresh WHOOP" }).click();
+  await expect(panel.getByText(/Transient WHOOP Cycling/)).toBeVisible();
+});
+
 test("Home and Recovery show measured WHOOP data only while the owner has access", async ({
   page,
 }) => {

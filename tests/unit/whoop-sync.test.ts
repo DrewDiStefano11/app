@@ -8,12 +8,25 @@ import { syncWhoop } from "../../src/lib/whoop/sync.server";
 test("rotates credentials once and atomically reconciles corrections and deletions", async () => {
   const db = new PGlite();
   try {
-    for (const migration of ["001-credentials.sql", "002-sync.sql", "003-webhooks.sql"]) {
+    for (const migration of [
+      "001-credentials.sql",
+      "002-sync.sql",
+      "003-webhooks.sql",
+      "004-cache.sql",
+    ]) {
       await db.exec(
         await readFile(new URL("../../db/whoop/" + migration, import.meta.url), "utf8"),
       );
     }
-    const store = createWhoopStore(async (sql, params) => (await db.query(sql, params)).rows);
+    let restrictedPage = false;
+    const store = createWhoopStore(async (sql, params) => {
+      if (restrictedPage) {
+        expect(params.filter((param) => typeof param === "string").join(" ")).not.toContain(
+          "recovery_score",
+        );
+      }
+      return (await db.query(sql, params)).rows;
+    });
     const owner = "synthetic-owner";
     const session = await store.createSession(owner, "synthetic-digest", 600);
     const other = await store.createSession("other-owner", "other-digest", 600);
@@ -31,6 +44,7 @@ test("rotates credentials once and atomically reconciles corrections and deletio
     const options = {
       store,
       vault,
+      durableCacheEnabled: true,
       refresh: async (token: string) => {
         expect(token).toBe("once");
         rotations++;
@@ -54,7 +68,17 @@ test("rotates credentials once and atomically reconciles corrections and deletio
             ? [recovery]
             : [recovery, { ...recovery, cycle_id: 12 }]
           : [];
-        return Response.json({ records });
+        return Response.json(
+          { records },
+          {
+            headers: {
+              "Cache-Control":
+                restrictedPage && url.pathname.endsWith("/workout")
+                  ? "no-store"
+                  : "private, max-age=259200",
+            },
+          },
+        );
       },
     };
     const first = await Promise.all([syncWhoop(session, options), syncWhoop(session, options)]);
@@ -79,6 +103,16 @@ test("rotates credentials once and atomically reconciles corrections and deletio
     expect((await store.getSnapshot(session))?.records).toMatchObject([
       { id: "11", score: { recovery_score: 80 } },
     ]);
+    await clearCooldown();
+    restrictedPage = true;
+    const live = await syncWhoop(session, options);
+    expect(live).toMatchObject({ status: 200, live: { records: [{ id: "11" }] } });
+    expect(Date.parse(live.live!.accessExpiresAt)).toBeLessThanOrEqual(Date.now() + 120_000);
+    expect(await store.getSnapshot(session)).toBeNull();
+    await clearCooldown();
+    const background = await syncWhoop({ ownerId: owner, connectionId: connection }, options);
+    expect(background).toEqual({ status: 200 });
+    expect(await store.getSnapshot(session)).toBeNull();
     const started = await store.claimSync(session);
     expect(started).toBeNull();
     await clearCooldown();
@@ -92,9 +126,17 @@ test("rotates credentials once and atomically reconciles corrections and deletio
       false,
     );
     expect(await store.getSnapshot(session)).toBeNull();
-    expect(await store.saveSync(session, late.id, late.syncId, [], 60, late.eventRevision)).toBe(
-      false,
-    );
+    expect(
+      await store.saveSync(
+        session,
+        late.id,
+        late.syncId,
+        [],
+        60,
+        late.eventRevision,
+        Date.now() + 60_000,
+      ),
+    ).toBeNull();
     await store.finishDisconnect(owner, removing.id, removing.disconnectId);
     expect(await store.getSnapshot(session)).toBeNull();
 

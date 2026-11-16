@@ -20,6 +20,7 @@ function getIntegration() {
     WHOOP_OWNER_KEY_SHA256,
     WHOOP_TOKEN_ENCRYPTION_KEY,
     WHOOP_BACKGROUND_ENABLED,
+    WHOOP_SNAPSHOT_CACHE_ENABLED,
     WHOOP_JARVIS_SHARING_ENABLED,
     CRON_SECRET,
   } = process.env;
@@ -56,6 +57,7 @@ function getIntegration() {
     ownerKeyDigest: WHOOP_OWNER_KEY_SHA256,
     encryptionKey: WHOOP_TOKEN_ENCRYPTION_KEY,
     jarvisSharingEnabled: WHOOP_JARVIS_SHARING_ENABLED === "true",
+    snapshotCacheEnabled: WHOOP_SNAPSHOT_CACHE_ENABLED === "true",
     store,
     background:
       WHOOP_BACKGROUND_ENABLED === "true" ? { store, cronSecret: CRON_SECRET } : undefined,

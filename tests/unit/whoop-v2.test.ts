@@ -1,5 +1,31 @@
 import { describe, expect, test } from "bun:test";
-import { readWhoopCollection } from "../../src/lib/whoop/v2.server";
+import { readWhoopCollection, readWhoopCollectionWithCache } from "../../src/lib/whoop/v2.server";
+
+test("uses the earliest page freshness and treats restricted or ambiguous pages as transient", async () => {
+  const window = { start: "2026-11-01T00:00:00Z", end: "2026-11-16T00:00:00Z" };
+  const start = Date.now();
+  const read = (lastPage: HeadersInit) =>
+    readWhoopCollectionWithCache("sleep", "synthetic", window, {
+      fetch: async (url) =>
+        url.searchParams.has("nextToken")
+          ? Response.json({ records: [] }, { headers: lastPage })
+          : Response.json(
+              { records: [], next_token: "next" },
+              { headers: { "Cache-Control": "private, max-age=259200" } },
+            ),
+    });
+  const aged = await read({ "Cache-Control": "max-age=30", Age: "25" });
+  expect(aged.expiresAt).toBeGreaterThan(start);
+  expect(aged.expiresAt).toBeLessThanOrEqual(Date.now() + 5000);
+  for (const header of [
+    "no-store, max-age=259200",
+    "no-cache",
+    "max-age=259200, max-age=259200",
+    "",
+  ]) {
+    expect((await read({ "Cache-Control": header })).expiresAt).toBe(0);
+  }
+});
 
 const span = {
   start: "2026-11-15T00:00:00.000Z",

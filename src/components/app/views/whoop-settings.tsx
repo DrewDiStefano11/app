@@ -83,7 +83,7 @@ export function WhoopSettings() {
       else if (response.status === 429) setMessage("WHOOP is limiting requests. Try again later.");
       else if (response.status === 401 || response.status === 403)
         setMessage("Unlock or reconnect WHOOP to sync.");
-      else setMessage("WHOOP sync was interrupted. Your last successful sync is still saved.");
+      else setMessage("WHOOP sync was interrupted. Try again when the connection is available.");
     } catch {
       setMessage("Could not reach FitCore. Try again when you are online.");
     } finally {

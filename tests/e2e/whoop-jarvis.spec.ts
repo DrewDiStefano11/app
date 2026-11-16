@@ -5,6 +5,8 @@ import {
   seedRevisionedFitCoreState,
 } from "./helpers/fitcore-test-state";
 
+test.use({ serviceWorkers: "block" });
+
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/whoop/status", (route) =>
     route.fulfill({ json: { status: "connected", jarvisSharingAvailable: true } }),

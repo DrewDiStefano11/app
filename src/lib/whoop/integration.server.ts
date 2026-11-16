@@ -24,11 +24,12 @@ type WhoopIntegrationConfig = {
   clientSecret: string;
   encryptionKey: string;
   jarvisSharingEnabled?: boolean;
+  snapshotCacheEnabled?: boolean;
   fetch?: (url: string, init: RequestInit) => Promise<Response>;
   background?: {
     store: Pick<
       ReturnType<typeof createWhoopStore>,
-      "registerWebhook" | "getBackgroundConnection" | "pruneWebhookEvents"
+      "registerWebhook" | "getBackgroundConnection" | "pruneWebhookEvents" | "pruneSnapshots"
     >;
     cronSecret?: string;
   };
@@ -106,6 +107,9 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
       store,
       vault,
       refresh: client.refresh,
+      durableCacheEnabled:
+        config.snapshotCacheEnabled === true &&
+        /^[A-Za-z0-9_-]{32,128}$/.test(config.background?.cronSecret ?? ""),
       fetch: config.fetch ? (url, init) => config.fetch!(url.href, init) : undefined,
     });
 
@@ -113,6 +117,7 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
     const headers = outcome.retryAfterSeconds
       ? { ...privateHeaders, "Retry-After": String(outcome.retryAfterSeconds) }
       : privateHeaders;
+    if (outcome.live) return Response.json(outcome.live, { headers });
     return reply(outcome.status === 200 ? 204 : outcome.status, headers);
   }
 
@@ -239,6 +244,10 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
         {
           status: connection?.status ?? "disconnected",
           lastSyncedAt: connection?.lastSyncedAt ?? null,
+          version:
+            connection?.status === "connected"
+              ? connection.id + ":" + connection.eventRevision
+              : null,
           jarvisSharingAvailable:
             config.jarvisSharingEnabled === true && connection?.status === "connected",
         },
@@ -284,7 +293,7 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
         )
       )
         return reply(401);
-      await cron.store.pruneWebhookEvents();
+      await Promise.all([cron.store.pruneWebhookEvents(), cron.store.pruneSnapshots()]);
       const connection = await cron.store.getBackgroundConnection(owner);
       if (!connection) return reply(204);
       const result = await runSync(connection);
