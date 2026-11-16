@@ -1,15 +1,19 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Play, Plus, Clock, Flame, Trash2, Trophy, Dumbbell, CalendarDays, BarChart3, ListChecks } from "lucide-react";
 import { useStore, uid, isToday } from "@/lib/store";
 import { availableWorkoutTemplates, WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
 import { weeklyVolumeSeries, muscleMap, MUSCLES } from "@/lib/analytics";
-import type { CardioEntry, WorkoutTemplateReference } from "@/lib/types";
+import type { AppState, CardioEntry, Workout, WorkoutTemplateReference } from "@/lib/types";
+import { workoutPersonalRecords } from "@/lib/analytics/training-detail-metrics";
+import { calculateWorkoutVolume } from "@/lib/analytics/observed-fitness";
+import { replaceSavedWorkout } from "@/lib/fitcore-data";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SectionHeader, SubTabs, PlannedFeatureCard } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { ActiveWorkoutView } from "@/components/app/active-workout";
 import { ExerciseLibrarySheet } from "@/components/app/exercise-library";
 import { WorkoutTemplateEditor } from "@/components/app/workout-template-editor";
+import { WorkoutHistoryEditor } from "@/components/app/workout-history-editor";
 import { TrainingProgram } from "@/components/app/training-program";
 import { formatWorkoutTarget } from "@/lib/bench-program";
 
@@ -23,6 +27,14 @@ const DEEP_DIVE_TABS: { id: DeepDiveSubtab; label: string }[] = [
   { id: "library", label: "Library" },
   { id: "insights", label: "Insights" },
 ];
+
+function useTrainingRecords({ workouts, customExercises }: AppState) {
+  return useMemo(() => workoutPersonalRecords(workouts, customExercises), [workouts, customExercises]);
+}
+
+function exerciseName(exerciseId: string, customExercises: AppState["customExercises"]) {
+  return exerciseById(exerciseId)?.name ?? customExercises.find(item => item.id === exerciseId)?.name ?? "Exercise";
+}
 
 export function TrainingView({
   layoutMode = "daily",
@@ -115,7 +127,8 @@ function DailyTrainingView({
   const weekWorkouts = state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000);
   const weekCardio = state.cardioEntries.filter(c => c.createdAt > Date.now() - 7*86400000);
   const weekCardioMin = weekCardio.reduce((a, c) => a + c.minutes, 0);
-  const topPR = [...state.prs].sort((a, b) => b.value - a.value)[0];
+  const allPRs = useTrainingRecords(state);
+  const topPR = allPRs[0];
   const isDeepDive = layoutMode === "deepDive";
 
   const startBlank = () => {
@@ -224,7 +237,7 @@ function DailyTrainingView({
         <SectionHeader title="Performance & progression" action={<button onClick={() => onOpenPanel("performance")} className="text-xs font-semibold text-muted-foreground">Open</button>} />
         <div className="grid grid-cols-2 gap-3">
           <StatCard label="7d workouts" value={weekWorkouts.length} sub={`${state.profile.daysPerWeek} planned`} accent />
-          <StatCard label="PRs" value={state.prs.length} sub={topPR ? exerciseById(topPR.exerciseId)?.name ?? "top lift" : "all time"} />
+          <StatCard label="PRs" value={allPRs.length} sub={topPR ? exerciseName(topPR.exerciseId, state.customExercises) : "all time"} />
         </div>
         {isDeepDive && (
           <div className="mt-3 grid grid-cols-2 gap-3">
@@ -435,8 +448,39 @@ function CardioSection() {
 function HistorySection() {
   const { state, set } = useStore();
   const [filter, setFilter] = useState<"all" | "7d" | "30d">("all");
-  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<Workout | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [deleteFailed, setDeleteFailed] = useState(false);
+
+  const closeDetail = () => {
+    setEditing(false);
+    setDeleteFailed(false);
+    setDetail(null);
+  };
+
+  const commitHistory = (reviewed: Workout, replacement?: Workout) => {
+    let changed = false;
+    const saved = set(current => {
+      const next = replaceSavedWorkout(current, reviewed, replacement);
+      changed = next !== current;
+      return next;
+    });
+    return saved && changed;
+  };
+
+  const saveChanges = (reviewed: Workout, corrected: Workout) => {
+    const saved = commitHistory(reviewed, corrected);
+    if (saved) setEditing(false);
+    return saved;
+  };
+
+  const deleteWorkout = () => {
+    if (!confirmDel) return;
+    if (commitHistory(confirmDel)) closeDetail();
+    else setDeleteFailed(true);
+  };
+
   const now = Date.now();
   const filtered = [...state.workouts].reverse().filter(w =>
     filter === "all" ? true : filter === "7d" ? w.startedAt > now - 7*86400000 : w.startedAt > now - 30*86400000
@@ -452,7 +496,7 @@ function HistorySection() {
       ) : (
         <div className="space-y-2">
           {filtered.map(wk => {
-            const vol = wk.exercises.reduce((a, ex) => a + ex.sets.reduce((s, st) => s + (st.weight ?? 0) * (st.reps ?? 0), 0), 0);
+            const vol = calculateWorkoutVolume(wk);
             return (
               <Card key={wk.id} onClick={() => setDetail(wk.id)}>
                 <div className="flex justify-between items-start">
@@ -467,8 +511,13 @@ function HistorySection() {
           })}
         </div>
       )}
-      <BottomSheet open={!!w} onClose={() => setDetail(null)} title={w?.name} height="tall">
-        {w && (
+      <BottomSheet open={!!w} onClose={editing ? () => setEditing(false) : closeDetail}
+        title={editing ? "Edit workout" : w?.name} height="tall" closeLabel={editing ? "Cancel editing" : "Close workout details"} manageFocus={!confirmDel}>
+        {w && editing && (
+          <WorkoutHistoryEditor workout={w} customExercises={state.customExercises}
+            onSave={saveChanges} onCancel={() => setEditing(false)} />
+        )}
+        {w && !editing && (
           <>
             <p className="text-xs text-muted-foreground mb-3">{new Date(w.startedAt).toLocaleString()}</p>
             {w.notes && <p className="text-sm whitespace-pre-wrap mb-3">{w.notes}</p>}
@@ -476,9 +525,7 @@ function HistorySection() {
               {w.exercises.map(ex => (
                 <Card key={ex.id}>
                   <p className="font-semibold text-sm">
-                    {exerciseById(ex.exerciseId)?.name ??
-                      state.customExercises.find(custom => custom.id === ex.exerciseId)?.name ??
-                      "Exercise"}
+                    {exerciseName(ex.exerciseId, state.customExercises)}
                   </p>
                   {ex.target && <p className="text-xs text-muted-foreground">Target {formatWorkoutTarget(ex.target)}{ex.target.optional && " · Optional"}</p>}
                   {ex.notes && <p className="text-xs whitespace-pre-wrap mt-1">{ex.notes}</p>}
@@ -487,17 +534,22 @@ function HistorySection() {
                       st.weight == null && st.reps != null ? `${st.reps} reps`
                         : st.weight != null ? `${st.weight}lb × ${st.reps ?? "—"}` : null,
                       st.durationMin != null ? `${st.durationMin} min` : null,
+                      st.distanceMi != null ? `${st.distanceMi} mi` : null,
                     ].filter(Boolean).join(" · ") || "—"} {st.completed ? "✓" : ""}</div>)}
                   </div>
                 </Card>
               ))}
             </div>
-            <button onClick={() => setConfirmDel(w.id)} className="w-full mt-4 px-4 py-3 rounded-xl border border-destructive text-destructive text-sm font-medium">Delete workout</button>
+            {deleteFailed && <p role="alert" className="mt-3 text-sm text-destructive">Workout could not be deleted. The saved workout is still here.</p>}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <GhostButton onClick={() => setEditing(true)}>Edit workout</GhostButton>
+              <GhostButton onClick={() => setConfirmDel(w)} className="text-destructive">Delete workout</GhostButton>
+            </div>
           </>
         )}
       </BottomSheet>
       <ConfirmDialog open={!!confirmDel} onClose={() => setConfirmDel(null)}
-        onConfirm={() => { set(s => ({ ...s, workouts: s.workouts.filter(x => x.id !== confirmDel) })); setConfirmDel(null); setDetail(null); }}
+        onConfirm={deleteWorkout}
         title="Delete workout?" message="This can't be undone." confirmLabel="Delete" destructive />
     </>
   );
@@ -507,7 +559,7 @@ function HistorySection() {
 /* ===================== DEEP DIVE TABS ===================== */
 function StrengthTab() {
   const { state } = useStore();
-  const allPRs = [...state.prs].sort((a,b) => b.value - a.value);
+  const allPRs = useTrainingRecords(state);
   return (
     <div className="px-5">
       <SectionHeader title="Strength & Personal Records" />
@@ -519,10 +571,10 @@ function StrengthTab() {
             <Card key={p.id}>
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="font-semibold text-sm">{exerciseById(p.exerciseId)?.name}</p>
+                  <p className="font-semibold text-sm">{exerciseName(p.exerciseId, state.customExercises)}</p>
                   <p className="text-xs text-muted-foreground">{p.weight}lb × {p.reps}</p>
                 </div>
-                <p className="font-bold tabular-nums" style={{ color: "var(--section)" }}>{p.value}</p>
+                <p className="font-bold tabular-nums" style={{ color: "var(--section)" }}>{Math.round(p.value)} lb est.</p>
               </div>
             </Card>
           ))}
@@ -552,7 +604,7 @@ function PerformanceTab() {
   const series = weeklyVolumeSeries(state, 14);
   const total14 = series.reduce((a, s) => a + s.volume, 0);
   const avg = Math.round(total14 / 14);
-  const allPRs = [...state.prs].sort((a,b) => b.value - a.value);
+  const allPRs = useTrainingRecords(state);
   const topPR = allPRs[0];
   const recent = Date.now() - 14*86400000;
   const balance = muscleMap(state, "load");
@@ -564,7 +616,7 @@ function PerformanceTab() {
       <div className="grid grid-cols-3 gap-3">
         <StatCard label="14d vol" value={`${Math.round(total14/1000)}k`} sub="lb" accent />
         <StatCard label="Daily avg" value={`${Math.round(avg/1000)}k`} sub="lb" />
-        <StatCard label="PRs" value={state.prs.length} sub="all time" />
+        <StatCard label="PRs" value={allPRs.length} sub="all time" />
       </div>
 
       <SectionHeader title="Volume trend (14d)" />
@@ -607,10 +659,10 @@ function PerformanceTab() {
               <div className="flex justify-between items-center">
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Top lift</p>
-                  <p className="font-semibold">{exerciseById(topPR.exerciseId)?.name}</p>
+                  <p className="font-semibold">{exerciseName(topPR.exerciseId, state.customExercises)}</p>
                   <p className="text-xs text-muted-foreground">{topPR.weight}lb × {topPR.reps}</p>
                 </div>
-                <p className="text-3xl font-bold tabular-nums" style={{ color: "var(--section)" }}>{topPR.value}</p>
+                <p className="text-3xl font-bold tabular-nums" style={{ color: "var(--section)" }}>{Math.round(topPR.value)} lb est.</p>
               </div>
             </Card>
           )}
@@ -621,10 +673,10 @@ function PerformanceTab() {
                 <Card key={p.id}>
                   <div className="flex justify-between items-center">
                     <div>
-                      <p className="font-semibold text-sm">{exerciseById(p.exerciseId)?.name}</p>
+                      <p className="font-semibold text-sm">{exerciseName(p.exerciseId, state.customExercises)}</p>
                       <p className="text-xs text-muted-foreground">{p.weight}lb × {p.reps} • {new Date(p.date).toLocaleDateString()}{isNew ? " • NEW" : ""}</p>
                     </div>
-                    <p className="font-bold tabular-nums" style={{ color: "var(--section)" }}>{p.value}</p>
+                    <p className="font-bold tabular-nums" style={{ color: "var(--section)" }}>{Math.round(p.value)} lb est.</p>
                   </div>
                 </Card>
               );

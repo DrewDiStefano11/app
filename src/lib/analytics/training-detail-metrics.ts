@@ -1,5 +1,5 @@
 import { EXERCISES, type Exercise, type MuscleGroup } from "../data";
-import type { AppState, CustomExercise, SetEntry, Workout, WorkoutExercise } from "../types";
+import type { AppState, CustomExercise, PR, SetEntry, Workout, WorkoutExercise } from "../types";
 import {
   calculateConfidence,
   calculateSetVolume,
@@ -287,7 +287,7 @@ function normalizedName(value: string): string {
   return value.trim().toLocaleLowerCase().replace(/\s+/g, " ");
 }
 
-function metadataMap(state: AppState): Map<string, CanonicalExerciseMetadata> {
+function metadataMap(customExercises: readonly CustomExercise[]): Map<string, CanonicalExerciseMetadata> {
   const entries: CanonicalExerciseMetadata[] = [
     ...EXERCISES.map((exercise: Exercise) => ({
       id: exercise.id,
@@ -298,7 +298,7 @@ function metadataMap(state: AppState): Map<string, CanonicalExerciseMetadata> {
       tracking: undefined,
       source: "catalog" as const,
     })),
-    ...state.customExercises.map((exercise) => ({
+    ...customExercises.map((exercise) => ({
       id: exercise.id,
       name: exercise.name,
       primary: uniqueSorted(exercise.primary),
@@ -459,6 +459,44 @@ function validateSet(
     },
     unsupportedRep,
   };
+}
+
+export function workoutPersonalRecords(
+  workouts: readonly Workout[],
+  customExercises: readonly CustomExercise[],
+  { includeActive = false, now = Date.now() }: { includeActive?: boolean; now?: number } = {},
+): PR[] {
+  const metadata = metadataMap(customExercises);
+  const records = new Map<string, PR>();
+
+  for (const workout of workouts) {
+    const date = workout.endedAt ?? (includeActive ? workout.startedAt : undefined);
+    if (!finiteTimestamp(date) || date < workout.startedAt || date > now ||
+      workout.provenance?.confirmation === "unconfirmed") continue;
+    for (const exercise of workout.exercises) {
+      const resolved = resolveExercise(exercise.exerciseId, metadata);
+      if (!resolved || exercise.provenance?.confirmation === "unconfirmed") continue;
+      const exerciseId = resolved.identity.sourceExerciseId;
+      for (const set of exercise.sets) {
+        if (set.modifier === "partials" || set.provenance?.confirmation === "unconfirmed") continue;
+        const { observation } = validateSet(set, workout.id, exercise.id, date, resolved.metadata);
+        if (!observation || observation.estimatedOneRepMax === null) continue;
+        const value = observation.estimatedOneRepMax;
+        const current = records.get(exerciseId);
+        if (current && (current.value > value || (current.value === value && current.date <= date))) continue;
+        records.set(exerciseId, {
+          id: exerciseId,
+          exerciseId,
+          type: "1rm",
+          value,
+          weight: observation.weight,
+          reps: observation.repetitions,
+          date,
+        });
+      }
+    }
+  }
+  return [...records.values()].sort((a, b) => b.value - a.value || a.exerciseId.localeCompare(b.exerciseId));
 }
 
 function observations(
@@ -1332,7 +1370,7 @@ export function getExerciseAndMuscleAnalytics(
   const historyRange = calendarDaysWindow(historyDays, now);
   const currentRange = calendarDaysWindow(comparisonDays, now);
   const previousRange = calendarDaysWindow(comparisonDays, now, comparisonDays);
-  const metadata = metadataMap(state);
+  const metadata = metadataMap(state.customExercises);
   const completed = completedWorkouts(state, historyRange, now);
   const collected = observations(completed.workouts, metadata);
   const grouped = new Map<string, ExerciseOccurrence[]>();

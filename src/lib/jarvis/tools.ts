@@ -4,6 +4,7 @@ import { uid, todayStart, e1RM } from "../store";
 import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "../data";
 import { buildDailyDecision } from "../daily-decision";
 import { calculatePersonalScores, scoreStatusLabel } from "../analytics/personal-scores";
+import { workoutPersonalRecords } from "../analytics/training-detail-metrics";
 
 export interface ToolResult {
   ok: boolean;
@@ -215,7 +216,7 @@ const handlers: Record<ToolName, ToolHandler> = {
   getNutritionStatus: (_a, { state }) => ({ ok: true, summary: "nutrition today", data: { totals: todaysMealsTotal(state), targets: state.nutritionTargets } }),
   getTrainingStatus: (_a, { state }) => ({ ok: true, summary: "training status", data: { thisWeek: state.workouts.filter(w => w.startedAt > Date.now() - 7 * 86400000).length, recent: state.workouts.slice(-5), activeWorkout: state.activeWorkout?.name ?? null } }),
   getRecoveryStatus: (_a, { state }) => ({ ok: true, summary: "recovery status", data: { lastCheckIn: state.recoveryCheckIns.at(-1) ?? null, lastSleep: state.sleepEntries.at(-1) ?? null, muscleFatigue: state.muscleFatigue } }),
-  getProgressTrends: (_a, { state }) => ({ ok: true, summary: "progress trends", data: { bodyweight: state.bodyweightEntries.slice(-8), prCount: state.prs.length, goals: state.goals } }),
+  getProgressTrends: (_a, { state }) => ({ ok: true, summary: "progress trends", data: { bodyweight: state.bodyweightEntries.slice(-8), prCount: workoutPersonalRecords(state.workouts, state.customExercises).length, goals: state.goals } }),
   getUserGoalsProfile: (_a, { state }) => ({ ok: true, summary: "user profile", data: state.userGoalsProfile }),
   updateUserGoalsProfile: (args, { set, state }) => {
     const patch = (args.patch ?? {}) as Partial<UserGoalsProfile>, prev = state.userGoalsProfile, auditId = uid();
