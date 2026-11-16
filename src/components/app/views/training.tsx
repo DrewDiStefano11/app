@@ -8,11 +8,12 @@ import type { LayoutMode } from "@/components/app/layout-primitives";
 import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SectionHeader, SubTabs, PlannedFeatureCard } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { ActiveWorkoutView } from "@/components/app/active-workout";
+import { ExerciseLibrarySheet } from "@/components/app/exercise-library";
 import { WorkoutTemplateEditor } from "@/components/app/workout-template-editor";
 import { TrainingProgram } from "@/components/app/training-program";
 import { formatWorkoutTarget } from "@/lib/bench-program";
 
-type TrainingPanel = "templates" | "cardio" | "history" | "performance" | null;
+type TrainingPanel = "templates" | "exercises" | "cardio" | "history" | "performance" | null;
 
 
 type DeepDiveSubtab = "performance" | "strength" | "library" | "insights";
@@ -65,11 +66,17 @@ export function TrainingView({
         <>
           {tab === "performance" && <PerformanceTab />}
           {tab === "strength" && <StrengthTab />}
-          {tab === "library" && <div className="px-5"><TemplatesSection onWorkoutStarted={onOpenActive} /></div>}
+          {tab === "library" && (
+            <div className="px-5 space-y-3">
+              <GhostButton onClick={() => setPanel("exercises")}><Dumbbell size={16} />Exercise library</GhostButton>
+              <TemplatesSection onWorkoutStarted={onOpenActive} />
+            </div>
+          )}
           {tab === "insights" && <InsightsTab />}
         </>
       )}
 
+      <ExerciseLibrarySheet open={panel === "exercises"} onClose={() => setPanel(null)} />
       <BottomSheet open={panel === "templates"} onClose={() => setPanel(null)} title="Programs & templates" height="tall">
         <TemplatesSection onWorkoutStarted={() => { setPanel(null); onOpenActive(); }} />
         <div className="mt-4"><GhostButton onClick={() => setPanel(null)} aria-label="Close programs panel" className="w-full">Close</GhostButton></div>
@@ -153,6 +160,9 @@ function DailyTrainingView({
           </GhostButton>
           <GhostButton onClick={() => onOpenPanel("templates")} className="justify-start">
             <ListChecks size={16} />Templates
+          </GhostButton>
+          <GhostButton onClick={() => onOpenPanel("exercises")} className="justify-start col-span-2">
+            <Dumbbell size={16} />Exercise library
           </GhostButton>
           {state.activeWorkout && (
             <GhostButton onClick={onOpenActive} className="justify-start col-span-2">
@@ -286,19 +296,6 @@ function LogWorkoutSubtab({
         title="Advanced workout import"
         status="Planned"
         description="Past workout import and richer set notes will live here once they are connected."
-      />
-    </div>
-  );
-}
-
-function ExercisesSubtab() {
-  return (
-    <div className="px-5 space-y-4">
-      <PlannedFeatureCard
-        title="Exercise library"
-        status="Coming later"
-        description="Exercise details, equipment, muscle groups, and substitutions are reserved for this subtab. Current template exercises remain available in Programs."
-        actionLabel="Library coming later"
       />
     </div>
   );
