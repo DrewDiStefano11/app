@@ -80,6 +80,15 @@ checks across WebKit (iPhone 13 emulation) and Chromium (390 × 844).
 All six final release-safety checks passed after adding explicit server
 route and post-reload history assertions.
 
+The initial patched revision `8e99ab0` reached **Ready** in
+[`gym-app` preview](https://vercel.com/drew-d611/gym-app/BVWMuKZ34YEyU6GB44tHM2LW41Pq).
+FitCore rendered its onboarding page over HTTPS. PR #276 includes the
+dependency upgrade and release gate. Review found that a rejected set edit
+could be left out of a later finished session. The follow-up keeps the edit
+available for retry and blocks finish while it is pending. The updated
+candidate passed all 10 release-safety tests across both mobile browsers,
+including a workout JSON export and restore in a clean browser context.
+
 The initial npm audit of the patched lockfile reported zero critical,
 seven high, and one moderate finding. CVE-2026-102989 is absent. Review the
 remaining build-tool findings and the Zod server-input validation advisory

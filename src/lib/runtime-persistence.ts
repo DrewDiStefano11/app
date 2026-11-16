@@ -602,6 +602,8 @@ export function createFitCoreRuntimePersistenceController(
       const count = counts();
       if (!valid)
         return commitResult(count, "blocked", "none", null, [issue("invalid_dependencies")]);
+      if (reloadStatus(status))
+        return commitResult(count, status, "none", null, [issue("reload_required")]);
       // A storage error can be transient. Retrying from a previously verified
       // snapshot still passes the transaction's revision and base-state checks.
       if (!hydrated || snapshot === null || (!safeStatus(status) && status !== "storage_error"))

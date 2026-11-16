@@ -506,6 +506,10 @@ test("external revision change maps to reload and retains the previous snapshot"
   assert.equal(result.state, null);
   assert.equal(result.requiresReload, true);
   assert.equal(controller.getCurrentSnapshot(), previous);
+  const retry = controller.commit(state("proposed again"));
+  assert.equal(retry.status, "reload_required");
+  assert.equal(retry.requiresReload, true);
+  assert.equal(retry.summary.transactionWriteCount, 0);
 });
 
 test("base mismatch and Task 7 storage, verification, conflict, and indeterminate failures map conservatively", () => {

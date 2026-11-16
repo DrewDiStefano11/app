@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import {
   expectDashboardReady,
   readPersistedFitCoreState,
@@ -24,6 +25,21 @@ async function startWorkout(page: Page) {
   await picker.getByRole("button", { name: /^Back Squat/i }).click();
   await page.getByPlaceholder("lb", { exact: true }).first().fill("135");
   await page.getByPlaceholder("reps", { exact: true }).first().fill("8");
+}
+
+async function rejectStorageWrites(page: Page) {
+  await page.evaluate(() => {
+    const write = Storage.prototype.setItem;
+    Storage.prototype.setItem = function () {
+      throw new DOMException("Test storage is full", "QuotaExceededError");
+    };
+    window.addEventListener(
+      "fitcore-test-restore-storage",
+      () => { Storage.prototype.setItem = write; },
+      { once: true },
+    );
+  });
+  return () => page.evaluate(() => window.dispatchEvent(new Event("fitcore-test-restore-storage")));
 }
 
 test("a workout resumes after reload and saves the same set and notes to history", async ({ page }) => {
@@ -109,17 +125,7 @@ test("a rejected finish preserves the workout and notes, then retries exactly on
   const notes = page.getByPlaceholder("How did it feel? Pain, energy, sleep…");
   await notes.fill("Controlled tempo.");
 
-  await page.evaluate(() => {
-    const write = Storage.prototype.setItem;
-    Storage.prototype.setItem = function () {
-      throw new DOMException("Test storage is full", "QuotaExceededError");
-    };
-    window.addEventListener(
-      "fitcore-test-restore-storage",
-      () => { Storage.prototype.setItem = write; },
-      { once: true },
-    );
-  });
+  const restoreStorage = await rejectStorageWrites(page);
 
   const confirm = page.getByRole("button", { name: "Confirm & save", exact: true });
   await confirm.click();
@@ -129,7 +135,7 @@ test("a rejected finish preserves the workout and notes, then retries exactly on
   expect(rejected.activeWorkout).toEqual(before);
   expect(rejected.workouts).toHaveLength(0);
 
-  await page.evaluate(() => window.dispatchEvent(new Event("fitcore-test-restore-storage")));
+  await restoreStorage();
   await confirm.click();
   await expect(confirm).toBeHidden();
   await page.reload();
@@ -142,5 +148,70 @@ test("a rejected finish preserves the workout and notes, then retries exactly on
     notes: "Controlled tempo.",
     exercises: [{ sets: before?.exercises[0].sets }],
   });
+});
 
+test("a rejected set edit must be resolved before finishing the workout", async ({ page }) => {
+  await startWorkout(page);
+  const restoreStorage = await rejectStorageWrites(page);
+  const weight = page.getByPlaceholder("lb", { exact: true }).first();
+  await weight.fill("145");
+  await expect(page.getByRole("heading", { name: "Workout edit could not be saved" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Finish workout", exact: true })).toBeDisabled();
+  expect((await readPersistedFitCoreState(page)).activeWorkout?.exercises[0].sets[0].weight).toBe(135);
+
+  await restoreStorage();
+  await page.getByRole("button", { name: "Retry edit", exact: true }).click();
+  await expect(weight).toHaveValue("145");
+  await page.getByRole("button", { name: "Finish workout", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm & save", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Training", exact: true })).toBeVisible();
+  const settled = await readPersistedFitCoreState(page);
+  expect(settled.workouts).toHaveLength(1);
+  expect(settled.workouts[0].exercises[0].sets[0]).toMatchObject({ weight: 145, reps: 8, completed: true });
+});
+
+test("a workout backup restores its notes and completed set in a fresh context", async ({
+  page,
+  browser,
+  baseURL,
+}) => {
+  await startWorkout(page);
+  await page.getByRole("button", { name: "Finish workout", exact: true }).click();
+  await page.getByPlaceholder("How did it feel? Pain, energy, sleep…").fill("Restored session.");
+  await page.getByRole("button", { name: "Confirm & save", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Training", exact: true })).toBeVisible();
+  await page.reload();
+  await expectDashboardReady(page);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("tab", { name: "Data", exact: true }).click();
+  const exported = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  const backup = await exported;
+  const bytes = await readFile(await backup.path());
+
+  const freshContext = await browser.newContext({ baseURL });
+  try {
+    const restoredPage = await freshContext.newPage();
+    await seedMinimalOnboardedState(restoredPage);
+    await expectDashboardReady(restoredPage);
+    expect((await readPersistedFitCoreState(restoredPage)).workouts).toHaveLength(0);
+    await restoredPage.getByRole("button", { name: "Settings", exact: true }).click();
+    await restoredPage.getByRole("tab", { name: "Data", exact: true }).click();
+    await restoredPage.getByLabel("Import backup file").setInputFiles({
+      name: backup.suggestedFilename(),
+      mimeType: "application/json",
+      buffer: bytes,
+    });
+    await expect(restoredPage.getByRole("status")).toContainText("Imported successfully");
+    await restoredPage.reload();
+    await expectDashboardReady(restoredPage);
+    const restored = await readPersistedFitCoreState(restoredPage);
+    expect(restored.workouts).toHaveLength(1);
+    expect(restored.workouts[0].notes).toBe("Restored session.");
+    expect(restored.workouts[0].exercises[0].sets[0]).toMatchObject({
+      weight: 135, reps: 8, completed: true,
+    });
+  } finally {
+    await freshContext.close();
+  }
 });
