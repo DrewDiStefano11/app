@@ -133,7 +133,7 @@ type Options = {
   signal?: AbortSignal;
 };
 
-function retryAfter(headers: Headers) {
+export function whoopRetryAfter(headers: Headers) {
   for (const name of ["Retry-After", "X-RateLimit-Reset"]) {
     const value = headers.get(name);
     if (value && /^\d{1,6}$/.test(value)) return Number(value);
@@ -163,7 +163,7 @@ async function fetchPage(url: URL, accessToken: string, options: Options) {
     }
     if (response?.status === 401) throw new WhoopReadError("unauthorized");
     if (response?.status === 429) {
-      throw new WhoopReadError("rate_limited", retryAfter(response.headers));
+      throw new WhoopReadError("rate_limited", whoopRetryAfter(response.headers));
     }
     if (response && response.status < 500) throw new WhoopReadError("unavailable");
     if (attempt === 0 && !budget?.aborted) await wait(250);

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { whoopRetryAfter } from "./v2.server";
 
 const CALLBACK_PATH = "/api/whoop/callback";
 
@@ -93,6 +94,12 @@ type OAuthClientConfig = {
   fetch?: (url: string, init: RequestInit) => Promise<Response>;
 };
 
+export class WhoopTokenRateLimit extends Error {
+  constructor(public readonly retryAfterSeconds?: number) {
+    super("WHOOP token request was rate limited");
+  }
+}
+
 export function createWhoopOAuthClient(config: OAuthClientConfig) {
   const redirectUri = new URL(CALLBACK_PATH, config.origin).href;
   const send = config.fetch ?? fetch;
@@ -110,9 +117,11 @@ export function createWhoopOAuthClient(config: OAuthClientConfig) {
         }),
         signal: AbortSignal.timeout(10_000),
       });
+      if (response.status === 429) throw new WhoopTokenRateLimit(whoopRetryAfter(response.headers));
       if (!response.ok) throw new Error();
       result = await response.json();
-    } catch {
+    } catch (error) {
+      if (error instanceof WhoopTokenRateLimit) throw error;
       throw new Error("WHOOP token request failed");
     }
 

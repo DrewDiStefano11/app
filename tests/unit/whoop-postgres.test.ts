@@ -7,8 +7,10 @@ import { createWhoopStore } from "../../src/lib/whoop/postgres.server";
 test("Postgres isolates sessions, claims state once and atomically rotates token pairs", async () => {
   const database = new PGlite();
   try {
-    const migration = new URL("../../db/whoop/001-credentials.sql", import.meta.url);
-    await database.exec(await readFile(migration, "utf8"));
+    for (const file of ["001-credentials.sql", "002-sync.sql"]) {
+      const migration = new URL("../../db/whoop/" + file, import.meta.url);
+      await database.exec(await readFile(migration, "utf8"));
+    }
     const store = createWhoopStore(async (statement, parameters) => {
       const result = await database.query(statement, parameters);
       return result.rows;

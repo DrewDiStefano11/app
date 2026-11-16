@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { GhostButton, Input } from "@/components/app/ui";
+import { requestWhoopSync, whoopApi as api } from "@/lib/whoop/browser";
 
 type Status =
   | "loading"
@@ -9,20 +10,20 @@ type Status =
   | "connected"
   | "reconnect_required"
   | "disconnecting";
-const api = "/api/whoop";
+type StatusInfo = { status: Status; lastSyncedAt: string | null };
 
-async function getStatus(signal?: AbortSignal): Promise<Status> {
+async function getStatus(signal?: AbortSignal): Promise<StatusInfo> {
   const response = await fetch(api + "/status", { cache: "no-store", signal });
-  if (response.status === 401) return "locked";
-  if (!response.ok) return "unavailable";
-  const { status } = await response.json();
-  return status === "connected" || status === "reconnect_required" || status === "disconnecting"
-    ? status
-    : "disconnected";
+  if (response.status === 401) return { status: "locked", lastSyncedAt: null };
+  if (!response.ok) return { status: "unavailable", lastSyncedAt: null };
+  return response.json();
 }
 
 export function WhoopSettings() {
-  const [status, setStatus] = useState<Status>("loading");
+  const [{ status, lastSyncedAt }, setStatusInfo] = useState<StatusInfo>({
+    status: "loading",
+    lastSyncedAt: null,
+  });
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -30,9 +31,9 @@ export function WhoopSettings() {
     const current = new AbortController();
     const readStatus = () => {
       void getStatus(current.signal)
-        .then(setStatus)
+        .then(setStatusInfo)
         .catch(() => {
-          if (!current.signal.aborted) setStatus("unavailable");
+          if (!current.signal.aborted) setStatusInfo({ status: "unavailable", lastSyncedAt: null });
         });
     };
     readStatus();
@@ -59,10 +60,30 @@ export function WhoopSettings() {
       if (response.status === 401) {
         setMessage("That access key did not match.");
       } else if (response.ok) {
-        setStatus(await getStatus());
+        setStatusInfo(await getStatus());
       } else {
         setMessage("WHOOP access is unavailable right now.");
       }
+    } catch {
+      setMessage("Could not reach FitCore. Try again when you are online.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function syncNow() {
+    setBusy(true);
+    setMessage("");
+    try {
+      const response = await requestWhoopSync();
+      setStatusInfo(await getStatus());
+      if (response.ok) setMessage("WHOOP sync complete.");
+      else if (response.status === 409)
+        setMessage("WHOOP sync is busy or cooling down. Try again shortly.");
+      else if (response.status === 429) setMessage("WHOOP is limiting requests. Try again later.");
+      else if (response.status === 401 || response.status === 403)
+        setMessage("Unlock or reconnect WHOOP to sync.");
+      else setMessage("WHOOP sync was interrupted. Your last successful sync is still saved.");
     } catch {
       setMessage("Could not reach FitCore. Try again when you are online.");
     } finally {
@@ -80,7 +101,7 @@ export function WhoopSettings() {
         return;
       }
       const { revoked } = await response.json();
-      setStatus("disconnected");
+      setStatusInfo({ status: "disconnected", lastSyncedAt: null });
       setMessage(
         revoked
           ? "WHOOP access was removed."
@@ -98,7 +119,7 @@ export function WhoopSettings() {
     try {
       const response = await fetch(api + "/session", { method: "DELETE" });
       if (!response.ok) throw new Error();
-      setStatus("locked");
+      setStatusInfo({ status: "locked", lastSyncedAt: null });
       setMessage("");
     } catch {
       setMessage("Could not lock this session. Try again when you are online.");
@@ -154,8 +175,20 @@ export function WhoopSettings() {
           {status === "connected" ? "Connected to WHOOP" : "WHOOP needs to be reconnected."}
         </p>
       )}
+      {status === "connected" && (
+        <p className="text-sm text-muted-foreground">
+          {lastSyncedAt
+            ? "Last synced " + new Date(lastSyncedAt).toLocaleString()
+            : "Waiting for the first successful sync."}
+        </p>
+      )}
       {signedIn && (
         <div className="flex flex-wrap gap-2">
+          {status === "connected" && (
+            <GhostButton type="button" disabled={busy} onClick={() => void syncNow()}>
+              Sync Now
+            </GhostButton>
+          )}
           {status !== "disconnected" && (
             <GhostButton type="button" disabled={busy} onClick={() => void disconnect()}>
               Disconnect WHOOP

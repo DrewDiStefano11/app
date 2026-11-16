@@ -64,6 +64,26 @@ function harness() {
       async getConnection() {
         return null;
       },
+      async getSnapshot() {
+        return null;
+      },
+      async claimSync() {
+        return null;
+      },
+      async expireAbandonedRefresh() {},
+      async claimRefresh() {
+        return null;
+      },
+      async saveRefresh() {
+        return false;
+      },
+      async failRefresh() {},
+      async releaseRefresh() {},
+      async saveSync() {
+        return false;
+      },
+      async releaseSync() {},
+      async rejectSyncAuthorization() {},
     },
     fetch: async () => {
       tokenRequests++;
@@ -91,6 +111,30 @@ const post = (path: string, cookie?: string, body?: URLSearchParams, from = orig
   });
 
 const cookie = (response: Response) => response.headers.get("set-cookie")!.split(";")[0];
+
+test("sync and health records require an owner session, and sync rejects cross-origin requests", async () => {
+  const h = harness();
+  expect((await h.integration.sync(post("/api/whoop/sync"))).status).toBe(401);
+  const unlocked = await h.integration.session(
+    post("/api/whoop/session", undefined, new URLSearchParams({ access_key: ownerKey })),
+  );
+  const session = cookie(unlocked);
+  expect(
+    (await h.integration.sync(post("/api/whoop/sync", session, undefined, "https://other.test")))
+      .status,
+  ).toBe(403);
+  expect((await h.integration.records(new Request(origin + "/api/whoop/records"))).status).toBe(
+    401,
+  );
+  const ownRecords = await h.integration.records(
+    new Request(origin + "/api/whoop/records", {
+      headers: { Cookie: session },
+    }),
+  );
+  expect(ownRecords.headers.get("cache-control")).toBe("no-store");
+  expect(await ownRecords.json()).toBeNull();
+  expect(h.tokenRequests).toBe(0);
+});
 
 test("requires owner access and exact origin before issuing an integration session", async () => {
   const { integration } = harness();

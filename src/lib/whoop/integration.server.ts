@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createWhoopOAuthClient, handleWhoopCallback } from "./oauth.server";
 import type { createWhoopStore } from "./postgres.server";
+import { syncWhoop, type WhoopSyncStore } from "./sync.server";
 import { createWhoopTokenVault } from "./token-vault.server";
 
 const sessionCookie = "__Host-fitcore-whoop-session";
@@ -11,6 +12,7 @@ const owner = "fitcore-owner";
 const keyPattern = /^[A-Za-z0-9_-]{43}$/;
 const privateHeaders = {
   "Cache-Control": "no-store",
+  "Cross-Origin-Resource-Policy": "same-origin",
   "Referrer-Policy": "no-referrer",
 };
 
@@ -31,12 +33,14 @@ type WhoopIntegrationConfig = {
     | "discardAttempt"
     | "saveConnection"
     | "getConnection"
+    | "getSnapshot"
     | "cancelPendingAttempt"
     | "claimDisconnect"
     | "claimDisconnectRefresh"
     | "saveDisconnectRefresh"
     | "finishDisconnect"
-  >;
+  > &
+    WhoopSyncStore;
 };
 
 function reply(status: number, headers: HeadersInit = privateHeaders) {
@@ -208,9 +212,36 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
       if (!session) return reply(401);
       const connection = await store.getConnection(session.ownerId);
       return Response.json(
-        { status: connection?.status ?? "disconnected" },
+        {
+          status: connection?.status ?? "disconnected",
+          lastSyncedAt: connection?.lastSyncedAt ?? null,
+        },
         { headers: privateHeaders },
       );
+    },
+
+    async sync(request: Request) {
+      if (request.method !== "POST") return reply(405);
+      if (!isSameOriginMutation(request)) return reply(403);
+      const session = await getSession(request);
+      if (!session) return reply(401);
+      const outcome = await syncWhoop(session, {
+        store,
+        vault,
+        refresh: client.refresh,
+        fetch: config.fetch ? (url, init) => config.fetch!(url.href, init) : undefined,
+      });
+      const headers = outcome.retryAfterSeconds
+        ? { ...privateHeaders, "Retry-After": String(outcome.retryAfterSeconds) }
+        : privateHeaders;
+      return reply(outcome.status === 200 ? 204 : outcome.status, headers);
+    },
+
+    async records(request: Request) {
+      if (request.method !== "GET" || new URL(request.url).origin !== origin) return reply(400);
+      const session = await getSession(request);
+      if (!session) return reply(401);
+      return Response.json(await store.getSnapshot(session), { headers: privateHeaders });
     },
   };
 }

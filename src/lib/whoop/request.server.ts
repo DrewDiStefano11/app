@@ -56,7 +56,9 @@ function getIntegration() {
 }
 
 export async function handleWhoopRequest(request: Request, action: string) {
-  if (!["session", "connect", "callback", "disconnect", "status"].includes(action))
+  if (
+    !["session", "connect", "callback", "disconnect", "status", "sync", "records"].includes(action)
+  )
     return reply(404);
 
   // Keep request bodies, callback query parameters, and provider or database errors out of logs.
@@ -75,6 +77,10 @@ export async function handleWhoopRequest(request: Request, action: string) {
         return await integration.disconnect(request);
       case "status":
         return await integration.status(request);
+      case "sync":
+        return await integration.sync(request);
+      case "records":
+        return await integration.records(request);
       default:
         return reply(404);
     }

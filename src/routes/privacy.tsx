@@ -63,10 +63,12 @@ function PrivacyPolicy() {
             Where the connection is enabled, selecting Connect WHOOP sends you to WHOOP for
             authorization. FitCore stores the connection and its encrypted authorization credentials
             on a private database, and uses an essential browser cookie to recognize your FitCore
-            integration session. The connection screens in this release do not import WHOOP health
-            records. Disconnect WHOOP removes FitCore&apos;s stored credentials and attempts to
-            revoke access at WHOOP. If that attempt fails, you can also remove the connection in
-            WHOOP.
+            integration session. When FitCore syncs, it imports a rolling 30-day window of WHOOP
+            recovery, sleep, cycle and workout records into the private database. Disconnect WHOOP
+            removes the imported records from the live database and attempts to revoke access at
+            WHOOP before deleting stored credentials. Deleted records may remain in the database
+            provider&apos;s recovery copies for up to six hours on the configured free plan. If
+            revocation fails, you can also remove the connection in WHOOP.
           </p>
         </section>
 

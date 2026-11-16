@@ -14,6 +14,7 @@ import { Onboarding } from "@/components/app/views/onboarding";
 import { buildAICoachContext } from "@/lib/fitcore-data";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import type { SectionId } from "@/lib/types";
+import { requestWhoopSync } from "@/lib/whoop/browser";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -59,6 +60,23 @@ function FitCoreApp() {
   const hasActiveWorkout = activeWorkoutId !== undefined;
   const showActiveWorkout = activeWorkoutId !== undefined && activeWorkoutId !== overviewWorkoutId;
   const displayedSection = hasActiveWorkout ? "training" : section;
+  useEffect(() => {
+    if (!hasHydrated || !state.onboardingComplete) return;
+    let lastAttempt = 0;
+    const syncOnOpen = () => {
+      if (document.visibilityState !== "visible" || !navigator.onLine) return;
+      if (Date.now() - lastAttempt < 120_000) return;
+      lastAttempt = Date.now();
+      void requestWhoopSync().catch(() => {});
+    };
+    syncOnOpen();
+    document.addEventListener("visibilitychange", syncOnOpen);
+    window.addEventListener("online", syncOnOpen);
+    return () => {
+      document.removeEventListener("visibilitychange", syncOnOpen);
+      window.removeEventListener("online", syncOnOpen);
+    };
+  }, [hasHydrated, state.onboardingComplete]);
   const persistenceProblem = persistenceRequiresReload
     ? "FitCore needs to reload the latest saved data before it can save changes."
     : persistenceStatus === "storage_error" || persistenceStatus === "blocked"
