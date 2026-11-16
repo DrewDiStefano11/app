@@ -91,6 +91,7 @@ export const EXERCISES: Exercise[] = [
 export const exerciseById = (id: string) => EXERCISES.find(e => e.id === id);
 
 export interface TemplateExercise { exerciseId: string; sets: number; reps: string; rest?: number; notes?: string }
+export const MAX_WORKOUT_TEMPLATE_SETS = 1000;
 export interface WorkoutTemplate {
   id: string; name: string; goal: string; durationMin: number;
   exercises: TemplateExercise[]; notes?: string;

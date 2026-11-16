@@ -587,7 +587,7 @@ function SetRow({ index, st, prev, armedTag, onArmedApply, onChange, onDelete }:
 
 /* ===================== Exercise picker (built-in + custom) ===================== */
 
-function ExercisePicker({ open, onClose, customExercises, onPick }: {
+export function ExercisePicker({ open, onClose, customExercises, onPick }: {
   open: boolean; onClose: () => void;
   customExercises: CustomExercise[];
   onPick: (id: string) => void;

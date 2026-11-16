@@ -1,3 +1,5 @@
+import { MAX_WORKOUT_TEMPLATE_SETS } from "./data";
+
 export const FITCORE_DATA_INTEGRITY_POLICY = "fitcore_data_integrity_v1" as const;
 
 export type DataIntegrityStatus = "valid" | "warnings" | "invalid";
@@ -755,7 +757,7 @@ function validateWorkoutTemplate(
       const fields = ["durationMin", "exercises"];
       missingFields(context, plan, location, fields);
       unknownFields(context, plan, location, fields);
-      validateOptionalNumber(context, plan, location, "durationMin", { positive: true, integer: true });
+      validateOptionalNumber(context, plan, location, "durationMin", { nonNegative: true, integer: true });
       if (!Object.hasOwn(plan, "exercises")) return;
       const scope = fieldPath(location, "exercises");
       if (!Array.isArray(plan.exercises)) {
@@ -775,7 +777,9 @@ function validateWorkoutTemplate(
             if (Object.hasOwn(exercise, "exerciseId")) {
               validateString(context, exercise.exerciseId, location, "exerciseId", { requiredNonEmpty: true });
             }
-            validateOptionalNumber(context, exercise, location, "sets", { positive: true, integer: true, max: 1000 });
+            validateOptionalNumber(context, exercise, location, "sets", {
+              positive: true, integer: true, max: MAX_WORKOUT_TEMPLATE_SETS,
+            });
             validateOptionalNumber(context, exercise, location, "rest", { nonNegative: true });
             validateOptionalString(context, exercise, location, "reps");
             validateOptionalString(context, exercise, location, "notes");

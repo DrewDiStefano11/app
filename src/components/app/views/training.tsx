@@ -3,11 +3,12 @@ import { Play, Plus, Clock, Flame, Trash2, Trophy, Dumbbell, CalendarDays, BarCh
 import { useStore, uid, isToday } from "@/lib/store";
 import { availableWorkoutTemplates, WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
 import { weeklyVolumeSeries, muscleMap, MUSCLES } from "@/lib/analytics";
-import type { CardioEntry } from "@/lib/types";
+import type { CardioEntry, WorkoutTemplateReference } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SectionHeader, SubTabs, PlannedFeatureCard } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { ActiveWorkoutView } from "@/components/app/active-workout";
+import { WorkoutTemplateEditor } from "@/components/app/workout-template-editor";
 
 type TrainingPanel = "templates" | "cardio" | "history" | "performance" | null;
 
@@ -358,6 +359,9 @@ function TemplatesSection({ onWorkoutStarted }: { onWorkoutStarted?: () => void 
   const { state, startWorkout } = useStore();
   const templates = availableWorkoutTemplates(state.workoutTemplates);
   const [detail, setDetail] = useState<string | null>(null);
+  const [editor, setEditor] = useState<{ template: WorkoutTemplateReference | null } | null>(null);
+  const editableTemplates = new Map(state.workoutTemplates.filter(template => template.plan)
+    .map(template => [template.id, template]));
   const startTemplate = (tid: string) => {
     const t = templates.find(x => x.id === tid); if (!t) return;
     if (startWorkout(t)) onWorkoutStarted?.();
@@ -365,25 +369,45 @@ function TemplatesSection({ onWorkoutStarted }: { onWorkoutStarted?: () => void 
   const active = detail ? templates.find(t => t.id === detail) : null;
   return (
     <>
-      <p className="text-sm text-muted-foreground mb-3">{WORKOUT_TEMPLATES.length} starter templates</p>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <p className="text-sm text-muted-foreground">{WORKOUT_TEMPLATES.length} starter templates</p>
+        <GhostButton onClick={() => setEditor({ template: null })}>
+          <Plus size={16} />New template
+        </GhostButton>
+      </div>
       <div className="space-y-2">
-        {templates.map(t => (
+        {templates.map(t => {
+          const editable = editableTemplates.get(t.id);
+          return (
           <Card key={t.id} onClick={() => setDetail(t.id)}>
             <div className="flex justify-between items-start">
               <div>
                 <p className="font-semibold">{t.name}</p>
-                <p className="text-xs text-muted-foreground">{t.goal} • {t.durationMin} min • {t.exercises.length} exercises</p>
+                <p className="text-xs text-muted-foreground">
+                  {t.goal}{t.durationMin > 0 && ` • ${t.durationMin} min`} • {t.exercises.length} exercises
+                </p>
               </div>
-              <button onClick={(e) => { e.stopPropagation(); startTemplate(t.id); }}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: "var(--section)" }}>Start</button>
+              <div className="flex gap-1">
+                {editable && (
+                  <GhostButton aria-label={`Edit ${t.name}`}
+                    onClick={event => { event.stopPropagation(); setEditor({ template: editable }); }}>
+                    Edit
+                  </GhostButton>
+                )}
+                <button onClick={(e) => { e.stopPropagation(); startTemplate(t.id); }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: "var(--section)" }}>Start</button>
+              </div>
             </div>
           </Card>
-        ))}
+          );
+        })}
       </div>
       <BottomSheet open={!!detail} onClose={() => setDetail(null)} title={active?.name} height="tall">
         {active && (
           <>
-            <p className="text-sm text-muted-foreground mb-3">{active.goal} • {active.durationMin} min</p>
+            <p className="text-sm text-muted-foreground mb-3">
+              {active.goal}{active.durationMin > 0 && ` • ${active.durationMin} min`}
+            </p>
             <div className="space-y-1.5">
               {active.exercises.map((te, i) => (
                 <div key={i} className="p-3 rounded-xl bg-[var(--surface-2)] flex justify-between">
@@ -402,6 +426,7 @@ function TemplatesSection({ onWorkoutStarted }: { onWorkoutStarted?: () => void 
           </>
         )}
       </BottomSheet>
+      {editor && <WorkoutTemplateEditor template={editor.template} onClose={() => setEditor(null)} />}
     </>
   );
 }

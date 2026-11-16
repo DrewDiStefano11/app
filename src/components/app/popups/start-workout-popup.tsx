@@ -42,7 +42,7 @@ export function StartWorkoutSheet({ open, onClose, onStarted }: {
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-sm truncate">{t.name}</div>
                 <div className="text-[11px] text-white/40 truncate">
-                  {t.goal} · {t.durationMin}min · {t.exercises.length} exercises
+                  {t.goal}{t.durationMin > 0 && ` · ${t.durationMin}min`} · {t.exercises.length} exercises
                 </div>
                 <div className="text-[10px] text-white/30 truncate mt-0.5">
                   {t.exercises.slice(0, 3).map(e => exerciseById(e.exerciseId)?.name).filter(Boolean).join(" · ")}
