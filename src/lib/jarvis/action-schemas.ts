@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { USUAL_MEAL_SLOTS } from "./usual-meals";
 
 const label = z.string().trim().min(1).max(160);
 const notes = z.string().trim().max(1_024);
@@ -42,15 +43,7 @@ const mealFields = {
   fiber: amount.optional(),
   items: z.array(macroItem).min(1).max(30).optional(),
 };
-const slot = z.enum([
-  "breakfast",
-  "lunch",
-  "dinner",
-  "snack",
-  "proteinShake",
-  "preWorkout",
-  "postWorkout",
-]);
+const slot = z.enum(USUAL_MEAL_SLOTS);
 
 const workoutSet = setValues.refine(
   (value) =>
@@ -99,6 +92,7 @@ const schemas: Readonly<Record<string, z.ZodType<Record<string, unknown>>>> = {
   deleteMeal: z.strictObject({ ...draft, id }),
   logUsualMeal: z.strictObject({ ...draft, slot }),
   saveUsualMeal: z.strictObject({ ...draft, slot, name: label, ...macros }),
+  deleteUsualMeal: z.strictObject({ ...draft, slot }),
   logWorkout: z.strictObject({
     ...log,
     name: label.optional(),

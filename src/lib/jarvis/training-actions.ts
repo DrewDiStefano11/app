@@ -83,7 +83,13 @@ export const trainingActions = {
         : recorded.distanceMi !== undefined
           ? `${recorded.distanceMi} mi`
           : `${recorded.weight === undefined ? "" : `${recorded.weight} lb for `}${recorded.reps} reps`;
-    const summary = `${confirmed ? "Logged" : "Log"} ${name}: ${measurements}`;
+    const setType =
+      recorded.modifier === "warmup"
+        ? " warm-up set"
+        : recorded.modifier === "unilateral"
+          ? " unilateral set"
+          : "";
+    const summary = `${confirmed ? "Logged" : "Log"} ${name}${setType}: ${measurements}`;
     const sets = prev
       ? row.sets.map((item) => (item.id === id ? recorded : item))
       : [...row.sets, recorded];

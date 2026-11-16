@@ -260,3 +260,56 @@ test("a food library meal can be reviewed and saved without a cloud request", as
   expect((await readPersistedFitCoreState(page)).mealEntries).toEqual([]);
   expect(requests).toEqual([]);
 });
+
+test("saved meal preferences can be corrected and forgotten without changing nutrition history", async ({
+  page,
+}) => {
+  const seed = currentFitCoreState({ onboardingComplete: true });
+  const history = {
+    id: "saved-history",
+    name: "Toast",
+    type: "breakfast",
+    createdAt: 1,
+    calories: 80,
+    protein: 4,
+    carbs: 14,
+    fat: 1,
+  };
+  await seedRevisionedFitCoreState(page, {
+    ...seed,
+    userGoalsProfile: { ...seed.userGoalsProfile, usualBreakfast: "Toast" },
+    jarvisLearning: { usualMeal_breakfast: { calories: 80, protein: 4, carbs: 14, fat: 1 } },
+    mealEntries: [history],
+  });
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/_serverFn/")) requests.push(request.url());
+  });
+  await gotoDashboard(page);
+  await page.getByRole("button", { name: "Open AI composer" }).click();
+  await page
+    .getByRole("textbox", { name: "Message Jarvis" })
+    .fill("Change my usual breakfast to a banana.");
+  await page.getByRole("button", { name: "Send to Jarvis" }).click();
+  await expect(page.getByText(/Replace Toast with Banana.*105 kcal/)).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).userGoalsProfile.usualBreakfast).toBe("Toast");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Saved usual breakfast: Banana")).toBeVisible();
+
+  const input = page.getByRole("textbox", { name: "Jarvis message" });
+  await input.fill("Forget my usual breakfast.");
+  await input.press("Enter");
+  await expect(page.getByText(/Forget Banana as your usual breakfast/)).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).userGoalsProfile.usualBreakfast).toBe("Banana");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText("Forgot usual breakfast: Banana")).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Open AI composer" })).toBeVisible();
+  const persisted = await readPersistedFitCoreState(page);
+  expect(persisted.userGoalsProfile.usualBreakfast).toBeUndefined();
+  expect(persisted.jarvisLearning.usualMeal_breakfast).toBeUndefined();
+  expect(persisted.mealEntries).toHaveLength(1);
+  expect(persisted.mealEntries[0]).toMatchObject(history);
+  expect(requests).toEqual([]);
+});

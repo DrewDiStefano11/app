@@ -3,6 +3,7 @@ import { runTool, undoAuditEntry } from "../../../src/lib/jarvis/tools";
 import { commitFitCoreStoreRuntime, hydrateFitCoreStoreRuntime } from "../../../src/lib/store";
 import { createFitCoreRuntimePersistenceController } from "../../../src/lib/runtime-persistence";
 import { defaultState, type AppState } from "../../../src/lib/types";
+import { interpretJarvisText } from "../../../src/lib/jarvis/text-commands";
 
 function storageFixture() {
   const bytes = new Map<string, string>();
@@ -63,6 +64,53 @@ test("a confirmed action commits the record and its audit together", () => {
   expect(saved.bodyweightEntries).toHaveLength(1);
   expect(saved.bodyweightEntries[0].weightLb).toBe(182.6);
   expect(saved.jarvisAudit[0].entityIds).toEqual([saved.bodyweightEntries[0].id]);
+});
+
+test("usual meal corrections and deletion stay local and preserve meal history", () => {
+  const fitcore = storageFixture();
+  fitcore.set((state) => ({
+    ...state,
+    jarvisSettings: { ...state.jarvisSettings, learningEnabled: true },
+    userGoalsProfile: { ...state.userGoalsProfile, usualBreakfast: "Toast" },
+    jarvisLearning: { usualMeal_breakfast: { calories: 80, protein: 4, carbs: 14, fat: 1 } },
+    mealEntries: [
+      {
+        id: "history",
+        name: "Toast",
+        type: "breakfast",
+        createdAt: 1,
+        calories: 80,
+        protein: 4,
+        carbs: 14,
+        fat: 1,
+      },
+    ],
+  }));
+  const act = (message: string, confirmed = false) => {
+    const state = fitcore.snapshot();
+    const command = interpretJarvisText(message, state);
+    if (!command || !("tool" in command)) throw new Error("Expected a local meal preference tool");
+    return runTool(command.tool, command.args, {
+      state,
+      set: fitcore.set,
+      settings: state.jarvisSettings,
+      confirmed,
+    });
+  };
+  expect(act("Change my usual breakfast to a banana.").needsConfirmation).toBe(true);
+  expect(fitcore.snapshot().userGoalsProfile.usualBreakfast).toBe("Toast");
+  expect(act("Change my usual breakfast to a banana.", true).ok).toBe(true);
+  expect(fitcore.reload().userGoalsProfile.usualBreakfast).toBe("Banana");
+  expect(fitcore.reload().jarvisLearning.usualMeal_breakfast).toMatchObject({ calories: 105 });
+  expect(act("Forget my usual breakfast.").needsConfirmation).toBe(true);
+  expect(fitcore.reload().userGoalsProfile.usualBreakfast).toBe("Banana");
+  const deleted = act("Forget my usual breakfast.", true);
+  expect(deleted.ok).toBe(true);
+  expect(fitcore.reload().userGoalsProfile.usualBreakfast).toBeUndefined();
+  expect(fitcore.reload().jarvisLearning.usualMeal_breakfast).toBeUndefined();
+  expect(fitcore.reload().mealEntries.map((meal) => meal.id)).toEqual(["history"]);
+  expect(undoAuditEntry(deleted.auditId!, fitcore.snapshot(), fitcore.set).ok).toBe(true);
+  expect(fitcore.reload().userGoalsProfile.usualBreakfast).toBe("Banana");
 });
 
 test("a rejected storage write cannot produce a success or a receipt", () => {
@@ -554,6 +602,37 @@ test("a confirmed working set starts the same planned rest timer as the workout 
   expect(fitcore.reload().activeWorkout?.restEndsAt).toBe(start + 120_000);
   expect(undoAuditEntry(result.auditId!, fitcore.snapshot(), fitcore.set).ok).toBe(true);
   expect(fitcore.reload().activeWorkout?.restEndsAt).toBeUndefined();
+});
+
+test("a confirmed warm-up never consumes a planned working set", () => {
+  const fitcore = storageFixture();
+  fitcore.set((state) => ({
+    ...state,
+    activeWorkout: {
+      id: "upper-a",
+      name: "Upper A",
+      startedAt: Date.now(),
+      exercises: [
+        {
+          id: "bench-row",
+          exerciseId: "bench-press",
+          completed: false,
+          sets: [{ id: "planned-work", completed: false, weight: 195, reps: 4 }],
+        },
+      ],
+    },
+  }));
+  const state = fitcore.snapshot();
+  const command = interpretJarvisText("Log a warm-up bench set at 135 lb for 8", state);
+  if (!command || !("tool" in command)) throw new Error("Expected a warm-up draft");
+  const context = { state, set: fitcore.set, settings: state.jarvisSettings };
+  expect(runTool(command.tool, command.args, context).summary).toMatch(/warm-up set.*135 lb/);
+  expect(fitcore.reload().activeWorkout?.exercises[0].sets).toHaveLength(1);
+  expect(runTool(command.tool, command.args, { ...context, confirmed: true }).ok).toBe(true);
+  const saved = fitcore.reload().activeWorkout?.exercises[0].sets ?? [];
+  expect(saved).toHaveLength(2);
+  expect(saved[0]).toMatchObject({ id: "planned-work", completed: false, weight: 195, reps: 4 });
+  expect(saved[1]).toMatchObject({ completed: true, modifier: "warmup", weight: 135, reps: 8 });
 });
 
 test("mixed AI meal drafts use library values where a food and serving match", () => {

@@ -124,4 +124,32 @@ test("follow-up, correction and cancel preserve the intended set rows", async ({
     { id: "set-3", completed: false },
   ]);
   expect(prior.activeWorkout?.exercises[1].sets).toEqual([]);
+
+  await send("Log a warm-up bench set at 135 lb for 8.");
+  await expect(
+    page.getByText("Log Barbell Bench Press warm-up set: 135 lb for 8 reps"),
+  ).toBeVisible();
+  await save.click();
+  await send("Log a unilateral set for dumbbell bench at 20 kg for 10.");
+  await expect(
+    page.getByText("Log Dumbbell Bench Press unilateral set: 44.09 lb for 10 reps"),
+  ).toBeVisible();
+  await save.click();
+  const modified = await readPersistedFitCoreState(page);
+  expect(modified.activeWorkout?.exercises[0].sets[2]).toMatchObject({
+    id: "set-3",
+    completed: false,
+  });
+  expect(modified.activeWorkout?.exercises[0].sets[3]).toMatchObject({
+    completed: true,
+    modifier: "warmup",
+    weight: 135,
+    reps: 8,
+  });
+  expect(modified.activeWorkout?.exercises[1].sets[0]).toMatchObject({
+    completed: true,
+    modifier: "unilateral",
+    weight: 44.09,
+    reps: 10,
+  });
 });

@@ -25,6 +25,32 @@ test("bare workout values use the exercise open when Jarvis was invoked", () => 
   });
 });
 
+test("named warm-up and unilateral sets resolve locally with their reported units", () => {
+  const state = structuredClone(defaultState);
+  state.activeWorkout = {
+    id: "upper-a",
+    name: "Upper A",
+    startedAt: Date.now(),
+    exercises: [
+      { id: "barbell-row", exerciseId: "bench-press", completed: false, sets: [] },
+      { id: "dumbbell-row", exerciseId: "db-bench", completed: false, sets: [] },
+    ],
+  };
+  expect(interpretJarvisText("Log a warm-up bench set at 135 lb for 8", state)).toEqual({
+    tool: "logExerciseSet",
+    args: { exerciseEntryId: "barbell-row", weight: 135, reps: 8, modifier: "warmup" },
+  });
+  expect(
+    interpretJarvisText("Log a unilateral set for dumbbell bench at 20 kg for 10", state),
+  ).toEqual({
+    tool: "logExerciseSet",
+    args: { exerciseEntryId: "dumbbell-row", weight: 44.09, reps: 10, modifier: "unilateral" },
+  });
+  expect(interpretJarvisText("Log a warm-up set at 135 lb for 8", state)).toEqual({
+    reply: "Which exercise in your active workout did you mean?",
+  });
+});
+
 test("a reps-only reply can complete an explicitly requested same-weight repeat", () => {
   const state = structuredClone(defaultState);
   state.activeWorkout = {

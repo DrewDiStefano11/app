@@ -1,4 +1,5 @@
 import { useLibraryPortions } from "./food-reference";
+import { isUsualMealSlot, mealMacroFields, readMealMacros, readUsualMeal, USUAL_MEAL_SLOTS, usualMealSlots, writeUsualMeal, type UsualMealPreference } from "./usual-meals";
 import { correctMealPortion } from "./meal-portion";
 import type { AppState, UserGoalsProfile, JarvisSettings, Confidence, MealEntry, MealItem, SupplementLog, RecoveryCheckIn, Workout, WorkoutExercise, SetEntry, CardioEntry } from "../types";
 import { createAiEstimateProvenance, createJarvisProvenance, markProvenanceEdited } from "../fitcore-data";
@@ -31,7 +32,7 @@ export type ToolName =
   | "logBodyWeight" | "updateBodyWeight" | "logSleep" | "logSupplement" | "logDailyCheckIn"
   | "undoLastAction" | "saveJarvisLearning" | "getJarvisLearnedPreferences"
   | "logMeal" | "logReferenceMeal" | "updateMeal" | "correctMealPortion" | "deleteMeal" | "getMealHistory"
-  | "getUsualMeals" | "saveUsualMeal" | "logUsualMeal"
+  | "getUsualMeals" | "saveUsualMeal" | "deleteUsualMeal" | "logUsualMeal"
   | "getSupplementStatus" | "getMissedHabits"
   | "getDailyReviewSummary" | "updateDailyCheckIn" | "suggestNutritionAction"
   | "createWorkoutDraft" | "logWorkout" | "updateWorkout" | "deleteWorkout"
@@ -307,21 +308,45 @@ const handlers: Record<ToolName, ToolHandler> = {
   },
   deleteMeal: (args, { set, state, confirmed }) => { const id = String(args.id ?? ""), meal = state.mealEntries.find(m => m.id === id); if (!meal) return { ok: false, summary: "meal not found", error: "Meal id not found" }; if (!confirmed) return { ok: true, summary: `Delete ${meal.name} from ${new Date(meal.createdAt).toLocaleDateString()} (${meal.calories} kcal)?` }; const auditId = uid(); set(s => ({ ...s, mealEntries: s.mealEntries.filter(m => m.id !== id) })); pushAudit(set, { id: auditId, tool: "deleteMeal", summary: `Deleted meal: ${meal.name}`, status: "logged", entityIds: [id], entityKind: "mealDelete", patch: { prev: meal }, createdAt: Date.now() }); return { ok: true, summary: `Deleted ${meal.name}`, auditId }; },
   getMealHistory: (args, { state }) => { const cutoff = Date.now() - Math.min(30, Math.max(1, Number(args.days) || 14)) * 86400000; const meals = state.mealEntries.filter(m => m.createdAt >= cutoff).slice(-50); return { ok: true, summary: `${meals.length} meals`, data: meals }; },
-  getUsualMeals: (_a, { state }) => { const p = state.userGoalsProfile, learned = state.jarvisLearning as Record<string, unknown>, get = (k: string) => learned[`usualMeal_${k}`]; return { ok: true, summary: "usual meals", data: { breakfast: { name: p.usualBreakfast, macros: get("breakfast") }, lunch: { name: p.usualLunch, macros: get("lunch") }, dinner: { name: p.usualDinner, macros: get("dinner") }, snack: { name: p.usualSnack, macros: get("snack") }, proteinShake: { name: p.usualProteinShake, macros: get("proteinShake") }, preWorkout: { name: p.usualPreWorkoutMeal, macros: get("preWorkout") }, postWorkout: { name: p.usualPostWorkoutMeal, macros: get("postWorkout") } } }; },
-  saveUsualMeal: (args, { set, state }) => { const slot = String(args.slot ?? ""), name = String(args.name ?? "").trim(); if (!slot || !name) return { ok: false, summary: "missing slot/name", error: "slot and name required" }; const macros = { calories: Math.round(Number(args.calories) || 0), protein: Math.round(Number(args.protein) || 0), carbs: Math.round(Number(args.carbs) || 0), fat: Math.round(Number(args.fat) || 0) }, field = slotField(slot); if (!field) return { ok: false, summary: "unknown slot", error: `Unknown slot: ${slot}` }; const prev = { name: state.userGoalsProfile[field], macros: (state.jarvisLearning as Record<string, unknown>)[`usualMeal_${slot}`] }, auditId = uid(); set(s => ({ ...s, userGoalsProfile: { ...s.userGoalsProfile, [field]: name }, jarvisLearning: { ...s.jarvisLearning, [`usualMeal_${slot}`]: macros } })); pushAudit(set, { id: auditId, tool: "saveUsualMeal", summary: `Saved usual ${slot}: ${name}`, status: "logged", entityKind: "usualMeal", patch: { slot, name, macros, prev }, createdAt: Date.now() }); return { ok: true, summary: `Saved usual ${slot}: ${name}`, auditId }; },
+  getUsualMeals: (_a, { state }) => ({
+    ok: true, summary: "usual meals",
+    data: Object.fromEntries(USUAL_MEAL_SLOTS.map(slot => [slot, readUsualMeal(state, slot)])),
+  }),
+  saveUsualMeal: (args, { state, set, confirmed }) => {
+    const { slot } = args;
+    const name = textArg(args, "name"), macros = readMealMacros(args);
+    if (!isUsualMealSlot(slot) || !name || !macros) return { ok: false, summary: "Choose a meal slot and supply the meal name and macros." };
+    const label = usualMealSlots[slot].label;
+    const values = `${macros.calories} kcal, ${macros.protein} g protein, ${macros.carbs} g carbs, ${macros.fat} g fat`;
+    const prev = readUsualMeal(state, slot);
+    if (!confirmed) {
+      const change = prev.name ? `Replace ${prev.name} with ${name} as your usual ${label}` : `Save ${name} as your usual ${label}`;
+      return { ok: true, summary: `${change} (${values})?` };
+    }
+    const auditId = uid(), summary = `Saved usual ${label}: ${name}`;
+    set(s => writeUsualMeal(s, slot, { name, macros }));
+    pushAudit(set, { id: auditId, tool: "saveUsualMeal", summary, status: "logged", entityKind: "usualMeal", patch: { slot, name, macros, prev }, createdAt: Date.now() });
+    return { ok: true, summary, auditId };
+  },
+  deleteUsualMeal: (args, { state, set, confirmed }) => {
+    const { slot } = args;
+    if (!isUsualMealSlot(slot)) return { ok: false, summary: "Choose a saved meal slot." };
+    const prev = readUsualMeal(state, slot);
+    if (!prev.name) return { ok: false, summary: "That usual meal is already empty." };
+    const label = usualMealSlots[slot].label;
+    if (!confirmed) return { ok: true, summary: `Forget ${prev.name} as your usual ${label}? Your nutrition history will be kept.` };
+    const auditId = uid(), summary = `Forgot usual ${label}: ${prev.name}`;
+    set(s => writeUsualMeal(s, slot, {}));
+    pushAudit(set, { id: auditId, tool: "deleteUsualMeal", summary, status: "logged", entityKind: "usualMeal", patch: { slot, prev }, createdAt: Date.now() });
+    return { ok: true, summary, auditId };
+  },
   logUsualMeal: (args, ctx) => {
-    const slot = String(args.slot ?? ""), field = slotField(slot);
-    if (!field) return { ok: false, summary: "Choose a saved meal slot." };
-    const name = ctx.state.userGoalsProfile[field] as string | undefined;
+    const { slot } = args;
+    if (!isUsualMealSlot(slot)) return { ok: false, summary: "Choose a saved meal slot." };
+    const { name, macros } = readUsualMeal(ctx.state, slot);
     if (!name) return { ok: false, summary: `There is no usual ${slot} saved.` };
-    const macros = ctx.state.jarvisLearning[`usualMeal_${slot}`] as typeof defaultMacros | undefined;
-    const defaultMacros = { calories: 0, protein: 0, carbs: 0, fat: 0 };
-    if (!macros || !Object.keys(defaultMacros).every(key => {
-      const value = macros[key as keyof typeof macros];
-      return typeof value === "number" && Number.isFinite(value) && value >= 0;
-    })) return { ok: false, summary: `Save the recipe and macros for ${name} before logging it as a usual meal.` };
-    const mealType = slot === "proteinShake" ? "snack"
-      : slot === "preWorkout" ? "pre-workout" : slot === "postWorkout" ? "post-workout" : slot;
+    if (!macros) return { ok: false, summary: `Save the recipe and macros for ${name} before logging it as a usual meal.` };
+    const mealType = usualMealSlots[slot].type;
     return handlers.logMeal({
       ...args, name, mealType, ...macros, confidence: "high",
       assumptions: [`Used saved macros for ${name}`], source: "jarvis-confirmed",
@@ -450,10 +475,6 @@ const handlers: Record<ToolName, ToolHandler> = {
     };
   },
 };
-
-function slotField(slot: string): keyof UserGoalsProfile | null {
-  return ({ breakfast: "usualBreakfast", lunch: "usualLunch", dinner: "usualDinner", snack: "usualSnack", proteinShake: "usualProteinShake", preWorkout: "usualPreWorkoutMeal", postWorkout: "usualPostWorkoutMeal" } as Record<string, keyof UserGoalsProfile>)[slot] ?? null;
-}
 
 function clamp10(v: unknown): number | null { const n = Number(v); return Number.isFinite(n) ? Math.max(1, Math.min(10, Math.round(n))) : null; }
 
@@ -656,7 +677,17 @@ function stageUndo(auditId: string, state: AppState, set: Updater): ToolResult {
       break;
     }
     case "checkinEdit": { const prev = (entry.patch as { prev?: RecoveryCheckIn } | undefined)?.prev; if (prev) set(s => ({ ...s, recoveryCheckIns: s.recoveryCheckIns.map(c => c.id === prev.id ? prev : c) })); break; }
-    case "usualMeal": { const patch = entry.patch as { slot?: string; prev?: { name?: string; macros?: unknown } } | undefined, slot = patch?.slot, field = slot ? slotField(slot) : null; if (slot && field) set(s => ({ ...s, userGoalsProfile: { ...s.userGoalsProfile, [field]: patch?.prev?.name }, jarvisLearning: { ...s.jarvisLearning, [`usualMeal_${slot}`]: patch?.prev?.macros } })); break; }
+    case "usualMeal": {
+      const patch = entry.patch, slot = patch?.slot;
+      if (!patch || !isUsualMealSlot(slot)) return { ok: false, summary: "This saved meal could not be restored safely." };
+      const current = readUsualMeal(state, slot), savedMacros = readMealMacros(patch.macros);
+      if (current.name !== patch.name || mealMacroFields.some(field => current.macros?.[field] !== savedMacros?.[field])) {
+        return { ok: false, summary: "The saved meal preference has changed since that action." };
+      }
+      const previous = patch.prev as UsualMealPreference | undefined;
+      set(s => writeUsualMeal(s, slot, { name: previous?.name, macros: readMealMacros(previous?.macros) }));
+      break;
+    }
     default: return { ok: false, summary: "This action cannot be undone here." };
   }
   const undoAuditId = uid();

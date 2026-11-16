@@ -353,8 +353,8 @@ export function JarvisSettingsCard() {
 
         <div className="space-y-1 border-t border-border pt-3">
           <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Memory</p>
-          <Toggle label="Learn from corrections" val={s.learningEnabled} onChange={v => upd({ learningEnabled: v })} hint="Jarvis remembers usual meals, portion sizes, dismissed suggestions." />
-          <button onClick={() => set(st => ({ ...st, jarvisLearning: {} }))} className="text-xs text-destructive">Clear learned preferences</button>
+          <Toggle label="Save meal preferences" val={s.learningEnabled} onChange={v => upd({ learningEnabled: v })} hint="Ask Jarvis to remember, change, or forget a usual meal." />
+          <button onClick={() => set(st => ({ ...st, jarvisLearning: {} }))} className="text-xs text-destructive">Clear saved macros and learned details</button>
           <button onClick={() => set(st => ({ ...st, jarvisAudit: [] }))} className="text-xs text-destructive block">Clear Jarvis activity history</button>
         </div>
 

@@ -3,6 +3,7 @@ import { queryMealPortion } from "./meal-portion";
 import { queryRecoveryText } from "./recovery-text";
 import { queryBenchHistory, queryTrainingText, type BenchDate } from "./workout-queries";
 import { jarvisScheduledWorkout, WEEKDAYS } from "./scheduled-workout";
+import { queryUsualMeals } from "./usual-meals";
 import type { AppState } from "../types";
 import { exerciseName, findActiveExercise } from "./active-exercise";
 import type { ToolName } from "./tools";
@@ -51,6 +52,8 @@ const BENCH = new RegExp(
   `^(?:i (?:just )?benched|(?:log )?(?:my (?:first )?)?(?:(?:barbell )?bench|dumbbell bench)(?: set)?(?: at)?)\\s+(${LOAD}\\s+(?:for|x|×)\\s*(\\d+)(?:\\s+reps?)?)$`,
   "i",
 );
+const NAMED_SET =
+  /^(?:log )?(?:my |an? )?(?:(warm[- ]?up|unilateral|working) )?(.*?)\bset(?: (?:of|for) (.+?))? at (.+)$/;
 
 function pounds(value: string, unit: string | undefined) {
   return unit && (unit === "kg" || unit.startsWith("kilogram"))
@@ -101,12 +104,21 @@ function workoutSet(
   const focused = context.focusedExercise;
   const focusId = active?.id === focused?.workoutId ? focused?.exerciseEntryId : undefined;
   const bench = BENCH.exec(text);
-  const entry = SET.exec(bench?.[1] ?? text.replace(/^log /, ""));
+  const named = NAMED_SET.exec(text);
+  const entry = SET.exec(bench?.[1] ?? named?.[4] ?? text.replace(/^log /, ""));
   if (entry) {
     const exercise = bench ? (text.includes("dumbbell") ? "db-bench" : "bench-press") : undefined;
+    const exerciseName = named?.[3] || named?.[2].trim() || undefined;
+    const qualifier = named?.[1];
+    const modifier = qualifier?.startsWith("warm")
+      ? "warmup"
+      : qualifier === "unilateral"
+        ? "unilateral"
+        : undefined;
     const row = findActiveExercise(state, {
       exerciseId: exercise,
-      exerciseEntryId: exercise ? undefined : focusId,
+      exerciseName: exercise ? undefined : exerciseName,
+      exerciseEntryId: exercise || exerciseName ? undefined : focusId,
     });
     if (!state.activeWorkout) return { reply: "Start a workout before logging a set." };
     if (!row) return { reply: "Which exercise in your active workout did you mean?" };
@@ -129,6 +141,7 @@ function workoutSet(
         exerciseEntryId: row.id,
         weight: pounds(entry[1], entry[2]),
         reps: Number(entry[3]),
+        ...(modifier ? { modifier } : {}),
       },
     };
   }
@@ -231,12 +244,12 @@ export function interpretJarvisText(
   now = new Date(),
   context: JarvisTextContext = {},
 ): LocalJarvisCommand | undefined {
-  const text = raw
+  const normalized = raw
     .trim()
-    .toLowerCase()
     .replace(/\u2019/g, "'")
     .replace(/[.!?]+$/, "")
     .replace(/\s+/g, " ");
+  const text = normalized.toLowerCase();
   if (/\b(?:prescription|prescribed|planned target)\b/.test(text) && /\d\s*[×x]\s*\d/.test(text)) {
     return {
       reply: "Tell me the weight and reps you actually completed when you are ready to log a set.",
@@ -369,28 +382,8 @@ export function interpretJarvisText(
         originalText: raw,
       },
     };
-  const usual = /^log my usual (.+)$/.exec(text);
-  if (usual) {
-    const profile = state.userGoalsProfile;
-    const candidates: [string, string | undefined, string][] = [
-      ["breakfast", profile.usualBreakfast, "breakfast"],
-      ["lunch", profile.usualLunch, "lunch"],
-      ["dinner", profile.usualDinner, "dinner"],
-      ["snack", profile.usualSnack, "snack"],
-      ["proteinShake", profile.usualProteinShake, "protein shake"],
-      ["preWorkout", profile.usualPreWorkoutMeal, "pre-workout meal"],
-      ["postWorkout", profile.usualPostWorkoutMeal, "post-workout meal"],
-    ];
-    const matches = candidates.filter(
-      ([, name, label]) => name && (name.toLowerCase() === usual[1] || label === usual[1]),
-    );
-    if (matches.length === 1) return { tool: "logUsualMeal", args: { slot: matches[0][0] } };
-    return {
-      reply: matches.length
-        ? "Which saved meal slot do you mean?"
-        : "I couldn't find a saved usual meal with that name. Describe the meal or save it in Jarvis settings.",
-    };
-  }
+  const usual = queryUsualMeals(normalized, state);
+  if (usual) return usual;
   if (/^undo(?: that)?(?: (?:last|most recent)(?: (?:meal|entry|action|change))?)?$/.test(text)) {
     if (text.endsWith("meal")) {
       const last = state.jarvisAudit.find((a) => !a.undone && a.status === "logged");
