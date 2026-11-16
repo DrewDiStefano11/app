@@ -179,3 +179,40 @@ test("a bench increase waits for technique confirmation and changes only the nex
   expect(persisted.workouts[0].exercises[0].sets.every((set) => set.weight === 195)).toBe(true);
   expect(persisted.workoutTemplates[0].reviewedBenchWorkoutId).toBe("synthetic-bench-complete");
 });
+
+test("an older set with both duration and strength results keeps both visible", async ({
+  page,
+}) => {
+  const startedAt = Date.now() - 3_600_000;
+  await seedRevisionedFitCoreState(
+    page,
+    currentFitCoreState({
+      onboardingComplete: true,
+      activeWorkout: {
+        id: "older-mixed-session",
+        name: "Mixed session",
+        startedAt,
+        exercises: [
+          {
+            id: "mixed-exercise",
+            exerciseId: "squat",
+            completed: false,
+            sets: [{ id: "mixed-set", weight: 135, reps: 5, durationMin: 2.5, completed: true }],
+          },
+        ],
+      },
+    }),
+  );
+  await expect(page.getByPlaceholder("lb", { exact: true })).toHaveValue("135");
+  await expect(page.getByPlaceholder("reps", { exact: true })).toHaveValue("5");
+  await expect(page.getByText("2.5 min logged")).toBeVisible();
+  await page.getByRole("button", { name: "Finish workout", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm & save", exact: true }).click();
+  await page.getByText("Mixed session", { exact: true }).click();
+  await page
+    .locator(".sheet-surface")
+    .filter({ hasText: "Workout history" })
+    .getByText("Mixed session", { exact: true })
+    .click();
+  await expect(page.getByText("Set 1: 135lb × 5 · 2.5 min ✓", { exact: true })).toBeVisible();
+});

@@ -486,10 +486,11 @@ function HistorySection() {
                   {ex.target && <p className="text-xs text-muted-foreground">Target {formatWorkoutTarget(ex.target)}{ex.target.optional && " · Optional"}</p>}
                   {ex.notes && <p className="text-xs whitespace-pre-wrap mt-1">{ex.notes}</p>}
                   <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                    {ex.sets.map((st, i) => <div key={st.id}>Set {i+1}: {(ex.target?.targetMinutes != null || st.durationMin != null)
-                      ? st.durationMin == null ? "—" : `${st.durationMin} min`
-                      : st.weight == null && st.reps != null ? `${st.reps} reps` : `${st.weight ?? "—"}lb × ${st.reps ?? "—"}`
-                    } {st.completed ? "✓" : ""}</div>)}
+                    {ex.sets.map((st, i) => <div key={st.id}>Set {i+1}: {[
+                      st.weight == null && st.reps != null ? `${st.reps} reps`
+                        : st.weight != null ? `${st.weight}lb × ${st.reps ?? "—"}` : null,
+                      st.durationMin != null ? `${st.durationMin} min` : null,
+                    ].filter(Boolean).join(" · ") || "—"} {st.completed ? "✓" : ""}</div>)}
                   </div>
                 </Card>
               ))}

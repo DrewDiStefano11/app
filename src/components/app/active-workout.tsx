@@ -319,9 +319,11 @@ function ExerciseCard({
   onOpenPlate: () => void;
 }) {
   const tags = we.exerciseTags ?? [];
-  const duration = we.target?.targetMinutes != null || we.sets.some(set => set.durationMin != null) ||
-    (tracksWorkoutMinutes(exercise) && !we.sets.some(set => set.weight != null || set.reps != null));
-  const bodyweight = programExercise && !duration && exercise?.equipment === "bodyweight";
+  const hasStrengthResults = we.sets.some(set => set.weight != null || set.reps != null);
+  const duration = !hasStrengthResults && (we.target?.targetMinutes != null ||
+    tracksWorkoutMinutes(exercise) || we.sets.some(set => set.durationMin != null));
+  const bodyweight = programExercise && !duration && exercise?.equipment === "bodyweight" &&
+    we.sets.every(set => set.weight == null);
   const isDone = (s: SetEntry) => duration ? Boolean(s.durationMin && s.durationMin > 0)
     : s.reps != null && (bodyweight || s.weight != null);
   const workingSets = we.sets.filter(s => isDone(s) && s.modifier !== "warmup");
@@ -585,6 +587,7 @@ function SetRow({ index, st, prev, done, duration, bodyweight, armedTag, onArmed
           className="w-20 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-sm tabular-nums" />
         </>}
       </div>
+      {!duration && st.durationMin != null && <p className="ml-9 text-xs text-muted-foreground">{st.durationMin} min logged</p>}
       {tagOpen && (
         <div className="flex flex-wrap gap-1 mt-1.5 pl-9">
           <button onClick={() => { onChange({ modifier: "normal" }); setTagOpen(false); }}
