@@ -39,6 +39,7 @@ jobs:
           --project=iphone-webkit --project=mobile-390x844
           workout-release-safety settings-data-safety-lifecycle-smoke
           active-workout-lifecycle-smoke workout-offline-reopen bench-program reusable-workouts workout-rest-timer training-routines personal-scores workout-storage-headroom
+          jarvis-active-workout jarvis-text-provider jarvis-text-records
         env:
           FITCORE_TEST_IPHONE_WEBKIT: "1"
           FITCORE_TEST_PRODUCTION_BUILD: "1"
