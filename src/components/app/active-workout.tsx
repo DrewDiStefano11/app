@@ -463,7 +463,10 @@ function ExerciseCard({
           {/* Notes — collapsed by default */}
           {notesOpen ? (
             <Textarea rows={3} autoFocus placeholder="Exercise notes…" value={we.notes ?? ""}
-              onChange={e => onChange(x => ({ ...x, notes: e.target.value }))}
+              onChange={event => {
+                const notes = event.currentTarget.value;
+                onChange(x => ({ ...x, notes }));
+              }}
               onBlur={() => { if (!we.notes) setNotesOpen(false); }}
               className="text-sm" />
           ) : (

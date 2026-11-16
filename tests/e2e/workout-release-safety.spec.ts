@@ -162,11 +162,23 @@ test("a rejected set edit must be resolved before finishing the workout", async 
   await restoreStorage();
   await page.getByRole("button", { name: "Retry edit", exact: true }).click();
   await expect(weight).toHaveValue("145");
+
+  await page.getByRole("button", { name: "+ Add note", exact: true }).click();
+  const restoreNoteStorage = await rejectStorageWrites(page);
+  await page.getByPlaceholder("Exercise notes…").fill("Pause at the bottom.");
+  await expect(page.getByRole("button", { name: "Finish workout", exact: true })).toBeDisabled();
+  await restoreNoteStorage();
+  await page.getByRole("button", { name: "Retry edit", exact: true }).click();
+  expect((await readPersistedFitCoreState(page)).activeWorkout?.exercises[0].notes).toBe(
+    "Pause at the bottom.",
+  );
+
   await page.getByRole("button", { name: "Finish workout", exact: true }).click();
   await page.getByRole("button", { name: "Confirm & save", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Training", exact: true })).toBeVisible();
   const settled = await readPersistedFitCoreState(page);
   expect(settled.workouts).toHaveLength(1);
+  expect(settled.workouts[0].exercises[0].notes).toBe("Pause at the bottom.");
   expect(settled.workouts[0].exercises[0].sets[0]).toMatchObject({ weight: 145, reps: 8, completed: true });
 });
 

@@ -88,6 +88,14 @@ could be left out of a later finished session. The follow-up keeps the edit
 available for retry and blocks finish while it is pending. The updated
 candidate passed all 10 release-safety tests across both mobile browsers,
 including a workout JSON export and restore in a clean browser context.
+The same edit retry preserves exercise notes when storage rejects the
+first write. Both browser engines passed the rejection-and-retry check
+with edited weight and exercise notes.
+
+The GitHub runner's Bun 1.4.4 exposed four prototype-sensitive backup
+assertions. The portable assertions compare the actual exported JSON
+values and separately check that the in-memory payload retains its null
+prototype. All 30 backup tests passed locally on Bun 1.4.4.
 
 The initial npm audit of the patched lockfile reported zero critical,
 seven high, and one moderate finding. CVE-2026-102989 is absent. Review the

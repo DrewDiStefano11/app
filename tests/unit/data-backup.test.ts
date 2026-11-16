@@ -30,6 +30,10 @@ function asRecord(value: object): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
+function jsonValue<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 function create(value: unknown = state(), exportedAt = EXPORTED_AT) {
   return createFitCoreBackupEnvelope(value, { exportedAt });
 }
@@ -287,7 +291,8 @@ test("creates a detached, deeply frozen, complete version-one envelope", () => {
   assert.equal(result.safeToExport, true);
   assert.equal(result.requiresReview, false);
   assert.notEqual(result.envelope, null);
-  assert.deepEqual(result.envelope, {
+  assert.equal(Object.getPrototypeOf(result.envelope!.payload), null);
+  assert.deepEqual(jsonValue(result.envelope), {
     format: FITCORE_BACKUP_FORMAT,
     formatVersion: 1,
     payloadKind: FITCORE_BACKUP_PAYLOAD_KIND,
@@ -313,7 +318,7 @@ test("preserves warnings, unknown record fields, and falsey values", () => {
   assert.equal(result.status, "created_with_warnings");
   assert.equal(result.safeToExport, true);
   assert.equal(result.requiresReview, true);
-  assert.deepEqual(result.envelope!.payload, source);
+  assert.deepEqual(jsonValue(result.envelope!.payload), jsonValue(source));
   assert.equal(asRecord(result.envelope!.payload).futureField !== undefined, true);
   assert.equal((result.envelope!.payload.goals as unknown[]).length, 2);
   assert.deepEqual(source, before);
@@ -349,8 +354,8 @@ test("preserves all supported JSON values and null-prototype objects", () => {
   source.userGoalsProfile.weeklyWeightChangeLb = -0.5;
   const result = create(source);
   assert.equal(result.safeToExport, true);
-  assert.deepEqual(result.envelope!.payload, source);
-  assert.deepEqual(result.envelope!.payload.jarvisLearning.nested, [
+  assert.deepEqual(jsonValue(result.envelope!.payload), jsonValue(source));
+  assert.deepEqual(jsonValue(result.envelope!.payload.jarvisLearning.nested), [
     { a: "first", z: "last" },
     [3, 2, 1],
   ]);
@@ -768,11 +773,10 @@ test("round-trips reports and payloads and never shares caller-owned references"
   const serialized = serializeFitCoreBackupEnvelope(result.envelope);
   const parsedEnvelope = JSON.parse(serialized.json!);
   assert.deepEqual(parsedEnvelope.payload, source);
-  assert.deepEqual(JSON.parse(JSON.stringify(result)), result);
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(inspectFitCoreBackupEnvelope(parsedEnvelope))),
-    inspectFitCoreBackupEnvelope(parsedEnvelope),
-  );
+  const creationReport = jsonValue(result);
+  assert.deepEqual(creationReport, { ...result, envelope: parsedEnvelope });
+  const inspected = inspectFitCoreBackupEnvelope(parsedEnvelope);
+  assert.deepEqual(jsonValue(inspected), inspected);
   source.jarvisLearning = { changed: true };
   assert.equal(Object.hasOwn(result.envelope!.payload.jarvisLearning, "changed"), false);
 });
