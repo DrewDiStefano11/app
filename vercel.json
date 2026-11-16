@@ -1,4 +1,9 @@
 {
   "installCommand": "npm ci",
+  "git": {
+    "deploymentEnabled": {
+      "codex/fitcore-whoop-integration": false
+    }
+  },
   "crons": [{ "path": "/api/whoop/reconcile", "schedule": "0 10 * * *" }]
 }

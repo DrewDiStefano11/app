@@ -39,6 +39,7 @@ jobs:
           --project=iphone-webkit --project=mobile-390x844
           workout-release-safety settings-data-safety-lifecycle-smoke
           active-workout-lifecycle-smoke workout-offline-reopen bench-program reusable-workouts workout-rest-timer training-routines personal-scores workout-storage-headroom workout-substitutions exercise-library
+          whoop-callback.spec.ts whoop-dashboard.spec.ts whoop-jarvis.spec.ts whoop-sync.spec.ts privacy-policy.spec.ts
         env:
           FITCORE_TEST_IPHONE_WEBKIT: "1"
           FITCORE_TEST_PRODUCTION_BUILD: "1"
