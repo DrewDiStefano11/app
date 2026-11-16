@@ -111,6 +111,19 @@ test("usual meal corrections and deletion stay local and preserve meal history",
   expect(fitcore.reload().mealEntries.map((meal) => meal.id)).toEqual(["history"]);
   expect(undoAuditEntry(deleted.auditId!, fitcore.snapshot(), fitcore.set).ok).toBe(true);
   expect(fitcore.reload().userGoalsProfile.usualBreakfast).toBe("Banana");
+
+  expect(
+    act(
+      "Remember my usual breakfast as Overnight Oats, 350 calories, 25 g protein, 45 g carbs, 8 g fat.",
+      true,
+    ).ok,
+  ).toBe(true);
+  expect(fitcore.reload().userGoalsProfile.usualBreakfast).toBe("Overnight Oats");
+  expect(act("Log my usual Overnight Oats.")).toMatchObject({
+    needsConfirmation: true,
+    data: { calories: 350, protein: 25, carbs: 45, fat: 8 },
+  });
+  expect(fitcore.reload().mealEntries.map((meal) => meal.id)).toEqual(["history"]);
 });
 
 test("a rejected storage write cannot produce a success or a receipt", () => {
