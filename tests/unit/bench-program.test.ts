@@ -98,6 +98,9 @@ describe("the six-day bench program", () => {
     });
     expect(nextBenchSuggestion(day, [session], session.id)).toBeUndefined();
     expect(nextBenchSuggestion(BENCH_PROGRAM[2], [session])).toBeUndefined();
+    session.exercises[0].sets[0].modifier = "failure";
+    expect(nextBenchSuggestion(day, [session])).toBeUndefined();
+    session.exercises[0].sets[0].modifier = "normal";
     session.exercises[0].sets[0].reps = 3;
     expect(nextBenchSuggestion(day, [session])).toBeUndefined();
   });

@@ -120,6 +120,11 @@ export const EXERCISES: Exercise[] = [
 
 export const exerciseById = (id: string) => EXERCISES.find(e => e.id === id);
 
+export function tracksWorkoutMinutes(exercise?: { id: string; category: Exercise["category"]; tracking?: string }) {
+  if (exercise?.tracking) return exercise.tracking === "time";
+  return exercise?.category === "cardio" || exercise?.id === "full-body-mobility";
+}
+
 export interface TemplateExercise { exerciseId: string; sets: number; reps: string; rest?: number; notes?: string; targetWeightLb?: number; targetMinutes?: number; optional?: boolean; startsWeek?: number }
 export const MAX_WORKOUT_TEMPLATE_SETS = 1000;
 export interface WorkoutTemplate {

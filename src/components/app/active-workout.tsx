@@ -4,7 +4,7 @@ import {
   GripVertical, Calculator, Pencil, Sparkles,
 } from "lucide-react";
 import { useStore, uid, e1RM } from "@/lib/store";
-import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, type Exercise, type MuscleGroup } from "@/lib/data";
+import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, tracksWorkoutMinutes, type Exercise, type MuscleGroup } from "@/lib/data";
 import { BENCH_PROGRAM_ID, formatWorkoutTarget } from "@/lib/bench-program";
 import type {
   AppState, Workout, WorkoutExercise, SetEntry, CustomExercise, Goal,
@@ -233,7 +233,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
           <ExerciseCard
             key={we.id}
             we={we}
-            exercise={findEx(we.exerciseId) as Exercise | undefined}
+            exercise={findEx(we.exerciseId)}
             isActive={we.id === activeId}
             isOpen={isOpen(we)}
             canMoveUp={idx > 0}
@@ -303,7 +303,7 @@ function ExerciseCard({
   previousWorkout, demoMode, programExercise, onToggle, onMove, onDelete, onComplete, onChange, onOpenPlate,
 }: {
   we: WorkoutExercise;
-  exercise: Exercise | undefined;
+  exercise: Exercise | CustomExercise | undefined;
   isActive: boolean;
   isOpen: boolean;
   canMoveUp: boolean;
@@ -319,7 +319,8 @@ function ExerciseCard({
   onOpenPlate: () => void;
 }) {
   const tags = we.exerciseTags ?? [];
-  const duration = we.target?.targetMinutes != null;
+  const duration = we.target?.targetMinutes != null || we.sets.some(set => set.durationMin != null) ||
+    (tracksWorkoutMinutes(exercise) && !we.sets.some(set => set.weight != null || set.reps != null));
   const bodyweight = programExercise && !duration && exercise?.equipment === "bodyweight";
   const isDone = (s: SetEntry) => duration ? Boolean(s.durationMin && s.durationMin > 0)
     : s.reps != null && (bodyweight || s.weight != null);

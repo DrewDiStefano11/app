@@ -128,3 +128,54 @@ test("a program-day edit is applied once and paused bench needs confirmation aft
   });
   expect(data.workouts).toHaveLength(0);
 });
+
+test("a bench increase waits for technique confirmation and changes only the next target", async ({
+  page,
+}) => {
+  const startedAt = new Date(2026, 10, 16, 10).getTime();
+  await page.clock.setFixedTime(new Date(2026, 10, 23, 12));
+  await seedRevisionedFitCoreState(
+    page,
+    currentFitCoreState({
+      onboardingComplete: true,
+      workouts: [
+        {
+          id: "synthetic-bench-complete",
+          name: "Upper A",
+          templateId: "bench-strength-upper-lower-v1-upper-a",
+          startedAt,
+          endedAt: startedAt + 900_000,
+          exercises: [
+            {
+              id: "logged-bench",
+              exerciseId: "bench-press",
+              completed: true,
+              target: { targetWeightLb: 195, sets: 4, reps: "4" },
+              sets: Array.from({ length: 4 }, (_, index) => ({
+                id: `bench-set-${index}`,
+                weight: 195,
+                reps: 4,
+                completed: true,
+              })),
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  await openTraining(page);
+  const nextTarget = page.getByLabel("Next bench target in pounds");
+  await expect(nextTarget).toHaveValue("200");
+  const apply = page.getByRole("button", { name: "Apply target" });
+  await expect(apply).toBeDisabled();
+  await page
+    .getByRole("checkbox", { name: "My technique was controlled and I had about 1–2 reps left" })
+    .check();
+  await nextTarget.fill("197.5");
+  await apply.click();
+  await expect(page.getByText("4 × 4 at 197.5 lb", { exact: true })).toBeVisible();
+  const persisted = await readPersistedFitCoreState(page);
+  expect(persisted.workouts[0].exercises[0].target?.targetWeightLb).toBe(195);
+  expect(persisted.workouts[0].exercises[0].sets.every((set) => set.weight === 195)).toBe(true);
+  expect(persisted.workoutTemplates[0].reviewedBenchWorkoutId).toBe("synthetic-bench-complete");
+});

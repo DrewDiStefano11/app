@@ -1,6 +1,11 @@
 import { useState, type FormEvent } from "react";
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
-import { exerciseById, MAX_WORKOUT_TEMPLATE_SETS, type TemplateExercise } from "@/lib/data";
+import {
+  exerciseById,
+  MAX_WORKOUT_TEMPLATE_SETS,
+  tracksWorkoutMinutes,
+  type TemplateExercise,
+} from "@/lib/data";
 import { uid, useStore } from "@/lib/store";
 import type { WorkoutTemplateReference } from "@/lib/types";
 import { ExercisePicker } from "./active-workout";
@@ -273,8 +278,22 @@ export function WorkoutTemplateEditor({
         onClose={() => setPickerOpen(false)}
         customExercises={state.customExercises}
         onPick={(exerciseId) => {
-          if (replacing) updateExercise(replacing, { exerciseId, startsWeek: undefined });
-          else setExercises((rows) => [...rows, { key: uid(), exerciseId, sets: "1", reps: "" }]);
+          if (replacing) {
+            const definition =
+              exerciseById(exerciseId) ??
+              state.customExercises.find((row) => row.id === exerciseId);
+            const original = exercises.find((row) => row.key === replacing);
+            if (original?.exerciseId !== exerciseId) {
+              const timed = tracksWorkoutMinutes(definition);
+              updateExercise(replacing, {
+                exerciseId,
+                startsWeek: undefined,
+                targetWeightLb: undefined,
+                notes: undefined,
+                ...(timed ? { reps: "" } : { targetMinutes: undefined }),
+              });
+            }
+          } else setExercises((rows) => [...rows, { key: uid(), exerciseId, sets: "1", reps: "" }]);
           setPickerOpen(false);
         }}
       />

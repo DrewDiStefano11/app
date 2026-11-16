@@ -156,7 +156,15 @@ export function configuredBenchDay(
   references: WorkoutTemplateReference[],
 ): BenchDay {
   const custom = references.find((row) => row.id === day.id);
-  return custom?.plan ? { ...day, ...custom.plan, name: custom.name } : day;
+  if (!custom?.plan) return day;
+  const durationMin = custom.plan.durationMin;
+  const durationLabel =
+    durationMin === day.durationMin
+      ? day.durationLabel
+      : durationMin
+        ? `${durationMin} min`
+        : undefined;
+  return { ...day, ...custom.plan, name: custom.name, durationLabel };
 }
 
 export function benchDayReference(
@@ -202,6 +210,8 @@ export function nextBenchSuggestion(day: BenchDay, workouts: Workout[], reviewed
   const sets = bench.sets.filter(
     (set) =>
       set.modifier !== "warmup" &&
+      set.modifier !== "failure" &&
+      set.modifier !== "partials" &&
       set.completed &&
       (set.reps ?? 0) >= reps &&
       (set.weight ?? 0) >= weightLb,

@@ -25,6 +25,7 @@ export function BenchProgram({ onStart }: { onStart: () => void }) {
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [editor, setEditor] = useState<WorkoutTemplateReference | null>(null);
   const [recommendation, setRecommendation] = useState<string | null>(null);
+  const [confirmedProgression, setConfirmedProgression] = useState<string | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
   useEffect(() => {
     const refresh = () => setDate(new Date());
@@ -42,8 +43,10 @@ export function BenchProgram({ onStart }: { onStart: () => void }) {
   const day = configuredBenchDay(defaultDay, state.workoutTemplates);
   const comfortable = previous?.pausedBenchConfirmed ?? false;
   const hasDelayedRow = day.exercises.some((row) => (row.startsWeek ?? Infinity) <= week);
-  const suggestion = week <= BENCH_PHASE_WEEKS
-    ? nextBenchSuggestion(day, state.workouts, previous?.reviewedBenchWorkoutId) : undefined;
+  const suggestion =
+    week <= BENCH_PHASE_WEEKS
+      ? nextBenchSuggestion(day, state.workouts, previous?.reviewedBenchWorkoutId)
+      : undefined;
   const proposal = recommendation ?? String(suggestion?.weightLb ?? "");
   const rest = defaultDay === BENCH_PROGRAM[6];
 
@@ -80,6 +83,7 @@ export function BenchProgram({ onStart }: { onStart: () => void }) {
         onChange={(event) => {
           setSelectedDay(event.target.value === "today" ? null : Number(event.target.value));
           setRecommendation(null);
+          setConfirmedProgression(null);
           setSaveFailed(false);
         }}
       >
@@ -172,9 +176,24 @@ export function BenchProgram({ onStart }: { onStart: () => void }) {
             value={proposal}
             onChange={(event) => setRecommendation(event.target.value)}
           />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={confirmedProgression === suggestion.workoutId}
+              onChange={(event) =>
+                setConfirmedProgression(event.target.checked ? suggestion.workoutId : null)
+              }
+            />
+            My technique was controlled and I had about 1–2 reps left
+          </label>
           <div className="flex flex-wrap gap-2">
             <PrimaryButton
-              disabled={!proposal || !Number.isFinite(Number(proposal)) || Number(proposal) <= 0}
+              disabled={
+                confirmedProgression !== suggestion.workoutId ||
+                !proposal ||
+                !Number.isFinite(Number(proposal)) ||
+                Number(proposal) <= 0
+              }
               onClick={() =>
                 saveReference((reference) => ({
                   ...reference,
