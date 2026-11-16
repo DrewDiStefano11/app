@@ -194,9 +194,8 @@ test("nutrition analytics use real logged-day totals and averages", () => {
   assert.equal(analytics.calories7dAverage.value, 1650);
   assert.equal(analytics.protein7dAverage.value, 130);
   assert.equal(analytics.calories7dAverage.sampleSize, 2);
-  assert.equal(analytics.adherenceScore.status, "ready");
-  assert.ok((analytics.adherenceScore.value ?? -1) >= 0);
-  assert.ok((analytics.adherenceScore.value ?? 101) <= 100);
+  assert.equal(analytics.adherenceScore.status, "needs_more_data");
+  assert.equal(analytics.adherenceScore.value, null);
   assertNoInvalidNumbers(analytics);
 });
 
@@ -742,4 +741,24 @@ test("identical input produces byte-stable structured analytics output", () => {
   const second = getCoreDomainAnalytics(structuredClone(state), NOW);
   assert.equal(JSON.stringify(first), JSON.stringify(second));
   assert.deepEqual(first, second);
+});
+
+test("adherence retains only the meals used in the seven completed calendar days", () => {
+  const complete = [8, 10, 13].flatMap((date) =>
+    ["breakfast", "lunch", "dinner"].map((type, index) =>
+      meal(`${date}-${type}`, localTime(2026, 0, date, 8 + index * 5), { type }),
+    ),
+  );
+  const state = makeState({
+    mealEntries: [
+      ...complete,
+      meal("unconfirmed", complete[0].createdAt, { type: "breakfast", confirmed: false }),
+      meal("future", localTime(2026, 0, 15, 21)),
+    ],
+  });
+  const nutrition = getNutritionAnalytics(state, NOW);
+  assert.equal(nutrition.adherenceScore.status, "ready");
+  assert.equal(nutrition.adherenceScore.sampleSize, 3);
+  assert.deepEqual(nutrition.adherenceScore.source.entryIds, complete.map((entry) => entry.id).sort());
+  assert.equal(todayMealTotals(state, NOW).calories, 0);
 });

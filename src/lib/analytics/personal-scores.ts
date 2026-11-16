@@ -223,7 +223,7 @@ function trainingScore(state: AppState, all: Workout[], now: number) {
   );
 }
 
-function nutritionScore(state: AppState, now: number) {
+export function calculateNutritionAdherence(state: AppState, now: number) {
   const recorded = state.mealEntries
     .map((meal) => ({ ...meal, at: meal.createdAt }))
     .filter(
@@ -236,9 +236,9 @@ function nutritionScore(state: AppState, now: number) {
         Number.isFinite(meal.protein) &&
         meal.protein >= 0,
     );
-  const current = recorded.filter(
-    (meal) => recent(meal, now, 7) && dayKey(meal.at) !== dayKey(now),
-  );
+  const oldestDay = addCalendarDays(now, -7);
+  const today = startOfDay(now);
+  const current = recorded.filter((meal) => meal.at >= oldestDay && meal.at < today);
   const byDay = new Map<string, typeof current>();
   for (const meal of current) {
     const key = dayKey(meal.at);
@@ -262,30 +262,24 @@ function nutritionScore(state: AppState, now: number) {
         }),
       )
     : null;
-  return metric(
+  const entries = available ? complete.flat() : recorded.filter((meal) => meal.at >= oldestDay);
+  const evidence = entries.length ? entries : recorded;
+  const status = available
+    ? "available"
+    : entries.length
+      ? "limited"
+      : recorded.length
+        ? "stale"
+        : "unavailable";
+  const score = metric(
     state.demoMode,
-    available
-      ? "available"
-      : recorded.some((row) => recent(row, now, 7))
-        ? "limited"
-        : recorded.length
-          ? "stale"
-          : "unavailable",
+    status,
     value,
-    [
-      source(
-        "Recorded meals",
-        available ? complete.flat() : current.length ? current : recorded,
-        state.demoMode,
-      ),
-    ],
-    available
-      ? []
-      : [
-          "Record breakfast, lunch and dinner on three recent days and set calorie and protein targets",
-        ],
+    [source("Recorded meals", evidence, state.demoMode)],
+    available ? [] : ["Record breakfast, lunch and dinner on three recent days and set calorie and protein targets"],
     "An estimate of calorie and protein target adherence on days with all three main meals recorded. Partial days and today are excluded.",
   );
+  return { score, entries, completeDays: complete.length };
 }
 
 function recoveryEstimate(state: AppState, readiness: PersonalScore, all: Workout[], now: number) {
@@ -436,7 +430,7 @@ export function calculatePersonalScores(state: AppState, now = Date.now()) {
   const readiness = readinessEstimate(state, now);
   const workouts = trainingEvidence(state, now);
   const training = trainingScore(state, workouts, now);
-  const nutrition = nutritionScore(state, now);
+  const { score: nutrition } = calculateNutritionAdherence(state, now);
   const recovery = recoveryEstimate(state, readiness, workouts, now);
   const progress = progressEstimate(state, workouts, now);
   const performance = combined(

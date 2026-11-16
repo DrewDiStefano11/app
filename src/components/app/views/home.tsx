@@ -181,12 +181,13 @@ function HomeDailyView({
   const [heatMode] = usePersistentState<HeatMode>("heatmap.mode", "load");
   const loadMap = useMemo(() => muscleMap(view, heatMode), [view, heatMode]);
   const [volumeMode] = usePersistentState<string>(GRAPH_PREFS.volumeMode, "total");
-  const meals = useMemo(() => todayMealTotals(view), [view]);
+  const now = Date.now();
+  const meals = todayMealTotals(view, now);
   const weekVol = useMemo(() => totalVolumeInRange(view, 7), [view]);
   const lastWeekVol = useMemo(() => totalVolumeInRange(view, 14) - weekVol, [view, weekVol]);
   const volDelta = lastWeekVol > 0 && weekVol > 0 ? Math.round(((weekVol - lastWeekVol) / lastWeekVol) * 100) : null;
   const targets = state.nutritionTargets;
-  const hasMealsToday = view.mealEntries.some((meal) => isToday(meal.createdAt));
+  const hasMealsToday = view.mealEntries.some((meal) => isToday(meal.createdAt) && meal.createdAt <= now);
   const kcalPct =
     targets.calories > 0 ? Math.min(100, Math.round((meals.calories / targets.calories) * 100)) : 0;
   const proteinPct =

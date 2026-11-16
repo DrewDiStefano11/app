@@ -101,3 +101,30 @@ test("sleep requires recorded hours and confirmation", async ({ page }) => {
   await expect(sheet).not.toBeVisible();
   await expect(page.getByRole("button", { name: /Readiness.*70.*Limited data/i })).toBeVisible();
 });
+
+test("nutrition chart leaves unlogged days blank and averages only recorded days", async ({ page }) => {
+  await page.clock.setFixedTime(now);
+  await seedRevisionedFitCoreState(page, currentFitCoreState({
+    onboardingComplete: true,
+    mealEntries: [{
+      id: "prior-breakfast",
+      type: "breakfast",
+      name: "Logged breakfast",
+      calories: 425,
+      protein: 28,
+      carbs: 46,
+      fat: 14,
+      createdAt: now - 2 * 86_400_000,
+    }],
+  }));
+  await expectDashboardReady(page);
+  await page.locator(".home-section-card--macros").click();
+  const sheet = page.locator(".sheet-surface").filter({ hasText: "Recorded values by date" });
+  await expect(sheet.getByText("No meals logged today", { exact: true })).toBeVisible();
+  await sheet.getByText("Recorded values by date").click();
+  await expect(sheet.getByText(/425 kcal · 1 logged day/)).toBeVisible();
+  await expect(sheet.getByRole("listitem").filter({ hasText: / · —$/ })).toHaveCount(6);
+  await sheet.getByRole("button", { name: "weekly", exact: true }).click();
+  await expect(sheet.getByText("Average calories per logged day")).toBeVisible();
+  await expect(sheet.getByText(/425 kcal · 1 logged day/)).toBeVisible();
+});

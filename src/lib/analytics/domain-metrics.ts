@@ -1,5 +1,5 @@
 import type { AppState, RecoveryCheckIn, Workout } from "../types";
-import { calculateRecoveryEstimate } from "./personal-scores";
+import { calculateNutritionAdherence, calculateRecoveryEstimate } from "./personal-scores";
 import { calculateWorkoutVolume, recordedRecoveryCheckIns, recoveryCheckInReadinessScore } from "./observed-fitness";
 export { calculateSetVolume, calculateWorkoutVolume, recoveryCheckInReadinessScore } from "./observed-fitness";
 import {
@@ -1417,23 +1417,9 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
     .filter((target) => target.value !== null)
     .map((target) => target.value as number);
 
-  const adherenceValues: number[] = [];
-  for (const day of dailyTotals) {
-    const components: number[] = [];
-    const proteinGoal = proteinTargetValue;
-    if (calorieTargetValue > 0) {
-      components.push(
-        clampPercent(
-          100 - safeRatio(Math.abs(day.calories - calorieTargetValue), calorieTargetValue) * 100,
-        ),
-      );
-    }
-    if (proteinGoal > 0) {
-      components.push(clampPercent(safeRatio(day.protein, proteinGoal) * 100));
-    }
-    if (components.length) adherenceValues.push(safeAverage(components));
-  }
-  const hasAdherenceTargets = calorieTargetValue > 0 || proteinTargetValue > 0;
+  const { score: adherence, entries: adherenceMeals, completeDays: adherenceDays } =
+    calculateNutritionAdherence(state, now);
+  const hasAdherenceTargets = calorieTargetValue > 0 && proteinTargetValue > 0;
   const averageDirection = (current: number | null, previous: number | null): TrendDirection =>
     current === null || previous === null
       ? "unknown"
@@ -1632,15 +1618,13 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
       label: "Nutrition adherence score",
       domain: "nutrition",
       unit: "score_0_100",
-      value: adherenceValues.length ? clampScore(safeAverage(adherenceValues)) : null,
-      status: !hasAdherenceTargets ? "unavailable" : recentStatus,
-      confidence: confidenceForSample(adherenceValues.length),
-      dateRange: recentRange,
-      sampleSize: adherenceValues.length,
-      reason: !hasAdherenceTargets
-        ? "Calorie and protein targets are zero or not configured."
-        : recentReason,
-      ...nutritionSource(recentMeals, 7),
+      value: adherence.value,
+      status: !hasAdherenceTargets ? "unavailable" : adherence.value === null ? "needs_more_data" : "ready",
+      confidence: adherence.value === null ? "none" : confidenceForSample(adherenceDays),
+      dateRange: calendarDaysWindow(7, now, 1),
+      sampleSize: adherenceDays,
+      reason: adherence.value === null ? adherence.missing.join(". ") : undefined,
+      ...nutritionSource(adherenceMeals, 7),
       targetRequired: true,
       targetAvailable: hasAdherenceTargets,
       partialPeriod: true,

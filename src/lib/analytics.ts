@@ -740,7 +740,7 @@ export function weeklyVolumeSeries(
 
 export function todayMealTotals(state: AppState, now = Date.now()) {
   const range = todayWindow(now);
-  const today = state.mealEntries.filter((m) => dateRangeContains(range, m.createdAt));
+  const today = state.mealEntries.filter((m) => dateRangeContains(range, m.createdAt) && m.createdAt <= now);
   return calculateMealTotals(today);
 }
 
