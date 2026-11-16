@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
+import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 type AiProvider = "groq" | "gemini" | "legacy-lovable";
@@ -667,14 +667,16 @@ export const aiChat = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       if (data.includeWhoop === true) {
+        setResponseHeader("Cache-Control", "no-store");
         const { readWhoopJarvisSnapshot } = await import("./whoop/request.server");
         const { resolveWhoopJarvisContext } = await import("./whoop/jarvis-context.server");
+        const access = await readWhoopJarvisSnapshot(getRequest()).catch(() => null);
         const shared = await resolveWhoopJarvisContext(
           true,
-          () => readWhoopJarvisSnapshot(getRequest()).catch(() => null),
+          async () => access?.snapshot ?? null,
         );
-        if (!shared) {
-          return fail("Recent WHOOP measurements are unavailable. Unlock WHOOP or send without sharing.", "malformed_request");
+        if (!shared || !access || !(await access.isCurrent())) {
+          return fail("Recent WHOOP measurements are unavailable. Check the connection, wait a moment, or send without sharing.", "malformed_request");
         }
         const result = await callChatProvider({
           ...data,
@@ -682,7 +684,11 @@ export const aiChat = createServerFn({ method: "POST" })
           tools: data.tools?.filter((tool) => tool.name.startsWith("get")),
           systemOverride: defaultSystem(data) + "\n\n" + shared.text,
         });
-        return result.ok ? { ...result, whoopExpiresAt: shared.expiresAt } : result;
+        if (!result.ok) return result;
+        if (!(await access.isCurrent())) {
+          return fail("WHOOP measurements changed during this request. Refresh and send again.", "malformed_request");
+        }
+        return { ...result, whoopExpiresAt: shared.expiresAt };
       }
       return await callChatProvider(data);
     } catch {

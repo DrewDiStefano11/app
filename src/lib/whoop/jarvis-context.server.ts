@@ -1,6 +1,6 @@
 import { getWhoopDashboard, type WhoopSnapshot } from "./dashboard";
 
-const freshnessMs = 48 * 60 * 60 * 1000;
+export const whoopJarvisLookbackMs = 48 * 60 * 60 * 1000;
 
 export async function resolveWhoopJarvisContext(
   approved: boolean | undefined,
@@ -14,7 +14,7 @@ export async function resolveWhoopJarvisContext(
 
   const recent = (date: string) => {
     const age = now - Date.parse(date);
-    return age >= 0 && age <= freshnessMs;
+    return age >= 0 && age <= whoopJarvisLookbackMs;
   };
   if (!recent(snapshot.lastSyncedAt)) return null;
 

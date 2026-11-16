@@ -1,11 +1,18 @@
 import type { WhoopTokenPair } from "./oauth.server";
 import { WhoopTokenRateLimit } from "./oauth.server";
-import type { createWhoopStore, WhoopDeletion, WhoopSyncActor } from "./postgres.server";
+import type {
+  createWhoopStore,
+  WhoopDeletion,
+  WhoopSyncActor,
+  WhoopSyncPurpose,
+} from "./postgres.server";
 import type { WhoopSnapshot } from "./dashboard";
+import { whoopJarvisLookbackMs } from "./jarvis-context.server";
 import type { createWhoopTokenVault } from "./token-vault.server";
 import { readWhoopCollectionWithCache, WhoopReadError, type WhoopV2Record } from "./v2.server";
 
-const collections = ["recovery", "sleep", "cycle", "workout"] as const;
+const jarvisCollections = ["recovery", "sleep", "cycle"] as const;
+const dashboardCollections = [...jarvisCollections, "workout"] as const;
 const dayMs = 24 * 60 * 60 * 1000;
 const syncCooldownSeconds = 120;
 // Allow 25 hours for the daily cleanup, six for Neon restore and one for drift.
@@ -41,6 +48,7 @@ type SyncOptions = {
   vault: ReturnType<typeof createWhoopTokenVault>;
   refresh(token: string): Promise<WhoopTokenPair>;
   durableCacheEnabled?: boolean;
+  purpose?: WhoopSyncPurpose;
   fetch?: (url: URL, init: RequestInit) => Promise<Response>;
 };
 
@@ -51,14 +59,15 @@ type SyncOutcome = {
 };
 
 export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Promise<SyncOutcome> {
-  const { store, vault } = options;
+  const { store, vault, purpose = "dashboard" } = options;
   const { ownerId } = actor;
   await store.expireAbandonedRefresh(actor);
-  const claim = await store.claimSync(actor);
+  const claim = await store.claimSync(actor, purpose);
   if (!claim) return { status: 409 };
 
   const { id, syncId } = claim;
   let cooldownSeconds = 30;
+  let cooldownScope: WhoopSyncPurpose | "all" = purpose;
   let finished = false;
   try {
     let pair: WhoopTokenPair;
@@ -96,17 +105,24 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
 
     if (claim.expiresAtMs <= Date.now() + 30_000) await rotate();
     const now = Date.now();
+    const collections = purpose === "jarvis" ? jarvisCollections : dashboardCollections;
+    const lookbackMs = purpose === "jarvis" ? whoopJarvisLookbackMs : 30 * dayMs;
     const window = {
-      start: new Date(now - 30 * dayMs).toISOString(),
+      start: new Date(now - lookbackMs).toISOString(),
       end: new Date(now).toISOString(),
     };
     const signal = AbortSignal.timeout(20_000);
     const collect = async () => {
+      const attempt = new AbortController();
+      const readSignal = AbortSignal.any([signal, attempt.signal]);
       const result = await Promise.allSettled(
         collections.map((kind) =>
           readWhoopCollectionWithCache(kind, pair.accessToken, window, {
             fetch: options.fetch,
-            signal,
+            signal: readSignal,
+          }).catch((error: unknown) => {
+            if (error instanceof WhoopReadError && error.code === "rate_limited") attempt.abort();
+            throw error;
           }),
         ),
       );
@@ -142,9 +158,10 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
     if (new Set(records.map((record) => record.user_id)).size > 1) {
       throw new WhoopReadError("invalid_data");
     }
-    const cacheExpiresAtMs = options.durableCacheEnabled
-      ? Math.min(Date.now() + dayMs, ...pages.map((page) => page.expiresAt - cleanupReserveMs))
-      : 0;
+    const cacheExpiresAtMs =
+      purpose === "dashboard" && options.durableCacheEnabled
+        ? Math.min(Date.now() + dayMs, ...pages.map((page) => page.expiresAt - cleanupReserveMs))
+        : 0;
     const saved = await store.saveSync(
       actor,
       id,
@@ -153,6 +170,7 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
       syncCooldownSeconds,
       claim.eventRevision,
       cacheExpiresAtMs,
+      purpose,
     );
     if (!saved) return { status: 409 };
     finished = true;
@@ -176,6 +194,7 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
   } catch (error) {
     if (error instanceof WhoopReadError && error.code === "rate_limited") {
       cooldownSeconds = Math.max(1, error.retryAfterSeconds ?? 60);
+      cooldownScope = "all";
       return { status: 429, retryAfterSeconds: cooldownSeconds };
     }
     if (error instanceof WhoopReadError && error.code === "unauthorized") {
@@ -185,6 +204,7 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
     return { status: 502 };
   } finally {
     // A successful save already relinquished this claim. A failed cleanup expires with the lease.
-    if (!finished) await store.releaseSync(ownerId, id, syncId, cooldownSeconds).catch(() => {});
+    if (!finished)
+      await store.releaseSync(ownerId, id, syncId, cooldownSeconds, cooldownScope).catch(() => {});
   }
 }

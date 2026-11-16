@@ -4,6 +4,7 @@ import { expect, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import type { WhoopSnapshot } from "../../src/lib/whoop/dashboard";
 import { createWhoopIntegration } from "../../src/lib/whoop/integration.server";
+import { resolveWhoopJarvisContext } from "../../src/lib/whoop/jarvis-context.server";
 import { createWhoopStore } from "../../src/lib/whoop/postgres.server";
 import { createWhoopTokenVault } from "../../src/lib/whoop/token-vault.server";
 
@@ -15,6 +16,7 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
       "002-sync.sql",
       "003-webhooks.sql",
       "004-cache.sql",
+      "005-jarvis-read.sql",
     ]) {
       await db.exec(
         await readFile(new URL("../../db/whoop/" + migration, import.meta.url), "utf8"),
@@ -103,6 +105,7 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
     let fetched = 0;
     let regenerated = false;
     let restricted = false;
+    let jarvisRead = false;
     const integration = createWhoopIntegration({
       store,
       origin,
@@ -111,18 +114,27 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
       ownerKeyDigest,
       clientId: "synthetic-client",
       snapshotCacheEnabled: true,
+      jarvisSharingEnabled: true,
       background: { store, cronSecret },
       fetch: async (url, init) => {
         expect(new Headers(init.headers).get("Authorization")).toBe("Bearer synthetic-access");
         fetched++;
         const pathname = new URL(url).pathname;
+        if (jarvisRead) {
+          expect(pathname.endsWith("/workout")).toBe(false);
+          expect(Date.parse(new URL(url).searchParams.get("start")!)).toBeGreaterThan(
+            Date.now() - 49 * 3600000,
+          );
+        }
         const records = pathname.endsWith("/recovery")
           ? [recovery]
           : pathname.endsWith("/sleep")
             ? [sleep]
             : pathname.endsWith("/workout")
               ? [workout]
-              : [];
+              : jarvisRead
+                ? [{ ...base, id: 12, start: at, score: { strain: 8 } }]
+                : [];
         return Response.json(
           {
             records: regenerated
@@ -234,13 +246,32 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
     );
     expect(await persisted.json()).toBeNull();
 
+    const jarvisRequest = () =>
+      new Request(origin + "/_serverFn/jarvis", { method: "POST", headers: browser });
+    const beforeJarvis = await store.getConnection(owner);
+    jarvisRead = true;
+    const access = await integration.jarvisSnapshot(jarvisRequest());
+    const shared = await resolveWhoopJarvisContext(true, async () => access?.snapshot ?? null);
+    expect(shared?.text).toContain("Daily Strain 8");
+    expect(shared?.text).not.toContain("WHOOP Recovery 74%");
+    expect(shared?.text).not.toContain("Sleep performance 98%");
+    expect(await integration.jarvisSnapshot(jarvisRequest())).toBeNull();
+    expect(await store.getSnapshot(session)).toBeNull();
+    expect((await store.getConnection(owner))?.lastSyncedAt).toBe(beforeJarvis?.lastSyncedAt);
+    expect(await access?.isCurrent()).toBe(true);
+    expect(
+      (await integration.webhook(hook("new-event", "workout.updated", workoutId))).status,
+    ).toBe(204);
+    expect(await access?.isCurrent()).toBe(false);
+    jarvisRead = false;
+
     await db.exec("update fitcore_whoop.connections set sync_after = null");
     await store.deleteSession(session.id);
     restricted = false;
     const daily = await integration.reconcile(cron(cronSecret));
     expect(daily.status).toBe(204);
     expect(await daily.text()).toBe("");
-    expect(fetched).toBe(12);
+    expect(fetched).toBe(15);
 
     const replacementSession = await store.createSession(owner, "logout-proof", 600);
     expect((await store.getSnapshot(replacementSession))?.records.map((row) => row.kind)).toEqual([
@@ -259,7 +290,7 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
     await store.finishDisconnect(owner, id, disconnected.disconnectId);
     expect((await db.query("select trace_id from fitcore_whoop.webhook_events")).rows).toEqual([]);
     await integration.webhook(hook("late-replay", "workout.updated", workoutId));
-    expect(fetched).toBe(16);
+    expect(fetched).toBe(19);
   } finally {
     await db.close();
   }

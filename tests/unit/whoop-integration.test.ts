@@ -10,7 +10,7 @@ function harness(jarvisSharingEnabled = true) {
   let sessions = 0;
   let attemptProof: string | undefined;
   let tokenRequests = 0;
-  let snapshotReads = 0;
+  let jarvisClaims = 0;
   const sessionByDigest = new Map<string, { id: string; ownerId: string }>();
   const integration = createWhoopIntegration({
     origin,
@@ -67,10 +67,13 @@ function harness(jarvisSharingEnabled = true) {
         return null;
       },
       async getSnapshot() {
-        snapshotReads++;
         return null;
       },
-      async claimSync() {
+      async isLiveVersionCurrent() {
+        return false;
+      },
+      async claimSync(_, purpose) {
+        if (purpose === "jarvis") jarvisClaims++;
         return null;
       },
       async expireAbandonedRefresh() {},
@@ -103,8 +106,8 @@ function harness(jarvisSharingEnabled = true) {
     get tokenRequests() {
       return tokenRequests;
     },
-    get snapshotReads() {
-      return snapshotReads;
+    get jarvisClaims() {
+      return jarvisClaims;
     },
   };
 }
@@ -133,9 +136,9 @@ test("Jarvis can only load WHOOP metrics for an active owner session and same-or
       headers: { Cookie: session, Origin: origin },
     }),
   );
-  expect(h.snapshotReads).toBe(0);
+  expect(h.jarvisClaims).toBe(0);
   await h.integration.jarvisSnapshot(post("/_serverFn/example", session));
-  expect(h.snapshotReads).toBe(1);
+  expect(h.jarvisClaims).toBe(1);
   await h.integration.session(
     new Request(origin + "/api/whoop/session", {
       method: "DELETE",
@@ -143,7 +146,7 @@ test("Jarvis can only load WHOOP metrics for an active owner session and same-or
     }),
   );
   await h.integration.jarvisSnapshot(post("/_serverFn/example", session));
-  expect(h.snapshotReads).toBe(1);
+  expect(h.jarvisClaims).toBe(1);
 });
 
 test("Jarvis cannot load WHOOP metrics when deployment sharing is disabled", async () => {
@@ -152,7 +155,7 @@ test("Jarvis cannot load WHOOP metrics when deployment sharing is disabled", asy
     post("/api/whoop/session", undefined, new URLSearchParams({ access_key: ownerKey })),
   );
   expect(await h.integration.jarvisSnapshot(post("/_serverFn/example", cookie(login)))).toBeNull();
-  expect(h.snapshotReads).toBe(0);
+  expect(h.jarvisClaims).toBe(0);
 });
 
 test("sync and health records require an owner session, and sync rejects cross-origin requests", async () => {

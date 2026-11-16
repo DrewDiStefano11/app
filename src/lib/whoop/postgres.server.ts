@@ -21,6 +21,7 @@ type Connection = {
 
 export type WhoopBackgroundConnection = { ownerId: string; connectionId: string };
 export type WhoopSyncActor = WhoopSession | WhoopBackgroundConnection;
+export type WhoopSyncPurpose = "dashboard" | "jarvis";
 export type WhoopDeletion = {
   type: "workout.deleted" | "sleep.deleted" | "recovery.deleted";
   recordId: string;
@@ -167,7 +168,21 @@ export function createWhoopStore(query: Query) {
       return snapshot ?? null;
     },
 
-    async claimSync(actor: WhoopSyncActor) {
+    async isLiveVersionCurrent(session: WhoopSession, version: string) {
+      const [row] = await query<{ current: boolean }>(
+        `select exists (
+           select 1 from fitcore_whoop.connections connection
+           join fitcore_whoop.sessions browser_session on browser_session.owner_id = connection.owner_id
+           where connection.owner_id = $1 and connection.status = 'connected'
+             and browser_session.id = $2 and browser_session.expires_at > now()
+             and connection.id::text || ':' || connection.event_revision::text = $3
+         ) as current`,
+        [session.ownerId, session.id, version],
+      );
+      return row?.current === true;
+    },
+
+    async claimSync(actor: WhoopSyncActor, purpose: WhoopSyncPurpose = "dashboard") {
       const [claim] = await query<{
         id: string;
         envelope: string;
@@ -180,14 +195,15 @@ export function createWhoopStore(query: Query) {
          set sync_id = $4, sync_started_at = now()
          where owner_id = $1 and status = 'connected' and refresh_id is null
            and (sync_id is null or sync_started_at <= now() - interval '90 seconds')
-           and (sync_after is null or sync_after <= now())
+           and coalesce(case when $5 = 'jarvis' then jarvis_after else sync_after end, '-infinity') <= now()
+           and ($5 <> 'jarvis' or $3 = 'session')
            and (($3 = 'connection' and id = $2) or
              ($3 = 'session' and exists (select 1 from fitcore_whoop.sessions
                where owner_id = $1 and id = $2 and expires_at > now())))
          returning id, token_envelope as envelope, revision, sync_id as "syncId",
            event_revision as "eventRevision",
            (extract(epoch from expires_at) * 1000)::float8 as "expiresAtMs"`,
-        [actor.ownerId, ...syncPrincipal(actor), randomUUID()],
+        [actor.ownerId, ...syncPrincipal(actor), randomUUID(), purpose],
       );
       return claim ?? null;
     },
@@ -214,8 +230,9 @@ export function createWhoopStore(query: Query) {
       cooldownSeconds: number,
       eventRevision: number,
       cacheExpiresAtMs: number,
+      purpose: WhoopSyncPurpose = "dashboard",
     ) {
-      const durable = cacheExpiresAtMs > Date.now();
+      const durable = purpose === "dashboard" && cacheExpiresAtMs > Date.now();
       const [saved] = await query<{
         lastSyncedAt: string;
         accessExpiresAt: string | null;
@@ -223,7 +240,7 @@ export function createWhoopStore(query: Query) {
       }>(
         `with saved as (
          update fitcore_whoop.connections connection
-         set snapshot = case when $10::float8 = 0 then null else (
+         set snapshot = case when $11 = 'jarvis' then snapshot when $10::float8 = 0 then null else (
                select coalesce(jsonb_agg(item.record order by item.position), '[]'::jsonb)
                from jsonb_array_elements(nullif($4, '')::jsonb) with ordinality as item(record, position)
                where not exists (
@@ -234,20 +251,22 @@ export function createWhoopStore(query: Query) {
                    and (${webhookDeletesRecord})
                )
              ) end,
-             snapshot_expires_at = to_timestamp(nullif($10::float8, 0) / 1000),
+             snapshot_expires_at = case when $11 = 'jarvis' then snapshot_expires_at
+               else to_timestamp(nullif($10::float8, 0) / 1000) end,
              provider_user_id = coalesce(provider_user_id, nullif($8, '')),
-             last_synced_at = now(),
+             last_synced_at = case when $11 = 'jarvis' then last_synced_at else now() end,
              sync_id = null, sync_started_at = null,
-             sync_after = now() + $5 * interval '1 second'
+             sync_after = case when $11 = 'jarvis' then sync_after else now() + $5 * interval '1 second' end,
+             jarvis_after = case when $11 = 'jarvis' then now() + $5 * interval '1 second' else jarvis_after end
          where owner_id = $1 and id = $2 and sync_id = $3 and status = 'connected'
            and event_revision = $9
            and (provider_user_id is null or $8 = '' or provider_user_id = $8)
            and (($7 = 'connection' and id = $6) or
              ($7 = 'session' and exists (select 1 from fitcore_whoop.sessions
                where owner_id = $1 and id = $6 and expires_at > now())))
-         returning id, provider_user_id, last_synced_at
+         returning id, provider_user_id
         )
-        select to_char(saved.last_synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "lastSyncedAt",
+        select to_char(now() at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "lastSyncedAt",
           to_char(browser_session.expires_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "accessExpiresAt",
           case when browser_session.id is null then '[]'::jsonb else (
             select coalesce(jsonb_agg(jsonb_build_object(
@@ -272,6 +291,7 @@ export function createWhoopStore(query: Query) {
           records[0]?.user_id ?? "",
           eventRevision,
           durable ? cacheExpiresAtMs : 0,
+          purpose,
         ],
       );
       return saved ?? null;
@@ -344,13 +364,22 @@ export function createWhoopStore(query: Query) {
       );
     },
 
-    async releaseSync(ownerId: string, id: string, syncId: string, cooldownSeconds: number) {
+    async releaseSync(
+      ownerId: string,
+      id: string,
+      syncId: string,
+      cooldownSeconds: number,
+      scope: WhoopSyncPurpose | "all" = "dashboard",
+    ) {
       await query(
         `update fitcore_whoop.connections
          set sync_id = null, sync_started_at = null,
-             sync_after = now() + $4 * interval '1 second'
+             sync_after = case when $5 in ('dashboard', 'all')
+               then greatest(sync_after, now() + $4 * interval '1 second') else sync_after end,
+             jarvis_after = case when $5 in ('jarvis', 'all')
+               then greatest(jarvis_after, now() + $4 * interval '1 second') else jarvis_after end
          where owner_id = $1 and id = $2 and sync_id = $3 and status = 'connected'`,
-        [ownerId, id, syncId, cooldownSeconds],
+        [ownerId, id, syncId, cooldownSeconds, scope],
       );
     },
 

@@ -1,6 +1,6 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createWhoopOAuthClient, handleWhoopCallback } from "./oauth.server";
-import type { createWhoopStore, WhoopSyncActor } from "./postgres.server";
+import type { createWhoopStore, WhoopSyncActor, WhoopSyncPurpose } from "./postgres.server";
 import { syncWhoop, type WhoopSyncStore } from "./sync.server";
 import { createWhoopTokenVault } from "./token-vault.server";
 import { verifyWhoopWebhook } from "./webhook.server";
@@ -44,6 +44,7 @@ type WhoopIntegrationConfig = {
     | "saveConnection"
     | "getConnection"
     | "getSnapshot"
+    | "isLiveVersionCurrent"
     | "cancelPendingAttempt"
     | "claimDisconnect"
     | "claimDisconnectRefresh"
@@ -102,11 +103,12 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
     return new URL(request.url).origin === origin && request.headers.get("Origin") === origin;
   }
 
-  const runSync = (actor: WhoopSyncActor) =>
+  const runSync = (actor: WhoopSyncActor, purpose: WhoopSyncPurpose = "dashboard") =>
     syncWhoop(actor, {
       store,
       vault,
       refresh: client.refresh,
+      purpose,
       durableCacheEnabled:
         config.snapshotCacheEnabled === true &&
         /^[A-Za-z0-9_-]{32,128}$/.test(config.background?.cronSecret ?? ""),
@@ -315,7 +317,18 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
       )
         return null;
       const session = await getSession(request);
-      return session ? store.getSnapshot(session) : null;
+      if (!session) return null;
+      const { live } = await runSync(session, "jarvis");
+      if (!live) return null;
+      return {
+        snapshot: live,
+        async isCurrent() {
+          return (
+            Date.parse(live.accessExpiresAt) > Date.now() &&
+            (await store.isLiveVersionCurrent(session, live.version))
+          );
+        },
+      };
     },
   };
 }

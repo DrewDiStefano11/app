@@ -12,6 +12,7 @@ test("Postgres isolates sessions, claims state once and atomically rotates token
       "002-sync.sql",
       "003-webhooks.sql",
       "004-cache.sql",
+      "005-jarvis-read.sql",
     ]) {
       const migration = new URL("../../db/whoop/" + file, import.meta.url);
       await database.exec(await readFile(migration, "utf8"));

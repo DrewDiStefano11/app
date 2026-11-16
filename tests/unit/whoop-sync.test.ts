@@ -13,6 +13,7 @@ test("rotates credentials once and atomically reconciles corrections and deletio
       "002-sync.sql",
       "003-webhooks.sql",
       "004-cache.sql",
+      "005-jarvis-read.sql",
     ]) {
       await db.exec(
         await readFile(new URL("../../db/whoop/" + migration, import.meta.url), "utf8"),
@@ -40,6 +41,7 @@ test("rotates credentials once and atomically reconciles corrections and deletio
       0,
     );
     let rotations = 0;
+    let interruptedSibling: AbortSignal | undefined;
     let mode: "initial" | "interrupted" | "corrected" = "initial";
     const options = {
       store,
@@ -54,6 +56,9 @@ test("rotates credentials once and atomically reconciles corrections and deletio
         expect(new Headers(options.headers).get("Authorization")).toBe("Bearer new");
         if (mode === "interrupted" && url.pathname.endsWith("/workout")) {
           return new Response(null, { status: 429, headers: { "Retry-After": "120" } });
+        }
+        if (mode === "interrupted" && url.pathname.endsWith("/recovery")) {
+          interruptedSibling = options.signal ?? undefined;
         }
         const recovery = {
           user_id: 7,
@@ -94,6 +99,8 @@ test("rotates credentials once and atomically reconciles corrections and deletio
     await clearCooldown();
     mode = "interrupted";
     expect(await syncWhoop(session, options)).toEqual({ status: 429, retryAfterSeconds: 120 });
+    expect(interruptedSibling?.aborted).toBe(true);
+    expect(await syncWhoop(session, { ...options, purpose: "jarvis" })).toEqual({ status: 409 });
     expect(await store.getSnapshot(session)).toEqual(firstSnapshot);
     expect((await syncWhoop(session, options)).status).toBe(409);
 
