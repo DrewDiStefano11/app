@@ -230,3 +230,22 @@ test("a meal portion follow-up needs a specific saved meal and compatible units"
     args: { id: "meal-1", index: 1, quantity: 2, unit: "cup" },
   });
 });
+
+test("known foods with compatible portions resolve to the FitCore nutrition library", () => {
+  const state = structuredClone(defaultState);
+  const text = "I ate a banana and two slices of whole wheat bread.";
+  expect(interpretJarvisText(text, state)).toMatchObject({
+    tool: "logReferenceMeal",
+    args: {
+      calories: 265,
+      protein: 9,
+      carbs: 55,
+      fat: 3,
+      items: [
+        { name: "Banana", calories: 105 },
+        { name: "Whole Wheat Bread", calories: 160 },
+      ],
+    },
+  });
+  expect(interpretJarvisText("I ate a banana and a protein shake.", state)).toBeUndefined();
+});

@@ -48,6 +48,7 @@ function toolLabel(tool: string) {
     logSupplement: "Supplement",
     logDailyCheckIn: "Daily check-in",
     logMeal: "Meal",
+    logReferenceMeal: "Meal",
     logUsualMeal: "Usual meal",
     saveUsualMeal: "Usual meal",
     createWorkoutDraft: "Workout",
@@ -67,8 +68,8 @@ export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
   const pending = result.needsConfirmation && result.ok;
   const done = !result.needsConfirmation && result.ok && Boolean(result.auditId);
   const failed = !result.ok;
-  const meal = (tool === "logMeal" || tool === "logUsualMeal") && isMealData(result.data) ? result.data : null;
-  const canEditPortions = pending && tool === "logMeal" && Boolean(meal?.items?.length);
+  const meal = (tool === "logMeal" || tool === "logReferenceMeal" || tool === "logUsualMeal") && isMealData(result.data) ? result.data : null;
+  const canEditPortions = pending && (tool === "logMeal" || tool === "logReferenceMeal") && Boolean(meal?.items?.length);
   const invalidPortions = canEditPortions && Object.values(portions).some(value =>
     !value.trim() || !Number.isFinite(Number(value)) || Number(value) <= 0 || Number(value) > 10);
   const scaledItems = canEditPortions && !invalidPortions
@@ -106,8 +107,8 @@ export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
       {meal && totals && (
 
         <div className="rounded-xl bg-[var(--surface)] p-2 space-y-1.5">
-          {tool === "logMeal" && <p className="text-xs text-muted-foreground">
-            {changedPortions ? "AI estimate with edited portions" : "AI-estimated nutrition"}
+          {(tool === "logMeal" || tool === "logReferenceMeal") && <p className="text-xs text-muted-foreground">
+            {tool === "logReferenceMeal" ? "FitCore food library estimate" : changedPortions ? "AI estimate with edited portions" : "AI-estimated nutrition"}
           </p>}
           <div className="grid grid-cols-4 gap-1 text-center">
             <Macro label="kcal" v={totals.calories ?? 0} />

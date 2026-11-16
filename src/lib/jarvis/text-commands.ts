@@ -1,3 +1,4 @@
+import { queryLibraryMeal } from "./food-reference";
 import { queryMealPortion } from "./meal-portion";
 import { queryRecoveryText } from "./recovery-text";
 import { queryBenchHistory, queryTrainingText, type BenchDate } from "./workout-queries";
@@ -477,6 +478,9 @@ export function interpretJarvisText(
 
   const training = queryTrainingText(text, state, now);
   if (training) return training;
+
+  const referenceMeal = queryLibraryMeal(text, raw);
+  if (referenceMeal) return referenceMeal;
 
   const correction = queryMealPortion(text, state, context.lastMealId);
   if (correction) return correction;

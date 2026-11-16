@@ -63,6 +63,14 @@ const historicalExercise = z.strictObject({
 });
 const workoutPatch = nonempty({ name: label, notes });
 
+const mealDraft = z.strictObject({
+  ...log,
+  ...mealFields,
+  mealType,
+  confidence: confidence.optional(),
+  assumptions: z.array(notes).max(12).optional(),
+});
+
 const schemas: Readonly<Record<string, z.ZodType<Record<string, unknown>>>> = {
   logSleep: z.strictObject({
     ...draft,
@@ -74,13 +82,8 @@ const schemas: Readonly<Record<string, z.ZodType<Record<string, unknown>>>> = {
   logSupplement: z.strictObject({ ...log, name: label, dose: label.optional() }),
   logDailyCheckIn: z.strictObject({ ...log, ...recovery }),
   updateDailyCheckIn: z.strictObject({ ...draft, patch: nonempty({ ...recovery, notes }) }),
-  logMeal: z.strictObject({
-    ...log,
-    ...mealFields,
-    mealType,
-    confidence: confidence.optional(),
-    assumptions: z.array(notes).max(12).optional(),
-  }),
+  logMeal: mealDraft,
+  logReferenceMeal: mealDraft,
   updateMeal: z.strictObject({
     ...draft,
     id,

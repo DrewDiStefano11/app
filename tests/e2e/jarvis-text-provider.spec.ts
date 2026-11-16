@@ -222,3 +222,35 @@ test("temporary credentials and local records stay out of persistent storage and
     "Paste Groq API key",
   );
 });
+
+test("a food library meal can be reviewed and saved without a cloud request", async ({ page }) => {
+  await seedRevisionedFitCoreState(page, currentFitCoreState({ onboardingComplete: true }));
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/_serverFn/")) requests.push(request.url());
+  });
+  await gotoDashboard(page);
+  await page.getByRole("button", { name: "Open AI composer" }).click();
+  await page
+    .getByRole("textbox", { name: "Message Jarvis" })
+    .fill("I ate a banana and two slices of whole wheat bread.");
+  await page.getByRole("button", { name: "Send to Jarvis" }).click();
+  await expect(page.getByText("FitCore food library estimate")).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).mealEntries).toEqual([]);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText(/Logged Banana \+ Whole Wheat Bread.*265 kcal/)).toBeVisible();
+  const saved = await readPersistedFitCoreState(page);
+  expect(saved.mealEntries).toHaveLength(1);
+  expect(saved.mealEntries[0]).toMatchObject({
+    calories: 265,
+    protein: 9,
+    carbs: 55,
+    fat: 3,
+    provenance: {
+      source: "jarvis",
+      confirmation: "confirmed",
+      assumptions: ["Used FitCore food library serving values."],
+    },
+  });
+  expect(requests).toEqual([]);
+});

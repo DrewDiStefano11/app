@@ -524,3 +524,33 @@ test("a confirmed working set starts the same planned rest timer as the workout 
   expect(undoAuditEntry(result.auditId!, fitcore.snapshot(), fitcore.set).ok).toBe(true);
   expect(fitcore.reload().activeWorkout?.restEndsAt).toBeUndefined();
 });
+
+test("mixed AI meal drafts use library values where a food and serving match", () => {
+  const fitcore = storageFixture();
+  const state = fitcore.snapshot();
+  const draft = runTool(
+    "logMeal",
+    {
+      name: "Fruit and shake",
+      mealType: "snack",
+      calories: 400,
+      protein: 30,
+      carbs: 25,
+      fat: 2,
+      items: [
+        { name: "Banana", qty: "1 medium", calories: 300, protein: 0, carbs: 25, fat: 0 },
+        { name: "Protein shake", qty: "1 glass", calories: 100, protein: 30, carbs: 0, fat: 2 },
+      ],
+    },
+    { state, set: fitcore.set, settings: state.jarvisSettings },
+  );
+  expect(draft.needsConfirmation).toBe(true);
+  expect(draft.data).toMatchObject({
+    calories: 205,
+    protein: 31,
+    carbs: 27,
+    fat: 2,
+    assumptions: ["Used FitCore food library values for Banana."],
+  });
+  expect(fitcore.commits).toBe(0);
+});

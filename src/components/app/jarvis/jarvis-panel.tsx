@@ -61,11 +61,16 @@ function normalizedKeyMode(mode: ReturnType<typeof useStore>["state"]["jarvisSet
 
 function recordDiagnostics(diag?: AiDiagnostics) {
   if (!diag || typeof window === "undefined") return;
-  const raw = window.localStorage.getItem(AI_DIAGNOSTICS_STORAGE);
-  const previous = raw ? JSON.parse(raw) as { calls?: AiDiagnostics[] } : {};
-  const calls = [...(previous.calls ?? []), { ...diag, timestamp: diag.timestamp ?? Date.now() }].slice(-50);
-  window.localStorage.setItem(AI_DIAGNOSTICS_STORAGE, JSON.stringify({ calls }));
-  window.dispatchEvent(new CustomEvent("fitcore:jarvis-ai-diagnostics"));
+  try {
+    const raw = window.localStorage.getItem(AI_DIAGNOSTICS_STORAGE);
+    const previous = raw ? JSON.parse(raw) as { calls?: AiDiagnostics[] } | null : null;
+    const history = Array.isArray(previous?.calls) ? previous.calls : [];
+    const calls = [...history, { ...diag, timestamp: diag.timestamp ?? Date.now() }].slice(-50);
+    window.localStorage.setItem(AI_DIAGNOSTICS_STORAGE, JSON.stringify({ calls }));
+    window.dispatchEvent(new CustomEvent("fitcore:jarvis-ai-diagnostics"));
+  } catch {
+    // Provider diagnostics are optional when browser storage is unavailable.
+  }
 }
 
 function expirePendingConfirmations(messages: RenderedMsg[]): RenderedMsg[] {
@@ -308,7 +313,7 @@ export function JarvisPanel({ section }: { section: string }) {
     }));
 
     const current = stateRef.current;
-    const mealPortionEdited = tool === "logMeal" && editedItems !== undefined;
+    const mealPortionEdited = (tool === "logMeal" || tool === "logReferenceMeal") && editedItems !== undefined;
     const args = mealPortionEdited
       ? { ...pending.args, ...mealItemTotals(editedItems), items: editedItems }
       : pending.args;
@@ -317,7 +322,7 @@ export function JarvisPanel({ section }: { section: string }) {
     const r = pending.base === current && sameScheduleDay
       ? runTool(tool, args, { state: current, set, settings: current.jarvisSettings, confirmed: true, mealPortionEdited })
       : { ok: false, summary: "FitCore changed since this review. Ask again to review the current data." };
-    if (r.ok && r.auditId && ["logMeal", "logUsualMeal", "correctMealPortion"].includes(tool)) {
+    if (r.ok && r.auditId && ["logMeal", "logReferenceMeal", "logUsualMeal", "correctMealPortion"].includes(tool)) {
       const saved = r.data as { id?: string } | undefined;
       if (saved?.id) conversation.current.lastMealId = saved.id;
     }
@@ -419,6 +424,7 @@ function humanizeArgs(tool: string, args: Record<string, unknown>): string {
     case "logDailyCheckIn": return `Daily check-in - energy ${args.energy}, soreness ${args.soreness}, stress ${args.stress}, motivation ${args.motivation}`;
     case "updateUserGoalsProfile": return `Update profile: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
     case "updateJarvisSettings": return `Update Jarvis settings: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
+    case "logReferenceMeal":
     case "logMeal": return `Log ${args.mealType ?? "meal"}: ${args.name ?? "meal"}`;
     case "logUsualMeal": return `Log usual ${args.slot ?? "meal"}`;
     case "saveUsualMeal": return `Save usual ${args.slot}: ${args.name}`;

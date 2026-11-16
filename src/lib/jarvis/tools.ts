@@ -1,3 +1,4 @@
+import { useLibraryPortions } from "./food-reference";
 import { correctMealPortion } from "./meal-portion";
 import type { AppState, UserGoalsProfile, JarvisSettings, Confidence, MealEntry, MealItem, SupplementLog, RecoveryCheckIn, Workout, WorkoutExercise, SetEntry, CardioEntry } from "../types";
 import { createAiEstimateProvenance, createJarvisProvenance, markProvenanceEdited } from "../fitcore-data";
@@ -29,7 +30,7 @@ export type ToolName =
   | "getJarvisSettings" | "updateJarvisSettings"
   | "logBodyWeight" | "updateBodyWeight" | "logSleep" | "logSupplement" | "logDailyCheckIn"
   | "undoLastAction" | "saveJarvisLearning" | "getJarvisLearnedPreferences"
-  | "logMeal" | "updateMeal" | "correctMealPortion" | "deleteMeal" | "getMealHistory"
+  | "logMeal" | "logReferenceMeal" | "updateMeal" | "correctMealPortion" | "deleteMeal" | "getMealHistory"
   | "getUsualMeals" | "saveUsualMeal" | "logUsualMeal"
   | "getSupplementStatus" | "getMissedHabits"
   | "getDailyReviewSummary" | "updateDailyCheckIn" | "suggestNutritionAction"
@@ -108,6 +109,7 @@ export interface RunContext {
   /** True only after the user accepted a confirmation card. */
   confirmed?: boolean;
   mealPortionEdited?: boolean;
+  referenceMeal?: boolean;
   now?: Date;
 }
 type StagedRunContext = Omit<RunContext, "set"> & { set: Updater };
@@ -254,7 +256,8 @@ const handlers: Record<ToolName, ToolHandler> = {
   },
   saveJarvisLearning: (args, { set, settings }) => { if (!settings.learningEnabled) return { ok: false, summary: "learning disabled", error: "Memory/learning is off" }; const key = String(args.key ?? "").trim(); if (!key) return { ok: false, summary: "missing key", error: "key required" }; set(s => ({ ...s, jarvisLearning: { ...s.jarvisLearning, [key]: args.value } })); return { ok: true, summary: `Learned: ${key}` }; },
   getJarvisLearnedPreferences: (_a, { state }) => ({ ok: true, summary: "learned prefs", data: state.jarvisLearning }),
-  logMeal: (args, { set, state, confirmed, mealPortionEdited }) => {
+  logReferenceMeal: (args, ctx) => handlers.logMeal({ ...args, source: "jarvis-confirmed" }, { ...ctx, referenceMeal: true }),
+  logMeal: (args, { set, state, confirmed, mealPortionEdited, referenceMeal }) => {
     const dupeAudit = hasAuditKey(state, "logMeal", args); if (dupeAudit) return duplicateResult(dupeAudit);
     const name = String(args.name ?? "").trim() || "Meal";
     const mealType = String(args.mealType ?? "snack");
@@ -280,7 +283,7 @@ const handlers: Record<ToolName, ToolHandler> = {
       : estimateProvenance;
     const items = Array.isArray(args.items) ? (args.items as Record<string, unknown>[]).map(it => {
       const itemConfidence = asConfidence(it.confidence, confidence);
-      return { name: String(it.name ?? "item"), qty: textArg(it, "qty"), calories: Math.round(Number(it.calories) || 0), protein: Math.round(Number(it.protein) || 0), carbs: Math.round(Number(it.carbs) || 0), fat: Math.round(Number(it.fat) || 0), source: (it.source as MealItem["source"]) ?? "jarvis", confidence: itemConfidence, provenance: createAiEstimateProvenance({ confidence: itemConfidence, confirmed, auditId, originalText, assumptions }) };
+      return { name: String(it.name ?? "item"), qty: textArg(it, "qty"), calories: Math.round(Number(it.calories) || 0), protein: Math.round(Number(it.protein) || 0), carbs: Math.round(Number(it.carbs) || 0), fat: Math.round(Number(it.fat) || 0), source: (it.source as MealItem["source"]) ?? "jarvis", confidence: itemConfidence, provenance: (referenceMeal ? createJarvisProvenance : createAiEstimateProvenance)({ confidence: itemConfidence, confirmed, auditId, originalText, assumptions }) };
     }) : undefined;
     const entry: MealEntry = { id, name, type: mealType, calories, protein, carbs, fat, fiber, items, source, confidence, originalText, assumptions, confirmed: provenance.confirmation === "confirmed", auditId, provenance, createdAt: Date.now() };
     set(s => ({ ...s, mealEntries: [...s.mealEntries, entry] }));
@@ -469,7 +472,18 @@ export function runTool(name: string, args: Record<string, unknown>, ctx: RunCon
   const validated = validateJarvisMutation(name, args);
   if (!validated?.success) return { ok: false, summary: "Jarvis needs valid details before it can propose this change." };
   const checked = validated.data;
-  if (name === "logMeal" && Array.isArray(checked.items)) Object.assign(checked, mealItemTotals(checked.items as JarvisMealItem[]));
+  if ((name === "logMeal" || name === "logReferenceMeal") && Array.isArray(checked.items)) {
+    const items = checked.items as JarvisMealItem[];
+    if (name === "logMeal" && !ctx.confirmed) {
+      const referenced = useLibraryPortions(items);
+      checked.items = referenced.items;
+      if (referenced.matched.length) {
+        const note = `Used FitCore food library values for ${referenced.matched.join(", ").slice(0, 960)}.`;
+        checked.assumptions = [note, ...((checked.assumptions as string[] | undefined) ?? []).slice(0, 11)];
+      }
+    }
+    Object.assign(checked, mealItemTotals(checked.items as JarvisMealItem[]));
+  }
   const draftId = textArg(checked, "draftId");
   const existing = draftId ? ctx.state.jarvisAudit.find(entry => entry.patch?.actionKey === `draft:${draftId}`) : undefined;
   if (existing?.tool === "undoLastAction") return { ok: true, summary: "This undo has already been applied." };
