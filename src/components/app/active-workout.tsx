@@ -6,6 +6,7 @@ import {
 import { useStore, uid, e1RM } from "@/lib/store";
 import { DEFAULT_REST_SECONDS, restTimerAfterSet } from "@/lib/active-workout-state";
 import { applyWorkoutPersonalRecords, workoutPersonalRecords } from "@/lib/workout-personal-records";
+import { downloadFitCoreBackup } from "@/lib/fitcore-backup-download";
 import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, tracksWorkoutMinutes, type Exercise, type MuscleGroup } from "@/lib/data";
 import { BENCH_PROGRAM_ID, formatWorkoutTarget } from "@/lib/bench-program";
 import type {
@@ -67,6 +68,22 @@ function makeDemoPrevSets(exerciseId: string, count: number): SetEntry[] {
 }
 
 /* ===================== Main view ===================== */
+
+function WorkoutBackupButton() {
+  const { exportJson, persistenceRequiresReload } = useStore();
+  return (
+    <div className="space-y-1">
+      <GhostButton onClick={() => downloadFitCoreBackup(exportJson())}>
+        Export saved data
+      </GhostButton>
+      {persistenceRequiresReload && (
+        <p className="text-xs text-muted-foreground">
+          This tab’s last verified copy may omit changes saved elsewhere.
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
   const { state, set, persistenceRequiresReload } = useStore();
@@ -263,6 +280,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
                 pendingEdit.onDiscard?.();
                 setPendingEdit(null);
               }}>Keep saved values</GhostButton>
+              <WorkoutBackupButton />
             </div>
           </div>
         )}
@@ -992,12 +1010,15 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
         </div>
 
         {(saveFailed || persistenceRequiresReload) && (
-          <p role="alert" className="text-sm text-destructive">
-            Workout could not be saved. Your workout and notes are still here.{" "}
-            {persistenceRequiresReload
-              ? "Copy your notes before reloading, then reopen the workout."
-              : "Try saving again."}
-          </p>
+          <div role="alert" className="space-y-2">
+            <p className="text-sm text-destructive">
+              Workout could not be saved. Your workout and notes are still here.{" "}
+              {persistenceRequiresReload
+                ? "Copy your notes before reloading, then reopen the workout."
+                : "Try saving again."}
+            </p>
+            <WorkoutBackupButton />
+          </div>
         )}
         <div className="flex gap-2 pt-1">
           <GhostButton className="flex-1" onClick={onClose}>

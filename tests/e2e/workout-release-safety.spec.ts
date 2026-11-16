@@ -191,6 +191,15 @@ test("first use saves a training goal and exposes install assets without an AI a
     .toBeLessThanOrEqual(page.viewportSize()!.width);
 });
 
+async function exportSavedWorkout(page: Page) {
+  const button = page.getByRole("button", { name: "Export saved data", exact: true });
+  await expect(button).toBeVisible();
+  const download = page.waitForEvent("download");
+  await button.click();
+  const file = await download;
+  return JSON.parse(await readFile(await file.path(), "utf8"));
+}
+
 test("a rejected finish preserves the workout and notes, then retries exactly once", async ({ page }) => {
   await startWorkout(page);
   const before = (await readPersistedFitCoreState(page)).activeWorkout;
@@ -207,6 +216,12 @@ test("a rejected finish preserves the workout and notes, then retries exactly on
   const rejected = await readPersistedFitCoreState(page);
   expect(rejected.activeWorkout).toEqual(before);
   expect(rejected.workouts).toHaveLength(0);
+  const backup = await exportSavedWorkout(page);
+  expect(backup.workouts).toHaveLength(0);
+  expect(backup.activeWorkout.id).toBe(before?.id);
+  expect(backup.activeWorkout.exercises[0].sets[0]).toMatchObject({ weight: 135, reps: 8 });
+  expect(backup.activeWorkout.notes).toBe(before?.notes);
+  await expect(notes).toHaveValue("Controlled tempo.");
 
   await restoreStorage();
   await confirm.click();
@@ -232,6 +247,8 @@ test("a rejected set edit must be resolved before finishing the workout", async 
   await expect(page.getByRole("button", { name: "Finish workout", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Back to Training", exact: true })).toBeDisabled();
   expect((await readPersistedFitCoreState(page)).activeWorkout?.exercises[0].sets[0].weight).toBe(135);
+  const backup = await exportSavedWorkout(page);
+  expect(backup.activeWorkout.exercises[0].sets[0]).toMatchObject({ weight: 135, reps: 8 });
 
   await restoreStorage();
   await page.getByRole("button", { name: "Retry edit", exact: true }).click();

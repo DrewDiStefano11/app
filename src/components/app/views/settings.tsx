@@ -12,6 +12,7 @@ import {
   User,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { downloadFitCoreBackup } from "@/lib/fitcore-backup-download";
 import type { Profile } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import { Card, GhostButton, Input, Label, PageHeader, Select, SubTabs } from "@/components/app/ui";
@@ -183,15 +184,7 @@ export function SettingsView({
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const downloadBackup = () => {
-    const blob = new Blob([exportJson()], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `fitcore-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const downloadBackup = () => downloadFitCoreBackup(exportJson());
 
   const handleImport = (f: File | null) => {
     if (!f) return;
