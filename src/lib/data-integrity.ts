@@ -692,6 +692,8 @@ function validateWorkout(
   unknownFields(context, record, location, [
     ...required,
     "endedAt",
+    "restEndsAt",
+    "restLoggedSetKeys",
     "templateId",
     "notes",
     "provenance",
@@ -702,6 +704,12 @@ function validateWorkout(
   const validStart =
     Object.hasOwn(record, "startedAt") &&
     validateTimestamp(context, record.startedAt, location, "startedAt");
+  if (Object.hasOwn(record, "restEndsAt")) {
+    validateTimestamp(context, record.restEndsAt, location, "restEndsAt");
+  }
+  if (Object.hasOwn(record, "restLoggedSetKeys")) {
+    validateStringArray(context, record.restLoggedSetKeys, location, "restLoggedSetKeys");
+  }
   const validEnd =
     !Object.hasOwn(record, "endedAt") ||
     validateTimestamp(context, record.endedAt, location, "endedAt");

@@ -30,6 +30,8 @@ export interface Workout {
   name: string;
   startedAt: number;
   endedAt?: number;
+  restEndsAt?: number;
+  restLoggedSetKeys?: string[];
   templateId?: string;
   exercises: WorkoutExercise[];
   notes?: string;

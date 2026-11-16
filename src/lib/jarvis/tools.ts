@@ -400,6 +400,8 @@ const handlers: Record<ToolName, ToolHandler> = {
     if (!state.activeWorkout) return { ok: false, summary: "no active workout" };
     const auditId = uid();
     const w: Workout = { ...state.activeWorkout, endedAt: Number(args.endedAt) || Date.now(), notes: textArg(args, "notes") ?? state.activeWorkout.notes, provenance: createJarvisProvenance({ confidence: "high", confirmed, auditId }) };
+    delete w.restEndsAt;
+    delete w.restLoggedSetKeys;
     set(s => ({ ...s, activeWorkout: null, workouts: s.workouts.some(existing => existing.id === w.id) ? s.workouts : [...s.workouts, w] }));
     pushAudit(set, { id: auditId, tool: "finishActiveWorkout", summary: `Finished ${w.name}`, status: "logged", entityIds: [w.id], entityKind: "workout", patch: { workout: w, actionKey: actionKey("finishActiveWorkout", args) }, createdAt: Date.now() });
     if (/(pain|sore|tired|fatigue|tight|sick|poor sleep|low motivation)/i.test(w.notes ?? "")) pushRecoveryActivity(set, `Recovery note from workout: ${w.notes}`, w.notes);
