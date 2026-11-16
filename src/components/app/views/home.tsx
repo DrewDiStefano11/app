@@ -711,21 +711,6 @@ function HomeDeepDive({
 
       <section className="rounded-[var(--radius-card)] border border-border border-dashed bg-card/50 p-4">
         <div className="flex items-center gap-2 mb-2">
-          <Activity size={14} className="text-[var(--recovery)]" />
-          <h3 className="text-xs font-bold uppercase tracking-widest text-white/60">
-            Wearable Integrations
-          </h3>
-        </div>
-        <p className="text-xs text-white/50 leading-relaxed">
-          Apple Watch & Whoop data will sync here for deeper readiness explanations.
-        </p>
-        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white/30">
-          Planned
-        </div>
-      </section>
-
-      <section className="rounded-[var(--radius-card)] border border-border border-dashed bg-card/50 p-4">
-        <div className="flex items-center gap-2 mb-2">
           <Calendar size={14} className="text-white/40" />
           <h3 className="text-xs font-bold uppercase tracking-widest text-white/60">
             Dashboard Modular Customization

@@ -350,7 +350,10 @@ export function getFitCoreAnalytics(
     days: finiteOption(options.nutrition?.days),
     timeZone: options.nutrition?.timeZone,
   };
-  const recoveryOptions = { days: finiteOption(options.recovery?.days) };
+  const recoveryOptions = {
+    days: finiteOption(options.recovery?.days),
+    whoopSnapshot: options.recovery?.whoopSnapshot,
+  };
   const domains = {
     training: getExerciseAndMuscleAnalytics(state, { ...trainingOptions, now }),
     nutrition: getNutritionDetailAnalytics(state, { ...nutritionOptions, now }),

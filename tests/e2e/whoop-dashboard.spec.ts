@@ -99,6 +99,7 @@ test("Home and Recovery show measured WHOOP data only while the owner has access
                 end: date,
                 score: {
                   sleep_performance_percentage: 79,
+                  respiratory_rate: 14,
                   stage_summary: {
                     total_light_sleep_time_milli: 3600000,
                     total_slow_wave_sleep_time_milli: 0,
@@ -133,6 +134,7 @@ test("Home and Recovery show measured WHOOP data only while the owner has access
   await page.getByRole("button", { name: "Recover", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Recovery", exact: true })).toBeVisible();
   await expect(panel.getByText("Deep sleep")).toBeVisible();
+  await expect(panel.getByText("14 breaths/min")).toBeVisible();
   await panel.getByText("Recent WHOOP recovery").click();
   await expect(panel.getByText("83%")).toBeVisible();
   await panel.getByText(/Synthetic WHOOP Cycling/).click();

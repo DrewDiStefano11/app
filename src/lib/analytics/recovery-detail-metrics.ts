@@ -1,4 +1,5 @@
 import type { AppState, RecoveryCheckIn, RecoverySignal } from "../types";
+import { getWhoopActivity, getWhoopDashboard, type WhoopSnapshot } from "../whoop/dashboard";
 import {
   calculateTrendQuality,
   createAnalyticsMetric,
@@ -42,6 +43,7 @@ export const RECOVERY_DETAIL_METRIC_IDS = Object.freeze({
 export interface RecoveryDetailOptions {
   now?: number;
   days?: number;
+  whoopSnapshot?: WhoopSnapshot;
 }
 
 export interface RecoveryTrendPoint {
@@ -128,7 +130,7 @@ export interface RecoveryCompleteness {
   hasBodyAreaSoreness: boolean;
   hasValidTimestamps: boolean;
   hasCompleteFieldCoverage: boolean;
-  hasWearableData: false;
+  hasWearableData: boolean;
   hasExcludedOrInvalidRecords: boolean;
 }
 
@@ -152,6 +154,9 @@ export interface RecoveryDetailAnalytics {
   signals: RecoverySignalAnalytics;
   consistency: AnalyticsMetric<RecoveryConsistencyValue>;
   wearableOnly: WearableMetricAvailability[];
+  whoop?: Omit<NonNullable<ReturnType<typeof getWhoopRecoveryAnalytics>>, "activities"> & {
+    activities: ({ id: string } & ReturnType<typeof getWhoopActivity>)[];
+  };
   completeness: RecoveryCompleteness;
   availability: DomainAvailability;
   sourceMetadata: AnalyticsMetricSource;
@@ -660,7 +665,28 @@ function signalAnalytics(
   };
 }
 
-function wearableAvailability(): WearableMetricAvailability[] {
+export function getWhoopRecoveryAnalytics(
+  snapshot: WhoopSnapshot,
+  now = Date.now(),
+  range?: DateRange,
+) {
+  if (!(Date.parse(snapshot.accessExpiresAt) > now)) return null;
+  const lastSyncedAt = Date.parse(snapshot.lastSyncedAt);
+  if (!Number.isFinite(lastSyncedAt) || lastSyncedAt > now) return null;
+  const summary = getWhoopDashboard(snapshot.records, (at) => {
+    const timestamp = Date.parse(at);
+    return (
+      Number.isFinite(timestamp) &&
+      timestamp <= now &&
+      (!range || dateRangeContains(range, timestamp))
+    );
+  });
+  return { source: "whoop" as const, lastSyncedAt: snapshot.lastSyncedAt, ...summary };
+}
+
+function wearableAvailability(
+  measured: Set<WearableMetricAvailability["id"]>,
+): WearableMetricAvailability[] {
   const ids: WearableMetricAvailability["id"][] = [
     "hrv",
     "resting_heart_rate",
@@ -671,18 +697,20 @@ function wearableAvailability(): WearableMetricAvailability[] {
     "wearable_strain",
     "wearable_recovery_score",
   ];
-  return ids.map((id) => ({
-    id,
-    status: "unavailable",
-    value: null,
-    confidence: "none",
-    reasons: [
-      {
-        code: "needs_wearable_sync",
-        message: `${id} is not persisted in current application state and requires real wearable data.`,
-      },
-    ],
-  }));
+  return ids
+    .filter((id) => !measured.has(id))
+    .map((id) => ({
+      id,
+      status: "unavailable",
+      value: null,
+      confidence: "none",
+      reasons: [
+        {
+          code: "needs_wearable_sync",
+          message: `${id} requires an available measurement from a connected wearable.`,
+        },
+      ],
+    }));
 }
 
 export function getRecoveryDetailAnalytics(
@@ -692,6 +720,30 @@ export function getRecoveryDetailAnalytics(
   const now = finiteTimestamp(options.now) ? options.now : Date.now();
   const days = Math.max(1, Math.trunc(options.days ?? 7));
   const range = calendarDaysWindow(days, now);
+  const whoop =
+    options.whoopSnapshot && getWhoopRecoveryAnalytics(options.whoopSnapshot, now, range);
+  const measured = new Set<WearableMetricAvailability["id"]>();
+  if (whoop?.history.some((row) => row.hrvMs !== null)) measured.add("hrv");
+  if (whoop?.history.some((row) => row.restingHeartRate !== null))
+    measured.add("resting_heart_rate");
+  if (whoop?.history.some((row) => row.score !== null)) measured.add("wearable_recovery_score");
+  if (
+    whoop?.sleepHistory.some((sleep) =>
+      [sleep.lightMs, sleep.deepMs, sleep.remMs, sleep.awakeMs].some((value) => value !== null),
+    )
+  ) {
+    measured.add("sleep_stages");
+  }
+  if (whoop?.sleepHistory.some((sleep) => sleep.respiratoryRate !== null))
+    measured.add("respiratory_rate");
+  if (whoop?.cycleHistory.some((cycle) => cycle.strain !== null)) measured.add("wearable_strain");
+  const whoopActivities =
+    whoop?.activities.map((record) => ({ id: record.id, ...getWhoopActivity(record) })) ?? [];
+  const hasMeasuredActivity = whoopActivities.some((activity) =>
+    [activity.strain, activity.averageHeartRate, activity.maxHeartRate, ...activity.zoneMs].some(
+      (value) => value !== null,
+    ),
+  );
   const collection = collectCheckIns(state, range, now);
   const signals = validSignals(state, range, now);
   const consistency = consistencyMetric(collection, range);
@@ -818,7 +870,20 @@ export function getRecoveryDetailAnalytics(
     },
     signals: signalSummary,
     consistency,
-    wearableOnly: wearableAvailability(),
+    wearableOnly: wearableAvailability(measured),
+    ...(whoop && {
+      whoop: {
+        source: whoop.source,
+        lastSyncedAt: whoop.lastSyncedAt,
+        recovery: whoop.recovery,
+        history: whoop.history,
+        sleep: whoop.sleep,
+        sleepHistory: whoop.sleepHistory,
+        cycle: whoop.cycle,
+        cycleHistory: whoop.cycleHistory,
+        activities: whoopActivities,
+      },
+    }),
     completeness: {
       hasCheckIns: collection.checkIns.length > 0,
       hasMultipleLoggedDays: (consistency.value?.distinctLoggedDays ?? 0) >= 2,
@@ -832,7 +897,11 @@ export function getRecoveryDetailAnalytics(
       hasBodyAreaSoreness: signalSummary.bodyAreaSoreness.frequencies.length > 0,
       hasValidTimestamps: collection.checkIns.length > 0,
       hasCompleteFieldCoverage: collection.checkIns.length > 0 && completeFields,
-      hasWearableData: false,
+      hasWearableData:
+        measured.size > 0 ||
+        whoop?.sleepHistory.some((sleep) => sleep.performance !== null) === true ||
+        whoop?.cycleHistory.some((cycle) => cycle.steps !== null) === true ||
+        hasMeasuredActivity,
       hasExcludedOrInvalidRecords: excluded + invalidFieldTotal > 0,
     },
     availability: {

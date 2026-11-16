@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
 import { getWhoopDashboard, matchWhoopStrengthWorkout } from "../../src/lib/whoop/dashboard";
 import { readWhoopCollection } from "../../src/lib/whoop/v2.server";
+import { getFitCoreAnalytics } from "../../src/lib/analytics/fitcore-analytics";
+import { defaultState } from "../../src/lib/types";
 
 const window = { start: "2026-11-10T00:00:00Z", end: "2026-11-18T00:00:00Z" };
 const base = {
@@ -16,6 +18,125 @@ async function collection(kind: "recovery" | "sleep" | "cycle" | "workout", reco
     fetch: async () => Response.json({ records }),
   });
 }
+
+test("FitCore analytics exposes authorized WHOOP observations without modifying manual evidence", async () => {
+  const records = await collection("recovery", [
+    { ...base, cycle_id: 1, score: { recovery_score: 80 } },
+    { ...base, cycle_id: 2, updated_at: "2026-11-16T08:01:00Z", score: { recovery_score: 20 } },
+  ]);
+  // A corrected response for the same WHOOP cycle replaces the earlier observation.
+  records.push(
+    ...(await collection("recovery", [
+      {
+        ...base,
+        cycle_id: 2,
+        updated_at: "2026-11-16T09:30:00Z",
+        score: { recovery_score: 0, hrv_rmssd_milli: 54 },
+      },
+      { ...base, cycle_id: 3, created_at: "2026-11-17T06:00:00Z", score: { recovery_score: 97 } },
+    ])),
+    ...(await collection("workout", [
+      { ...activity, id: "bench-observation", sport_name: "Weightlifting", score: { strain: 6 } },
+    ])),
+  );
+  const now = Date.parse("2026-11-16T11:00:00Z");
+  const state = {
+    ...defaultState,
+    recoveryCheckIns: [
+      { id: "manual", createdAt: now - 60000, energy: 5, soreness: 3, stress: 4, motivation: 5 },
+    ],
+  };
+  const baseline = getFitCoreAnalytics(state, { now });
+  const snapshot = {
+    lastSyncedAt: "2026-11-16T10:00:00Z",
+    accessExpiresAt: new Date(now + 60000).toISOString(),
+    records,
+  };
+  const result = getFitCoreAnalytics(state, { now, recovery: { whoopSnapshot: snapshot } });
+  expect(result.domains.recovery.whoop).toMatchObject({
+    source: "whoop",
+    recovery: { score: 0, hrvMs: 54, restingHeartRate: null },
+    activities: [{ id: "bench-observation", sport: "Weightlifting", strain: 6 }],
+  });
+  expect(result.domains.recovery.whoop?.activities[0]).not.toHaveProperty("user_id");
+  expect(result.domains.recovery.whoop?.history.map(({ id }) => id).sort()).toEqual(["1", "2"]);
+  expect(result.domains.recovery.completeness.hasWearableData).toBe(true);
+  expect(result.domains.recovery.wearableOnly.some(({ id }) => id === "hrv")).toBe(false);
+  expect(result.domains.recovery.trends).toEqual(baseline.domains.recovery.trends);
+  expect(result.domains.recovery.sourceMetadata).toEqual(baseline.domains.recovery.sourceMetadata);
+  expect(result.domains.training).toEqual(baseline.domains.training);
+  const expired = { ...snapshot, accessExpiresAt: new Date(now).toISOString() };
+  expect(getFitCoreAnalytics(state, { now, recovery: { whoopSnapshot: expired } })).toEqual(
+    baseline,
+  );
+
+  const pending = await collection("recovery", [
+    { ...base, cycle_id: 2, score_state: "PENDING_SCORE", score: { recovery_score: 100 } },
+  ]);
+  const pendingOnly = getFitCoreAnalytics(state, {
+    now,
+    recovery: {
+      whoopSnapshot: { ...snapshot, records: [{ ...pending[0], score: { recovery_score: 100 } }] },
+    },
+  }).domains.recovery;
+  expect(pendingOnly.whoop?.recovery).toMatchObject({ state: "pending", score: null });
+  expect(pendingOnly.completeness.hasWearableData).toBe(false);
+  expect(pendingOnly.wearableOnly).toContainEqual(
+    expect.objectContaining({ id: "wearable_recovery_score", status: "unavailable" }),
+  );
+  const workoutsOnly = getFitCoreAnalytics(state, {
+    now,
+    recovery: {
+      whoopSnapshot: {
+        ...snapshot,
+        records: records.filter((record) => record.kind === "workout"),
+      },
+    },
+  }).domains.recovery;
+  expect(workoutsOnly.completeness.hasWearableData).toBe(true);
+  expect(workoutsOnly.wearableOnly).toContainEqual(
+    expect.objectContaining({ id: "wearable_strain", status: "unavailable" }),
+  );
+
+  const pendingDays = Array.from({ length: 8 }, (_, index) => ({
+    ...pending[0],
+    id: String(index + 20),
+    created_at: new Date(now - index * 86_400_000 - 5000).toISOString(),
+  }));
+  const measuredCycle = await collection("cycle", [
+    { ...activity, id: 1, start: "2026-11-07T06:00:00Z", score: { strain: 0 } },
+    { ...activity, id: 2, score_state: "PENDING_SCORE" },
+  ]);
+  const history = getFitCoreAnalytics(state, {
+    now,
+    recovery: {
+      days: 12,
+      whoopSnapshot: {
+        ...snapshot,
+        records: [
+          ...pendingDays,
+          { ...records[0], created_at: "2026-11-07T06:00:00Z" },
+          ...measuredCycle,
+        ],
+      },
+    },
+  }).domains.recovery;
+  expect(history.whoop?.recovery).toMatchObject({ state: "pending", score: null });
+  expect(history.whoop?.history).toHaveLength(9);
+  expect(history.whoop?.cycleHistory.map(({ strain }) => strain)).toEqual([null, 0]);
+  expect(history.wearableOnly.some(({ id }) => id === "wearable_strain")).toBe(false);
+  expect(history.wearableOnly.some(({ id }) => id === "wearable_recovery_score")).toBe(false);
+});
+
+test("does not attach a different sleep when WHOOP supplies a specific sleep ID", async () => {
+  const recovery = await collection("recovery", [
+    { ...base, cycle_id: 1, sleep_id: "deleted", score: { recovery_score: 80 } },
+  ]);
+  const sleep = await collection("sleep", [
+    { ...activity, id: "different", cycle_id: 1, nap: false, score: {} },
+  ]);
+  expect(getWhoopDashboard([...recovery, ...sleep]).recovery?.at).toBe(base.created_at);
+});
 
 test("joins the latest recovery to its own sleep and keeps zero distinct from missing", async () => {
   const recovery = await collection("recovery", [

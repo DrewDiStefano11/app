@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/app/ui";
+import { getWhoopRecoveryAnalytics } from "@/lib/analytics/recovery-detail-metrics";
 import { useStore } from "@/lib/store";
 import { readWhoopSnapshot, requestWhoopSync, subscribeToWhoopChanges } from "@/lib/whoop/browser";
 import {
   getWhoopActivity,
-  getWhoopDashboard,
   matchWhoopStrengthWorkout,
   type WhoopSnapshot,
 } from "@/lib/whoop/dashboard";
@@ -101,7 +101,7 @@ export function WhoopDashboard({ compact = false }: { compact?: boolean }) {
     };
   }, []);
 
-  const summary = useMemo(() => snapshot && getWhoopDashboard(snapshot.records), [snapshot]);
+  const summary = useMemo(() => snapshot && getWhoopRecoveryAnalytics(snapshot), [snapshot]);
   if (!snapshot || !summary) {
     if (!hasLiveDisplay) return null;
     return (
@@ -173,6 +173,10 @@ export function WhoopDashboard({ compact = false }: { compact?: boolean }) {
                 <Metric name="Deep sleep" value={hours(sleep?.deepMs)} />
                 <Metric name="REM sleep" value={hours(sleep?.remMs)} />
                 <Metric name="Awake" value={hours(sleep?.awakeMs)} />
+                <Metric
+                  name="Respiratory rate"
+                  value={number(sleep?.respiratoryRate, " breaths/min")}
+                />
               </>
             )}
           </dl>
@@ -208,7 +212,7 @@ export function WhoopDashboard({ compact = false }: { compact?: boolean }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {history.map((row) => (
+                    {history.slice(0, 7).map((row) => (
                       <tr key={row.id} className="border-t border-border">
                         <th scope="row" className="py-1.5">
                           {dateLabel.format(new Date(row.at))}

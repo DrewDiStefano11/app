@@ -27,7 +27,7 @@ function timestamp(record: WhoopV2Record) {
 function measurementState(record: WhoopV2Record) {
   if (record.calibrating) return "calibrating";
   if (record.score_state === "PENDING_SCORE") return "pending";
-  return record.score ? "scored" : "unavailable";
+  return record.score_state === "SCORED" && record.score ? "scored" : "unavailable";
 }
 
 function recoveryMetrics(record: WhoopV2Record, linkedSleep?: WhoopV2Record) {
@@ -44,9 +44,21 @@ function recoveryMetrics(record: WhoopV2Record, linkedSleep?: WhoopV2Record) {
   };
 }
 
-export function getWhoopDashboard(records: WhoopV2Record[]) {
+export function getWhoopDashboard(
+  records: readonly WhoopV2Record[],
+  includes: (at: string) => boolean = () => true,
+) {
+  const latest = new Map<string, WhoopV2Record>();
+  for (const record of records) {
+    const key = record.kind + ":" + record.id;
+    const previous = latest.get(key);
+    if (!previous || Date.parse(previous.updated_at) < Date.parse(record.updated_at)) {
+      latest.set(key, measurementState(record) === "scored" ? record : { ...record, score: null });
+    }
+  }
+  const observations = [...latest.values()];
   const byLatest = (kind: WhoopV2Record["kind"]) =>
-    records
+    observations
       .filter((row) => row.kind === kind)
       .sort((a, b) => Date.parse(timestamp(b)) - Date.parse(timestamp(a)));
   const primarySleeps = byLatest("sleep").filter((item) => "nap" in item && item.nap === false);
@@ -57,62 +69,75 @@ export function getWhoopDashboard(records: WhoopV2Record[]) {
     if (typeof cycleId === "string")
       sleepByCycle.set(cycleId, sleepByCycle.has(cycleId) ? null : item);
   }
-  const history = records
+  const history = observations
     .filter((row) => row.kind === "recovery")
     .map((row) => {
       const sleepId = field(row, "sleep_id");
-      const byId = typeof sleepId === "string" ? sleepById.get(sleepId) : undefined;
-      const linkedSleep = byId ?? sleepByCycle.get(row.id) ?? undefined;
-      return { metrics: recoveryMetrics(row, linkedSleep), linkedSleep };
+      const linkedSleep =
+        typeof sleepId === "string"
+          ? sleepById.get(sleepId)
+          : (sleepByCycle.get(row.id) ?? undefined);
+      return { metrics: recoveryMetrics(row, linkedSleep), linkedSleep, updatedAt: row.updated_at };
     })
-    .sort((a, b) => Date.parse(b.metrics.at) - Date.parse(a.metrics.at));
+    .filter(({ metrics }) => includes(metrics.at))
+    .sort(
+      (a, b) =>
+        Date.parse(b.metrics.at) - Date.parse(a.metrics.at) ||
+        Date.parse(b.updatedAt) - Date.parse(a.updatedAt) ||
+        a.metrics.id.localeCompare(b.metrics.id),
+    );
   const recovery = history[0];
   const linkedSleep = recovery?.linkedSleep;
-  const latestSleep = primarySleeps[0];
-  // Sleep can arrive before recovery. Give a truly newer sleep its own dated section.
+  const sleepHistory = primarySleeps
+    .filter((item) => includes(timestamp(item)))
+    .map((sleep) => {
+      const stages = field(sleep.score, "stage_summary");
+      const stageSummary = typeof stages === "object" ? stages : null;
+      const lightMs = measurement(stageSummary, "total_light_sleep_time_milli");
+      const deepMs = measurement(stageSummary, "total_slow_wave_sleep_time_milli");
+      const remMs = measurement(stageSummary, "total_rem_sleep_time_milli");
+      const noDataMs = measurement(stageSummary, "total_no_data_time_milli");
+      return {
+        id: sleep.id,
+        at: timestamp(sleep),
+        timezoneOffset: "timezone_offset" in sleep ? (sleep.timezone_offset ?? null) : null,
+        state: measurementState(sleep),
+        performance: measurement(sleep.score, "sleep_performance_percentage"),
+        respiratoryRate: measurement(sleep.score, "respiratory_rate"),
+        asleepMs:
+          lightMs !== null && deepMs !== null && remMs !== null && !(noDataMs && noDataMs > 0)
+            ? lightMs + deepMs + remMs
+            : null,
+        lightMs,
+        deepMs,
+        remMs,
+        awakeMs: measurement(stageSummary, "total_awake_time_milli"),
+      };
+    });
+  const latestSleep = sleepHistory[0];
+  // Prefer the linked sleep on a tie. A newer sleep may arrive before its recovery.
   const sleep =
-    linkedSleep &&
-    latestSleep &&
-    Date.parse(timestamp(linkedSleep)) >= Date.parse(timestamp(latestSleep))
-      ? linkedSleep
-      : latestSleep;
-  const cycle = byLatest("cycle")[0];
-  const stages = sleep && field(sleep.score, "stage_summary");
-  const stageSummary = typeof stages === "object" ? stages : null;
-  const lightMs = measurement(stageSummary, "total_light_sleep_time_milli");
-  const deepMs = measurement(stageSummary, "total_slow_wave_sleep_time_milli");
-  const remMs = measurement(stageSummary, "total_rem_sleep_time_milli");
-  const noDataMs = measurement(stageSummary, "total_no_data_time_milli");
-  const asleepMs =
-    lightMs !== null && deepMs !== null && remMs !== null && !(noDataMs && noDataMs > 0)
-      ? lightMs + deepMs + remMs
-      : null;
+    sleepHistory.find(
+      ({ id, at }) => id === linkedSleep?.id && Date.parse(at) === Date.parse(latestSleep.at),
+    ) ?? latestSleep;
+  const cycleHistory = byLatest("cycle")
+    .filter((item) => includes(timestamp(item)))
+    .map((cycle) => ({
+      id: cycle.id,
+      at: timestamp(cycle),
+      timezoneOffset: "timezone_offset" in cycle ? (cycle.timezone_offset ?? null) : null,
+      state: measurementState(cycle),
+      strain: measurement(cycle.score, "strain"),
+      steps: measurement(cycle, "step_count"),
+    }));
   return {
     recovery: recovery?.metrics ?? null,
-    history: history.slice(0, 7).map(({ metrics }) => metrics),
-    sleep: sleep
-      ? {
-          id: sleep.id,
-          at: timestamp(sleep),
-          state: measurementState(sleep),
-          performance: measurement(sleep.score, "sleep_performance_percentage"),
-          asleepMs,
-          lightMs,
-          deepMs,
-          remMs,
-          awakeMs: measurement(stageSummary, "total_awake_time_milli"),
-        }
-      : null,
-    cycle: cycle
-      ? {
-          id: cycle.id,
-          at: timestamp(cycle),
-          state: measurementState(cycle),
-          strain: measurement(cycle.score, "strain"),
-          steps: measurement(cycle, "step_count"),
-        }
-      : null,
-    activities: byLatest("workout"),
+    history: history.map(({ metrics }) => metrics),
+    sleep: sleep ?? null,
+    sleepHistory,
+    cycle: cycleHistory[0] ?? null,
+    cycleHistory,
+    activities: byLatest("workout").filter((item) => includes(timestamp(item))),
   };
 }
 
@@ -122,6 +147,7 @@ export function getWhoopActivity(record: WhoopV2Record) {
   const zoneDurations = typeof zones === "object" ? zones : null;
   return {
     at: timestamp(record),
+    timezoneOffset: "timezone_offset" in record ? (record.timezone_offset ?? null) : null,
     sport: typeof sport === "string" && sport.trim() ? sport : "Activity",
     state: measurementState(record),
     strain: measurement(record.score, "strain"),
