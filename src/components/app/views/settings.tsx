@@ -20,6 +20,7 @@ import { ConfirmDialog } from "@/components/app/sheet";
 import { JarvisSettingsCard } from "@/components/app/jarvis/settings-card";
 import { JarvisActivityCard } from "@/components/app/jarvis/activity-view";
 import { GoalsProfileCard } from "@/components/app/jarvis/goals-profile-card";
+import { WhoopSettings } from "./whoop-settings";
 
 type SettingsSectionId = "profile" | "preferences" | "data" | "integrations";
 
@@ -746,24 +747,18 @@ export function SettingsView({
               <HubCard
                 id="integrations"
                 title="Integrations & Devices"
-                description="Planned home for future connected health and device sources."
-                status="Presentational only"
+                description="Manage connected health and device sources."
                 icon={<Database size={18} />}
                 expanded={expanded.integrations}
                 onToggle={toggleSection}
               >
+                <WhoopSettings />
                 <FutureRows
                   rows={[
                     {
                       label: "Apple Watch",
                       detail:
                         "Planned support for HRV, resting heart rate, sleep, steps, calories, respiratory rate, and workout detection.",
-                      status: "Planned",
-                    },
-                    {
-                      label: "Whoop",
-                      detail:
-                        "Planned support for recovery, strain, sleep, HRV, RHR, and respiratory rate.",
                       status: "Planned",
                     },
                     {

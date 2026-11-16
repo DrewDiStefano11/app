@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RobotsDottxtRouteImport } from './routes/robots[.]txt'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as ApiWhoopActionRouteImport } from './routes/api/whoop/$action'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,18 +35,25 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWhoopActionRoute = ApiWhoopActionRouteImport.update({
+  id: '/api/whoop/$action',
+  path: '/api/whoop/$action',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/whoop/$action': typeof ApiWhoopActionRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/whoop/$action': typeof ApiWhoopActionRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -53,13 +61,21 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/robots.txt': typeof RobotsDottxtRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/api/whoop/$action': typeof ApiWhoopActionRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/privacy' | '/robots.txt' | '/sitemap.xml'
+  fullPaths:
+    '/' | '/privacy' | '/robots.txt' | '/sitemap.xml' | '/api/whoop/$action'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/privacy' | '/robots.txt' | '/sitemap.xml'
-  id: '__root__' | '/' | '/privacy' | '/robots.txt' | '/sitemap.xml'
+  to: '/' | '/privacy' | '/robots.txt' | '/sitemap.xml' | '/api/whoop/$action'
+  id:
+    | '__root__'
+    | '/'
+    | '/privacy'
+    | '/robots.txt'
+    | '/sitemap.xml'
+    | '/api/whoop/$action'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -67,6 +83,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   RobotsDottxtRoute: typeof RobotsDottxtRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  ApiWhoopActionRoute: typeof ApiWhoopActionRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -99,6 +116,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/whoop/$action': {
+      id: '/api/whoop/$action'
+      path: '/api/whoop/$action'
+      fullPath: '/api/whoop/$action'
+      preLoaderRoute: typeof ApiWhoopActionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -107,6 +131,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   RobotsDottxtRoute: RobotsDottxtRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  ApiWhoopActionRoute: ApiWhoopActionRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

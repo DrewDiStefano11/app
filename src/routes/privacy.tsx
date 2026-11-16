@@ -33,7 +33,7 @@ function PrivacyPolicy() {
             FitCore saves the information you enter, such as workouts, nutrition, sleep, recovery
             check-ins, progress photos, and profile settings, in browser storage on the device you
             use. Core tracking works without a FitCore account. FitCore does not automatically sync
-            your tracking history across devices. This version does not collect data from WHOOP.
+            your tracking history across devices.
           </p>
         </section>
 
@@ -54,6 +54,19 @@ function PrivacyPolicy() {
             device. If you enter your own AI provider keys, FitCore can save them in this browser.
             Saved keys can accompany AI requests to FitCore&apos;s server for provider
             authentication. You can remove your keys in Jarvis settings.
+          </p>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-xl font-semibold text-foreground">WHOOP connection</h2>
+          <p>
+            Where the connection is enabled, selecting Connect WHOOP sends you to WHOOP for
+            authorization. FitCore stores the connection and its encrypted authorization credentials
+            on a private database, and uses an essential browser cookie to recognize your FitCore
+            integration session. The connection screens in this release do not import WHOOP health
+            records. Disconnect WHOOP removes FitCore&apos;s stored credentials and attempts to
+            revoke access at WHOOP. If that attempt fails, you can also remove the connection in
+            WHOOP.
           </p>
         </section>
 
