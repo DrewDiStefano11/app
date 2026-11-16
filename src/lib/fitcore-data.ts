@@ -259,6 +259,85 @@ function withProvenance<T extends object>(
   };
 }
 
+type WorkoutDetail = Workout["exercises"][number] | Workout["exercises"][number]["sets"][number];
+
+function mapWorkoutDetails(
+  state: AppState,
+  transform: <T extends WorkoutDetail>(detail: T) => T,
+): AppState {
+  const mapWorkout = (workout: Workout): Workout => {
+    let changed = false;
+    const exercises = workout.exercises.map((exercise) => {
+      let setsChanged = false;
+      const sets = exercise.sets.map((set) => {
+        const mapped = transform(set);
+        setsChanged ||= mapped !== set;
+        return mapped;
+      });
+      const mapped = transform(exercise);
+      if (setsChanged || mapped !== exercise) changed = true;
+      return setsChanged ? { ...mapped, sets } : mapped;
+    });
+    return changed ? { ...workout, exercises } : workout;
+  };
+  const workouts = state.workouts.map(mapWorkout);
+  const activeWorkout = state.activeWorkout === null ? null : mapWorkout(state.activeWorkout);
+  return activeWorkout !== state.activeWorkout || workouts.some((workout, index) => workout !== state.workouts[index])
+    ? { ...state, workouts, activeWorkout }
+    : state;
+}
+
+function hasLegacyWorkoutProvenance(detail: WorkoutDetail): boolean {
+  return (
+    "source" in detail ||
+    "auditId" in detail ||
+    "confidence" in detail ||
+    "originalText" in detail ||
+    "assumptions" in detail
+  );
+}
+
+export function compactWorkoutProvenance(state: AppState): AppState {
+  // Older snapshots and backup readers already allow omitted provenance.
+  // Preserve every field that conveys anything beyond the manual default.
+  const auditEntities = new Set(
+    state.jarvisAudit.filter((entry) => !entry.undone).flatMap((entry) => entry.entityIds ?? []),
+  );
+  return mapWorkoutDetails(state, (detail) => {
+    const provenance = detail.provenance;
+    if (
+      provenance?.source !== "manual" ||
+      provenance.confidence !== "high" ||
+      provenance.confirmation !== "confirmed" ||
+      auditEntities.has(detail.id) ||
+      hasLegacyWorkoutProvenance(detail) ||
+      Object.entries(provenance).some(([key, value]) =>
+        value !== undefined && key !== "source" && key !== "confidence" && key !== "confirmation",
+      )
+    ) return detail;
+    const { provenance: _default, ...stored } = detail;
+    return stored as typeof detail;
+  });
+}
+
+export function expandWorkoutProvenance(state: AppState): AppState {
+  const manual = Object.freeze(createManualProvenance());
+  const audits = new Map<string, AppState["jarvisAudit"][number]>();
+  for (const entry of state.jarvisAudit) {
+    if (entry.undone) continue;
+    for (const id of entry.entityIds ?? []) {
+      if (!audits.has(id)) audits.set(id, entry);
+    }
+  }
+  return mapWorkoutDetails(state, (detail) => {
+    if (detail.provenance !== undefined) return detail;
+    const audit = audits.get(detail.id);
+    return audit || hasLegacyWorkoutProvenance(detail)
+      ? withProvenance(detail, audit)
+      : { ...detail, provenance: manual };
+  });
+}
+
 /** Existing domain arrays stay authoritative; helpers project them into one log shape. */
 export function migrateFitCoreDataIfNeeded(input: AppState): AppState {
   const s = input;

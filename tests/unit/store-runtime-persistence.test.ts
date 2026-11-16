@@ -249,3 +249,150 @@ test("store persistence metadata is frozen, additive, and contains no state or r
   for (const forbidden of ["state", "payload", "manifest", "issues", "writeToken", "adapter"])
     assert.equal(json.includes(forbidden), false);
 });
+
+test("two verified workout edits fit beside a large existing snapshot and retain set provenance", () => {
+  const byteLimit = 5 * 1024 * 1024;
+  class QuotaAdapter extends MemoryAdapter {
+    override setItem(key: string, value: string) {
+      const used = [...this.data].reduce(
+        (total, [storedKey, storedValue]) => storedKey === key
+          ? total
+          : total + storedKey.length + storedValue.length,
+        key.length + value.length,
+      );
+      if (used > byteLimit) throw new DOMException("Quota exceeded", "QuotaExceededError");
+      super.setItem(key, value);
+    }
+  }
+
+  const start = Date.parse("2022-01-01T12:00:00Z");
+  const workouts = Array.from({ length: 1_000 }, (_, index) => ({
+    id: `workout-${index}`,
+    name: "Strength session",
+    startedAt: start + index * 86_400_000,
+    endedAt: start + index * 86_400_000 + 3_600_000,
+    notes: `Workout note ${index}`,
+    exercises: ["bench-press", "squat", "db-row"].map((exerciseId) => ({
+      id: `${index}-${exerciseId}`,
+      exerciseId,
+      completed: true,
+      sets: Array.from({ length: 5 }, (_, setIndex) => ({
+        id: `${index}-${exerciseId}-${setIndex}`,
+        weight: 130 + setIndex,
+        reps: 6,
+        completed: true,
+      })),
+    })),
+  }));
+  const existing = migrateFitCoreDataIfNeeded({
+    ...state(),
+    onboardingComplete: true,
+    workouts,
+    activeWorkout: {
+      id: "active-session",
+      name: "Active workout",
+      startedAt: Date.parse(EXPORTED_AT),
+      notes: "Retain the active notes",
+      exercises: [{
+        id: "active-exercise",
+        exerciseId: "squat",
+        completed: false,
+        sets: [{
+          id: "active-set",
+          weight: 135,
+          reps: 5,
+          completed: true,
+          provenance: {
+            source: "imported",
+            confidence: "high",
+            confirmation: "not-required",
+            editedBy: "user",
+            editedAt: Date.parse(EXPORTED_AT),
+          },
+        }],
+      }],
+    },
+  });
+  const activeProvenance = existing.activeWorkout!.exercises[0].sets[0].provenance;
+  const priorState = JSON.parse(JSON.stringify(existing)) as AppState;
+  const adapter = new QuotaAdapter();
+  assert.equal(persistFitCoreStateWithRevision(adapter, priorState, {
+    expectedRevision: null,
+    exportedAt: EXPORTED_AT,
+    writeToken: "a".repeat(32),
+  }).status, "committed");
+  const runtime = controller(adapter);
+  let saved = hydrateFitCoreStoreRuntime(runtime, defaultState).state;
+
+  for (const weight of [136, 137]) {
+    const proposed = structuredClone(saved);
+    proposed.activeWorkout!.exercises[0].sets[0].weight = weight;
+    const outcome = commitFitCoreStoreRuntime(runtime, saved, proposed);
+    assert.equal(outcome.applied, true, `Save weight ${weight} beside the verified snapshot`);
+    saved = outcome.state;
+  }
+
+  const reopened = hydrateFitCoreStoreRuntime(controller(adapter), defaultState);
+  assert.equal(reopened.applied, true);
+  assert.equal(reopened.state.workouts.length, 1_000);
+  assert.equal(reopened.state.workouts[999].notes, "Workout note 999");
+  assert.deepEqual(reopened.state.workouts, priorState.workouts);
+  assert.equal(reopened.state.workouts[0].exercises[0].sets[0].provenance?.source, "manual");
+  assert.equal(reopened.state.activeWorkout!.notes, "Retain the active notes");
+  assert.equal(reopened.state.activeWorkout!.exercises[0].sets[0].weight, 137);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(reopened.state.activeWorkout!.exercises[0].sets[0].provenance)),
+    JSON.parse(JSON.stringify(activeProvenance)),
+  );
+});
+
+test("compact snapshots preserve explicit manual overrides and infer legacy workout sources on read", () => {
+  const adapter = new MemoryAdapter();
+  const original = state();
+  original.activeWorkout = {
+    id: "legacy",
+    name: "Imported workout",
+    startedAt: Date.parse(EXPORTED_AT),
+    exercises: [{
+      id: "squat",
+      exerciseId: "squat",
+      completed: false,
+      sets: [
+        Object.assign(
+          { id: "estimated", weight: 135, reps: 5, completed: true },
+          { source: "camera", originalText: "135 lb, five reps" },
+        ),
+        Object.assign(
+          {
+            id: "confirmed",
+            weight: 140,
+            reps: 5,
+            completed: true,
+            provenance: { source: "manual" as const, confidence: "high" as const, confirmation: "confirmed" as const },
+          },
+          { source: "imported" },
+        ),
+      ],
+    }],
+  };
+  assert.equal(persistFitCoreStateWithRevision(adapter, original, {
+    expectedRevision: null,
+    exportedAt: EXPORTED_AT,
+    writeToken: "e".repeat(32),
+  }).status, "committed_with_warnings");
+  const runtime = controller(adapter);
+  const restored = hydrateFitCoreStoreRuntime(runtime, defaultState);
+  assert.equal(restored.applied, true);
+  const sets = restored.state.activeWorkout!.exercises[0].sets;
+  assert.equal(sets[0].provenance?.source, "ai-estimated");
+  assert.equal(sets[0].provenance?.originalText, "135 lb, five reps");
+  assert.equal(sets[1].provenance?.source, "manual");
+
+  const proposed = structuredClone(restored.state);
+  proposed.activeWorkout!.notes = "Keep both origins";
+  assert.equal(commitFitCoreStoreRuntime(runtime, restored.state, proposed).applied, true);
+  const raw = controller(adapter).hydrate().state as unknown as AppState;
+  const storedSets = raw.activeWorkout!.exercises[0].sets;
+  assert.equal(storedSets[0].provenance?.source, "ai-estimated");
+  assert.equal(storedSets[1].provenance?.source, "manual");
+});
