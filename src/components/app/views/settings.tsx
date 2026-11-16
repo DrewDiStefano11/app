@@ -665,8 +665,8 @@ export function SettingsView({
                 <FutureRows
                   rows={[
                     {
-                      label: "Local-only data",
-                      detail: "Current app data stays on this device unless you export it.",
+                      label: "On-device storage",
+                      detail: "FitCore stores tracking records in this browser. Optional AI features can send selected information to a provider.",
                       status: "Active",
                     },
                     {
@@ -833,21 +833,23 @@ export function SettingsView({
                     FitCore v1 &mdash; your personal fitness command center.
                   </p>
                   <p className="text-xs leading-relaxed text-muted-foreground">
-                    AI coach: Lovable AI (Gemini).{" "}
-                    <span className="font-medium text-foreground">Data stays on this device.</span>{" "}
-                    No accounts, no tracking.
+                    <span className="font-medium text-foreground">
+                      Fitness records are stored on this device.
+                    </span>{" "}
+                    AI features can send selected information to an AI provider.
                   </p>
                 </div>
+                <a
+                  href="/privacy"
+                  className="mb-2 inline-flex min-h-11 items-center text-sm font-medium underline"
+                >
+                  Privacy Policy
+                </a>
                 <FutureRows
                   rows={[
                     {
                       label: "Feedback & Support",
                       detail: "Planned support and feedback form.",
-                      status: "Planned",
-                    },
-                    {
-                      label: "Privacy & About",
-                      detail: "Planned full privacy policy.",
                       status: "Planned",
                     },
                     { label: "Terms", detail: "Planned terms of service.", status: "Planned" },
@@ -877,7 +879,7 @@ export function SettingsView({
           setConfirmReset(false);
         }}
         title="Reset all data?"
-        message="This permanently erases workouts, meals, recovery, photos and PRs."
+        message="This replaces your current records with FitCore defaults. To remove all copies stored by this site, clear FitCore site data."
         confirmLabel="Reset"
         destructive
       />
