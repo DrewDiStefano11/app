@@ -13,6 +13,20 @@ export function announceWhoopSnapshot(change: "updated" | "clear") {
   window.dispatchEvent(new CustomEvent(whoopSnapshotChanged, { detail: change }));
 }
 
+export function subscribeToWhoopChanges(onChange: (change: "updated" | "clear") => void) {
+  const receive = (change: unknown) => {
+    if (change === "updated" || change === "clear") onChange(change);
+  };
+  if (typeof BroadcastChannel !== "undefined") {
+    const channel = new BroadcastChannel(whoopSnapshotChanged);
+    channel.addEventListener("message", (event) => receive(event.data));
+    return () => channel.close();
+  }
+  const listener = (event: Event) => receive((event as CustomEvent).detail);
+  window.addEventListener(whoopSnapshotChanged, listener);
+  return () => window.removeEventListener(whoopSnapshotChanged, listener);
+}
+
 export async function requestWhoopSync() {
   const response = await fetch(whoopApi + "/sync", { method: "POST", cache: "no-store" });
   if (response.ok) announceWhoopSnapshot("updated");

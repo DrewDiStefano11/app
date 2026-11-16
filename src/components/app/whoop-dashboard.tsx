@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/app/ui";
 import { useStore } from "@/lib/store";
-import { readWhoopSnapshot, whoopSnapshotChanged } from "@/lib/whoop/browser";
+import { readWhoopSnapshot, subscribeToWhoopChanges } from "@/lib/whoop/browser";
 import {
   getWhoopActivity,
   getWhoopDashboard,
@@ -73,29 +73,23 @@ export function WhoopDashboard({ compact = false }: { compact?: boolean }) {
           if (!current.signal.aborted) setSnapshot(null);
         });
     };
-    const localChange = (event: Event) =>
-      (event as CustomEvent).detail === "clear" ? clear() : refresh();
-    const channel =
-      typeof BroadcastChannel === "undefined" ? null : new BroadcastChannel(whoopSnapshotChanged);
-    channel?.addEventListener("message", (event) => {
-      if (event.data === "clear") clear();
-      else if (event.data === "updated") refresh();
+    const unsubscribe = subscribeToWhoopChanges((change) => {
+      if (change === "clear") clear();
+      else refresh();
     });
     const poll = window.setInterval(refresh, 120_000);
     refresh();
     document.addEventListener("visibilitychange", refresh);
     window.addEventListener("online", refresh);
     window.addEventListener("pageshow", refresh);
-    window.addEventListener(whoopSnapshotChanged, localChange);
     return () => {
       request?.abort();
       window.clearTimeout(expiry);
       window.clearInterval(poll);
-      channel?.close();
+      unsubscribe();
       document.removeEventListener("visibilitychange", refresh);
       window.removeEventListener("online", refresh);
       window.removeEventListener("pageshow", refresh);
-      window.removeEventListener(whoopSnapshotChanged, localChange);
     };
   }, []);
 

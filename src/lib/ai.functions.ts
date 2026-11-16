@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequest } from "@tanstack/react-start/server";
 import { z } from "zod";
 
 type AiProvider = "groq" | "gemini" | "legacy-lovable";
@@ -35,6 +36,7 @@ interface ChatInput extends ProviderOptions {
   context?: string;
   tools?: ToolDescriptor[];
   systemOverride?: string;
+  includeWhoop?: boolean;
 }
 
 interface ConnectionTestInput extends ProviderOptions {}
@@ -86,6 +88,7 @@ const chatInputSchema = providerOptionsSchema.extend({
   context: z.string().optional(),
   tools: z.array(toolDescriptorSchema).optional(),
   systemOverride: z.string().optional(),
+  includeWhoop: z.boolean().optional(),
 });
 
 const connectionTestInputSchema = providerOptionsSchema.extend({});
@@ -663,6 +666,24 @@ export const aiChat = createServerFn({ method: "POST" })
   .inputValidator(chatInputSchema)
   .handler(async ({ data }) => {
     try {
+      if (data.includeWhoop === true) {
+        const { readWhoopJarvisSnapshot } = await import("./whoop/request.server");
+        const { resolveWhoopJarvisContext } = await import("./whoop/jarvis-context.server");
+        const shared = await resolveWhoopJarvisContext(
+          true,
+          () => readWhoopJarvisSnapshot(getRequest()).catch(() => null),
+        );
+        if (!shared) {
+          return fail("Recent WHOOP measurements are unavailable. Unlock WHOOP or send without sharing.", "malformed_request");
+        }
+        const result = await callChatProvider({
+          ...data,
+          allowGeminiFallback: false,
+          tools: data.tools?.filter((tool) => tool.name.startsWith("get")),
+          systemOverride: defaultSystem(data) + "\n\n" + shared.text,
+        });
+        return result.ok ? { ...result, whoopExpiresAt: shared.expiresAt } : result;
+      }
       return await callChatProvider(data);
     } catch {
       const p = safeProvider(data.provider);

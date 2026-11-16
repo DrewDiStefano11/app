@@ -55,6 +55,10 @@ function getIntegration() {
   });
 }
 
+export async function readWhoopJarvisSnapshot(request: Request) {
+  return (await getIntegration()?.jarvisSnapshot(request)) ?? null;
+}
+
 export async function handleWhoopRequest(request: Request, action: string) {
   if (
     !["session", "connect", "callback", "disconnect", "status", "sync", "records"].includes(action)

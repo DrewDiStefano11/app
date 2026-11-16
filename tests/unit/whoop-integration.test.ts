@@ -10,6 +10,7 @@ function harness() {
   let sessions = 0;
   let attemptProof: string | undefined;
   let tokenRequests = 0;
+  let snapshotReads = 0;
   const sessionByDigest = new Map<string, { id: string; ownerId: string }>();
   const integration = createWhoopIntegration({
     origin,
@@ -65,6 +66,7 @@ function harness() {
         return null;
       },
       async getSnapshot() {
+        snapshotReads++;
         return null;
       },
       async claimSync() {
@@ -100,6 +102,9 @@ function harness() {
     get tokenRequests() {
       return tokenRequests;
     },
+    get snapshotReads() {
+      return snapshotReads;
+    },
   };
 }
 
@@ -111,6 +116,34 @@ const post = (path: string, cookie?: string, body?: URLSearchParams, from = orig
   });
 
 const cookie = (response: Response) => response.headers.get("set-cookie")!.split(";")[0];
+
+test("Jarvis can only load WHOOP metrics for an active owner session and same-origin POST", async () => {
+  const h = harness();
+  const loggedIn = await h.integration.session(
+    post("/api/whoop/session", undefined, new URLSearchParams({ access_key: ownerKey })),
+  );
+  const session = cookie(loggedIn);
+  await h.integration.jarvisSnapshot(post("/_serverFn/example"));
+  await h.integration.jarvisSnapshot(
+    post("/_serverFn/example", session, undefined, "https://other.test"),
+  );
+  await h.integration.jarvisSnapshot(
+    new Request(origin + "/_serverFn/example", {
+      headers: { Cookie: session, Origin: origin },
+    }),
+  );
+  expect(h.snapshotReads).toBe(0);
+  await h.integration.jarvisSnapshot(post("/_serverFn/example", session));
+  expect(h.snapshotReads).toBe(1);
+  await h.integration.session(
+    new Request(origin + "/api/whoop/session", {
+      method: "DELETE",
+      headers: { Cookie: session, Origin: origin },
+    }),
+  );
+  await h.integration.jarvisSnapshot(post("/_serverFn/example", session));
+  expect(h.snapshotReads).toBe(1);
+});
 
 test("sync and health records require an owner session, and sync rejects cross-origin requests", async () => {
   const h = harness();

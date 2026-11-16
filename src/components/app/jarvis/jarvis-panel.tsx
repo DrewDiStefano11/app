@@ -4,6 +4,7 @@ import { BottomSheet } from "../sheet";
 import { Chip, GhostButton } from "../ui";
 import { useStore, uid } from "@/lib/store";
 import { aiChat } from "@/lib/ai.functions";
+import { subscribeToWhoopChanges } from "@/lib/whoop/browser";
 import { useServerFn } from "@tanstack/react-start";
 import { TOOL_SPECS, runTool, undoAuditEntry, type ToolResult } from "@/lib/jarvis/tools";
 import { ConfirmCard } from "./confirm-card";
@@ -26,7 +27,7 @@ type AiDiagnostics = {
   messagesSent?: number;
   timestamp?: number;
 };
-type ChatResp = { ok: true; content: string; toolCalls?: { id: string; name: string; argsJson: string }[]; notice?: string; diagnostics?: AiDiagnostics } | { ok: false; error: string; diagnostics?: AiDiagnostics };
+type ChatResp = { ok: true; content: string; toolCalls?: { id: string; name: string; argsJson: string }[]; notice?: string; diagnostics?: AiDiagnostics; whoopExpiresAt?: string } | { ok: false; error: string; diagnostics?: AiDiagnostics };
 
 interface RenderedMsg {
   id: string;
@@ -34,6 +35,7 @@ interface RenderedMsg {
   content: string;
   toolResults?: { tool: string; result: ToolResult; pending?: { draftId: string; args: Record<string, unknown> } }[];
   createdAt: number;
+  whoopExpiresAtMs?: number;
 }
 
 const SUGGESTED = [
@@ -156,12 +158,39 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [shareWhoop, setShareWhoop] = useState(false);
   const [messages, setMessages] = useState<RenderedMsg[]>([]);
   const { state, set } = useStore();
   const stateRef = useRef(state);
   const sendingRef = useRef(false);
+  const whoopEpoch = useRef(0);
   const chatFn = useServerFn(aiChat);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const clearWhoop = useCallback(() => {
+    whoopEpoch.current++;
+    setShareWhoop(false);
+    setMessages((current) => current.filter((message) => message.whoopExpiresAtMs === undefined));
+  }, []);
+  useEffect(() => {
+    const unsubscribe = subscribeToWhoopChanges((change) => {
+      if (change === "clear") clearWhoop();
+    });
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") clearWhoop();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      unsubscribe();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [clearWhoop]);
+  useEffect(() => {
+    const earliest = Math.min(...messages.map((message) => message.whoopExpiresAtMs ?? Infinity));
+    if (!Number.isFinite(earliest)) return;
+    const timeout = window.setTimeout(clearWhoop, Math.min(Math.max(0, earliest - Date.now()), 2_147_483_647));
+    return () => window.clearTimeout(timeout);
+  }, [messages, clearWhoop]);
 
   useEffect(() => { stateRef.current = state; }, [state]);
   useEffect(() => { if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [open, messages.length]);
@@ -175,10 +204,11 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
   const settings = state.jarvisSettings;
   const latestToolMessageId = [...messages].reverse().find(m => m.toolResults?.length)?.id;
 
-  const send = useCallback(async (text: string) => {
+  const send = useCallback(async (text: string, includeWhoop = false) => {
     const content = text.trim();
     if (!content || sendingRef.current) return;
     sendingRef.current = true;
+    setShareWhoop(false);
     if (!settings.enabled) {
       setMessages(m => [...m, { id: uid(), role: "assistant", content: "Jarvis is disabled. Enable it in Settings > Jarvis AI.", createdAt: Date.now() }]);
       sendingRef.current = false;
@@ -188,10 +218,11 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
     setSending(true);
     const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now() };
     setMessages(m => [...stripToolCards(m), userMsg]);
+    const sentWhoopEpoch = whoopEpoch.current;
 
     try {
       const recent = [{ role: userMsg.role, content: userMsg.content }];
-      const tools = settings.permission === 1 ? TOOL_SPECS.filter(t => t.name.startsWith("get")) : TOOL_SPECS;
+      const tools = settings.permission === 1 || includeWhoop ? TOOL_SPECS.filter(t => t.name.startsWith("get")) : TOOL_SPECS;
       const sysPrompt = jarvisSystemPrompt(stateRef.current, section, contextSummary);
       const savedGeminiKey = readSavedKey(GEMINI_KEY_STORAGE);
       const savedGroqKey = readSavedKey(GROQ_KEY_STORAGE);
@@ -199,6 +230,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         messages: recent,
         mode: settings.responseStyle === "detailed" ? "detailed" : "quick",
         systemOverride: sysPrompt,
+        ...(includeWhoop ? { includeWhoop: true } : {}),
         tools,
         provider: settings.aiProvider ?? "groq",
         geminiKeyMode: normalizedKeyMode(settings.geminiKeyMode),
@@ -211,6 +243,7 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         autoAiFallback: settings.autoAiFallback !== false,
         allowGeminiFallback: Boolean(settings.allowGeminiFallback),
       } }) as ChatResp;
+      if (includeWhoop && sentWhoopEpoch !== whoopEpoch.current) return;
       recordDiagnostics(res.diagnostics);
 
       if (!res.ok) {
@@ -218,8 +251,12 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
         return;
       }
 
+      const whoopExpiresAtMs = includeWhoop ? Date.parse(res.whoopExpiresAt ?? "") : undefined;
+      if (whoopExpiresAtMs !== undefined && !(whoopExpiresAtMs > Date.now())) return;
+
       const toolResults: RenderedMsg["toolResults"] = [];
       for (const tc of res.toolCalls ?? []) {
+        if (includeWhoop && !tc.name.startsWith("get")) continue;
         let args: Record<string, unknown> = {};
         try { args = JSON.parse(tc.argsJson); } catch { /* keep empty */ }
         if (isMutatingTool(tc.name) && settings.permission >= 2 && !shouldAutoRun(tc.name, args, settings)) {
@@ -232,9 +269,11 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
       }
 
       const assistantContent = friendlyAssistantContent(res.content, toolResults) || (toolResults.length ? "" : "I couldn't complete that request.");
-      setMessages(m => [...m, { id: uid(), role: "assistant", content: assistantContent, toolResults, createdAt: Date.now() }]);
+      setMessages(m => [...m, { id: uid(), role: "assistant", content: assistantContent, toolResults, createdAt: Date.now(), whoopExpiresAtMs }]);
     } catch (err) {
-      setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${err instanceof Error ? err.message : "Jarvis failed"}`, createdAt: Date.now() }]);
+      if (!includeWhoop || sentWhoopEpoch === whoopEpoch.current) {
+        setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${err instanceof Error ? err.message : "Jarvis failed"}`, createdAt: Date.now() }]);
+      }
     } finally {
       sendingRef.current = false;
       setSending(false);
@@ -287,11 +326,11 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
     }));
   };
   const undoAction = (auditId: string) => undoAuditEntry(auditId, stateRef.current, set);
-  const providerName = settings.aiProvider === "gemini" ? "Gemini" : settings.aiProvider === "legacy-lovable" ? "Legacy" : "Groq";
+  const providerName = settings.aiProvider === "gemini" ? "Gemini" : settings.aiProvider === "legacy-lovable" ? "Lovable AI" : "Groq";
 
   return (
     <>
-      <BottomSheet open={open} onClose={() => setOpen(false)} title="Jarvis" height="tall">
+      <BottomSheet open={open} onClose={() => { clearWhoop(); setOpen(false); }} title="Jarvis" height="tall">
         <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--surface-2)]">
             <span className={`w-1.5 h-1.5 rounded-full ${sending ? "animate-pulse" : ""}`} style={{ background: sending ? "var(--section)" : "var(--success, #10b981)" }} />
@@ -335,21 +374,39 @@ export function JarvisPanel({ section, contextSummary }: { section: string; cont
           {SUGGESTED.map(s => <Chip key={s} onClick={() => send(s)}>{s}</Chip>)}
         </div>
 
+        {settings.enabled && (
+          <label className="flex items-start gap-2 py-2 text-xs leading-relaxed">
+            <input
+              type="checkbox"
+              className="mt-1 size-4 shrink-0"
+              checked={shareWhoop}
+              disabled={sending}
+              onChange={(event) => setShareWhoop(event.target.checked)}
+            />
+            <span>
+              Include recent WHOOP measurements with this message
+              <span className="block text-muted-foreground">
+                Sends available recovery, HRV, resting heart rate, sleep and daily Strain to {providerName} for a read-only reply.
+              </span>
+            </span>
+          </label>
+        )}
         <div className="flex gap-2 sticky bottom-0 pb-2 pt-1" style={{ background: "var(--surface)" }}>
           <input value={input} onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") send(input); }}
+            onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) void send(input, shareWhoop); }}
             placeholder="Talk to Jarvis..." className="flex-1 px-4 py-3 rounded-xl bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)]" />
           <button disabled title="Voice mode - coming in Phase 6" className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--surface-2)] text-muted-foreground opacity-60">
             <Mic size={18} />
           </button>
-          <button onClick={() => send(input)} disabled={sending || !input.trim()}
+          <button onClick={() => void send(input, shareWhoop)} disabled={sending || !input.trim()}
+            aria-label="Send message"
             className="w-12 h-12 rounded-xl flex items-center justify-center text-white disabled:opacity-50"
             style={{ background: "var(--section)" }}>
             <Send size={18} />
           </button>
         </div>
         {messages.length > 0 && (
-          <div className="mt-2"><GhostButton className="w-full text-sm" onClick={() => setMessages([])}>Clear conversation</GhostButton></div>
+          <div className="mt-2"><GhostButton className="w-full text-sm" onClick={() => { clearWhoop(); setMessages([]); }}>Clear conversation</GhostButton></div>
         )}
       </BottomSheet>
     </>

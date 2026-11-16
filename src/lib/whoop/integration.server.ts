@@ -243,5 +243,11 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
       if (!session) return reply(401);
       return Response.json(await store.getSnapshot(session), { headers: privateHeaders });
     },
+
+    async jarvisSnapshot(request: Request) {
+      if (request.method !== "POST" || !isSameOriginMutation(request)) return null;
+      const session = await getSession(request);
+      return session ? store.getSnapshot(session) : null;
+    },
   };
 }

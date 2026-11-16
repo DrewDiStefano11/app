@@ -72,7 +72,9 @@ function PrivacyPolicy() {
           </p>
           <p>
             FitCore displays those measurements in an unlocked browser session. The imported records
-            are excluded from FitCore tracking backups and Jarvis requests in this version.
+            are excluded from FitCore tracking backups. If you choose to share recent WHOOP
+            measurements with a Jarvis message, FitCore sends the available measurements and their
+            dates to the AI provider shown in the Jarvis panel for that request.
           </p>
         </section>
 
