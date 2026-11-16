@@ -71,6 +71,12 @@ function PrivacyPolicy() {
             revocation fails, you can also remove the connection in WHOOP.
           </p>
           <p>
+            When background sync is enabled, FitCore stores WHOOP notification identifiers to
+            recognize repeat deliveries and keep deleted records from returning in an older
+            response. Scheduled cleanup removes receipt records after two days and deletion records
+            after 31 days. Disconnect WHOOP deletes these records from the live database.
+          </p>
+          <p>
             FitCore displays those measurements in an unlocked browser session. The imported records
             are excluded from FitCore tracking backups. If you choose to share recent WHOOP
             measurements with a Jarvis message, FitCore sends the available measurements and their
