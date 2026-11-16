@@ -781,6 +781,24 @@ test("round-trips reports and payloads and never shares caller-owned references"
   assert.equal(Object.hasOwn(result.envelope!.payload.jarvisLearning, "changed"), false);
 });
 
+test("backup JSON retains starter references and reusable workout layouts", () => {
+  const source = state();
+  source.workoutTemplates = [
+    { id: "starter", name: "Push", templateId: "push" },
+    {
+      id: "lower-day",
+      name: "Lower day",
+      templateId: "lower-day",
+      plan: { durationMin: 35, exercises: [{ exerciseId: "squat", sets: 4, reps: "5–8" }] },
+    },
+  ];
+  const backup = serializeFitCoreBackupEnvelope(envelope(source));
+  assert.ok(backup.json);
+  const parsed = JSON.parse(backup.json);
+  assert.deepEqual(parsed.payload.workoutTemplates, source.workoutTemplates);
+  assert.equal(inspectFitCoreBackupEnvelope(parsed).status, "valid");
+});
+
 test("accepts deeply frozen input and never mutates candidates or returned frozen data", () => {
   const source = preservationState();
   const freeze = (value: unknown): void => {

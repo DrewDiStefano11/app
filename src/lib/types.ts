@@ -1,3 +1,5 @@
+import type { TemplateExercise } from "./data";
+
 export type SectionId = "home" | "training" | "nutrition" | "recovery" | "progress";
 
 export interface SetEntry {
@@ -19,6 +21,7 @@ export interface WorkoutExercise {
   completed: boolean;
   /** Tags applied to the whole exercise (e.g. unilateral, paused). */
   exerciseTags?: NonNullable<SetEntry["modifier"]>[];
+  target?: Omit<TemplateExercise, "exerciseId">;
   provenance?: DataProvenance;
 }
 
@@ -356,6 +359,15 @@ export interface Personalization {
 
 export interface NutritionTargets { calories: number; protein: number; carbs: number; fat: number; }
 
+export interface WorkoutTemplateReference {
+  pausedBenchConfirmed?: boolean;
+  reviewedBenchWorkoutId?: string;
+  id: string;
+  name: string;
+  templateId: string;
+  plan?: { durationMin: number; exercises: TemplateExercise[] };
+}
+
 export interface AppState {
   version: number;
   onboardingComplete: boolean;
@@ -364,7 +376,7 @@ export interface AppState {
   nutritionTargets: NutritionTargets;
   workouts: Workout[];
   activeWorkout: Workout | null;
-  workoutTemplates: { id: string; name: string; templateId: string }[];
+  workoutTemplates: WorkoutTemplateReference[];
   customExercises: CustomExercise[];
   cardioEntries: CardioEntry[];
   mealEntries: MealEntry[];

@@ -149,7 +149,8 @@ test.describe("FitCore data integrity", () => {
     await seedRevisionedFitCoreState(page, currentFitCoreState({ onboardingComplete: true }));
 
     await clickBottomNav(page, "Train");
-    await page.getByRole("button", { name: /Start today's plan/i }).click();
+    await page.getByRole("button", { name: "Templates", exact: true }).click();
+    await page.locator(".card-elev").filter({ hasText: "Push Day" }).getByRole("button", { name: "Start", exact: true }).click();
     await page.getByRole("button", { name: /Finish workout/i }).click();
     await page.getByRole("button", { name: /Confirm & save/i }).click();
 

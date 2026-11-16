@@ -1,13 +1,16 @@
 import { useState } from "react";
 import { Play, Plus, Clock, Flame, Trash2, Trophy, Dumbbell, CalendarDays, BarChart3, ListChecks } from "lucide-react";
 import { useStore, uid, isToday } from "@/lib/store";
-import { WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
+import { availableWorkoutTemplates, WORKOUT_TEMPLATES, exerciseById } from "@/lib/data";
 import { weeklyVolumeSeries, muscleMap, MUSCLES } from "@/lib/analytics";
-import type { CardioEntry } from "@/lib/types";
+import type { CardioEntry, WorkoutTemplateReference } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SectionHeader, SubTabs, PlannedFeatureCard } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { ActiveWorkoutView } from "@/components/app/active-workout";
+import { WorkoutTemplateEditor } from "@/components/app/workout-template-editor";
+import { BenchProgram } from "@/components/app/bench-program";
+import { formatWorkoutTarget } from "@/lib/bench-program";
 
 type TrainingPanel = "templates" | "cardio" | "history" | "performance" | null;
 
@@ -47,7 +50,10 @@ export function TrainingView({
           <PrimaryButton onClick={onOpenActive}><Play size={16} />Resume workout</PrimaryButton>
         </div>
       )}
-      {layoutMode === "deepDive" && <SubTabs tabs={DEEP_DIVE_TABS} active={tab} onChange={setTab} />}
+      {layoutMode === "deepDive" && <>
+        <div className="px-5 mb-4"><BenchProgram onStart={onOpenActive} /></div>
+        <SubTabs tabs={DEEP_DIVE_TABS} active={tab} onChange={setTab} />
+      </>}
 
       {layoutMode === "daily" ? (
         <DailyTrainingView
@@ -98,9 +104,7 @@ function DailyTrainingView({
   const { state, startWorkout } = useStore();
   const todays = state.workouts.filter(w => isToday(w.startedAt));
   const lastWorkout = state.workouts[state.workouts.length - 1];
-  const planExercises = state.workoutTemplates[0]
-    ? WORKOUT_TEMPLATES.find(t => t.id === state.workoutTemplates[0].templateId)
-    : WORKOUT_TEMPLATES[0];
+
   const weekWorkouts = state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000);
   const weekCardio = state.cardioEntries.filter(c => c.createdAt > Date.now() - 7*86400000);
   const weekCardioMin = weekCardio.reduce((a, c) => a + c.minutes, 0);
@@ -110,9 +114,7 @@ function DailyTrainingView({
   const startBlank = () => {
     if (startWorkout()) onOpenActive();
   };
-  const startPlan = () => {
-    if (planExercises && startWorkout(planExercises)) onOpenActive();
-  };
+
 
   return (
     <div className="px-5 space-y-5">
@@ -126,7 +128,7 @@ function DailyTrainingView({
                 ? `${state.activeWorkout.name} started ${new Date(state.activeWorkout.startedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
                 : todays.length
                   ? `${todays.length} workout${todays.length === 1 ? "" : "s"} logged today`
-                  : planExercises ? `Plan: ${planExercises.name}` : "Choose a template or start blank."}
+                  : "Choose a workout below."}
             </p>
           </div>
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: "var(--section)" }}>
@@ -138,15 +140,11 @@ function DailyTrainingView({
             <PrimaryButton onClick={onOpenActive} className="flex-1">
               <Play size={16} />Resume workout
             </PrimaryButton>
-          ) : (
-            <PrimaryButton onClick={planExercises ? startPlan : startBlank} className="flex-1">
-              <Play size={16} />{planExercises ? "Start today's plan" : "Start workout"}
-            </PrimaryButton>
-          )}
-          <GhostButton onClick={startBlank}><Plus size={16} />Blank</GhostButton>
+          ) : null}
         </div>
       </div>
 
+      <BenchProgram onStart={onOpenActive} />
       <section>
         <SectionHeader title="Quick start" />
         <div className="grid grid-cols-2 gap-2">
@@ -163,34 +161,6 @@ function DailyTrainingView({
           )}
         </div>
       </section>
-
-      {planExercises && (
-        <>
-          <SectionHeader title="Today's assigned workout" />
-          <Card>
-            <p className="font-semibold">{planExercises.name}</p>
-            <p className="text-xs text-muted-foreground mt-0.5">{planExercises.exercises.length} exercises • ~{planExercises.durationMin} min</p>
-            <div className="mt-3 space-y-1">
-              {planExercises.exercises.slice(0, 4).map((te, i) => (
-                <div key={i} className="text-xs text-muted-foreground flex justify-between">
-                  <span>{exerciseById(te.exerciseId)?.name}</span>
-                  <span className="tabular-nums">{te.sets}×{te.reps}</span>
-                </div>
-              ))}
-              {planExercises.exercises.length > 4 && (
-                <p className="text-xs text-muted-foreground">+{planExercises.exercises.length - 4} more</p>
-              )}
-            </div>
-          </Card>
-        </>
-      )}
-
-      {!planExercises && (
-        <>
-          <SectionHeader title="Today's assigned workout" />
-          <EmptyState icon={<CalendarDays size={22} />} title="No plan assigned" description="Pick a starter template or start blank for today's session." />
-        </>
-      )}
 
       <section>
         <SectionHeader title="Programs & templates" action={<button onClick={() => onOpenPanel("templates")} className="text-xs font-semibold text-muted-foreground">View all</button>} />
@@ -353,39 +323,69 @@ function WorkoutsTab() {
 }
 
 function TemplatesSection({ onWorkoutStarted }: { onWorkoutStarted?: () => void }) {
-  const { startWorkout } = useStore();
+  const { state, startWorkout } = useStore();
+  const templates = availableWorkoutTemplates(state.workoutTemplates);
   const [detail, setDetail] = useState<string | null>(null);
+  const [editor, setEditor] = useState<{ template: WorkoutTemplateReference | null } | null>(null);
+  const editableTemplates = new Map(state.workoutTemplates.filter(template => template.plan)
+    .map(template => [template.id, template]));
   const startTemplate = (tid: string) => {
-    const t = WORKOUT_TEMPLATES.find(x => x.id === tid); if (!t) return;
+    const t = templates.find(x => x.id === tid); if (!t) return;
     if (startWorkout(t)) onWorkoutStarted?.();
   };
-  const active = detail ? WORKOUT_TEMPLATES.find(t => t.id === detail) : null;
+  const active = detail ? templates.find(t => t.id === detail) : null;
   return (
     <>
-      <p className="text-sm text-muted-foreground mb-3">{WORKOUT_TEMPLATES.length} starter templates</p>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <p className="text-sm text-muted-foreground">{WORKOUT_TEMPLATES.length} starter templates</p>
+        <GhostButton onClick={() => setEditor({ template: null })}>
+          <Plus size={16} />New template
+        </GhostButton>
+      </div>
       <div className="space-y-2">
-        {WORKOUT_TEMPLATES.map(t => (
+        {templates.map(t => {
+          const editable = editableTemplates.get(t.id);
+          return (
           <Card key={t.id} onClick={() => setDetail(t.id)}>
             <div className="flex justify-between items-start">
               <div>
                 <p className="font-semibold">{t.name}</p>
-                <p className="text-xs text-muted-foreground">{t.goal} • {t.durationMin} min • {t.exercises.length} exercises</p>
+                <p className="text-xs text-muted-foreground">
+                  {t.goal}{t.durationMin > 0 && ` • ${t.durationMin} min`} • {t.exercises.length} exercises
+                </p>
               </div>
-              <button onClick={(e) => { e.stopPropagation(); startTemplate(t.id); }}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: "var(--section)" }}>Start</button>
+              <div className="flex gap-1">
+                {editable && (
+                  <GhostButton aria-label={`Edit ${t.name}`}
+                    onClick={event => { event.stopPropagation(); setEditor({ template: editable }); }}>
+                    Edit
+                  </GhostButton>
+                )}
+                <button onClick={(e) => { e.stopPropagation(); startTemplate(t.id); }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white" style={{ background: "var(--section)" }}>Start</button>
+              </div>
             </div>
           </Card>
-        ))}
+          );
+        })}
       </div>
       <BottomSheet open={!!detail} onClose={() => setDetail(null)} title={active?.name} height="tall">
         {active && (
           <>
-            <p className="text-sm text-muted-foreground mb-3">{active.goal} • {active.durationMin} min</p>
+            <p className="text-sm text-muted-foreground mb-3">
+              {active.goal}{active.durationMin > 0 && ` • ${active.durationMin} min`}
+            </p>
             <div className="space-y-1.5">
               {active.exercises.map((te, i) => (
                 <div key={i} className="p-3 rounded-xl bg-[var(--surface-2)] flex justify-between">
-                  <span className="text-sm font-medium">{exerciseById(te.exerciseId)?.name ?? te.exerciseId}</span>
-                  <span className="text-xs text-muted-foreground tabular-nums">{te.sets}×{te.reps}</span>
+                  <span className="text-sm font-medium">
+                    {exerciseById(te.exerciseId)?.name ??
+                      state.customExercises.find(exercise => exercise.id === te.exerciseId)?.name ??
+                      "Exercise"}
+                  </span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {formatWorkoutTarget(te)}
+                  </span>
                 </div>
               ))}
             </div>
@@ -393,6 +393,7 @@ function TemplatesSection({ onWorkoutStarted }: { onWorkoutStarted?: () => void 
           </>
         )}
       </BottomSheet>
+      {editor && <WorkoutTemplateEditor template={editor.template} onClose={() => setEditor(null)} />}
     </>
   );
 }
@@ -482,9 +483,14 @@ function HistorySection() {
                       state.customExercises.find(custom => custom.id === ex.exerciseId)?.name ??
                       "Exercise"}
                   </p>
+                  {ex.target && <p className="text-xs text-muted-foreground">Target {formatWorkoutTarget(ex.target)}{ex.target.optional && " · Optional"}</p>}
                   {ex.notes && <p className="text-xs whitespace-pre-wrap mt-1">{ex.notes}</p>}
                   <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                    {ex.sets.map((st, i) => <div key={st.id}>Set {i+1}: {st.weight ?? "—"}lb × {st.reps ?? "—"} {st.completed ? "✓" : ""}</div>)}
+                    {ex.sets.map((st, i) => <div key={st.id}>Set {i+1}: {[
+                      st.weight == null && st.reps != null ? `${st.reps} reps`
+                        : st.weight != null ? `${st.weight}lb × ${st.reps ?? "—"}` : null,
+                      st.durationMin != null ? `${st.durationMin} min` : null,
+                    ].filter(Boolean).join(" · ") || "—"} {st.completed ? "✓" : ""}</div>)}
                   </div>
                 </Card>
               ))}
