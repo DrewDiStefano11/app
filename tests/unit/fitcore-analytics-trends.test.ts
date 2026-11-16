@@ -83,10 +83,10 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
-test("Task 13 report covers all 85 graph nodes in canonical order", () => {
+test("Task 13 report covers all 86 graph nodes in canonical order", () => {
   const result = getFitCoreAnalytics(historicalState(), { now: NOW });
-  assert.equal(result.trends.records.length, 85);
-  assert.equal(new Set(result.trends.records.map((record) => record.nodeId)).size, 85);
+  assert.equal(result.trends.records.length, 86);
+  assert.equal(new Set(result.trends.records.map((record) => record.nodeId)).size, 86);
   assert.deepEqual(
     result.trends.records.map((record) => record.nodeId),
     METRIC_DEPENDENCY_GRAPH.map((node) => node.id),
@@ -244,7 +244,7 @@ test("Task 13 null trust and invalid or unknown freshness preserve math but rema
 
 test("Task 13 empty and partial states remain explicit, safe, and serializable", () => {
   const empty = getFitCoreAnalytics(state(), { now: NOW }).trends;
-  assert.equal(empty.records.length, 85);
+  assert.equal(empty.records.length, 86);
   assert.ok(
     empty.records.every((record) =>
       record.rollingWindows.every((window) => window.direction === "unavailable"),
@@ -269,7 +269,7 @@ test("Task 13 empty and partial states remain explicit, safe, and serializable",
 
 test("Task 13 summary counts reconcile without double-counting", () => {
   const report = getFitCoreAnalytics(historicalState(), { now: NOW }).trends;
-  assert.equal(report.summary.supported + report.summary.unsupported, 85);
+  assert.equal(report.summary.supported + report.summary.unsupported, 86);
   assert.equal(report.summary.supported, report.supportedNodeCount);
   assert.equal(
     report.summary.unavailable +
@@ -277,7 +277,7 @@ test("Task 13 summary counts reconcile without double-counting", () => {
       report.summary.increasing +
       report.summary.decreasing +
       report.summary.stable,
-    85,
+    86,
   );
   Object.values(report.summary).forEach((count) => assert.ok(count >= 0));
 });

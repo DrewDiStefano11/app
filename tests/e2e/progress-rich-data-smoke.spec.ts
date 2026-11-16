@@ -122,21 +122,17 @@ test.describe("Progress Rich Data Smoke Test", () => {
     expect(pageErrors.length).toBe(0);
 
     // Scenario B: Main Progress areas render safely
-    const bodyText = await page.evaluate(() => document.body.textContent || "");
-    // Progress views might include text related to Body, Train, Fuel, Recover
-    expect(bodyText.length).toBeGreaterThan(0);
-    // At least ensure there's some content so we are not on a blank shell
-    expect(bodyText).toContain("Body");
-    expect(bodyText).toContain("Train");
+    await expect(page.getByText("Up 2.0 lb this week", { exact: true })).toBeVisible();
+    await expect(page.getByText("Limited Data", { exact: true })).toBeVisible();
+    await expect(page.getByText("Train 5x per week", { exact: true })).toBeVisible();
 
     await checkFatalTexts(page);
 
     // Scenario C: Chart/card interaction smoke
-    const bodyTab = page.getByRole("tab", { name: "Body", exact: true });
-    if (await bodyTab.isVisible()) {
-      await bodyTab.click();
-      await checkFatalTexts(page);
-    }
+    await page.getByText("Current Weight", { exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Weight Trend Context" })).toBeVisible();
+    await expect(page.getByText(/Change across the last 7 days of logged weigh-ins is \+2\.0 lb/)).toBeVisible();
+    await checkFatalTexts(page);
 
     // Scenario D: Reload stability
     await page.reload();

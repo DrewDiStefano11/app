@@ -184,36 +184,34 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [sleepQ, setSleepQ] = useState(7);
   const [notes, setNotes] = useState("");
 
-  const readiness = Math.round(((energy + motivation + (10 - soreness) + (10 - stress)) / 40) * 100);
-
-  const save = () => {
-    const now = Date.now();
-    set(s => {
-      const next = { ...s,
-        recoveryCheckIns: [...s.recoveryCheckIns, { id: uid(), energy, soreness, stress, motivation, notes: notes || undefined, createdAt: now }],
-      };
-      const h = Number(sleepHours);
-      if (h > 0) {
-        next.sleepEntries = [...s.sleepEntries, { id: uid(), hours: h, quality: sleepQ, createdAt: now }];
-      }
-      return next;
-    });
-    setNotes(""); setSleepHours("");
+  const [confirmed, setConfirmed] = useState(false);
+  const sleepDuration = Number(sleepHours);
+  const validSleep = !sleepHours || (sleepDuration > 0 && sleepDuration <= 24);
+  const close = () => {
+    setConfirmed(false);
     onClose();
   };
 
+  const save = () => {
+    if (!confirmed || !validSleep) return;
+    const now = Date.now();
+    const saved = set(s => {
+      const next = { ...s,
+        recoveryCheckIns: [...s.recoveryCheckIns, { id: uid(), energy, soreness, stress, motivation, notes: notes || undefined, createdAt: now }],
+      };
+      if (sleepHours) {
+        next.sleepEntries = [...s.sleepEntries, { id: uid(), hours: sleepDuration, quality: sleepQ, createdAt: now }];
+      }
+      return next;
+    });
+    if (!saved) return;
+    setNotes(""); setSleepHours("");
+    close();
+  };
+
   return (
-    <BottomSheet open={open} onClose={onClose} title="Daily Check-In" height="tall">
-      <div className="space-y-4">
-        <div className="tile p-4 flex items-center justify-between">
-          <div>
-            <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Predicted Readiness</div>
-            <div className="font-display text-4xl mt-1">{readiness}<span className="text-xs text-white/40 ml-1">%</span></div>
-          </div>
-          <div className="text-right text-[11px] text-white/60 max-w-[180px]">
-            {readiness >= 75 ? "Prime day — push hard." : readiness >= 55 ? "Solid — moderate intensity." : "Take it easy or recover."}
-          </div>
-        </div>
+    <BottomSheet open={open} onClose={close} title="Daily Check-In" height="tall">
+      <div className="space-y-4" onChange={() => { if (confirmed) setConfirmed(false); }}>
 
         <Slider label="Energy" value={energy} onChange={setEnergy} />
         <Slider label="Soreness / Fatigue" value={soreness} onChange={setSoreness} invert />
@@ -240,9 +238,17 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
             className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white outline-none focus:border-[var(--section)] resize-none" />
         </Field>
 
+        <label className="flex items-start gap-2 text-sm text-muted-foreground">
+          <input type="checkbox" checked={confirmed} onChange={(event) => {
+            event.stopPropagation();
+            setConfirmed(event.target.checked);
+          }} />
+          I confirm these ratings and any sleep details reflect what I experienced.
+        </label>
+        {!validSleep && <p role="alert" className="text-xs text-destructive">Enter up to 24 hours of sleep.</p>}
         <div className="flex gap-2 pt-1">
-          <button onClick={onClose} className="flex-1 h-12 rounded-xl border border-white/15 bg-white/5 font-bold text-white/80">Cancel</button>
-          <button onClick={save} className="flex-1 h-12 rounded-xl font-bold text-white flex items-center justify-center gap-2"
+          <button onClick={close} className="flex-1 h-12 rounded-xl border border-white/15 bg-white/5 font-bold text-white/80">Cancel</button>
+          <button onClick={save} disabled={!confirmed || !validSleep} className="flex-1 h-12 rounded-xl font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"
             style={{ background: "var(--section)" }}>
             <Check size={16} /> Save check-in
           </button>

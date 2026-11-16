@@ -8,7 +8,7 @@ export function MuscleDetailSheet({ muscle, onClose }: { muscle: string | null; 
   const { view } = useStore();
   const open = !!muscle;
   const stats = useMemo(() => muscle ? muscleStats(view, muscle) : null, [view, muscle]);
-  const recovery = useMemo(() => muscle ? Math.round((muscleMap(view, "recovery")[muscle] ?? 0.7) * 100) : 0, [view, muscle]);
+  const recentLoad = useMemo(() => muscle ? Math.round((muscleMap(view, "recovery")[muscle] ?? 0) * 100) : 0, [view, muscle]);
   const strength = useMemo(() => muscle ? Math.round((muscleMap(view, "strength")[muscle] ?? 0) * 100) : 0, [view, muscle]);
   const imbalance = useMemo(() => muscle ? Math.round((muscleMap(view, "imbalance")[muscle] ?? 0) * 100) : 0, [view, muscle]);
 
@@ -21,18 +21,18 @@ export function MuscleDetailSheet({ muscle, onClose }: { muscle: string | null; 
           <Stat label="Sets This Week" value={stats.setsWeek} />
           <Stat label="Volume" value={`${(stats.volWeek / 1000).toFixed(1)}k`} unit="lb" />
           <Stat label="Last Trained" value={daysAgo(stats.lastTrained)} />
-          <Stat label="vs Last Week" value={`${stats.deltaPct >= 0 ? "+" : ""}${stats.deltaPct}%`}
-            color={stats.deltaPct >= 0 ? "rgb(74 222 128)" : "rgb(248 113 113)"} />
+          <Stat label="vs Last Week" value={stats.deltaPct === null ? "—" : `${stats.deltaPct >= 0 ? "+" : ""}${stats.deltaPct}%`}
+            color={stats.deltaPct === null ? undefined : stats.deltaPct >= 0 ? "rgb(74 222 128)" : "rgb(248 113 113)"} />
         </div>
 
         <div className="grid grid-cols-3 gap-3">
-          <Bar label="Recovery" value={recovery} color="rgb(96 165 250)" />
-          <Bar label="Strength" value={strength} color="var(--section)" />
+          <Bar label="3-day load share" value={recentLoad} color="rgb(96 165 250)" />
+          <Bar label="Relative volume" value={strength} color="var(--section)" />
           <Bar label="Imbalance" value={imbalance} color="rgb(239 68 68)" />
         </div>
 
         <div className="tile p-4">
-          <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-2">Recommended Next</div>
+          <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold mb-2">Exercises for this muscle</div>
           <div className="space-y-1.5">
             {stats.recommended.map(e => (
               <div key={e} className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 border border-white/10">
@@ -40,19 +40,11 @@ export function MuscleDetailSheet({ muscle, onClose }: { muscle: string | null; 
                 <span className="text-[10px] uppercase font-bold tracking-wider text-white/40">Add</span>
               </div>
             ))}
-            {!stats.recommended.length && <p className="text-xs text-white/40">No recommendations.</p>}
+            {!stats.recommended.length && <p className="text-xs text-white/40">No exercise matches.</p>}
           </div>
         </div>
 
-        <div className="tile p-4" style={{ background: "var(--section-soft)", borderColor: "var(--section)" }}>
-          <div className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: "var(--section)" }}>AI Tip</div>
-          <p className="text-sm">
-            {recovery >= 70
-              ? `${muscle} is recovered and ready. ${stats.deltaPct < 0 ? "Volume dropped — bump 1–2 sets." : "Maintain or push intensity."}`
-              : `${muscle} is still recovering. Wait 24–48h before another heavy session.`}
-          </p>
-        </div>
-      </div>
+</div>
     </BottomSheet>
   );
 }

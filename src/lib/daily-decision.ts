@@ -1,4 +1,5 @@
 import { exerciseById } from "./data";
+import { recordedRecoveryCheckIns } from "./analytics/observed-fitness";
 import { dayKey as dateKey, startOfDay } from "./analytics/date-time";
 import type {
   AppState,
@@ -357,13 +358,14 @@ export function buildDailyDecisionContext(state: AppState, now = Date.now()): Da
     ),
   );
   const recentCheckIns = latestFirst(
-    state.recoveryCheckIns.filter((item) => item.createdAt <= now),
+    recordedRecoveryCheckIns(state).filter((item) => item.createdAt >= now - 48 * 60 * 60 * 1000 && item.createdAt <= now),
   );
   const latestCheckIn =
     recentCheckIns.find((item) => item.createdAt >= now - 48 * 60 * 60 * 1000) ?? null;
   const previousCheckIn = recentCheckIns.find((item) => item.id !== latestCheckIn?.id) ?? null;
   const latestSleep =
-    latestFirst(state.sleepEntries.filter((item) => item.createdAt <= now))[0] ?? null;
+    latestFirst(state.sleepEntries.filter((item) => item.createdAt >= now - 36 * 60 * 60 * 1000 &&
+      item.createdAt <= now && item.provenance?.confirmation !== "unconfirmed"))[0] ?? null;
   const recentRecoverySignals = latestFirst(
     state.recoverySignals.filter(
       (item) => item.createdAt >= now - 7 * DAY && item.createdAt <= now,
@@ -409,8 +411,8 @@ export function buildDailyDecisionContext(state: AppState, now = Date.now()): Da
   const hour = new Date(now).getHours();
   const expectedProgress = Math.max(0.35, Math.min(0.9, (hour - 7) / 14));
   const underEating =
-    trustedTodayMeals.length > 0 &&
-    hour >= 12 &&
+    hasThreeMeals(trustedTodayMeals) &&
+    hour >= 19 &&
     ((calorieTarget > 0 && caloriesToday < calorieTarget * expectedProgress * 0.72) ||
       (proteinTarget > 0 && proteinToday < proteinTarget * expectedProgress * 0.65));
   const trust = getDataTrustSummary(state, now);
@@ -562,27 +564,26 @@ function getPerformanceChange(context: DailyDecisionContext): WhatChangedSignal 
   return null;
 }
 
+function hasThreeMeals(meals: AppState["mealEntries"]) {
+  return ["breakfast", "lunch", "dinner"].every((type) => meals.some((meal) => meal.type === type));
+}
+
 export function getWhatChangedSignals(state: AppState, now = Date.now()): WhatChangedSignal[] {
   const context = buildDailyDecisionContext(state, now);
   const signals: WhatChangedSignal[] = [];
   const currentCount = context.recentWorkouts.length;
   const previousCount = context.previousWorkouts.length;
-  if (currentCount !== previousCount) {
+  if (currentCount > 0 && previousCount > 0 && currentCount !== previousCount) {
     signals.push({
       type: "training_frequency",
-      label: `Training frequency ${currentCount > previousCount ? "increased" : "decreased"}`,
+      label: `Logged workout frequency ${currentCount > previousCount ? "increased" : "decreased"}`,
       currentValue: currentCount,
       comparisonValue: previousCount,
       comparisonWindow: "last 7 days vs previous 7 days",
       direction: currentCount > previousCount ? "increased" : "decreased",
       significance: Math.abs(currentCount - previousCount) >= 2 ? "high" : "medium",
       confidence: confidenceOf([...context.recentWorkouts, ...context.previousWorkouts]),
-      explanation:
-        currentCount > previousCount
-          ? "More sessions can support progress, but recovery should keep pace with the added frequency."
-          : previousCount > 0 && currentCount === 0
-            ? "Training paused this week. Restart with a comfortable session rather than trying to make up missed work."
-            : "Fewer sessions may reduce training stimulus; resume the normal schedule when practical.",
+      explanation: "Compares the completed workouts recorded in each 7-day window.",
       dataUsed:
         context.recentWorkouts.length || context.previousWorkouts.length
           ? [
@@ -658,13 +659,17 @@ export function getWhatChangedSignals(state: AppState, now = Date.now()): WhatCh
     }
   }
 
-  if (context.trustedTodayMeals.length) {
+  if (new Date(now).getHours() >= 19 && hasThreeMeals(context.trustedTodayMeals)) {
     const today = startOfDay(now);
-    const priorMeals = state.mealEntries.filter(
+    const recentMeals = state.mealEntries.filter(
       (item) =>
         item.createdAt >= today - 7 * DAY && item.createdAt < today && !isUnconfirmedAi(item),
     );
-    const loggedDays = new Set(priorMeals.map((item) => dateKey(item.createdAt))).size;
+    const completeDates = [...new Set(recentMeals.map((item) => dateKey(item.createdAt)))].filter(
+      (date) => hasThreeMeals(recentMeals.filter((meal) => dateKey(meal.createdAt) === date)),
+    );
+    const priorMeals = recentMeals.filter((meal) => completeDates.includes(dateKey(meal.createdAt)));
+    const loggedDays = completeDates.length;
     if (loggedDays >= 2) {
       const usualCalories = priorMeals.reduce((sum, item) => sum + item.calories, 0) / loggedDays;
       const usualProtein = priorMeals.reduce((sum, item) => sum + item.protein, 0) / loggedDays;
@@ -690,7 +695,7 @@ export function getWhatChangedSignals(state: AppState, now = Date.now()): WhatCh
           significance: Math.min(caloriesRatio, proteinRatio) <= 0.45 ? "high" : "medium",
           confidence: confidenceOf([...context.trustedTodayMeals, ...priorMeals]),
           explanation:
-            "Confirmed intake is materially behind the recent logged pattern. Complete today's logs before changing targets.",
+            "Logged intake is lower than in recent days with breakfast, lunch, and dinner recorded.",
           dataUsed: [
             used(
               "nutrition",
@@ -780,14 +785,13 @@ function chooseDecisionType(context: DailyDecisionContext): DecisionType {
     return "deload";
   if (!checkIn && !context.latestSleep && !context.recentWorkouts.length && !context.activeWorkout)
     return "insufficient_data";
-  if (context.underEating) return "train_light";
   if (context.activeWorkout) return "train_normal";
   const goodRecovery =
     !!checkIn &&
     checkIn.energy >= 8 &&
     checkIn.soreness <= 3 &&
     checkIn.stress <= 5 &&
-    (!context.latestSleep || (context.latestSleep.hours >= 7 && context.latestSleep.quality >= 6));
+    context.latestSleep !== null && context.latestSleep.hours >= 7 && context.latestSleep.quality >= 6;
   return goodRecovery && context.recentWorkouts.length > 0 ? "train_hard" : "train_normal";
 }
 

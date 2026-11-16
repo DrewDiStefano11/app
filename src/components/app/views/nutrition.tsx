@@ -37,33 +37,24 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
   const [tab, setTab] = useState<NutritionSubtab>("macros");
   const isDeepDive = layoutMode === "deepDive";
 
-  const today = state.mealEntries.filter((m) => isToday(m.createdAt));
+  const now = Date.now();
+  const today = state.mealEntries.filter((m) => isToday(m.createdAt) && m.createdAt <= now);
   const t = today.reduce(
     (a, m) => ({ c: a.c + m.calories, p: a.p + m.protein, cb: a.cb + m.carbs, f: a.f + m.fat }),
     { c: 0, p: 0, cb: 0, f: 0 },
   );
   const tg = state.nutritionTargets;
-  const remaining = Math.max(0, tg.calories - t.c);
+  const hasMeals = today.length > 0;
 
   const supplements = state.supplementLogs
     ? state.supplementLogs.filter((s) => isToday(s.createdAt))
     : [];
 
-  let statusMsg = "No nutrition logged yet";
-  if (today.length > 0) {
-    const proteinGap = tg.protein - t.p;
-    const calorieGap = tg.calories - t.c;
-    if (proteinGap > 30) statusMsg = `Protein still needed (${Math.round(proteinGap)}g short)`;
-    else if (calorieGap > 500)
-      statusMsg = `Calories still needed (${Math.round(calorieGap)} kcal under)`;
-    else statusMsg = "On track";
-  }
-
   return (
     <div className="pb-24">
       <PageHeader
         title="Nutrition"
-        subtitle={`${Math.round(remaining)} kcal remaining today - ${isDeepDive ? "Deep Dive" : "Daily View"}`}
+        subtitle={hasMeals ? `${Math.round(t.c)} kcal logged today` : "No meals logged today"}
       />
       {isDeepDive && <SubTabs tabs={NUTRITION_TABS} active={tab} onChange={setTab} />}
 
@@ -79,10 +70,10 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
             <div className="flex justify-between items-center mb-4">
               <Eyebrow color="rgb(34 197 94)">Daily Macros</Eyebrow>
               <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 bg-white/5 px-2 py-1 rounded-md">
-                {statusMsg}
+                {hasMeals ? "Logged so far" : "No meals recorded"}
               </span>
             </div>
-            <div className="flex items-center justify-between gap-6">
+            {hasMeals && <div className="flex items-center justify-between gap-6">
               <div className="flex flex-col items-center gap-2">
                 <Ring value={t.c} max={tg.calories} size={96} label="kcal" />
                 <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">
@@ -106,7 +97,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                 />
                 <MacroBar label="Fat" value={t.f} target={tg.fat} unit="g" color="rgb(34 197 94)" />
               </div>
-            </div>
+            </div>}
           </Tile>
 
           <div className="grid grid-cols-1 gap-3">
@@ -128,7 +119,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                 </p>
               </div>
               <p className="font-display text-xl text-white">
-                0 <span className="text-sm text-white/40">fl oz</span>
+                —
               </p>
             </div>
 
@@ -223,6 +214,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
         <div className="px-5 space-y-4 mt-2">
           <SectionHeader title="Macro detail" />
           <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
+            {hasMeals ? <>
             <MacroBar
               label="Protein"
               value={t.p}
@@ -243,9 +235,9 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
               <MacroBar label="Fat" value={t.f} target={tg.fat} unit="g" color="rgb(34 197 94)" />
             </div>
             <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-              Macro totals are calculated from meals logged today. Targets come from the existing
-              nutrition target state.
+              Values reflect meals logged today.
             </p>
+            </> : <p className="text-sm text-muted-foreground">No meals logged today.</p>}
           </div>
 
           <PlannedFeatureCard

@@ -9,7 +9,6 @@ import {
   Sparkles,
   TrendingUp,
   Info,
-  Activity,
   ChevronDown,
   ChevronRight,
   Dumbbell,
@@ -19,7 +18,7 @@ import {
 } from "lucide-react";
 
 import { useStore, uid } from "@/lib/store";
-import { fitcoreScore, weeklyVolumeSeries, bodyweightDelta, momentumScore } from "@/lib/analytics";
+import { weeklyVolumeSeries, bodyweightDelta, momentumScore } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import {
@@ -89,7 +88,7 @@ function DailyViewContent() {
   );
   const bw = state.profile.bodyweightLb;
   const target = state.profile.targetBodyweightLb;
-  const dWeek = bodyweightDelta(state, 7) ?? 0;
+  const dWeek = bodyweightDelta(state, 7);
   const weekAgo = Date.now() - 7 * 86400000;
   const week = sortedBw.filter((e) => e.createdAt > weekAgo);
   const weekAvg = week.length
@@ -154,9 +153,11 @@ function DailyViewContent() {
               <span className="text-sm font-normal text-muted-foreground">lb</span>
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {dWeek === 0
-                ? "Stable"
-                : `${dWeek > 0 ? "Up" : "Down"} ${Math.abs(dWeek).toFixed(1)} lb this week`}
+              {dWeek === null
+                ? "Needs two weigh-ins this week"
+                : dWeek === 0
+                  ? "Stable across logged weigh-ins"
+                  : `${dWeek > 0 ? "Up" : "Down"} ${Math.abs(dWeek).toFixed(1)} lb this week`}
             </p>
           </div>
           <ChevronRight size={16} className="text-muted-foreground" />
@@ -281,13 +282,11 @@ function DailyViewContent() {
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            This week's average is <strong className="text-foreground">{weekAvg} lb</strong>, and
-            you've seen a change of{" "}
-            <strong className="text-foreground">
-              {dWeek > 0 ? "+" : ""}
-              {dWeek.toFixed(1)} lb
-            </strong>{" "}
-            over the last 7 days.
+            {weekAvg === "—" ? "No weigh-ins logged this week." : `This week's logged average is ${weekAvg} lb.`}
+            {" "}
+            {dWeek === null
+              ? "Log another weigh-in to compare."
+              : `Change across the last 7 days of logged weigh-ins is ${formatWeightDelta(dWeek)} lb.`}
           </p>
           <p className="text-sm text-muted-foreground">
             Remember that daily weight fluctuates based on hydration, sodium, digestion, and stress.
@@ -331,8 +330,7 @@ function DailyViewContent() {
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Momentum combines your consistency across training, nutrition logging, and recovery
-            check-ins. {mScore.explanation}
+            {mScore.label}. {mScore.explanation}
           </p>
           {mScore.factors.map((f) => (
             <div key={f.id} className="bg-[var(--surface-2)] p-3 rounded-xl text-sm">
@@ -375,6 +373,10 @@ function DailyViewContent() {
   );
 }
 
+function formatWeightDelta(delta: number | null) {
+  return delta === null ? "—" : `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}`;
+}
+
 function BodyTab() {
   const { state } = useStore();
 
@@ -383,16 +385,16 @@ function BodyTab() {
     [state.bodyweightEntries],
   );
   const bw = state.profile.bodyweightLb;
-  const latestWeight = sortedBw.length > 0 ? sortedBw[sortedBw.length - 1].weightLb : bw;
-  const dWeek = bodyweightDelta(state, 7) ?? 0;
+  const latestWeight = sortedBw[sortedBw.length - 1]?.weightLb;
+  const dWeek = bodyweightDelta(state, 7);
 
   return (
     <div className="px-5 space-y-4">
       <div className="grid grid-cols-2 gap-3">
-        <StatCard label="Current Weight" value={latestWeight.toString()} sub="lb" accent />
+        <StatCard label={latestWeight === undefined ? "Profile Weight" : "Last Logged Weight"} value={String(latestWeight ?? bw)} sub="lb" accent />
         <StatCard
           label="Weekly Change"
-          value={`${dWeek >= 0 ? "+" : ""}${dWeek.toFixed(1)}`}
+          value={formatWeightDelta(dWeek)}
           sub="lb"
         />
       </div>
@@ -445,16 +447,13 @@ function WeightSection() {
     [state.bodyweightEntries],
   );
   const last = sorted[sorted.length - 1];
-  const weekAgo = Date.now() - 7 * 86400000,
-    monthAgo = Date.now() - 30 * 86400000;
+  const weekAgo = Date.now() - 7 * 86400000;
   const week = sorted.filter((e) => e.createdAt > weekAgo);
   const weekAvg = week.length
     ? (week.reduce((a, e) => a + e.weightLb, 0) / week.length).toFixed(1)
     : "—";
-  const lastWeek = sorted.find((e) => e.createdAt < weekAgo);
-  const lastMonth = sorted.find((e) => e.createdAt < monthAgo);
-  const dWeek = last && lastWeek ? last.weightLb - lastWeek.weightLb : 0;
-  const dMonth = last && lastMonth ? last.weightLb - lastMonth.weightLb : 0;
+  const dWeek = bodyweightDelta(state, 7);
+  const dMonth = bodyweightDelta(state, 30);
 
   const submit = () => {
     const wt = Number(w);
@@ -474,8 +473,8 @@ function WeightSection() {
     <>
       <div className="grid grid-cols-3 gap-3 mb-4">
         <StatCard label="Wk avg" value={weekAvg} sub="lb" accent />
-        <StatCard label="Δ 7d" value={`${dWeek >= 0 ? "+" : ""}${dWeek.toFixed(1)}`} sub="lb" />
-        <StatCard label="Δ 30d" value={`${dMonth >= 0 ? "+" : ""}${dMonth.toFixed(1)}`} sub="lb" />
+        <StatCard label="Δ 7d" value={formatWeightDelta(dWeek)} sub="lb" />
+        <StatCard label="Δ 30d" value={formatWeightDelta(dMonth)} sub="lb" />
       </div>
 
       <SectionHeader title="Log new" />
@@ -867,7 +866,7 @@ function GoalsTab() {
         </div>
         <div className="flex items-center gap-3 mt-4">
           <div className="relative w-12 h-12 flex items-center justify-center rounded-full bg-[var(--surface-2)]">
-            <span className="font-bold text-[var(--section)]">{mScore.score}</span>
+            <span className="font-bold text-[var(--section)]">{mScore.score ?? "—"}</span>
           </div>
           <p className="text-xs flex-1 text-muted-foreground line-clamp-2">
             {mScore.hasData ? mScore.explanation : "Log data to build momentum."}
@@ -930,8 +929,7 @@ function GoalsTab() {
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Momentum combines your consistency across training, nutrition logging, and recovery
-            check-ins.
+            {mScore.label}. {mScore.explanation}
           </p>
           {mScore.factors.map((f) => (
             <div key={f.id} className="bg-[var(--surface-2)] p-3 rounded-xl text-sm">
@@ -954,24 +952,6 @@ function GoalsTab() {
 function InsightsTab() {
   return (
     <div className="px-5 space-y-4">
-      <SectionHeader title="Actionable Insights" />
-      <Card>
-        <p className="text-sm font-medium mb-1 flex items-center gap-1">
-          <TrendingUp size={16} className="text-[var(--section)]" /> What's Improving
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Your consistency in logging workouts has remained strong over the past 14 days.
-        </p>
-      </Card>
-      <Card>
-        <p className="text-sm font-medium mb-1 flex items-center gap-1">
-          <Activity size={16} className="text-destructive" /> What Needs Attention
-        </p>
-        <p className="text-xs text-muted-foreground">
-          Nutrition logging has slipped over the weekend. Try to log even estimated meals to keep
-          momentum.
-        </p>
-      </Card>
 
       <SectionHeader title="AI Progress Coach" />
       <PlannedFeatureCard

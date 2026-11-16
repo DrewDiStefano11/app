@@ -207,9 +207,9 @@ function deepFreeze<T>(value: T): T {
 
 test("Task 15 integration covers all graph nodes in canonical order", () => {
   const report = getFitCoreAnalyticsInsights(completeAnalytics());
-  assert.equal(report.nodeCount, 85);
-  assert.equal(report.evaluations.length, 85);
-  assert.equal(new Set(report.evaluations.map((evaluation) => evaluation.nodeId)).size, 85);
+  assert.equal(report.nodeCount, 86);
+  assert.equal(report.evaluations.length, 86);
+  assert.equal(new Set(report.evaluations.map((evaluation) => evaluation.nodeId)).size, 86);
   assert.deepEqual(
     report.evaluations.map((evaluation) => evaluation.nodeId),
     METRIC_DEPENDENCY_GRAPH.map((node) => node.id),
@@ -345,12 +345,12 @@ test("Task 15 existing insight readiness blocks candidate construction", () => {
 
 test("Task 15 empty and partial states remain safe, explicit, and conservative", () => {
   const empty = getFitCoreAnalytics(defaultState, { now: NOW }).insights;
-  assert.equal(empty.evaluations.length, 85);
+  assert.equal(empty.evaluations.length, 86);
   assert.equal(empty.selectedCandidates.length, 0);
   assert.ok(empty.evaluations.every((evaluation) => evaluation.candidate.status === "suppressed"));
   const partialState = { ...defaultState, mealEntries: historicalState().mealEntries };
   const partial = getFitCoreAnalytics(partialState, { now: NOW }).insights;
-  assert.equal(partial.evaluations.length, 85);
+  assert.equal(partial.evaluations.length, 86);
   assert.ok(
     partial.evaluations
       .filter((evaluation) => !evaluation.nodeId.startsWith("nutrition."))
@@ -376,18 +376,18 @@ test("Task 15 is deterministic, serializable, immutable, and backward compatible
 
 test("Task 15 summary values reconcile with evaluations and selected candidates", () => {
   const report = getFitCoreAnalyticsInsights(completeAnalytics());
-  assert.equal(report.summary.supportedNodes + report.summary.unsupportedNodes, 85);
+  assert.equal(report.summary.supportedNodes + report.summary.unsupportedNodes, 86);
   assert.equal(
     report.summary.completeEvidence +
       report.summary.partialEvidence +
       report.summary.unavailableEvidence,
-    85,
+    86,
   );
   assert.equal(
     report.summary.eligibleCandidates +
       report.summary.selectedCandidates +
       report.summary.suppressedCandidates,
-    85,
+    86,
   );
   assert.equal(report.summary.selectedCandidates, report.selectedCandidates.length);
   Object.values(report.summary).forEach((count) => assert.ok(count >= 0));

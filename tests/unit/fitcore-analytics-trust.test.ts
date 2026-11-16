@@ -98,7 +98,7 @@ test("Task 12 empty, partial, mixed, and rich states produce safe additive trust
   for (const input of inputs) {
     const result = getFitCoreAnalytics(input, { now: NOW });
     assert.equal(result.trust.policyVersion, FITCORE_METRIC_TRUST_POLICY_VERSION);
-    assert.equal(result.trust.nodes.length, 85);
+    assert.equal(result.trust.nodes.length, 86);
     assertSafe(result.trust);
   }
 });
@@ -110,7 +110,7 @@ test("Task 12 report contains every graph node exactly once in stable graph orde
     ids,
     METRIC_DEPENDENCY_GRAPH.map((item) => item.id),
   );
-  assert.equal(new Set(ids).size, 85);
+  assert.equal(new Set(ids).size, 86);
   assert.equal(report.graphValid, true);
   METRIC_DEPENDENCY_GRAPH.forEach((node) => {
     node.dependencies.forEach((dependency) => assert.ok(ids.includes(dependency)));
@@ -119,10 +119,10 @@ test("Task 12 report contains every graph node exactly once in stable graph orde
 
 test("Task 12 summary counts reconcile and unresolved nodes remain explicit", () => {
   const summary = getFitCoreAnalytics(state(), { now: NOW }).trust.summary;
-  assert.equal(summary.totalNodeCount, 85);
+  assert.equal(summary.totalNodeCount, 86);
   assert.equal(
     summary.assessedNodeCount + summary.unresolvedNodeCount + summary.unavailableNodeCount,
-    85,
+    86,
   );
   assert.equal(
     summary.lowTrustNodeCount + summary.mediumTrustNodeCount + summary.highTrustNodeCount,

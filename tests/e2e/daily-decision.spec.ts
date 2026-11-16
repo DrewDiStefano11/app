@@ -143,7 +143,7 @@ test.describe("FitCore daily decision engine", () => {
     expect(result.oneAction.toLowerCase()).not.toContain("push through");
   });
 
-  test("under-eating softens hard training and produces one specific nutrition action", async ({
+  test("a partial meal log does not override supported training evidence", async ({
     page,
   }) => {
     const result = await page.evaluate(async () => {
@@ -200,10 +200,9 @@ test.describe("FitCore daily decision engine", () => {
       return engine.buildDailyDecision(state, now);
     });
 
-    expect(result.decisionType).toBe("train_light");
-    expect(result.nutrition.underEatingWarning).toBe(true);
-    expect(result.limitingFactors.some((factor) => factor.type === "nutrition")).toBe(true);
-    expect(result.oneAction).toMatch(/light|protein/i);
+    expect(result.decisionType).toBe("train_hard");
+    expect(result.nutrition.underEatingWarning).toBe(false);
+    expect(result.limitingFactors.some((factor) => factor.type === "nutrition")).toBe(false);
     expect(result.nutrition.calorieTargetAdjustment).toBeGreaterThanOrEqual(-500);
     expect(result.nutrition.calorieTargetAdjustment).toBeLessThanOrEqual(500);
   });

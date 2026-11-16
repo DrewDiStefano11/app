@@ -130,6 +130,7 @@ test.describe("Data propagation smoke", () => {
     const sheet = sheetByHeading(page, "Daily Check-In");
     await expect(sheet).toBeVisible();
     await sheet.getByPlaceholder("How are you feeling today?").fill("Smoke check-in");
+    await page.getByRole("checkbox", { name: /I confirm these ratings/ }).check();
     await sheet.getByRole("button", { name: "Save check-in", exact: true }).click();
 
     await expectRecentActivity(page, "Check-in completed");

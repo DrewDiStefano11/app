@@ -33,7 +33,7 @@ test.describe("Recovery check-in validation smoke", () => {
 
     await sheet.getByRole("textbox").fill("Validation recovery check-in");
 
-    // Attempt to save
+    await sheet.getByRole("checkbox", { name: /I confirm these ratings/ }).check();
     await sheet.getByRole("button", { name: "Save check-in", exact: true }).click();
 
     // Confirm sheet closes
@@ -61,14 +61,14 @@ test.describe("Recovery check-in validation smoke", () => {
     await checkFatalErrors(page);
   });
 
-  test("Scenario B — Empty/minimal check-in does not crash", async ({ page }) => {
+  test("Scenario B — Untouched ratings cannot be saved", async ({ page }) => {
     await page.getByRole("button", { name: "Check In", exact: true }).click();
     const sheet = page
       .getByRole("heading", { name: "Daily Check-In", exact: true })
       .locator('xpath=ancestor::div[contains(@class, "sheet-surface")][1]');
     await expect(sheet).toBeVisible();
 
-    await sheet.getByRole("button", { name: "Save check-in", exact: true }).click();
+    await expect(sheet.getByRole("button", { name: "Save check-in", exact: true })).toBeDisabled();
     await checkFatalErrors(page);
   });
 

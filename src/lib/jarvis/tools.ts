@@ -3,6 +3,7 @@ import { createAiEstimateProvenance, createJarvisProvenance, markProvenanceEdite
 import { uid, todayStart, e1RM } from "../store";
 import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "../data";
 import { buildDailyDecision } from "../daily-decision";
+import { calculatePersonalScores, scoreStatusLabel } from "../analytics/personal-scores";
 
 export interface ToolResult {
   ok: boolean;
@@ -421,8 +422,18 @@ const handlers: Record<ToolName, ToolHandler> = {
     pushAudit(set, { id: auditId, tool: "logWorkoutPainOrSoreness", summary: `Logged recovery note${area ? ` for ${area}` : ""}`, status: "logged", entityIds: [checkInId], entityKind: "checkin", patch: { area, notes, severity, actionKey: actionKey("logWorkoutPainOrSoreness", args) }, createdAt: Date.now() });
     return { ok: true, summary: "Pain/soreness note saved", auditId };
   },
-  getTrainingReadinessContext: (_a, { state }) => ({ ok: true, summary: "training readiness context", data: { profile: state.profile, latestCheckIn: state.recoveryCheckIns.at(-1), sleep: state.sleepEntries.at(-1), fatigue: state.muscleFatigue, recentWorkouts: state.workouts.slice(-5), goals: state.goals } }),
+  getTrainingReadinessContext: (_a, { state }) => {
+    if (state.demoMode) return { ok: true, summary: "Demo Data. Personal readiness is unavailable." };
+    const scores = calculatePersonalScores(state);
+    const describe = (metric: typeof scores.readiness) => ({ status: scoreStatusLabel(metric),
+      estimate: metric.status === "available" ? metric.value : null,
+      evidence: metric.evidence, missing: metric.missing });
+    return { ok: true, summary: "training readiness context", data: {
+      readiness: describe(scores.readiness), recovery: describe(scores.recovery), profile: state.profile,
+    } };
+  },
   getDailyDecision: (_a, { state }) => {
+    if (state.demoMode) return { ok: true, summary: "Demo Data. Personal recommendations are unavailable." };
     const decision = buildDailyDecision(state);
     return {
       ok: true,
