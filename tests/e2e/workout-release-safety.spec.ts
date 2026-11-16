@@ -246,6 +246,7 @@ test("a rejected set edit must be resolved before finishing the workout", async 
   await expect(page.getByRole("heading", { name: "Workout edit could not be saved" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Finish workout", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Back to Training", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Custom", exact: true })).toBeDisabled();
   expect((await readPersistedFitCoreState(page)).activeWorkout?.exercises[0].sets[0].weight).toBe(135);
   const backup = await exportSavedWorkout(page);
   expect(backup.activeWorkout.exercises[0].sets[0]).toMatchObject({ weight: 135, reps: 8 });

@@ -6,7 +6,7 @@ import {
 import { useStore, uid, e1RM } from "@/lib/store";
 import { downloadFitCoreBackup } from "@/lib/fitcore-backup-download";
 import { isDefaultManualProvenance } from "@/lib/fitcore-data";
-import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, tracksWorkoutMinutes, type Exercise, type MuscleGroup } from "@/lib/data";
+import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, filterExerciseCatalog, tracksWorkoutMinutes, type Exercise, type MuscleGroup } from "@/lib/data";
 import { BENCH_PROGRAM_ID, formatWorkoutTarget } from "@/lib/bench-program";
 import type {
   AppState, Workout, WorkoutExercise, SetEntry, CustomExercise, Goal,
@@ -278,7 +278,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
   };
 
   const addCustom = (c: CustomExercise) => {
-    if (pendingEdit) return;
+    if (pendingEdit) return false;
     const we: WorkoutExercise = {
       id: uid(), exerciseId: c.id, completed: false, exerciseTags: [],
       sets: Array.from({ length: 3 }, () => ({ id: uid(), modifier: "normal", completed: false })),
@@ -373,7 +373,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
             action={
               <div className="flex gap-2">
                 <PrimaryButton onClick={() => setExercisePicker("add")}><Plus size={16} />Add</PrimaryButton>
-                <GhostButton onClick={() => setCustomOpen(true)}>Custom</GhostButton>
+                <GhostButton onClick={() => setCustomOpen(true)} disabled={!!pendingEdit}>Custom</GhostButton>
               </div>
             } />
         )}
@@ -404,7 +404,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
         {w.exercises.length > 0 && (
           <div className="grid grid-cols-2 gap-2 pt-1">
             <GhostButton onClick={() => setExercisePicker("add")}><Plus size={16} />Exercise</GhostButton>
-            <GhostButton onClick={() => setCustomOpen(true)}><Sparkles size={14} />Custom</GhostButton>
+            <GhostButton onClick={() => setCustomOpen(true)} disabled={!!pendingEdit}><Sparkles size={14} />Custom</GhostButton>
           </div>
         )}
       </div>
@@ -790,13 +790,9 @@ export function ExercisePicker({
     () => [...customExercises.map(c => ({ ...c, isCustom: true as const })), ...EXERCISES.map(e => ({ ...e, isCustom: false as const }))],
     [customExercises],
   );
-  const query = q.trim().toLowerCase();
-  const filtered = all.filter(e =>
-    e.id !== excludeExerciseId && (
-      !query || e.name.toLowerCase().includes(query) ||
-      e.primary.some(p => String(p).toLowerCase().includes(query))
-    ),
-  );
+  const filtered = open
+    ? filterExerciseCatalog(all, q).filter((exercise) => exercise.id !== excludeExerciseId)
+    : [];
   return (
     <BottomSheet open={open} onClose={() => { setQ(""); onClose(); }} title={title} height="tall">
       {description && <p className="mb-3 text-sm text-muted-foreground">{description}</p>}
@@ -822,8 +818,13 @@ export function ExercisePicker({
 
 /* ===================== Custom exercise sheet ===================== */
 
-function CustomExerciseSheet({ open, onClose, onSave }: {
-  open: boolean; onClose: () => void; onSave: (c: CustomExercise) => void;
+export function CustomExerciseSheet({
+  open, onClose, onSave, submitLabel = "Add to workout",
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSave: (exercise: CustomExercise) => boolean | void;
+  submitLabel?: string;
 }) {
   const [name, setName] = useState("");
   const [primary, setPrimary] = useState<MuscleGroup>("chest");
@@ -833,11 +834,22 @@ function CustomExerciseSheet({ open, onClose, onSave }: {
   const [tracking, setTracking] = useState<NonNullable<CustomExercise["tracking"]>>("weight_reps");
   const [notes, setNotes] = useState("");
 
-  const reset = () => { setName(""); setPrimary("chest"); setSecondary([]); setEquipment("dumbbell"); setCategory("compound"); setTracking("weight_reps"); setNotes(""); };
+  const [saveFailed, setSaveFailed] = useState(false);
+
+  const reset = () => {
+    setName("");
+    setPrimary("chest");
+    setSecondary([]);
+    setEquipment("dumbbell");
+    setCategory("compound");
+    setTracking("weight_reps");
+    setNotes("");
+    setSaveFailed(false);
+  };
 
   const save = () => {
     if (!name.trim()) return;
-    onSave({
+    const saved = onSave({
       id: "custom-" + uid(),
       name: name.trim(),
       primary: [primary],
@@ -849,21 +861,25 @@ function CustomExerciseSheet({ open, onClose, onSave }: {
       isCustom: true,
       createdAt: Date.now(),
     });
+    if (saved === false) {
+      setSaveFailed(true);
+      return;
+    }
     reset();
   };
 
   return (
-    <BottomSheet open={open} onClose={() => { onClose(); reset(); }} title="New custom exercise" height="tall">
+    <BottomSheet open={open} onClose={() => { onClose(); reset(); }} title="New custom exercise" height="tall" closeLabel="Cancel custom exercise" manageFocus>
       <div className="space-y-3">
-        <div><Label>Name</Label><Input placeholder="e.g. Landmine Press" value={name} onChange={e => setName(e.target.value)} /></div>
+        <div><Label>Name</Label><Input aria-label="Name" placeholder="e.g. Landmine Press" value={name} onChange={e => setName(e.target.value)} /></div>
         <div className="grid grid-cols-2 gap-2">
           <div><Label>Primary muscle</Label>
-            <Select value={primary} onChange={e => setPrimary(e.target.value as MuscleGroup)}>
+            <Select aria-label="Primary muscle" value={primary} onChange={e => setPrimary(e.target.value as MuscleGroup)}>
               {ALL_MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
             </Select>
           </div>
           <div><Label>Equipment</Label>
-            <Select value={equipment} onChange={e => setEquipment(e.target.value)}>
+            <Select aria-label="Equipment" value={equipment} onChange={e => setEquipment(e.target.value)}>
               {["barbell", "dumbbell", "machine", "cable", "bodyweight", "kettlebell", "band", "other"].map(o => <option key={o}>{o}</option>)}
             </Select>
           </div>
@@ -881,14 +897,14 @@ function CustomExerciseSheet({ open, onClose, onSave }: {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div><Label>Type</Label>
-            <Select value={category} onChange={e => setCategory(e.target.value as CustomExercise["category"])}>
+            <Select aria-label="Type" value={category} onChange={e => setCategory(e.target.value as CustomExercise["category"])}>
               <option value="compound">strength / compound</option>
               <option value="isolation">isolation</option>
               <option value="cardio">cardio</option>
             </Select>
           </div>
           <div><Label>Tracking</Label>
-            <Select value={tracking} onChange={e => setTracking(e.target.value as typeof tracking)}>
+            <Select aria-label="Tracking" value={tracking} onChange={e => setTracking(e.target.value as typeof tracking)}>
               <option value="weight_reps">weight × reps</option>
               <option value="bodyweight">bodyweight reps</option>
               <option value="time">time</option>
@@ -896,11 +912,9 @@ function CustomExerciseSheet({ open, onClose, onSave }: {
             </Select>
           </div>
         </div>
-        <div><Label>Notes (optional)</Label><Textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} /></div>
-        <PrimaryButton onClick={save} disabled={!name.trim()} className="w-full">Add to workout</PrimaryButton>
-        <p className="text-[11px] text-muted-foreground text-center">
-          Saved to your exercise library — reuse it in future workouts.
-        </p>
+        <div><Label>Notes (optional)</Label><Textarea aria-label="Notes (optional)" rows={2} value={notes} onChange={e => setNotes(e.target.value)} /></div>
+        {saveFailed && <p role="alert" className="text-sm text-destructive">Exercise could not be saved. Your entries are still here.</p>}
+        <PrimaryButton onClick={save} disabled={!name.trim()} className="w-full">{submitLabel}</PrimaryButton>
       </div>
     </BottomSheet>
   );

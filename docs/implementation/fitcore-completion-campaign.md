@@ -208,3 +208,7 @@ Mobile-sized Chromium on Windows with 250 synthetic workouts measured a median o
 ## Exercise substitutions
 
 Choose Swap exercise on an untouched exercise to replace it in the current workout. A replacement starts with blank sets for the chosen movement. Choose Add alternative on a row with logged values, notes, tags, provenance, audit references or prior set activity to insert a new row beside it. The original entries stay in place. Workout template updates still require the explicit save choice on the finish screen.
+
+## Exercise library
+
+Training opens the exercise library from Quick start or the Deep Dive Library tab. Search matches exercise names, equipment, and primary or secondary muscles. Exercise details show the catalog's available cues and personal notes. Use Custom only to see exercises you saved. Custom exercises created here are available in workout and template pickers. A failed save keeps the form open with its draft.
