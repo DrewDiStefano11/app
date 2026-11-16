@@ -26,7 +26,7 @@ test("cloud text without consent keeps the draft and sends no server request", a
   expect(requests).toEqual([]);
 });
 
-test("a transport failure returns the exact text to the composer for retry", async ({ page }) => {
+test("a transport failure restores the draft and the retry sends it once", async ({ page }) => {
   await seedRevisionedFitCoreState(
     page,
     currentFitCoreState({
@@ -36,11 +36,17 @@ test("a transport failure returns the exact text to the composer for retry", asy
   );
   await page.addInitScript(() => {
     const fetch = window.fetch.bind(window);
+    let attempts = 0;
     window.fetch = (input, init) => {
       const url = input instanceof Request ? input.url : String(input);
-      return url.includes("/_serverFn/")
-        ? Promise.reject(new TypeError("Synthetic network failure"))
-        : fetch(input, init);
+      if (!url.includes("/_serverFn/")) return fetch(input, init);
+      if (++attempts === 1) return Promise.reject(new TypeError("Synthetic network failure"));
+      document.documentElement.dataset.retryPayload = String(init?.body ?? "");
+      return Promise.resolve(
+        Response.json({
+          result: { ok: true, content: "Synthetic training answer.", toolCalls: [] },
+        }),
+      );
     };
   });
   await gotoDashboard(page);
@@ -51,6 +57,76 @@ test("a transport failure returns the exact text to the composer for retry", asy
   const input = page.getByPlaceholder("Talk to Jarvis...");
   await expect(page.getByText("Jarvis could not complete the request. Try again.")).toBeVisible();
   await expect(input).toHaveValue(message);
+  await input.press("Enter");
+  await expect(page.getByText("Synthetic training answer.")).toBeVisible();
+  const payload = await page.locator("html").getAttribute("data-retry-payload");
+  expect(payload?.split(message).length).toBe(2);
+});
+
+test("unauthorized or malformed model actions cannot change a saved workout", async ({ page }) => {
+  await seedRevisionedFitCoreState(
+    page,
+    currentFitCoreState({
+      onboardingComplete: true,
+      jarvisSettings: { allowCloudText: true },
+      workouts: [
+        {
+          id: "verified-workout",
+          name: "Verified Upper A",
+          startedAt: Date.now() - 120_000,
+          endedAt: Date.now() - 60_000,
+          exercises: [
+            {
+              id: "verified-row",
+              exerciseId: "bench-press",
+              completed: true,
+              sets: [{ id: "verified-set", completed: true, reps: 4, weight: 195 }],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  await page.addInitScript(() => {
+    const fetch = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (!url.includes("/_serverFn/")) return fetch(input, init);
+      return Promise.resolve(
+        Response.json({
+          result: {
+            ok: true,
+            content: "Changed the saved workout.",
+            toolCalls: [
+              {
+                id: "forbidden-tool",
+                name: "deleteWorkout",
+                argsJson: '{"id":"verified-workout"}',
+              },
+              {
+                id: "unexpected-patch",
+                name: "updateWorkout",
+                argsJson: '{"id":"verified-workout","patch":{"id":"changed-id"}}',
+              },
+            ],
+          },
+        }),
+      );
+    };
+  });
+  await gotoDashboard(page);
+  const verified = await readPersistedFitCoreState(page);
+  await page.getByRole("button", { name: "Open AI composer" }).click();
+  await page
+    .getByRole("textbox", { name: "Message Jarvis" })
+    .fill("Review the workout I just completed.");
+  await page.getByRole("button", { name: "Send to Jarvis" }).click();
+  await expect(
+    page.getByText("Jarvis needs valid details before it can propose this change."),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Changed the saved workout.")).toHaveCount(0);
+  expect(await readPersistedFitCoreState(page)).toEqual(verified);
 });
 
 test("a text meal estimate supports portion edits and commits a single AI-estimated record", async ({
@@ -192,6 +268,13 @@ test("temporary credentials and local records stay out of persistent storage and
   };
   await gotoDashboard(page);
   await openJarvisSettings();
+  const groqModel = page.locator('select:has(option[value="qwen/qwen3.8-27b"])');
+  await expect(groqModel).toHaveValue("qwen/qwen3.8-27b");
+  await expect(groqModel.locator("option")).toHaveText([
+    "Qwen 3.8 27B",
+    "GPT OSS 20B",
+    "GPT OSS 120B",
+  ]);
   await page.getByLabel("Groq API key").fill("synthetic-temporary-provider-key");
   await page.getByRole("button", { name: "Use until reload", exact: true }).first().click();
   await expect(page.getByText("Key available until this page reloads.")).toBeVisible();

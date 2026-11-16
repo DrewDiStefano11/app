@@ -224,6 +224,13 @@ export function JarvisPanel({ section }: { section: string }) {
     setSending(true);
     const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now() };
     setMessages(m => [...stripToolCards(m), userMsg]);
+    const restoreCloudDraft = (error: string) => {
+      setInput(value => value || content);
+      setMessages(previous => [
+        ...previous.filter(message => message.id !== userMsg.id),
+        { id: uid(), role: "assistant", content: error, createdAt: Date.now() },
+      ]);
+    };
 
     try {
       const recent = [...messages.filter(message => message.role === "user" && !message.local).slice(-4), userMsg]
@@ -253,8 +260,7 @@ export function JarvisPanel({ section }: { section: string }) {
       recordDiagnostics(res.diagnostics);
 
       if (!res.ok) {
-        setInput(value => value || content);
-        setMessages(m => [...m, { id: uid(), role: "assistant", content: `Warning: ${res.error}`, createdAt: Date.now() }]);
+        restoreCloudDraft(`Warning: ${res.error}`);
         return;
       }
 
@@ -276,8 +282,7 @@ export function JarvisPanel({ section }: { section: string }) {
       const assistantContent = friendlyAssistantContent(res.toolCalls?.length ? "" : res.content, toolResults) || (toolResults.length ? "" : "I couldn't complete that request.");
       setMessages(m => [...m, { id: uid(), role: "assistant", content: assistantContent, toolResults, createdAt: Date.now() }]);
     } catch {
-      setInput(value => value || content);
-      setMessages(m => [...m, { id: uid(), role: "assistant", content: "Jarvis could not complete the request. Try again.", createdAt: Date.now() }]);
+      restoreCloudDraft("Jarvis could not complete the request. Try again.");
     } finally {
       sendingRef.current = false;
       setSending(false);
