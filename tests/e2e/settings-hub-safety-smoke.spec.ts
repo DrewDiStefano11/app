@@ -27,7 +27,7 @@ test.describe('Settings / Hub Safety Smoke Test', () => {
 
     // Assert the confirmation dialog appears
     await expect(page.getByRole('heading', { name: 'Reset all data?' })).toBeVisible();
-    await expect(page.getByText('This permanently erases workouts, meals, recovery, photos and PRs.')).toBeVisible();
+    await expect(page.getByText('This replaces your current records with FitCore defaults.', { exact: false })).toBeVisible();
 
     // Click "Cancel" in the dialog
     await page.getByRole('button', { name: 'Cancel' }).click();
