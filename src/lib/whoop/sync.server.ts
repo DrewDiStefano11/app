@@ -1,6 +1,6 @@
-import type { WhoopSession, WhoopTokenPair } from "./oauth.server";
+import type { WhoopTokenPair } from "./oauth.server";
 import { WhoopTokenRateLimit } from "./oauth.server";
-import type { createWhoopStore } from "./postgres.server";
+import type { createWhoopStore, WhoopSyncActor } from "./postgres.server";
 import type { createWhoopTokenVault } from "./token-vault.server";
 import { readWhoopCollection, WhoopReadError } from "./v2.server";
 
@@ -28,11 +28,11 @@ type SyncOptions = {
   fetch?: (url: URL, init: RequestInit) => Promise<Response>;
 };
 
-export async function syncWhoop(session: WhoopSession, options: SyncOptions) {
+export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions) {
   const { store, vault } = options;
-  const { ownerId } = session;
-  await store.expireAbandonedRefresh(session);
-  const claim = await store.claimSync(session);
+  const { ownerId } = actor;
+  await store.expireAbandonedRefresh(actor);
+  const claim = await store.claimSync(actor);
   if (!claim) return { status: 409 };
 
   const { id, syncId } = claim;
@@ -116,7 +116,14 @@ export async function syncWhoop(session: WhoopSession, options: SyncOptions) {
     if (new Set(records.map((record) => record.user_id)).size > 1) {
       throw new WhoopReadError("invalid_data");
     }
-    savedSnapshot = await store.saveSync(session, id, syncId, records, syncCooldownSeconds);
+    savedSnapshot = await store.saveSync(
+      actor,
+      id,
+      syncId,
+      records,
+      syncCooldownSeconds,
+      claim.eventRevision,
+    );
     return { status: savedSnapshot ? 200 : 409 };
   } catch (error) {
     if (error instanceof WhoopReadError && error.code === "rate_limited") {

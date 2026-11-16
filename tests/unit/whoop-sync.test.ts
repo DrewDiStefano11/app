@@ -8,7 +8,7 @@ import { syncWhoop } from "../../src/lib/whoop/sync.server";
 test("rotates credentials once and atomically reconciles corrections and deletions", async () => {
   const db = new PGlite();
   try {
-    for (const migration of ["001-credentials.sql", "002-sync.sql"]) {
+    for (const migration of ["001-credentials.sql", "002-sync.sql", "003-webhooks.sql"]) {
       await db.exec(
         await readFile(new URL("../../db/whoop/" + migration, import.meta.url), "utf8"),
       );
@@ -92,7 +92,9 @@ test("rotates credentials once and atomically reconciles corrections and deletio
       false,
     );
     expect(await store.getSnapshot(session)).toBeNull();
-    expect(await store.saveSync(session, late.id, late.syncId, [], 60)).toBe(false);
+    expect(await store.saveSync(session, late.id, late.syncId, [], 60, late.eventRevision)).toBe(
+      false,
+    );
     await store.finishDisconnect(owner, removing.id, removing.disconnectId);
     expect(await store.getSnapshot(session)).toBeNull();
 

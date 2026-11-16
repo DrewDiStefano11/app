@@ -1,3 +1,4 @@
 {
-  "installCommand": "npm ci"
+  "installCommand": "npm ci",
+  "crons": [{ "path": "/api/whoop/reconcile", "schedule": "0 10 * * *" }]
 }

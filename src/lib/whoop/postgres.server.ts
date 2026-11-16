@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { WhoopSession } from "./oauth.server";
 import type { WhoopSnapshot } from "./dashboard";
 import type { WhoopV2Record } from "./v2.server";
+import type { WhoopWebhookEvent } from "./webhook.server";
 
 type Query = <Row extends Record<string, unknown>>(
   statement: string,
@@ -16,6 +17,25 @@ type Connection = {
   lastSyncedAt: string | null;
   status: "connected" | "reconnect_required" | "disconnecting";
 };
+
+export type WhoopBackgroundConnection = { ownerId: string; connectionId: string };
+export type WhoopSyncActor = WhoopSession | WhoopBackgroundConnection;
+
+function syncPrincipal(actor: WhoopSyncActor) {
+  return "id" in actor ? [actor.id, "session"] : [actor.connectionId, "connection"];
+}
+
+// Recovery deletion IDs identify sleeps. A sleep deletion removes its dependent recovery as well.
+const webhookDeletesRecord = `case event.event_type
+  when 'workout.deleted' then item.record->>'kind' = 'workout'
+    and lower(item.record->>'id') = event.record_id::text
+  when 'recovery.deleted' then item.record->>'kind' = 'recovery'
+    and lower(item.record->>'sleep_id') = event.record_id::text
+  when 'sleep.deleted' then
+    (item.record->>'kind' = 'sleep' and lower(item.record->>'id') = event.record_id::text)
+    or (item.record->>'kind' = 'recovery' and lower(item.record->>'sleep_id') = event.record_id::text)
+  else false
+end`;
 
 export function createWhoopStore(query: Query) {
   return {
@@ -139,60 +159,147 @@ export function createWhoopStore(query: Query) {
       return snapshot ?? null;
     },
 
-    async claimSync(session: WhoopSession) {
+    async claimSync(actor: WhoopSyncActor) {
       const [claim] = await query<{
         id: string;
         envelope: string;
         expiresAtMs: number;
         revision: number;
         syncId: string;
+        eventRevision: number;
       }>(
         `update fitcore_whoop.connections
-         set sync_id = $3, sync_started_at = now()
+         set sync_id = $4, sync_started_at = now()
          where owner_id = $1 and status = 'connected' and refresh_id is null
            and (sync_id is null or sync_started_at <= now() - interval '90 seconds')
            and (sync_after is null or sync_after <= now())
-           and exists (select 1 from fitcore_whoop.sessions
-             where owner_id = $1 and id = $2 and expires_at > now())
+           and (($3 = 'connection' and id = $2) or
+             ($3 = 'session' and exists (select 1 from fitcore_whoop.sessions
+               where owner_id = $1 and id = $2 and expires_at > now())))
          returning id, token_envelope as envelope, revision, sync_id as "syncId",
+           event_revision as "eventRevision",
            (extract(epoch from expires_at) * 1000)::float8 as "expiresAtMs"`,
-        [session.ownerId, session.id, randomUUID()],
+        [actor.ownerId, ...syncPrincipal(actor), randomUUID()],
       );
       return claim ?? null;
     },
 
-    async expireAbandonedRefresh(session: WhoopSession) {
+    async expireAbandonedRefresh(actor: WhoopSyncActor) {
       await query(
         `update fitcore_whoop.connections
          set token_envelope = null, status = 'reconnect_required', revision = revision + 1,
              refresh_id = null, refresh_started_at = null, sync_id = null, sync_started_at = null
          where owner_id = $1 and status = 'connected'
            and refresh_started_at <= now() - interval '45 seconds'
-           and exists (select 1 from fitcore_whoop.sessions
-             where owner_id = $1 and id = $2 and expires_at > now())`,
-        [session.ownerId, session.id],
+           and (($3 = 'connection' and id = $2) or
+             ($3 = 'session' and exists (select 1 from fitcore_whoop.sessions
+               where owner_id = $1 and id = $2 and expires_at > now())))`,
+        [actor.ownerId, ...syncPrincipal(actor)],
       );
     },
 
     async saveSync(
-      session: WhoopSession,
+      actor: WhoopSyncActor,
       id: string,
       syncId: string,
       records: WhoopV2Record[],
       cooldownSeconds: number,
+      eventRevision: number,
     ) {
       const rows = await query(
-        `update fitcore_whoop.connections
-         set snapshot = $4::jsonb, last_synced_at = now(),
+        `update fitcore_whoop.connections connection
+         set snapshot = (
+               select coalesce(jsonb_agg(item.record order by item.position), '[]'::jsonb)
+               from jsonb_array_elements($4::jsonb) with ordinality as item(record, position)
+               where not exists (
+                 select 1 from fitcore_whoop.webhook_events event
+                 where event.connection_id = connection.id and event.received_at > now() - interval '31 days'
+                   and event.provider_user_id = coalesce(connection.provider_user_id, nullif($8, ''))
+                   and coalesce((item.record->>'updated_at')::timestamptz, '-infinity') <= event.received_at
+                   and (${webhookDeletesRecord})
+               )
+             ),
+             provider_user_id = coalesce(provider_user_id, nullif($8, '')),
+             last_synced_at = now(),
              sync_id = null, sync_started_at = null,
              sync_after = now() + $5 * interval '1 second'
          where owner_id = $1 and id = $2 and sync_id = $3 and status = 'connected'
-           and exists (select 1 from fitcore_whoop.sessions
-             where owner_id = $1 and id = $6 and expires_at > now())
+           and event_revision = $9
+           and (provider_user_id is null or $8 = '' or provider_user_id = $8)
+           and (($7 = 'connection' and id = $6) or
+             ($7 = 'session' and exists (select 1 from fitcore_whoop.sessions
+               where owner_id = $1 and id = $6 and expires_at > now())))
          returning id`,
-        [session.ownerId, id, syncId, JSON.stringify(records), cooldownSeconds, session.id],
+        [
+          actor.ownerId,
+          id,
+          syncId,
+          JSON.stringify(records),
+          cooldownSeconds,
+          ...syncPrincipal(actor),
+          records[0]?.user_id ?? "",
+          eventRevision,
+        ],
       );
       return rows.length === 1;
+    },
+
+    async registerWebhook(event: WhoopWebhookEvent) {
+      const [connection] = await query<WhoopBackgroundConnection & { pinned: boolean }>(
+        `with matched as (
+           select id from fitcore_whoop.connections
+           where status = 'connected' and
+             (provider_user_id = $1 or (provider_user_id is null and $3 like '%.deleted'))
+           for update
+         ), received as (
+           insert into fitcore_whoop.webhook_events (connection_id, provider_user_id, trace_id, event_type, record_id)
+           select id, $1, $2, $3, $4::uuid from matched
+           on conflict (connection_id, provider_user_id, trace_id) do nothing
+           returning connection_id, event_type, record_id
+         )
+         update fitcore_whoop.connections connection
+         set event_revision = connection.event_revision + 1,
+             snapshot = case
+               when connection.provider_user_id is null or connection.snapshot is null
+                 or event.event_type not like '%.deleted' then connection.snapshot
+               else (
+                 select coalesce(jsonb_agg(item.record order by item.position), '[]'::jsonb)
+                 from jsonb_array_elements(connection.snapshot) with ordinality as item(record, position)
+                 where not coalesce((${webhookDeletesRecord}), false)
+               )
+             end
+         from received event
+         where connection.id = event.connection_id
+         returning connection.owner_id as "ownerId", connection.id as "connectionId",
+           connection.provider_user_id is not null as pinned`,
+        [event.userId, event.traceId, event.type, event.recordId],
+      );
+      return connection?.pinned
+        ? { ownerId: connection.ownerId, connectionId: connection.connectionId }
+        : null;
+    },
+
+    async getBackgroundConnection(ownerId: string) {
+      const [connection] = await query<WhoopBackgroundConnection>(
+        `select owner_id as "ownerId", id as "connectionId" from fitcore_whoop.connections
+         where owner_id = $1 and status = 'connected'`,
+        [ownerId],
+      );
+      return connection ?? null;
+    },
+
+    async pruneWebhookEvents() {
+      await query(
+        `delete from fitcore_whoop.webhook_events event
+         where event.received_at <= now() - case
+           when event.event_type like '%.deleted' then interval '31 days'
+           else interval '2 days'
+         end or exists (
+           select 1 from fitcore_whoop.connections connection
+           where connection.id = event.connection_id and connection.provider_user_id <> event.provider_user_id
+         )`,
+        [],
+      );
     },
 
     async releaseSync(ownerId: string, id: string, syncId: string, cooldownSeconds: number) {
@@ -235,15 +342,21 @@ export function createWhoopStore(query: Query) {
       const [connection] = await query<
         Pick<Connection, "id" | "envelope"> & { disconnectId: string }
       >(
-        `update fitcore_whoop.connections
-         set status = 'disconnecting', disconnect_id = $2, disconnect_started_at = now(),
-             disconnect_refresh_taken = disconnect_refresh_taken or refresh_id is not null,
-             refresh_id = null, refresh_started_at = null,
-             snapshot = null, last_synced_at = null, sync_id = null, sync_started_at = null
-         where owner_id = $1
-           and (refresh_id is null or refresh_started_at <= now() - interval '45 seconds')
-           and (disconnect_id is null or disconnect_started_at <= now() - interval '60 seconds')
-         returning id, token_envelope as envelope, disconnect_id as "disconnectId"`,
+        `with disconnected as (
+           update fitcore_whoop.connections
+           set status = 'disconnecting', disconnect_id = $2, disconnect_started_at = now(),
+               disconnect_refresh_taken = disconnect_refresh_taken or refresh_id is not null,
+               refresh_id = null, refresh_started_at = null,
+               snapshot = null, last_synced_at = null, sync_id = null, sync_started_at = null
+           where owner_id = $1
+             and (refresh_id is null or refresh_started_at <= now() - interval '45 seconds')
+             and (disconnect_id is null or disconnect_started_at <= now() - interval '60 seconds')
+           returning id, token_envelope as envelope, disconnect_id as "disconnectId"
+         ), erased as (
+           delete from fitcore_whoop.webhook_events event using disconnected
+           where event.connection_id = disconnected.id
+         )
+         select * from disconnected`,
         [session.ownerId, randomUUID()],
       );
       return connection ?? null;

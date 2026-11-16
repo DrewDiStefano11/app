@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { gotoDashboard, seedMinimalOnboardedState } from "./helpers/fitcore-test-state";
 
+test.use({ serviceWorkers: "block" });
+
 test("launch syncs in the background and Settings can sync again", async ({ page }) => {
   let requests = 0;
   await page.route("**/api/whoop/sync", async (route) => {

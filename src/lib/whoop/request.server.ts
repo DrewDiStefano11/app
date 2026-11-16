@@ -19,6 +19,8 @@ function getIntegration() {
     WHOOP_DATABASE_URL,
     WHOOP_OWNER_KEY_SHA256,
     WHOOP_TOKEN_ENCRYPTION_KEY,
+    WHOOP_BACKGROUND_ENABLED,
+    CRON_SECRET,
   } = process.env;
 
   if (
@@ -37,21 +39,24 @@ function getIntegration() {
   if (url.protocol !== "https:" || url.origin !== WHOOP_ORIGIN) return null;
 
   const sql = neon(WHOOP_DATABASE_URL);
+  const store = createWhoopStore(
+    async <Row extends Record<string, unknown>>(
+      statement: string,
+      parameters: (string | number)[],
+    ) =>
+      (await sql.query(statement, parameters, {
+        fetchOptions: { signal: AbortSignal.timeout(5000) },
+      })) as Row[],
+  );
   return createWhoopIntegration({
     origin: WHOOP_ORIGIN,
     clientId: WHOOP_CLIENT_ID,
     clientSecret: WHOOP_CLIENT_SECRET,
     ownerKeyDigest: WHOOP_OWNER_KEY_SHA256,
     encryptionKey: WHOOP_TOKEN_ENCRYPTION_KEY,
-    store: createWhoopStore(
-      async <Row extends Record<string, unknown>>(
-        statement: string,
-        parameters: (string | number)[],
-      ) =>
-        (await sql.query(statement, parameters, {
-          fetchOptions: { signal: AbortSignal.timeout(5000) },
-        })) as Row[],
-    ),
+    store,
+    background:
+      WHOOP_BACKGROUND_ENABLED === "true" ? { store, cronSecret: CRON_SECRET } : undefined,
   });
 }
 
@@ -61,12 +66,24 @@ export async function readWhoopJarvisSnapshot(request: Request) {
 
 export async function handleWhoopRequest(request: Request, action: string) {
   if (
-    !["session", "connect", "callback", "disconnect", "status", "sync", "records"].includes(action)
+    ![
+      "session",
+      "connect",
+      "callback",
+      "disconnect",
+      "status",
+      "sync",
+      "records",
+      "webhook",
+      "reconcile",
+    ].includes(action)
   )
     return reply(404);
 
   // Keep request bodies, callback query parameters, and provider or database errors out of logs.
   try {
+    if (action === "reconcile" && process.env.WHOOP_BACKGROUND_ENABLED !== "true")
+      return reply(request.method === "GET" ? 204 : 405);
     const integration = getIntegration();
     if (!integration) return reply(503);
 
@@ -85,6 +102,10 @@ export async function handleWhoopRequest(request: Request, action: string) {
         return await integration.sync(request);
       case "records":
         return await integration.records(request);
+      case "webhook":
+        return await integration.webhook(request);
+      case "reconcile":
+        return await integration.reconcile(request);
       default:
         return reply(404);
     }

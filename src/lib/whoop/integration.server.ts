@@ -1,8 +1,9 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { createWhoopOAuthClient, handleWhoopCallback } from "./oauth.server";
-import type { createWhoopStore } from "./postgres.server";
+import type { createWhoopStore, WhoopSyncActor } from "./postgres.server";
 import { syncWhoop, type WhoopSyncStore } from "./sync.server";
 import { createWhoopTokenVault } from "./token-vault.server";
+import { verifyWhoopWebhook } from "./webhook.server";
 
 const sessionCookie = "__Host-fitcore-whoop-session";
 const flowCookie = "__Host-fitcore-whoop-flow";
@@ -23,6 +24,13 @@ type WhoopIntegrationConfig = {
   clientSecret: string;
   encryptionKey: string;
   fetch?: (url: string, init: RequestInit) => Promise<Response>;
+  background?: {
+    store: Pick<
+      ReturnType<typeof createWhoopStore>,
+      "registerWebhook" | "getBackgroundConnection" | "pruneWebhookEvents"
+    >;
+    cronSecret?: string;
+  };
   store: Pick<
     ReturnType<typeof createWhoopStore>,
     | "createSession"
@@ -90,6 +98,21 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
 
   function isSameOriginMutation(request: Request) {
     return new URL(request.url).origin === origin && request.headers.get("Origin") === origin;
+  }
+
+  const runSync = (actor: WhoopSyncActor) =>
+    syncWhoop(actor, {
+      store,
+      vault,
+      refresh: client.refresh,
+      fetch: config.fetch ? (url, init) => config.fetch!(url.href, init) : undefined,
+    });
+
+  function syncReply(outcome: Awaited<ReturnType<typeof syncWhoop>>) {
+    const headers = outcome.retryAfterSeconds
+      ? { ...privateHeaders, "Retry-After": String(outcome.retryAfterSeconds) }
+      : privateHeaders;
+    return reply(outcome.status === 200 ? 204 : outcome.status, headers);
   }
 
   return {
@@ -225,16 +248,44 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
       if (!isSameOriginMutation(request)) return reply(403);
       const session = await getSession(request);
       if (!session) return reply(401);
-      const outcome = await syncWhoop(session, {
-        store,
-        vault,
-        refresh: client.refresh,
-        fetch: config.fetch ? (url, init) => config.fetch!(url.href, init) : undefined,
-      });
-      const headers = outcome.retryAfterSeconds
-        ? { ...privateHeaders, "Retry-After": String(outcome.retryAfterSeconds) }
-        : privateHeaders;
-      return reply(outcome.status === 200 ? 204 : outcome.status, headers);
+      return syncReply(await runSync(session));
+    },
+
+    async webhook(request: Request) {
+      if (request.method !== "POST") return reply(405);
+      if (!config.background || new URL(request.url).origin !== origin) return reply(503);
+      const event = await verifyWhoopWebhook(request, config.clientSecret);
+      if (!event) return reply(401);
+      const connection = await config.background.store.registerWebhook(event);
+      const runtimeRequest = request as Request & { waitUntil?(task: Promise<unknown>): void };
+      if (connection && runtimeRequest.waitUntil) {
+        runtimeRequest.waitUntil(runSync(connection).catch(() => {}));
+      }
+      return reply(204);
+    },
+
+    async reconcile(request: Request) {
+      if (request.method !== "GET") return reply(405);
+      const cron = config.background;
+      if (!cron) return reply(204);
+      const received = request.headers.get("Authorization") ?? "";
+      if (
+        new URL(request.url).origin !== origin ||
+        !cron.cronSecret ||
+        !/^[A-Za-z0-9_-]{32,128}$/.test(cron.cronSecret) ||
+        !timingSafeEqual(
+          createHash("sha256").update(received).digest(),
+          createHash("sha256")
+            .update("Bearer " + cron.cronSecret)
+            .digest(),
+        )
+      )
+        return reply(401);
+      await cron.store.pruneWebhookEvents();
+      const connection = await cron.store.getBackgroundConnection(owner);
+      if (!connection) return reply(204);
+      const result = await runSync(connection);
+      return result.status === 409 ? reply(204) : syncReply(result);
     },
 
     async records(request: Request) {
