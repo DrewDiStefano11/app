@@ -252,8 +252,9 @@ test("a food library meal can be reviewed and saved without a cloud request", as
       assumptions: ["Used FitCore food library serving values."],
     },
   });
-  await page.getByRole("textbox", { name: "Message Jarvis" }).fill("Undo that.");
-  await page.getByRole("button", { name: "Send to Jarvis" }).click();
+  const conversation = page.getByRole("textbox", { name: "Jarvis message" });
+  await conversation.fill("Undo that.");
+  await conversation.press("Enter");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/Undid: Logged Banana \+ Whole Wheat Bread/)).toBeVisible();
   expect((await readPersistedFitCoreState(page)).mealEntries).toEqual([]);
