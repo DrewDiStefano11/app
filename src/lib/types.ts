@@ -33,6 +33,8 @@ export interface Workout {
   restEndsAt?: number;
   restLoggedSetKeys?: string[];
   templateId?: string;
+  routineId?: string;
+  routineDayId?: string;
   exercises: WorkoutExercise[];
   notes?: string;
   provenance?: DataProvenance;
@@ -348,6 +350,7 @@ export interface Profile {
 }
 
 export interface Personalization {
+  trainingRoutine?: TrainingRoutine;
   themeAccent?: "auto" | "purple" | "blue" | "green" | "red";
   defaultDashboardFocus?: "training" | "nutrition" | "recovery" | "progress";
   defaultGraphModes?: { volume?: string; heatmap?: string };
@@ -360,6 +363,20 @@ export interface Personalization {
 }
 
 export interface NutritionTargets { calories: number; protein: number; carbs: number; fat: number; }
+
+export interface TrainingRoutineDay {
+  id: string;
+  templateId: string;
+  weekday?: number;
+}
+
+export interface TrainingRoutine {
+  enabled?: boolean;
+  id: string;
+  name: string;
+  mode: "weekly" | "rotation";
+  days: TrainingRoutineDay[];
+}
 
 export interface WorkoutTemplateReference {
   pausedBenchConfirmed?: boolean;

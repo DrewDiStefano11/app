@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useLocalCalendarDate } from "@/hooks/use-local-calendar-date";
 import { useStore } from "@/lib/store";
 import { exerciseById } from "@/lib/data";
 import type { WorkoutTemplateReference } from "@/lib/types";
@@ -21,22 +22,12 @@ import { WorkoutTemplateEditor } from "./workout-template-editor";
 
 export function BenchProgram({ onStart }: { onStart: () => void }) {
   const { state, set, startWorkout } = useStore();
-  const [date, setDate] = useState(() => new Date());
+  const date = useLocalCalendarDate();
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [editor, setEditor] = useState<WorkoutTemplateReference | null>(null);
   const [recommendation, setRecommendation] = useState<string | null>(null);
   const [confirmedProgression, setConfirmedProgression] = useState<string | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
-  useEffect(() => {
-    const refresh = () => setDate(new Date());
-    document.addEventListener("visibilitychange", refresh);
-    const timer = window.setInterval(refresh, 60_000);
-    return () => {
-      document.removeEventListener("visibilitychange", refresh);
-      window.clearInterval(timer);
-    };
-  }, []);
-
   const week = benchProgramWeek(date);
   const defaultDay = selectedDay === null ? scheduledBenchDay(date) : BENCH_PROGRAM[selectedDay];
   const previous = state.workoutTemplates.find((row) => row.id === defaultDay.id);

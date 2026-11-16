@@ -52,6 +52,8 @@ import {
 } from "@/lib/analytics";
 import { volumeByDayOfWeek, volumeByExercise, volumeByMuscle } from "@/lib/analytics-extra";
 import { configuredBenchDay, scheduledBenchDay } from "@/lib/bench-program";
+import { activeRoutineSession } from "@/lib/training-routines";
+import { useLocalCalendarDate } from "@/hooks/use-local-calendar-date";
 import { GRAPH_PREFS, usePersistentState } from "@/lib/persist";
 import { isToday, useStore } from "@/lib/store";
 import type { AppState, SectionId } from "@/lib/types";
@@ -200,7 +202,12 @@ function HomeDailyView({
   const hasAnyData = view.workouts.length > 0 || view.mealEntries.length > 0;
   const [selectedMuscle, setSelectedMuscle] = useState<string | null>(null);
 
-  const assignedWorkout = configuredBenchDay(scheduledBenchDay(new Date()), state.workoutTemplates);
+  const date = useLocalCalendarDate();
+  const customSession = activeRoutineSession(state, date);
+  const benchDay = configuredBenchDay(scheduledBenchDay(date), state.workoutTemplates);
+  const assignedWorkout = customSession
+    ? customSession.template?.name ?? (customSession.day ? customSession.routine.name : "Rest Day")
+    : [benchDay.name, benchDay.durationLabel].filter(Boolean).join(" · ");
 
   const dailyTargets = useMemo(
     () => [
@@ -500,7 +507,7 @@ function HomeDailyView({
           <span className="font-display text-2xl uppercase tracking-wide">Start Workout</span>
           {assignedWorkout && (
             <span>
-              {assignedWorkout.name}{assignedWorkout.durationLabel && ` · ${assignedWorkout.durationLabel}`}
+              {assignedWorkout}
             </span>
           )}
         </span>
