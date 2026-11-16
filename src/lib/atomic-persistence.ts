@@ -1,7 +1,7 @@
 import {
   FITCORE_BACKUP_ENVELOPE_POLICY,
   createFitCoreBackupEnvelope,
-  inspectFitCoreBackupEnvelope,
+  readCanonicalFitCoreBackupEnvelope,
   serializeFitCoreBackupEnvelope,
   type FitCoreBackupEnvelopeV1,
 } from "./data-backup";
@@ -177,6 +177,16 @@ interface SlotInspection {
   detail: "missing" | "invalid_json" | "invalid_backup" | "noncanonical" | "valid";
 }
 
+interface VerifiedSlot {
+  raw: string;
+  inspection: SlotInspection;
+}
+
+const verifiedSlots = new WeakMap<
+  FitCoreAtomicPersistenceAdapter,
+  Partial<Record<FitCoreAtomicPersistenceSlot, VerifiedSlot>>
+>();
+
 interface ManifestInspection {
   status: "valid" | "invalid" | "unsupported";
   manifest: FitCoreAtomicPersistenceManifestV1 | null;
@@ -337,43 +347,37 @@ function inspectSlot(raw: string | null): SlotInspection {
       characterCount: 0,
       detail: "missing",
     };
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return {
-      state: "invalid",
-      envelope: null,
-      requiresReview: false,
-      characterCount: raw.length,
-      detail: "invalid_json",
-    };
-  }
-  const inspection = inspectFitCoreBackupEnvelope(parsed);
-  if (inspection.status !== "valid")
-    return {
-      state: "invalid",
-      envelope: null,
-      requiresReview: false,
-      characterCount: raw.length,
-      detail: "invalid_backup",
-    };
-  const serialization = serializeFitCoreBackupEnvelope(parsed);
-  if (serialization.status !== "serialized" || serialization.json !== raw)
-    return {
-      state: "noncanonical",
-      envelope: null,
-      requiresReview: false,
-      characterCount: raw.length,
-      detail: "noncanonical",
-    };
+  const read = readCanonicalFitCoreBackupEnvelope(raw);
   return {
-    state: "valid",
-    envelope: deepFreeze(parsed as FitCoreBackupEnvelopeV1),
-    requiresReview: inspection.requiresReview,
+    state: read.status === "valid" || read.status === "noncanonical" ? read.status : "invalid",
+    envelope: read.envelope,
+    requiresReview: read.requiresReview,
     characterCount: raw.length,
-    detail: "valid",
+    detail: read.status,
   };
+}
+
+function inspectStoredSlot(
+  adapter: FitCoreAtomicPersistenceAdapter,
+  slot: FitCoreAtomicPersistenceSlot,
+  raw: string | null,
+): SlotInspection {
+  let slots = verifiedSlots.get(adapter);
+  const previous = slots?.[slot];
+  // Every call still reads storage. Reuse only a validated, immutable copy of these exact bytes.
+  if (previous && previous.raw === raw) return previous.inspection;
+
+  const inspection = inspectSlot(raw);
+  if (raw !== null && inspection.state === "valid") {
+    if (!slots) {
+      slots = {};
+      verifiedSlots.set(adapter, slots);
+    }
+    slots[slot] = { raw, inspection };
+  } else if (slots) {
+    delete slots[slot];
+  }
+  return inspection;
 }
 
 function manifestJson(manifest: FitCoreAtomicPersistenceManifestV1): string {
@@ -531,8 +535,8 @@ function readInternal(
   }
 
   const slotRaw = { a: slotARead.value, b: slotBRead.value } as const;
-  const slotA = inspectSlot(slotRaw.a);
-  const slotB = inspectSlot(slotRaw.b);
+  const slotA = inspectStoredSlot(adapter, "a", slotRaw.a);
+  const slotB = inspectStoredSlot(adapter, "b", slotRaw.b);
   const slots = [slotA, slotB] as const;
   if (manifestRead.value === null) {
     if (slotRaw.a === null && slotRaw.b === null) {
@@ -816,7 +820,7 @@ export function persistFitCoreStateAtomically(
         },
       );
     }
-    const stagedInspection = inspectSlot(stagedRead.value);
+    const stagedInspection = inspectStoredSlot(adapter, stagedSlot, stagedRead.value);
     if (stagedInspection.state !== "valid")
       return makeWriteResult(context, "verification_failed", [stagedIssue(stagedInspection)], {
         activeSlot: existing.report.activeSlot,
@@ -916,11 +920,11 @@ export function persistFitCoreStateAtomically(
     if (!manifestWriteSucceeded) writeWarnings.push(issue("manifest_write_failed", "warning"));
 
     const finalSlotRead = readAdapter(adapter, slotKey(stagedSlot), context, true);
-    const finalSlot = finalSlotRead.ok ? inspectSlot(finalSlotRead.value) : inspectSlot(null);
+    const finalSlot = finalSlotRead.ok && inspectStoredSlot(adapter, stagedSlot, finalSlotRead.value);
     if (
       !finalSlotRead.ok ||
       finalSlotRead.value !== serialization.json ||
-      finalSlot.state !== "valid"
+      !finalSlot || finalSlot.state !== "valid"
     ) {
       const authorityRead = readAdapter(
         adapter,
