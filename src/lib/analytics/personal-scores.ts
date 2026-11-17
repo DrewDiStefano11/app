@@ -1,6 +1,6 @@
 import type { AppState, DataProvenance, RecoveryCheckIn, SleepEntry, Workout } from "../types";
 import { addCalendarDays, dayKey, startOfDay } from "./date-time";
-import { calculateWorkoutVolume, recordedRecoveryCheckIns, recoveryCheckInReadinessScore } from "./observed-fitness";
+import { calculateWorkoutVolume, hasRecordedSleepQuality, recordedRecoveryCheckIns, recordedSleepEntries, recoveryCheckInReadinessScore } from "./observed-fitness";
 import { clampScore } from "./safe-math";
 
 export type ScoreStatus = "unavailable" | "limited" | "stale" | "available";
@@ -79,15 +79,9 @@ function observeReadiness(state: AppState, now: number) {
   const checked = recordedRecoveryCheckIns(state)
     .map((record) => ({ ...record, at: record.createdAt }))
     .filter((record) => isGrounded(record) && record.at <= now);
-  const slept = state.sleepEntries
-    .map((record) => ({ ...record, at: record.createdAt }))
-    .filter(
-      (record) =>
-        isGrounded(record) &&
-        record.at <= now &&
-        range(record.hours, 0, 24) &&
-        range(record.quality, 1, 10),
-    );
+  const slept = recordedSleepEntries(state, now)
+    .filter(hasRecordedSleepQuality)
+    .map((record) => ({ ...record, at: record.createdAt }));
   return { checked, slept };
 }
 
