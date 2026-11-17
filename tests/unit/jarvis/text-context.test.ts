@@ -16,6 +16,20 @@ test("bare workout values use the exercise open when Jarvis was invoked", () => 
   expect(interpretJarvisText("195 for 4", state)).toMatchObject({
     reply: "Which exercise in your active workout did you mean?",
   });
+  state.profile.units = "kg";
+  const askExercise = interpretJarvisText("90 for 4", state);
+  expect(askExercise?.nextContext).toBeDefined();
+  const askUnit = interpretJarvisText("barbell bench", state, new Date(), askExercise?.nextContext);
+  expect(askUnit).toMatchObject({ reply: "Was that load in kilograms or pounds?" });
+  expect(interpretJarvisText("kilograms", state, new Date(), askUnit?.nextContext)).toEqual({
+    tool: "logExerciseSet",
+    args: { exerciseEntryId: "bench-row", weight: 198.42, reps: 4 },
+  });
+  const otherWorkout = { ...state, activeWorkout: { ...state.activeWorkout, id: "upper-b" } };
+  expect(interpretJarvisText("kilograms", otherWorkout, new Date(), askUnit?.nextContext)).toEqual({
+    reply: "The active workout changed. Tell me the exercise, weight, and reps again.",
+  });
+  state.profile.units = "lb";
   const context: JarvisTextContext = {
     focusedExercise: { workoutId: "upper-a", exerciseEntryId: "bench-row" },
   };
@@ -46,8 +60,13 @@ test("named warm-up and unilateral sets resolve locally with their reported unit
     tool: "logExerciseSet",
     args: { exerciseEntryId: "dumbbell-row", weight: 44.09, reps: 10, modifier: "unilateral" },
   });
-  expect(interpretJarvisText("Log a warm-up set at 135 lb for 8", state)).toEqual({
+  const askExercise = interpretJarvisText("Log a warm-up set at 135 lb for 8", state);
+  expect(askExercise).toMatchObject({
     reply: "Which exercise in your active workout did you mean?",
+  });
+  expect(interpretJarvisText("bench", state, new Date(), askExercise?.nextContext)).toEqual({
+    tool: "logExerciseSet",
+    args: { exerciseEntryId: "barbell-row", weight: 135, reps: 8, modifier: "warmup" },
   });
 });
 

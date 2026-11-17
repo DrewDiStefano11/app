@@ -4,13 +4,23 @@ import { queryRecoveryText, type RecoveryDraft } from "./recovery-text";
 import { queryBenchHistory, queryTrainingText, type BenchDate } from "./workout-queries";
 import { jarvisScheduledWorkout, WEEKDAYS } from "./scheduled-workout";
 import { queryUsualMeals } from "./usual-meals";
-import type { AppState } from "../types";
+import type { AppState, WorkoutExercise } from "../types";
 import { exerciseName, findActiveExercise } from "./active-exercise";
 import type { ToolName } from "./tools";
 
 interface ActiveExerciseReference {
   workoutId: string;
   exerciseEntryId: string;
+}
+
+interface SetDraft {
+  workoutId: string;
+  exerciseEntryId?: string;
+  load: string;
+  unit?: string;
+  reps: number;
+  modifier?: "warmup" | "unilateral";
+  firstWorkingSet: boolean;
 }
 
 export interface JarvisTextContext {
@@ -20,6 +30,7 @@ export interface JarvisTextContext {
   sleepHours?: number;
   recovery?: RecoveryDraft;
   cardioSteps?: number;
+  setDraft?: SetDraft;
   repeatSet?: ActiveExerciseReference & { sourceSetId: string; weight: number };
 }
 
@@ -44,6 +55,7 @@ const HOUR_WORDS = [
 ];
 
 const LOAD = "(\\d+(?:\\.\\d+)?)\\s*(kg|kilograms?|lbs?|pounds?)?";
+const LOAD_UNIT = /^(?:in )?(kg|kilograms?|lbs?|pounds?)$/;
 const SET = new RegExp(`^${LOAD}\\s+(?:for|x|×)\\s*(\\d+)(?:\\s+reps?)?$`, "i");
 const BODYWEIGHT = new RegExp(
   `^(?:i weigh|(?:log )?(?:my )?(?:bodyweight|weight)(?: is)?)\\s+${LOAD}(?:\\s+today)?$`,
@@ -74,6 +86,42 @@ function latestActiveJarvisSet(state: AppState) {
   return row && set ? { row, set } : undefined;
 }
 
+function reviewSetDraft(
+  state: AppState,
+  draft: SetDraft,
+  row?: WorkoutExercise,
+): LocalJarvisCommand {
+  if (state.activeWorkout?.id !== draft.workoutId || (draft.exerciseEntryId && !row))
+    return { reply: "The active workout changed. Tell me the exercise, weight, and reps again." };
+  if (!row) {
+    return {
+      reply: "Which exercise in your active workout did you mean?",
+      nextContext: { setDraft: draft },
+    };
+  }
+  if (draft.firstWorkingSet && row.sets.find((set) => set.modifier !== "warmup")?.completed) {
+    return {
+      reply:
+        "The first working set already has results. Ask to correct that set or log another one.",
+    };
+  }
+  if (!draft.unit && state.profile.units === "kg") {
+    return {
+      reply: "Was that load in kilograms or pounds?",
+      nextContext: { setDraft: { ...draft, exerciseEntryId: row.id } },
+    };
+  }
+  return {
+    tool: "logExerciseSet",
+    args: {
+      exerciseEntryId: row.id,
+      weight: pounds(draft.load, draft.unit),
+      reps: draft.reps,
+      ...(draft.modifier ? { modifier: draft.modifier } : {}),
+    },
+  };
+}
+
 function workoutSet(
   text: string,
   state: AppState,
@@ -82,6 +130,17 @@ function workoutSet(
   const repeat = context.repeatSet;
   const repeatCount = /^(\d+)(?: reps?)?$/.exec(text)?.[1];
   const active = state.activeWorkout;
+  const draft = context.setDraft;
+  if (draft?.exerciseEntryId) {
+    const unit = LOAD_UNIT.exec(text)?.[1];
+    if (unit) {
+      const row = findActiveExercise(state, { exerciseEntryId: draft.exerciseEntryId });
+      return reviewSetDraft(state, { ...draft, unit }, row);
+    }
+  } else if (draft) {
+    const row = findActiveExercise(state, { exerciseName: text });
+    if (row) return reviewSetDraft(state, draft, row);
+  }
   if (repeat && repeatCount) {
     const row =
       active?.id === repeat.workoutId
@@ -108,6 +167,7 @@ function workoutSet(
   const named = NAMED_SET.exec(text);
   const entry = SET.exec(bench?.[1] ?? named?.[4] ?? text.replace(/^log /, ""));
   if (entry) {
+    if (!active) return { reply: "Start a workout before logging a set." };
     const exercise = bench ? (text.includes("dumbbell") ? "db-bench" : "bench-press") : undefined;
     const exerciseName = named?.[3] || named?.[2].trim() || undefined;
     const qualifier = named?.[1];
@@ -121,30 +181,18 @@ function workoutSet(
       exerciseName: exercise ? undefined : exerciseName,
       exerciseEntryId: exercise || exerciseName ? undefined : focusId,
     });
-    if (!state.activeWorkout) return { reply: "Start a workout before logging a set." };
-    if (!row) return { reply: "Which exercise in your active workout did you mean?" };
-    if (
-      bench &&
-      /\bfirst\b/.test(text) &&
-      row.sets.find((set) => set.modifier !== "warmup")?.completed
-    ) {
-      return {
-        reply:
-          "The first working set already has results. Ask to correct that set or log another one.",
-      };
-    }
-    if (!entry[2] && state.profile.units === "kg") {
-      return { reply: "Was that load in kilograms or pounds?" };
-    }
-    return {
-      tool: "logExerciseSet",
-      args: {
-        exerciseEntryId: row.id,
-        weight: pounds(entry[1], entry[2]),
+    return reviewSetDraft(
+      state,
+      {
+        workoutId: active.id,
+        load: entry[1],
+        unit: entry[2],
         reps: Number(entry[3]),
-        ...(modifier ? { modifier } : {}),
+        modifier,
+        firstWorkingSet: Boolean(bench && /\bfirst\b/.test(text)),
       },
-    };
+      row,
+    );
   }
 
   const planned = /^add (?:another|a fifth|a 5th) (?:planned )?set$/.exec(text);

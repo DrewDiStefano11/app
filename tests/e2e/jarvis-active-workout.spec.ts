@@ -12,6 +12,8 @@ test("typed bench entry reviews, saves, reloads and undoes a planned row offline
     page,
     currentFitCoreState({
       onboardingComplete: true,
+      profile: { units: "kg" },
+      personalization: { units: { weight: "kg" } },
       activeWorkout: {
         id: "upper-a",
         name: "Upper A",
@@ -35,6 +37,15 @@ test("typed bench entry reviews, saves, reloads and undoes a planned row offline
   const input = page.getByPlaceholder("Talk to Jarvis...");
   await page.context().setOffline(true);
   await input.fill("I just benched 195 for 4 reps.");
+  await input.press("Enter");
+  await expect(page.getByText("Was that load in kilograms or pounds?")).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).activeWorkout?.exercises[0].sets[0]).toMatchObject(
+    {
+      id: "set-1",
+      completed: false,
+    },
+  );
+  await input.fill("pounds");
   await input.press("Enter");
   await expect(page.getByText("Log Barbell Bench Press: 195 lb for 4 reps")).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
