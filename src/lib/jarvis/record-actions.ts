@@ -1,10 +1,77 @@
 import { createJarvisProvenance, markProvenanceEdited } from "../fitcore-data";
 import { uid } from "../store";
-import type { SleepEntry } from "../types";
-import { pushAudit } from "./action-audit";
+import type { CardioEntry, Confidence, SleepEntry } from "../types";
+import { actionKey, normalizeText, pushAudit } from "./action-audit";
 import type { ToolHandler } from "./tools";
 
 export const recordActions = {
+  logCardio: (args, { state, set, confirmed, now = new Date() }) => {
+    const type = String(args.type);
+    const measurements = {
+      minutes: (args.minutes as number | undefined) ?? 0,
+      distanceMi: args.distanceMi as number | undefined,
+      calories: args.calories as number | undefined,
+      heartRate: args.heartRate as number | undefined,
+      speed: args.speed as number | undefined,
+      incline: args.incline as number | undefined,
+      notes: args.notes as string | undefined,
+    };
+    const day = now.toDateString();
+    const duplicate = state.cardioEntries.find(
+      (entry) =>
+        new Date(entry.createdAt).toDateString() === day &&
+        normalizeText(entry.type) === normalizeText(type) &&
+        (Object.keys(measurements) as (keyof typeof measurements)[]).every(
+          (field) => entry[field] === measurements[field],
+        ),
+    );
+    if (duplicate) {
+      return {
+        ok: true,
+        summary: "That's already logged.",
+        data: { duplicate: true, existing: [duplicate.id] },
+      };
+    }
+    const { minutes, distanceMi, calories, heartRate, speed, incline, notes } = measurements;
+    const details = [
+      minutes ? `${minutes} min` : undefined,
+      distanceMi === undefined ? undefined : `${distanceMi} mi`,
+      calories === undefined ? undefined : `${calories} kcal`,
+      heartRate === undefined ? undefined : `${heartRate} bpm`,
+      speed === undefined ? undefined : `speed ${speed}`,
+      incline === undefined ? undefined : `incline ${incline}`,
+      notes,
+    ].filter(Boolean);
+    const summary = `${confirmed ? "Logged" : "Log"} ${type}: ${details.join(", ")}.`;
+    if (!confirmed) return { ok: true, summary };
+
+    const id = uid(),
+      auditId = uid(),
+      createdAt = now.getTime();
+    const confidence = (args.confidence as Confidence | undefined) ?? "medium";
+    const originalText = args.originalText as string | undefined;
+    const entry: CardioEntry = {
+      ...measurements,
+      id,
+      type,
+      createdAt,
+      provenance: createJarvisProvenance({ confidence, confirmed, auditId, originalText }),
+    };
+    set((current) => ({ ...current, cardioEntries: [...current.cardioEntries, entry] }));
+    pushAudit(set, {
+      id: auditId,
+      tool: "logCardio",
+      summary,
+      status: "logged",
+      originalText,
+      confidence,
+      entityIds: [id],
+      entityKind: "cardio",
+      patch: { entry, actionKey: actionKey("logCardio", args) },
+      createdAt,
+    });
+    return { ok: true, summary, auditId, data: { ...entry, confidence } };
+  },
   logSleep: (args, { state, set, confirmed, now = new Date() }) => {
     const hours = Number(args.hours);
     const quality = Number(args.quality);

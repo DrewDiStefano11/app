@@ -168,7 +168,7 @@ export function JarvisPanel({ section }: { section: string }) {
       tool,
       result: {
         ...result,
-        summary: ["addPlannedExerciseSet", "logUsualMeal", "logCaloriesOnly", "saveUsualMeal", "deleteUsualMeal", "logSleep", "updateBodyWeight", "logExerciseSet", "updateExerciseSet", "deleteExerciseSet", "updateMeal", "correctMealPortion", "deleteMeal", "updateWorkout", "updateActiveWorkout", "undoLastAction", "startRestTimer", "startScheduledWorkout"].includes(tool) ? result.summary : humanizeArgs(tool, args),
+        summary: ["addPlannedExerciseSet", "logUsualMeal", "logCaloriesOnly", "saveUsualMeal", "deleteUsualMeal", "logSleep", "logCardio", "updateBodyWeight", "logExerciseSet", "updateExerciseSet", "deleteExerciseSet", "updateMeal", "correctMealPortion", "deleteMeal", "updateWorkout", "updateActiveWorkout", "undoLastAction", "startRestTimer", "startScheduledWorkout"].includes(tool) ? result.summary : humanizeArgs(tool, args),
       },
       pending: { draftId, args: { ...(["logUsualMeal", "logWorkout"].includes(tool) ? args : result.data as Record<string, unknown>), draftId }, base: live, reviewedAt },
     };
@@ -435,7 +435,6 @@ function humanizeArgs(tool: string, args: Record<string, unknown>): string {
     case "logUsualMeal": return `Log usual ${args.slot ?? "meal"}`;
     case "createWorkoutDraft":
     case "logWorkout": return `Review workout: ${args.name ?? args.workoutType ?? "Workout"}`;
-    case "logCardio": return `Log cardio: ${args.type ?? "cardio"}${args.minutes ? ` for ${args.minutes} min` : ""}`;
     case "updateDailyCheckIn": return `Update today's check-in: ${Object.keys((args.patch as object) ?? {}).join(", ")}`;
     default: return "Review requested action";
   }

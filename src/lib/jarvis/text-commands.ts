@@ -310,7 +310,7 @@ export function interpretJarvisText(
     };
   }
   if (context.cardioSteps !== undefined) {
-    const duration = /^(\d+) minutes?$/.exec(text);
+    const duration = /^(\d+(?:\.\d+)?) minutes?$/.exec(text);
     if (duration)
       return {
         tool: "logCardio",

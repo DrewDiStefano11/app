@@ -42,6 +42,50 @@ test("local text saves confirmed weigh-in, sleep and supplement records", async 
   expect(saved.supplementLogs).toMatchObject([{ name: "creatine", dose: "5 grams" }]);
 });
 
+test("StairMaster follow-ups save only reported values and retain distinct sessions", async ({
+  page,
+}) => {
+  await seedRevisionedFitCoreState(page, currentFitCoreState({ onboardingComplete: true }));
+  await gotoDashboard(page);
+  await page.getByRole("button", { name: "Open AI composer" }).click();
+  await page
+    .getByRole("textbox", { name: "Message Jarvis" })
+    .fill("I did 2,500 steps on the StairMaster.");
+  await page.getByRole("button", { name: "Send to Jarvis" }).click();
+  await expect(page.getByText(/How many minutes did you spend on the StairMaster/)).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).cardioEntries).toEqual([]);
+
+  const input = page.getByRole("textbox", { name: "Jarvis message" });
+  const send = async (message: string) => {
+    await input.fill(message);
+    await input.press("Enter");
+  };
+  const save = page.getByRole("button", { name: "Log cardio", exact: true });
+  await send("24.5 minutes");
+  const firstReview = page.getByText("Log StairMaster: 24.5 min, Reported steps: 2500.");
+  await expect(firstReview).toBeVisible();
+  await expect(firstReview.locator("..").getByText("kcal", { exact: true })).toHaveCount(0);
+  await save.click();
+  await expect(page.getByText("Logged StairMaster: 24.5 min, Reported steps: 2500.")).toBeVisible();
+
+  await send("I did 2,700 steps on the StairMaster.");
+  await expect(
+    page.getByText(/How many minutes did you spend on the StairMaster/).last(),
+  ).toBeVisible();
+  await send("24.5 minutes");
+  await expect(page.getByText("Log StairMaster: 24.5 min, Reported steps: 2700.")).toBeVisible();
+  await save.click();
+  const saved = await readPersistedFitCoreState(page);
+  expect(saved.cardioEntries).toMatchObject([
+    { minutes: 24.5, notes: "Reported steps: 2500" },
+    { minutes: 24.5, notes: "Reported steps: 2700" },
+  ]);
+  for (const session of saved.cardioEntries) {
+    expect(session).not.toHaveProperty("incline");
+    expect(session).not.toHaveProperty("distanceMi");
+  }
+});
+
 test("recovery ratings collected in follow-ups save together only after review", async ({
   page,
 }) => {

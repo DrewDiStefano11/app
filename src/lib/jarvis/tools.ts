@@ -2,7 +2,7 @@ import { useLibraryPortions } from "./food-reference";
 import { isUsualMealSlot, mealMacroFields, readMealMacros, readUsualMeal, USUAL_MEAL_SLOTS, usualMealSlots, writeUsualMeal, type UsualMealPreference } from "./usual-meals";
 import { correctMealPortion } from "./meal-portion";
 import { latestRecoveryCheckInToday } from "./recovery-text";
-import type { AppState, UserGoalsProfile, JarvisSettings, JarvisAuditEntry, Confidence, MealEntry, MealItem, SupplementLog, RecoveryCheckIn, Workout, WorkoutExercise, SetEntry, CardioEntry } from "../types";
+import type { AppState, UserGoalsProfile, JarvisSettings, JarvisAuditEntry, Confidence, MealEntry, MealItem, SupplementLog, RecoveryCheckIn, Workout, WorkoutExercise, SetEntry } from "../types";
 import { createAiEstimateProvenance, createJarvisProvenance, markProvenanceEdited } from "../fitcore-data";
 import { uid, todayStart, e1RM } from "../store";
 import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "../data";
@@ -188,10 +188,6 @@ function capitalize(v: string) { return v ? v[0].toUpperCase() + v.slice(1) : v;
 
 function maybeDuplicateWorkout(state: AppState, draft: ReturnType<typeof workoutPayload>) {
   return state.workouts.find(w => sameDay(w.startedAt, draft.startedAt) && normalizeText(w.name) === normalizeText(draft.name) && Math.abs(w.exercises.length - draft.exercises.length) <= 1);
-}
-
-function cardioSummary(entry: CardioEntry) {
-  return `Logged ${entry.type}${entry.minutes ? ` for ${entry.minutes} min` : ""}${entry.distanceMi ? `, ${entry.distanceMi} mi` : ""}`;
 }
 
 const handlers: Record<ToolName, ToolHandler> = {
@@ -465,18 +461,6 @@ const handlers: Record<ToolName, ToolHandler> = {
   getLastWorkoutByType: (args, { state }) => { const q = normalizeText(args.workoutType); const w = [...state.workouts].reverse().find(w => normalizeText(w.name).includes(q)); return { ok: true, summary: w ? `Last ${q}: ${w.name}` : `No ${q} workout found`, data: w ?? null }; },
   getLastExercisePerformance: (args, { state }) => { const id = findExerciseId(args.exerciseId ?? args.exerciseName); const rows = [...state.workouts].reverse().flatMap(w => w.exercises.filter(e => e.exerciseId === id).map(e => ({ workout: w.name, when: w.startedAt, sets: e.sets.filter(s => s.completed) }))).filter(r => r.sets.length); return { ok: true, summary: rows[0] ? `Last ${exerciseById(id)?.name ?? id}: ${rows[0].sets.map(s => `${s.weight ?? ""}x${s.reps ?? "?"}`).join(", ")}` : "No previous sets found", data: rows[0] ?? null }; },
   getActiveWorkout: (_a, { state }) => ({ ok: true, summary: state.activeWorkout ? `Active: ${state.activeWorkout.name}` : "No active workout", data: state.activeWorkout }),
-  logCardio: (args, { set, state, confirmed }) => {
-    const dupeAudit = hasAuditKey(state, "logCardio", args); if (dupeAudit) return duplicateResult(dupeAudit);
-    const type = String(args.type ?? "Cardio").trim(), minutes = Math.round(Number(args.minutes) || 0), distanceMi = args.distanceMi == null ? undefined : Number(args.distanceMi), calories = args.calories == null ? undefined : Math.round(Number(args.calories) || 0);
-    if (!minutes && !distanceMi) return { ok: false, summary: "missing cardio amount", error: "Add duration or distance." };
-    const existing = state.cardioEntries.find(c => sameDay(c.createdAt) && normalizeText(c.type) === normalizeText(type) && Math.abs((c.minutes || 0) - minutes) < 1); if (existing) return { ok: true, summary: "That's already logged.", data: { duplicate: true, existing: [existing.id] } };
-    const id = uid(), auditId = uid(), entryConfidence = asConfidence(args.confidence), originalText = textArg(args, "originalText");
-    const entry: CardioEntry = { id, type, minutes, distanceMi, calories, heartRate: args.heartRate == null ? undefined : Number(args.heartRate), speed: args.speed == null ? undefined : Number(args.speed), incline: args.incline == null ? undefined : Number(args.incline), notes: textArg(args, "notes"), createdAt: Date.now(), provenance: createJarvisProvenance({ confidence: entryConfidence, confirmed, auditId, originalText }) };
-    set(s => ({ ...s, cardioEntries: [...s.cardioEntries, entry] }));
-    const summary = cardioSummary(entry);
-    pushAudit(set, { id: auditId, tool: "logCardio", summary, status: "logged", originalText, confidence: entryConfidence, entityIds: [id], entityKind: "cardio", patch: { entry, actionKey: actionKey("logCardio", args) }, createdAt: Date.now() });
-    return { ok: true, summary, auditId, data: { ...entry, confidence: entryConfidence } };
-  },
   updateActiveWorkout: (args, { set, state, confirmed }) => {
     if (!state.activeWorkout) return { ok: false, summary: "no active workout" };
     const patch = (args.patch ?? {}) as Partial<Workout>, auditId = uid(), editedAt = Date.now(), prev = state.activeWorkout;

@@ -44,6 +44,47 @@ test("a calorie-only meal preserves the reported calories and leaves macros unre
   expect(fitcore.reload().mealEntries).toEqual([]);
 });
 
+test("cardio keeps reported steps and distinct durations or measurements without duplicates", () => {
+  const fitcore = storageFixture();
+  const now = new Date();
+  const steps = interpretJarvisText(
+    "I did 2,500 steps on the StairMaster.",
+    fitcore.snapshot(),
+    now,
+  );
+  expect(steps).toMatchObject({ reply: expect.stringContaining("How many minutes") });
+  const command = interpretJarvisText("24.5 minutes", fitcore.snapshot(), now, steps?.nextContext);
+  if (!command || !("tool" in command)) throw new Error("Expected a cardio review");
+  const run = (args: Record<string, unknown>, confirmed = true) => {
+    const state = fitcore.snapshot();
+    return runTool(command.tool, args, {
+      state,
+      set: fitcore.set,
+      settings: state.jarvisSettings,
+      confirmed,
+      now,
+    });
+  };
+  expect(run(command.args, false)).toMatchObject({
+    needsConfirmation: true,
+    summary: expect.stringMatching(/24\.5 min.*Reported steps: 2500/),
+  });
+  expect(fitcore.reload().cardioEntries).toEqual([]);
+  expect(run({ ...command.args, draftId: "stairmaster-1" }).ok).toBe(true);
+  expect(run({ ...command.args, draftId: "stairmaster-1" }).data).toMatchObject({
+    duplicate: true,
+  });
+  expect(run(command.args).data).toMatchObject({ duplicate: true });
+  expect(run({ ...command.args, notes: "Reported steps: 2700" }).ok).toBe(true);
+  const records = fitcore.reload().cardioEntries;
+  expect(records).toMatchObject([
+    { type: "StairMaster", minutes: 24.5, notes: "Reported steps: 2500" },
+    { type: "StairMaster", minutes: 24.5, notes: "Reported steps: 2700" },
+  ]);
+  expect(records[0]).not.toHaveProperty("incline");
+  expect(records[0]).not.toHaveProperty("distanceMi");
+});
+
 function storageFixture() {
   const bytes = new Map<string, string>();
   let denyWrites = false;

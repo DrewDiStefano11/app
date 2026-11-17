@@ -22,24 +22,12 @@ interface WorkoutData {
   confidence?: "high" | "medium" | "low";
 }
 
-interface CardioData {
-  type?: string;
-  minutes?: number;
-  distanceMi?: number;
-  calories?: number;
-  confidence?: "high" | "medium" | "low";
-}
-
 function isMealData(d: unknown): d is MealData {
   return !!d && typeof d === "object" && ("calories" in d || "items" in d);
 }
 
 function isWorkoutData(d: unknown): d is WorkoutData {
   return !!d && typeof d === "object" && "exercises" in d;
-}
-
-function isCardioData(d: unknown): d is CardioData {
-  return !!d && typeof d === "object" && ("minutes" in d || "distanceMi" in d) && !("exercises" in d);
 }
 
 function toolLabel(tool: string) {
@@ -79,8 +67,7 @@ export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
   const changedPortions = canEditPortions && Object.values(portions).some(value => Number(value) !== 1);
   const totals = scaledItems?.length ? mealItemTotals(scaledItems) : meal;
   const workout = (tool === "createWorkoutDraft" || tool === "logWorkout") && isWorkoutData(result.data) ? result.data : null;
-  const cardio = tool === "logCardio" && isCardioData(result.data) ? result.data : null;
-  const confidence = meal?.confidence ?? workout?.confidence ?? cardio?.confidence;
+  const confidence = meal?.confidence ?? workout?.confidence;
   const confColor = confidence === "high" ? "var(--success, #10b981)" : confidence === "low" ? "var(--destructive, #ef4444)" : "var(--warning, #f59e0b)";
   const saveLabel = tool === "logWorkout" || tool === "createWorkoutDraft" ? "Log workout" : tool === "logCardio" ? "Log cardio" : "Save";
 
@@ -159,14 +146,6 @@ export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
             ))}
           </ul>
           {workout.notes && <p className="text-xs text-muted-foreground border-t border-border pt-1">{workout.notes}</p>}
-        </div>
-      )}
-
-      {cardio && (
-        <div className="rounded-xl bg-[var(--surface)] p-2 grid grid-cols-3 gap-1 text-center">
-          <Macro label={cardio.type ?? "cardio"} v={cardio.minutes ?? 0} unit="m" />
-          <Macro label="mi" v={cardio.distanceMi ?? 0} />
-          <Macro label="kcal" v={cardio.calories ?? 0} />
         </div>
       )}
 

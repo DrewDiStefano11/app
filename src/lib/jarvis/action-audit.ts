@@ -39,8 +39,6 @@ export function actionKey(tool: string, args: Record<string, unknown>) {
     return `checkin:${[args.energy, args.soreness, args.stress, args.motivation].map(Number).join(":")}:${normalizeText(args.notes)}:${todayStart()}`;
   if (tool === "logMeal" || tool === "logUsualMeal")
     return `meal:${normalizeText(args.name ?? args.slot)}:${String(args.mealType ?? "")}:${todayStart()}`;
-  if (tool === "logCardio")
-    return `cardio:${normalizeText(args.type)}:${Number(args.minutes) || 0}:${todayStart()}`;
   if (tool === "logWorkout")
     return `workout:${normalizeText(args.name ?? args.workoutType)}:${todayStart()}`;
   return "";
