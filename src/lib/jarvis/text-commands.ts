@@ -1,6 +1,6 @@
 import { queryLibraryMeal } from "./food-reference";
 import { queryMealPortion } from "./meal-portion";
-import { queryRecoveryText } from "./recovery-text";
+import { queryRecoveryText, type RecoveryDraft } from "./recovery-text";
 import { queryBenchHistory, queryTrainingText, type BenchDate } from "./workout-queries";
 import { jarvisScheduledWorkout, WEEKDAYS } from "./scheduled-workout";
 import { queryUsualMeals } from "./usual-meals";
@@ -18,6 +18,7 @@ export interface JarvisTextContext {
   benchHistory?: BenchDate[];
   lastMealId?: string;
   sleepHours?: number;
+  recovery?: RecoveryDraft;
   cardioSteps?: number;
   repeatSet?: ActiveExerciseReference & { sourceSetId: string; weight: number };
 }
@@ -280,7 +281,7 @@ export function interpretJarvisText(
       return { tool: "logSleep", args: { hours: context.sleepHours, quality: Number(quality[1]) } };
   }
 
-  const recovery = queryRecoveryText(text, state, now);
+  const recovery = queryRecoveryText(text, state, now, context.recovery);
   if (recovery) return recovery;
 
   const cardio =

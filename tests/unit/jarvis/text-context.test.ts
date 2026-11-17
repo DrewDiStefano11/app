@@ -151,6 +151,29 @@ test("sleep duration waits for a reported quality instead of inventing one", () 
   });
 });
 
+test("recovery follow-ups keep all reported ratings and require a complete review", () => {
+  const state = structuredClone(defaultState);
+  const now = new Date(2026, 10, 16, 12);
+  const energy = interpretJarvisText("My energy is a four out of five today.", state, now);
+  expect(energy).toMatchObject({ reply: expect.stringContaining("rate soreness") });
+  const sore = interpretJarvisText(
+    "I'm very sore from yesterday.",
+    state,
+    now,
+    energy?.nextContext,
+  );
+  const soreness = interpretJarvisText("7/10", state, now, sore?.nextContext);
+  expect(soreness).toMatchObject({ reply: expect.stringContaining("rate stress") });
+  const stress = interpretJarvisText("3", state, now, soreness?.nextContext);
+  expect(stress).toMatchObject({ reply: expect.stringContaining("rate motivation") });
+  expect(interpretJarvisText("8", state, now, stress?.nextContext)).toEqual({
+    tool: "logDailyCheckIn",
+    args: { energy: 8, soreness: 7, stress: 3, motivation: 8 },
+  });
+  const tomorrow = new Date(2026, 10, 17, 12);
+  expect(interpretJarvisText("8", state, tomorrow, stress?.nextContext)).toBeUndefined();
+});
+
 test("an explicit bodyweight correction targets one saved date", () => {
   const state = structuredClone(defaultState);
   state.bodyweightEntries = [

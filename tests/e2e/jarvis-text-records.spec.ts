@@ -42,6 +42,47 @@ test("local text saves confirmed weigh-in, sleep and supplement records", async 
   expect(saved.supplementLogs).toMatchObject([{ name: "creatine", dose: "5 grams" }]);
 });
 
+test("recovery ratings collected in follow-ups save together only after review", async ({
+  page,
+}) => {
+  await seedRevisionedFitCoreState(page, currentFitCoreState({ onboardingComplete: true }));
+  await gotoDashboard(page);
+  await page.getByRole("button", { name: "Open AI composer" }).click();
+  await page
+    .getByRole("textbox", { name: "Message Jarvis" })
+    .fill("My energy is a four out of five today.");
+  await page.getByRole("button", { name: "Send to Jarvis" }).click();
+  await expect(page.getByText(/You reported energy at 8\/10.*rate soreness/)).toBeVisible();
+  const input = page.getByRole("textbox", { name: "Jarvis message" });
+  const send = async (text: string) => {
+    await input.fill(text);
+    await input.press("Enter");
+  };
+  await send("I'm very sore from yesterday.");
+  await expect(page.getByText("How strong is the soreness on a scale of 1 to 10?")).toBeVisible();
+  await send("7/10");
+  await expect(page.getByText(/rate stress from 1 to 10/)).toBeVisible();
+  await send("3");
+  await expect(page.getByText(/rate motivation from 1 to 10/)).toBeVisible();
+  await send("8");
+  await expect(
+    page.getByText("Daily check-in - energy 8, soreness 7, stress 3, motivation 8"),
+  ).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).recoveryCheckIns).toEqual([]);
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const saved = await readPersistedFitCoreState(page);
+  expect(saved.recoveryCheckIns).toMatchObject([
+    { energy: 8, soreness: 7, stress: 3, motivation: 8 },
+  ]);
+
+  await send("My energy is five out of five today.");
+  await expect(page.getByText("Update today's check-in: energy")).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  expect((await readPersistedFitCoreState(page)).recoveryCheckIns).toMatchObject([
+    { id: saved.recoveryCheckIns[0].id, energy: 10, soreness: 7, stress: 3, motivation: 8 },
+  ]);
+});
+
 test("workout history, the rest timer, and the schedule answer from saved data offline", async ({
   page,
 }) => {

@@ -322,9 +322,9 @@ export function JarvisPanel({ section }: { section: string }) {
     const args = mealPortionEdited
       ? { ...pending.args, ...mealItemTotals(editedItems), items: editedItems }
       : pending.args;
-    const sameScheduleDay = tool !== "startScheduledWorkout"
+    const sameReviewDay = !["startScheduledWorkout", "logDailyCheckIn", "updateDailyCheckIn"].includes(tool)
       || pending.reviewedAt.toDateString() === new Date().toDateString();
-    const r = pending.base === current && sameScheduleDay
+    const r = pending.base === current && sameReviewDay
       ? runTool(tool, args, { state: current, set, settings: current.jarvisSettings, confirmed: true, mealPortionEdited })
       : { ok: false, summary: "FitCore changed since this review. Ask again to review the current data." };
     if (r.ok && r.auditId && ["logMeal", "logReferenceMeal", "logUsualMeal", "correctMealPortion"].includes(tool)) {
