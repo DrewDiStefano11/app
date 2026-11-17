@@ -298,3 +298,37 @@ test("known foods with compatible portions resolve to the FitCore nutrition libr
   });
   expect(interpretJarvisText("I ate a banana and a protein shake.", state)).toBeUndefined();
 });
+
+test("an extra scoop adjusts one matching item in the reviewed meal", () => {
+  const state = structuredClone(defaultState);
+  const meal = {
+    id: "shake",
+    name: "Shake",
+    type: "snack",
+    createdAt: Date.now(),
+    calories: 120,
+    protein: 24,
+    carbs: 3,
+    fat: 2,
+    items: [
+      {
+        name: "Whey Protein Powder",
+        qty: "1.5 scoops",
+        calories: 120,
+        protein: 24,
+        carbs: 3,
+        fat: 2,
+      },
+    ],
+  };
+  state.mealEntries = [meal];
+  const text = "Add another scoop of protein.";
+  expect(interpretJarvisText(text, state, new Date(), { lastMealId: "shake" })).toEqual({
+    tool: "correctMealPortion",
+    args: { id: "shake", index: 0, quantity: 2.5, unit: "scoop" },
+  });
+  meal.items.push({ ...meal.items[0], name: "Pea protein", qty: "1 scoop" });
+  expect(interpretJarvisText(text, state, new Date(), { lastMealId: "shake" })).toMatchObject({
+    reply: expect.stringContaining("Name one item"),
+  });
+});

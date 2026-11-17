@@ -271,6 +271,7 @@ export function JarvisPanel({ section }: { section: string }) {
         const args = JSON.parse(tc.argsJson) as Record<string, unknown>;
         const toolArgs = { ...args };
         delete toolArgs.draftId;
+        if (tc.name === "undoLastAction") delete toolArgs.targetAuditId;
         const fingerprint = `${tc.name}:${JSON.stringify(Object.entries(toolArgs).sort(([a], [b]) => a.localeCompare(b)))}`;
         if (staged.has(fingerprint)) continue;
         staged.add(fingerprint);

@@ -272,6 +272,38 @@ test("undo preserves a meal until its later correction has been undone", () => {
   expect(fitcore.reload().mealEntries).toEqual([]);
 });
 
+test("undo the last meal reviews that meal even after a later supplement log", () => {
+  const fitcore = storageFixture();
+  const run = (tool: string, args: Record<string, unknown>, confirmed = true) => {
+    const state = fitcore.snapshot();
+    return runTool(tool, args, {
+      state,
+      set: fitcore.set,
+      settings: state.jarvisSettings,
+      confirmed,
+    });
+  };
+  const meal = run("logMeal", {
+    name: "Dinner",
+    mealType: "dinner",
+    calories: 400,
+    protein: 22,
+    carbs: 45,
+    fat: 13,
+  });
+  expect(meal.ok).toBe(true);
+  expect(run("logSupplement", { name: "Creatine" }).ok).toBe(true);
+  const command = interpretJarvisText("Undo the last meal.", fitcore.snapshot());
+  expect(command).toEqual({ tool: "undoLastAction", args: { targetAuditId: meal.auditId } });
+  if (!command || !("tool" in command)) throw new Error("Expected a targeted undo");
+  const review = run(command.tool, command.args, false);
+  expect(review.summary).toContain("Undo: Logged Dinner");
+  expect(fitcore.reload().mealEntries).toHaveLength(1);
+  expect(run(command.tool, review.data as Record<string, unknown>).ok).toBe(true);
+  expect(fitcore.reload().mealEntries).toEqual([]);
+  expect(fitcore.reload().supplementLogs).toMatchObject([{ name: "Creatine" }]);
+});
+
 test("a completed bench set fills the next planned row without creating an extra row", () => {
   const fitcore = storageFixture();
   fitcore.set((state) => ({

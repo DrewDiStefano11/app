@@ -576,7 +576,7 @@ export function runTool(name: string, args: Record<string, unknown>, ctx: RunCon
 
   if (!ctx.confirmed) {
     if (name === "undoLastAction") {
-      checked.targetAuditId = ctx.state.jarvisAudit.find(entry => !entry.undone && entry.status === "logged")?.id;
+      checked.targetAuditId ??= ctx.state.jarvisAudit.find(entry => !entry.undone && entry.status === "logged")?.id;
     }
     const preview = handler(checked, { ...ctx, set: () => {} });
     if (!preview.ok || (preview.data as { duplicate?: boolean } | undefined)?.duplicate) return preview;

@@ -27,6 +27,10 @@ const CORRECTION = new RegExp(
   `^actually,? (?:that|it|the meal) was (\\d+(?:\\.\\d+)?|${WORDS.join("|")}) (${UNITS})s? (?:of )?(.+)$`,
   "i",
 );
+const ADDITION = new RegExp(
+  `^add (another|a|an|\\d+(?:\\.\\d+)?|${WORDS.join("|")}) (${UNITS})s? (?:of )?(.+)$`,
+  "i",
+);
 
 function unitName(unit: string) {
   const normalized = unit.toLowerCase();
@@ -44,15 +48,16 @@ export function queryMealPortion(
   state: AppState,
   lastMealId?: string,
 ): LocalJarvisCommand | undefined {
-  const match = CORRECTION.exec(text);
+  const addition = ADDITION.exec(text);
+  const match = addition ?? CORRECTION.exec(text);
   if (!match) return undefined;
   const meal = state.mealEntries.find((item) => item.id === lastMealId);
   if (!meal)
     return { reply: "Confirm a meal in this Jarvis conversation before correcting its portion." };
-  const needle = match[3].trim();
+  const needle = ` ${match[3].trim().toLowerCase()} `;
   const matches = (meal.items ?? []).flatMap((item, index) => {
     const name = item.name.toLowerCase().trim();
-    return name === needle || name.endsWith(` ${needle}`) ? [{ item, index }] : [];
+    return ` ${name} `.includes(needle) ? [{ item, index }] : [];
   });
   if (matches.length !== 1)
     return { reply: `Name one item from ${meal.name} to correct its portion.` };
@@ -63,11 +68,21 @@ export function queryMealPortion(
       reply: `Use the saved portion unit for ${matches[0].item.name}${reference ? ` (${reference.unit})` : ""}, or edit the meal in Nutrition.`,
     };
   }
-  const quantity = /^\d/.test(match[1]) ? Number(match[1]) : WORDS.indexOf(match[1]);
+  const amount = match[1].toLowerCase();
+  const quantity = ["another", "a", "an"].includes(amount)
+    ? 1
+    : /^\d/.test(amount)
+      ? Number(amount)
+      : WORDS.indexOf(amount);
   if (quantity <= 0) return { reply: "Enter a portion above zero." };
   return {
     tool: "correctMealPortion",
-    args: { id: meal.id, index: matches[0].index, quantity, unit },
+    args: {
+      id: meal.id,
+      index: matches[0].index,
+      quantity: addition ? reference.quantity + quantity : quantity,
+      unit,
+    },
   };
 }
 

@@ -385,15 +385,25 @@ export function interpretJarvisText(
     };
   const usual = queryUsualMeals(normalized, state);
   if (usual) return usual;
-  if (/^undo(?: that)?(?: (?:last|most recent)(?: (?:meal|entry|action|change))?)?$/.test(text)) {
-    if (text.endsWith("meal")) {
-      const last = state.jarvisAudit.find((a) => !a.undone && a.status === "logged");
-      if (last?.entityKind !== "meal")
-        return {
-          reply:
-            "The most recent Jarvis action was not a meal. Select the meal in Jarvis activity or Nutrition.",
-        };
-    }
+  if (/^undo (?:the |my |that )?(?:last|most recent) meal$/.test(text)) {
+    const meal = [...state.mealEntries]
+      .reverse()
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .find((entry) => entry.createdAt <= now.getTime());
+    if (!meal) return { reply: "There are no saved meals to undo." };
+    const log = state.jarvisAudit.find(
+      (entry) =>
+        entry.id === meal.auditId &&
+        entry.entityIds?.includes(meal.id) &&
+        entry.entityKind === "meal" &&
+        !entry.undone &&
+        entry.status === "logged",
+    );
+    return log
+      ? { tool: "undoLastAction", args: { targetAuditId: log.id } }
+      : { reply: `Open Nutrition to remove or correct your latest meal, ${meal.name}.` };
+  }
+  if (/^undo(?: that)?(?: (?:last|most recent)(?: (?:entry|action|change))?)?$/.test(text)) {
     return { tool: "undoLastAction", args: {} };
   }
   if (/^(?:(?:finish|end) (?:my|the) workout|i finished my workout)$/.test(text)) {

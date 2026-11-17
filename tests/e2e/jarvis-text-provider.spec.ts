@@ -228,6 +228,15 @@ test("a text meal estimate supports portion edits and commits a single AI-estima
     carbs: 90,
     fat: 9,
   });
+
+  await input.fill("Add another cup of rice.");
+  await input.press("Enter");
+  await expect(page.getByText(/Correct Chicken and rice.*830 kcal/)).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText(/Corrected Chicken and rice.*830 kcal/)).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).mealEntries).toMatchObject([
+    { id: saved.mealEntries[0].id, calories: 830, protein: 46, carbs: 135, fat: 10 },
+  ]);
 });
 
 test("temporary credentials and local records stay out of persistent storage and cloud context", async ({
@@ -307,7 +316,9 @@ test("temporary credentials and local records stay out of persistent storage and
   );
 });
 
-test("a food library meal can be reviewed and saved without a cloud request", async ({ page }) => {
+test("a food library meal can be saved and undone independently without a cloud request", async ({
+  page,
+}) => {
   await seedRevisionedFitCoreState(page, currentFitCoreState({ onboardingComplete: true }));
   const requests: string[] = [];
   page.on("request", (request) => {
@@ -337,11 +348,18 @@ test("a food library meal can be reviewed and saved without a cloud request", as
     },
   });
   const conversation = page.getByRole("textbox", { name: "Jarvis message" });
-  await conversation.fill("Undo that.");
+  await conversation.fill("Log 5 grams of creatine.");
   await conversation.press("Enter");
   await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByText(/Logged creatine/)).toBeVisible();
+  await conversation.fill("Undo the last meal.");
+  await conversation.press("Enter");
+  await expect(page.getByText(/^Undo: Logged Banana \+ Whole Wheat Bread/)).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/Undid: Logged Banana \+ Whole Wheat Bread/)).toBeVisible();
-  expect((await readPersistedFitCoreState(page)).mealEntries).toEqual([]);
+  const remaining = await readPersistedFitCoreState(page);
+  expect(remaining.mealEntries).toEqual([]);
+  expect(remaining.supplementLogs).toMatchObject([{ name: "creatine", dose: "5 grams" }]);
   expect(requests).toEqual([]);
 });
 
