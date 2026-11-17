@@ -1,3 +1,4 @@
+import { SleepQualitySelect } from "@/components/app/sleep-quality-select";
 import { CheckInSheet } from "@/components/app/popups/quick-popups";
 import { ReadinessDetailSheet } from "@/components/app/popups/readiness-popup";
 import { usePersonalScores } from "@/components/app/score-evidence";
@@ -9,7 +10,7 @@ import type { FatigueLevel } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import { muscleMap } from "@/lib/analytics";
 import { addCalendarDays, dayKey } from "@/lib/analytics/date-time";
-import { recordedRecoveryCheckIns } from "@/lib/analytics/observed-fitness";
+import { hasRecordedSleepQuality, recordedRecoveryCheckIns, recordedSleepEntries } from "@/lib/analytics/observed-fitness";
 import { BodyHeatmap } from "@/components/app/body-heatmap";
 import {
   Card,
@@ -116,11 +117,13 @@ function DailyViewRecovery() {
   const [sleepOpen, setSleepOpen] = useState(false);
   const [fatigueOpen, setFatigueOpen] = useState(false);
 
-  const lastSleep = state.sleepEntries[state.sleepEntries.length - 1];
+  const now = Date.now();
+  const sleepEntries = recordedSleepEntries(state, now);
+  const lastSleep = sleepEntries.at(-1);
   const lastCheck = recordedRecoveryCheckIns(state).sort((a, b) => b.createdAt - a.createdAt)[0];
-  const weekSleep = state.sleepEntries.filter((s) => s.createdAt > Date.now() - 7 * 86400000);
+  const weekSleep = sleepEntries.filter((s) => s.createdAt >= addCalendarDays(now, -6));
   const avgSleep = weekSleep.length
-    ? (weekSleep.reduce((a, s) => a + s.hours, 0) / weekSleep.length).toFixed(1)
+    ? `${(weekSleep.reduce((a, s) => a + s.hours, 0) / weekSleep.length).toFixed(1)}h`
     : "—";
   const sleepGoal = state.profile.sleepGoalH ?? 8;
 
@@ -146,10 +149,10 @@ function DailyViewRecovery() {
         <StatCard
           label="Last sleep"
           value={lastSleep ? `${lastSleep.hours}h` : "—"}
-          sub={lastSleep ? `q ${lastSleep.quality}/10` : ""}
+          sub={lastSleep && hasRecordedSleepQuality(lastSleep) ? `q ${lastSleep.quality}/10` : ""}
           accent
         />
-        <StatCard label="7d avg" value={`${avgSleep}h`} sub={`goal ${sleepGoal}h`} />
+        <StatCard label="7d avg" value={avgSleep} sub={`goal ${sleepGoal}h`} />
       </div>
 
       <Card className="active:scale-[0.98] cursor-pointer" onClick={() => setFatigueOpen(true)}>
@@ -483,30 +486,28 @@ function SleepDeepDiveTab() {
 
   const days = 7;
   const now = Date.now();
-  const byDate = new Map<string, typeof state.sleepEntries[number]>();
-  state.sleepEntries
-    .filter((entry) => entry.createdAt >= addCalendarDays(now, 1 - days) && entry.createdAt <= now)
-    .sort((a, b) => a.createdAt - b.createdAt)
-    .forEach((entry) => byDate.set(dayKey(entry.createdAt), entry));
-  const sleeps = [...byDate.values()];
+  const sleeps = recordedSleepEntries(state, now)
+    .filter((entry) => entry.createdAt >= addCalendarDays(now, 1 - days));
+  const byDate = new Map(sleeps.map((entry) => [dayKey(entry.createdAt), entry]));
   const maxHours = Math.max(8, ...sleeps.map((entry) => entry.hours));
   const history = Array.from({ length: days }, (_, index) => {
     const date = addCalendarDays(now, index + 1 - days);
     return { date, hours: byDate.get(dayKey(date))?.hours ?? null };
   });
   const sleepAvg = sleeps.length
-    ? (sleeps.reduce((a, s) => a + s.hours, 0) / sleeps.length).toFixed(1)
+    ? `${(sleeps.reduce((a, s) => a + s.hours, 0) / sleeps.length).toFixed(1)}h`
     : "—";
-  const qAvg = sleeps.length
-    ? (sleeps.reduce((a, s) => a + s.quality, 0) / sleeps.length).toFixed(1)
+  const sleepRatings = sleeps.filter(hasRecordedSleepQuality);
+  const qAvg = sleepRatings.length
+    ? (sleepRatings.reduce((a, s) => a + s.quality, 0) / sleepRatings.length).toFixed(1)
     : "—";
   const consistency = Math.round((sleeps.length / days) * 100);
 
   return (
     <div className="px-5 space-y-4">
       <div className="grid grid-cols-3 gap-3">
-        <StatCard label="Sleep avg" value={`${sleepAvg}h`} accent />
-        <StatCard label="Quality" value={`${qAvg}`} sub="/10" />
+        <StatCard label="Sleep avg" value={sleepAvg} accent />
+        <StatCard label="Quality" value={qAvg} sub={sleepRatings.length ? "/10" : undefined} />
         <StatCard label="Logged" value={`${consistency}%`} sub="of days" />
       </div>
 
@@ -515,7 +516,7 @@ function SleepDeepDiveTab() {
         {sleeps.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">No sleep logged in the last 7 days.</p>
         ) : (
-          <ol className="grid grid-cols-7 gap-1">
+          <ol aria-label="Recorded sleep by day" className="grid grid-cols-7 gap-1">
             {history.map(({ date, hours }) => (
               <li key={date} className="min-w-0 text-center text-xs tabular-nums">
                 <div className="h-20 flex items-end justify-center" aria-hidden="true">
@@ -607,13 +608,15 @@ function InsightsTab() {
 function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { set } = useStore();
   const [hours, setHours] = useState("");
-  const [quality, setQuality] = useState(7);
+  const [quality, setQuality] = useState(0);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [bed, setBed] = useState("");
   const [wake, setWake] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const valid = Number(hours) > 0 && Number(hours) <= 24;
   const close = () => {
     setConfirmed(false);
+    setSaveFailed(false);
     onClose();
   };
   const submit = () => {
@@ -627,8 +630,9 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
         { id: uid(), hours: h, quality, notes: notes || undefined, createdAt: Date.now() },
       ],
     }));
-    if (!saved) return;
+    if (!saved) { setSaveFailed(true); return; }
     setHours("");
+    setQuality(0);
     close();
   };
   return (
@@ -639,21 +643,7 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
             <Label>Hours</Label>
             <Input aria-label="Hours" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} />
           </div>
-          <div>
-            <div className="flex justify-between">
-              <Label>Quality</Label>
-              <span className="text-xs tabular-nums">{quality}/10</span>
-            </div>
-            <input
-              aria-label="Sleep quality"
-              type="range"
-              min={1}
-              max={10}
-              value={quality}
-              onChange={(e) => setQuality(Number(e.target.value))}
-              className="w-full accent-[var(--section)] mt-1"
-            />
-          </div>
+          <SleepQualitySelect value={quality} onChange={setQuality} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -670,8 +660,9 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
             event.stopPropagation();
             setConfirmed(event.target.checked);
           }} />
-          I confirm the sleep hours and quality I entered.
+          I confirm the sleep hours and any quality rating I entered.
         </label>
+        {saveFailed && <p role="alert" className="text-sm text-destructive">Sleep could not be saved. Your entries are still here.</p>}
         <PrimaryButton className="w-full" onClick={submit} disabled={!valid || !confirmed}>
           Save sleep
         </PrimaryButton>
