@@ -14,6 +14,7 @@ test("cloud text without consent keeps the draft and sends no server request", a
   });
   await gotoDashboard(page);
   await page.getByRole("button", { name: "Open AI composer" }).click();
+  await expect(page.getByRole("button", { name: "Voice input unavailable" })).toBeDisabled();
   await page
     .getByRole("textbox", { name: "Message Jarvis" })
     .fill("Compare both training weeks, please.");
