@@ -40,9 +40,15 @@ test("retries an open foreground sync once after another request took the lease"
   const busy = page.waitForResponse("**/api/whoop/sync");
   await gotoDashboard(page);
   expect((await busy).status()).toBe(409);
-  await page.clock.runFor(1000);
-  await page.clock.fastForward(120_000);
-  await expect.poll(() => requests).toBe(2);
+  const retry = page.waitForResponse("**/api/whoop/sync");
+  // WebKit can report the HTTP response before the app has armed its retry timer.
+  await expect
+    .poll(async () => {
+      await page.clock.fastForward(120_000);
+      return requests;
+    })
+    .toBe(2);
+  expect((await retry).status()).toBe(409);
   await page.clock.runFor(1000);
   await page.clock.fastForward(120_000);
   expect(requests).toBe(2);
