@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { Check, X, Undo2 } from "lucide-react";
+import { mealItemTotals, scaleMealPortion, type JarvisMealItem } from "@/lib/jarvis/meal-math";
 import type { ToolResult } from "@/lib/jarvis/tools";
 
 interface MealData {
   id?: string;
   calories?: number; protein?: number; carbs?: number; fat?: number; fiber?: number;
-  items?: { name: string; qty?: string; calories: number; protein: number; carbs: number; fat: number }[];
+  items?: JarvisMealItem[];
   confidence?: "high" | "medium" | "low";
   assumptions?: string[];
 }
@@ -21,14 +22,6 @@ interface WorkoutData {
   confidence?: "high" | "medium" | "low";
 }
 
-interface CardioData {
-  type?: string;
-  minutes?: number;
-  distanceMi?: number;
-  calories?: number;
-  confidence?: "high" | "medium" | "low";
-}
-
 function isMealData(d: unknown): d is MealData {
   return !!d && typeof d === "object" && ("calories" in d || "items" in d);
 }
@@ -37,16 +30,14 @@ function isWorkoutData(d: unknown): d is WorkoutData {
   return !!d && typeof d === "object" && "exercises" in d;
 }
 
-function isCardioData(d: unknown): d is CardioData {
-  return !!d && typeof d === "object" && ("minutes" in d || "distanceMi" in d) && !("exercises" in d);
-}
-
 function toolLabel(tool: string) {
   const labels: Record<string, string> = {
     logBodyWeight: "Bodyweight",
     logSupplement: "Supplement",
     logDailyCheckIn: "Daily check-in",
     logMeal: "Meal",
+    logReferenceMeal: "Meal",
+    logCaloriesOnly: "Meal",
     logUsualMeal: "Usual meal",
     saveUsualMeal: "Usual meal",
     createWorkoutDraft: "Workout",
@@ -60,22 +51,30 @@ function toolLabel(tool: string) {
 }
 
 export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
-  { tool: string; result: ToolResult; onConfirm: () => void; onCancel: () => void; onUndo?: () => void }) {
+  { tool: string; result: ToolResult; onConfirm: (editedItems?: JarvisMealItem[]) => void; onCancel: () => void; onUndo?: () => void }) {
   const [submitting, setSubmitting] = useState(false);
+  const [portions, setPortions] = useState<Record<number, string>>({});
   const pending = result.needsConfirmation && result.ok;
-  const done = !result.needsConfirmation && result.ok;
+  const done = !result.needsConfirmation && result.ok && Boolean(result.auditId);
   const failed = !result.ok;
-  const meal = (tool === "logMeal" || tool === "logUsualMeal") && isMealData(result.data) ? result.data : null;
+  const meal = (tool === "logMeal" || tool === "logReferenceMeal" || tool === "logUsualMeal") && isMealData(result.data) ? result.data : null;
+  const canEditPortions = pending && (tool === "logMeal" || tool === "logReferenceMeal") && Boolean(meal?.items?.length);
+  const invalidPortions = canEditPortions && Object.values(portions).some(value =>
+    !value.trim() || !Number.isFinite(Number(value)) || Number(value) <= 0 || Number(value) > 10);
+  const scaledItems = canEditPortions && !invalidPortions
+    ? meal?.items?.map((item, index) => scaleMealPortion(item, Number(portions[index] ?? 1)))
+    : meal?.items;
+  const changedPortions = canEditPortions && Object.values(portions).some(value => Number(value) !== 1);
+  const totals = scaledItems?.length ? mealItemTotals(scaledItems) : meal;
   const workout = (tool === "createWorkoutDraft" || tool === "logWorkout") && isWorkoutData(result.data) ? result.data : null;
-  const cardio = tool === "logCardio" && isCardioData(result.data) ? result.data : null;
-  const confidence = meal?.confidence ?? workout?.confidence ?? cardio?.confidence;
+  const confidence = meal?.confidence ?? workout?.confidence;
   const confColor = confidence === "high" ? "var(--success, #10b981)" : confidence === "low" ? "var(--destructive, #ef4444)" : "var(--warning, #f59e0b)";
   const saveLabel = tool === "logWorkout" || tool === "createWorkoutDraft" ? "Log workout" : tool === "logCardio" ? "Log cardio" : "Save";
 
   const confirmOnce = () => {
-    if (submitting || !pending) return;
+    if (submitting || !pending || invalidPortions) return;
     setSubmitting(true);
-    onConfirm();
+    onConfirm(changedPortions ? scaledItems : undefined);
   };
 
   return (
@@ -93,24 +92,41 @@ export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
       </div>
       <div>{result.summary}{failed && result.error ? ` - ${result.error}` : ""}</div>
 
-      {meal && (meal.calories ?? 0) > 0 && (
+      {meal && totals && (
+
         <div className="rounded-xl bg-[var(--surface)] p-2 space-y-1.5">
+          {(tool === "logMeal" || tool === "logReferenceMeal") && <p className="text-xs text-muted-foreground">
+            {tool === "logReferenceMeal" ? "FitCore food library estimate" : changedPortions ? "AI estimate with edited portions" : "AI-estimated nutrition"}
+          </p>}
           <div className="grid grid-cols-4 gap-1 text-center">
-            <Macro label="kcal" v={meal.calories ?? 0} />
-            <Macro label="P" v={meal.protein ?? 0} unit="g" />
-            <Macro label="C" v={meal.carbs ?? 0} unit="g" />
-            <Macro label="F" v={meal.fat ?? 0} unit="g" />
+            <Macro label="kcal" v={totals.calories ?? 0} />
+            <Macro label="P" v={totals.protein ?? 0} unit="g" />
+            <Macro label="C" v={totals.carbs ?? 0} unit="g" />
+            <Macro label="F" v={totals.fat ?? 0} unit="g" />
           </div>
-          {meal.items && meal.items.length > 0 && (
+          {scaledItems && scaledItems.length > 0 && (
             <ul className="text-xs text-muted-foreground space-y-0.5 pt-1 border-t border-border">
-              {meal.items.map((it, i) => (
-                <li key={i} className="flex justify-between gap-2">
-                  <span className="truncate">- {it.name}{it.qty ? ` (${it.qty})` : ""}</span>
-                  <span className="shrink-0">{it.calories}k / {it.protein}p</span>
+              {scaledItems.map((it, i) => (
+                <li key={i} className="space-y-1 py-1">
+                  <div className="flex justify-between gap-2">
+                    <span>{it.name}{it.qty ? ` (${it.qty})` : ""}</span>
+                    <span className="shrink-0">{it.calories} kcal / {it.protein} g P</span>
+                  </div>
+                  {canEditPortions && (
+                    <label className="flex items-center gap-2">
+                      <span>Portion multiplier</span>
+                      <input type="number" inputMode="decimal" min="0.01" max="10" step="any"
+                        aria-label={`Portion multiplier for ${it.name}`}
+                        value={portions[i] ?? "1"}
+                        onChange={event => setPortions(current => ({ ...current, [i]: event.target.value }))}
+                        className="w-16 rounded border border-border bg-transparent p-1" />
+                    </label>
+                  )}
                 </li>
               ))}
             </ul>
           )}
+          {invalidPortions && <p role="status" className="text-xs text-destructive">Enter a portion multiplier above 0 and up to 10.</p>}
           {meal.assumptions && meal.assumptions.length > 0 && <Assumptions items={meal.assumptions} />}
         </div>
       )}
@@ -133,17 +149,9 @@ export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
         </div>
       )}
 
-      {cardio && (
-        <div className="rounded-xl bg-[var(--surface)] p-2 grid grid-cols-3 gap-1 text-center">
-          <Macro label={cardio.type ?? "cardio"} v={cardio.minutes ?? 0} unit="m" />
-          <Macro label="mi" v={cardio.distanceMi ?? 0} />
-          <Macro label="kcal" v={cardio.calories ?? 0} />
-        </div>
-      )}
-
       {pending && (
         <div className="flex gap-2 pt-1">
-          <button disabled={submitting} onClick={confirmOnce} className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-white text-xs font-semibold disabled:opacity-60" style={{ background: "var(--section)" }}>
+          <button disabled={submitting || invalidPortions} onClick={confirmOnce} className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-xl text-white text-xs font-semibold disabled:opacity-60" style={{ background: "var(--section)" }}>
             <Check size={14} /> {submitting ? "Saving..." : saveLabel}
           </button>
           <button disabled={submitting} onClick={onCancel} className="px-3 py-2 rounded-xl bg-[var(--surface)] text-xs font-medium border border-border inline-flex items-center gap-1 disabled:opacity-60">

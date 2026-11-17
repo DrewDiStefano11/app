@@ -4,6 +4,7 @@ import { BottomSheet } from "../sheet";
 import { useStore, uid } from "@/lib/store";
 import { useServerFn } from "@tanstack/react-start";
 import { estimateMealMacros } from "@/lib/ai.functions";
+import { JARVIS_PHOTO_ANALYSIS_ENABLED } from "@/lib/jarvis/provider-models";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
@@ -34,7 +35,7 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
   const close = () => { reset(); onClose(); };
 
   const onFile = async (file: File) => {
-    if (!file) return;
+    if (!file || !JARVIS_PHOTO_ANALYSIS_ENABLED) return;
     setAiError(null);
     const reader = new FileReader();
     reader.onload = async () => {
@@ -77,8 +78,7 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <BottomSheet open={open} onClose={close} title="Log Meal" height="tall">
       <div className="space-y-4">
-        {/* AI camera */}
-        <div className="tile p-4">
+        {JARVIS_PHOTO_ANALYSIS_ENABLED && <div className="tile p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles size={14} className="text-[var(--section)]" />
@@ -138,7 +138,7 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
               <span>{aiError}</span>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Manual entry */}
         <div className="space-y-3">

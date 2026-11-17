@@ -150,7 +150,11 @@ test.describe("FitCore data integrity", () => {
 
     await clickBottomNav(page, "Train");
     await page.getByRole("button", { name: "Templates", exact: true }).click();
-    await page.locator(".card-elev").filter({ hasText: "Push Day" }).getByRole("button", { name: "Start", exact: true }).click();
+    await page
+      .locator(".card-elev")
+      .filter({ hasText: "Push Day" })
+      .getByRole("button", { name: "Start", exact: true })
+      .click();
     await page.getByRole("button", { name: /Finish workout/i }).click();
     await page.getByRole("button", { name: /Confirm & save/i }).click();
 
@@ -243,6 +247,7 @@ test.describe("FitCore data integrity", () => {
       });
       const set = (update: (current: typeof state) => typeof state) => {
         state = data.migrateFitCoreDataIfNeeded(update(state));
+        return true;
       };
       const ctx = (confirmed = false) => ({
         state,
@@ -252,8 +257,8 @@ test.describe("FitCore data integrity", () => {
       });
 
       const weightArgs = { weightLb: 181.2, originalText: "I weigh 181.2 pounds" };
-      const firstWeight = tools.runTool("logBodyWeight", weightArgs, ctx());
-      const duplicateWeight = tools.runTool("logBodyWeight", weightArgs, ctx());
+      const firstWeight = tools.runTool("logBodyWeight", weightArgs, ctx(true));
+      const duplicateWeight = tools.runTool("logBodyWeight", weightArgs, ctx(true));
       const lowMeal = tools.runTool(
         "logMeal",
         {
@@ -298,7 +303,17 @@ test.describe("FitCore data integrity", () => {
         ctx(true),
       );
       const checkInsAfterPain = state.recoveryCheckIns.length;
-      const undoPain = tools.undoAuditEntry(pain.auditId, state, set);
+      const checkIn = tools.runTool(
+        "logDailyCheckIn",
+        {
+          energy: 6,
+          soreness: 7,
+          stress: 4,
+          motivation: 7,
+        },
+        ctx(true),
+      );
+      const undoCheckIn = tools.undoAuditEntry(checkIn.auditId, state, set);
       const recent = data.getRecentActivity(state, 20);
       const visibleEntityIds = new Set([
         ...state.bodyweightEntries.map((entry: { id: string }) => entry.id),
@@ -320,7 +335,8 @@ test.describe("FitCore data integrity", () => {
         undoDelete: undoDelete.ok,
         checkInsAfterPain,
         checkInsAfterUndo: state.recoveryCheckIns.length,
-        undoPain: undoPain.ok,
+        unsupportedPainRejected: !pain.ok,
+        undoCheckIn: undoCheckIn.ok,
         recentWeightRows: recent.filter((log: { type: string }) => log.type === "weigh_in").length,
         duplicateAiRows: recent.filter(
           (log: { type: string; relatedIds: string[] }) =>
@@ -341,9 +357,10 @@ test.describe("FitCore data integrity", () => {
       restoredFirstExerciseSets: 0,
       restoredSecondExerciseSetId: "set-b",
       undoDelete: true,
-      checkInsAfterPain: 1,
+      checkInsAfterPain: 0,
       checkInsAfterUndo: 0,
-      undoPain: true,
+      unsupportedPainRejected: true,
+      undoCheckIn: true,
       recentWeightRows: 1,
       duplicateAiRows: 0,
     });

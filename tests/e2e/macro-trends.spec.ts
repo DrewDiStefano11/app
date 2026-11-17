@@ -24,7 +24,18 @@ test("Nutrition macro trends show logged nutrients and preserve missing dates", 
     page,
     currentFitCoreState({
       onboardingComplete: true,
-      mealEntries: [meal("Monday meal", 4, 20), meal("Wednesday meal", 2, 40)],
+      mealEntries: [
+        meal("Monday meal", 4, 20),
+        {
+          id: "calorie-only meal",
+          name: "Dinner",
+          type: "dinner",
+          calories: 800,
+          macroStatus: "unreported",
+          createdAt: addCalendarDays(now, -3) + 12 * 3_600_000,
+        },
+        meal("Wednesday meal", 2, 40),
+      ],
     }),
   );
   await expectDashboardReady(page);
@@ -35,9 +46,12 @@ test("Nutrition macro trends show logged nutrients and preserve missing dates", 
   await nav.getByRole("button", { name: "Fuel", exact: true }).click();
   const trends = page.getByRole("region", { name: "Macro trends" });
   await expect(trends.getByText("Logged calories by date")).toBeVisible();
+  await trends.getByText("Recorded values by date").click();
+  await expect(
+    trends.getByRole("listitem").filter({ hasText: "800 kcal · 1 logged day" }),
+  ).toBeVisible();
   await trends.getByRole("combobox", { name: "Nutrient", exact: true }).selectOption("protein");
   await expect(trends.getByText("Logged protein by date")).toBeVisible();
-  await trends.getByText("Recorded values by date").click();
   await expect(
     trends.getByRole("listitem").filter({ hasText: "20 g · 1 logged day" }),
   ).toBeVisible();
@@ -45,6 +59,7 @@ test("Nutrition macro trends show logged nutrients and preserve missing dates", 
     trends.getByRole("listitem").filter({ hasText: "40 g · 1 logged day" }),
   ).toBeVisible();
   await expect(trends.getByRole("listitem").filter({ hasText: "—" })).toHaveCount(5);
+  await expect(trends.getByRole("listitem").filter({ hasText: /\b0 g ·/ })).toHaveCount(0);
   await trends.getByRole("button", { name: "weekly", exact: true }).click();
   await expect(trends.getByText("Average protein per logged day")).toBeVisible();
   await expect(

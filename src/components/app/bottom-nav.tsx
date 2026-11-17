@@ -11,23 +11,6 @@ const items: { id: SectionId; label: string; Icon: typeof Dumbbell }[] = [
   { id: "progress", label: "Stats", Icon: TrendingUp },
 ];
 
-type SpeechRecognitionEventLike = Event & {
-  results: ArrayLike<{ 0: { transcript: string } }>;
-};
-
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start: () => void;
-  stop: () => void;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-};
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
-
 export function BottomNav({
   active,
   onChange,
@@ -39,9 +22,7 @@ export function BottomNav({
   const [collapsed, setCollapsed] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
-  const [listening, setListening] = useState(false);
   const lastScrollY = useRef(0);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -58,13 +39,6 @@ export function BottomNav({
     return () => window.removeEventListener("scroll", handleScroll);
   }, [composerOpen]);
 
-  useEffect(
-    () => () => {
-      recognitionRef.current?.stop();
-    },
-    [],
-  );
-
   const submitPrompt = () => {
     const text = prompt.trim();
     if (!text) return;
@@ -72,37 +46,6 @@ export function BottomNav({
     setPrompt("");
     setComposerOpen(false);
     setCollapsed(true);
-  };
-
-  const toggleVoice = () => {
-    if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
-    const speechWindow = window as typeof window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
-    if (!Recognition) {
-      setComposerOpen(false);
-      window.dispatchEvent(new CustomEvent("fitcore:open-ai"));
-      return;
-    }
-    const recognition = new Recognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = "en-US";
-    recognition.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript ?? "";
-      setPrompt((current) => `${current}${current ? " " : ""}${transcript}`.trim());
-    };
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
-    recognitionRef.current = recognition;
-    setListening(true);
-    recognition.start();
   };
 
   const activeItem = items.find((item) => item.id === active) ?? items[0];
@@ -138,16 +81,14 @@ export function BottomNav({
                 onKeyDown={(event) => {
                   if (event.key === "Enter") submitPrompt();
                 }}
-                placeholder={listening ? "Listening…" : "Ask or log anything…"}
+                placeholder="Ask or log anything…"
                 aria-label="Message Jarvis"
               />
               <button
-                onClick={toggleVoice}
-                className={cn(
-                  "command-bar__icon press",
-                  listening && "command-bar__icon--listening",
-                )}
-                aria-label={listening ? "Stop listening" : "Speak to Jarvis"}
+                type="button"
+                disabled
+                className="command-bar__icon"
+                aria-label="Voice input unavailable"
               >
                 <Mic size={18} />
               </button>

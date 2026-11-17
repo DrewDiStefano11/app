@@ -1,3 +1,4 @@
+import { STORED_GEMINI_MODELS, STORED_GROQ_MODELS } from "./jarvis/provider-models";
 import { MAX_WORKOUT_TEMPLATE_SETS } from "./data";
 import { BENCH_PROGRAM } from "./bench-program";
 
@@ -935,10 +936,13 @@ function validateMeal(
   record: PlainRecord,
   location: RecordLocation,
 ): void {
-  const required = ["id", "name", "type", "calories", "protein", "carbs", "fat", "createdAt"];
+  const macros = ["protein", "carbs", "fat"];
+  const unreported = record.macroStatus === "unreported";
+  const required = ["id", "name", "type", "calories", "createdAt", ...(unreported ? [] : macros)];
   missingFields(context, record, location, required);
   unknownFields(context, record, location, [
     ...required,
+    "macroStatus",
     "fiber",
     "notes",
     "items",
@@ -950,6 +954,14 @@ function validateMeal(
     "auditId",
     "provenance",
   ]);
+  if (Object.hasOwn(record, "macroStatus")) {
+    validateEnum(context, record.macroStatus, location, "macroStatus", ["unreported"]);
+  }
+  if (unreported && [...macros, "items"].some((field) => Object.hasOwn(record, field))) {
+    context.add("invalid_field_type", "error", fieldPath(location, "macroStatus"), {
+      collection: location.collection, recordId: location.recordId, field: "macroStatus",
+    });
+  }
   if (Object.hasOwn(record, "id")) validateString(context, record.id, location, "id", { id: true });
   for (const field of ["name", "type"] as const) {
     if (Object.hasOwn(record, field))
@@ -1628,6 +1640,7 @@ function validateJarvisSettings(context: ValidationContext, value: PlainRecord):
     "autoModelRouting",
     "autoAiFallback",
     "allowGeminiFallback",
+    "allowCloudText",
     "autoLogSupplements",
     "autoLogBodyweight",
     "askBeforeMealEstimates",
@@ -1656,9 +1669,9 @@ function validateJarvisSettings(context: ValidationContext, value: PlainRecord):
     ["proactive", ["off", "low", "normal", "high"]],
     ["aiProvider", ["groq", "gemini", "legacy-lovable"]],
     ["geminiKeyMode", ["local", "environment", "user"]],
-    ["geminiModel", ["gemini-2.5-flash-lite", "gemini-2.5-flash"]],
+    ["geminiModel", STORED_GEMINI_MODELS],
     ["groqKeyMode", ["local", "environment", "user"]],
-    ["groqModel", ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen/qwen3-32b"]],
+    ["groqModel", STORED_GROQ_MODELS],
     ["foodEstimateDetail", ["simple", "normal", "detailed"]],
     ["weeklyReviewDay", ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]],
   ];

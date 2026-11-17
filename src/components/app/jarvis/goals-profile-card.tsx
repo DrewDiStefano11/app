@@ -1,5 +1,6 @@
 import { Target } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { USUAL_MEAL_SLOTS, usualMealSlots, writeUsualMeal } from "@/lib/jarvis/usual-meals";
 import type { UserGoalsProfile, ExtendedGoal } from "@/lib/types";
 import { Card, Input, Label, Select } from "../ui";
 
@@ -51,13 +52,20 @@ export function GoalsProfileCard() {
         <div><Label>Supplement routine</Label><Input value={csv("supplementRoutine")} onChange={e => setCsv("supplementRoutine", e.target.value)} placeholder="creatine, whey, fish oil" /></div>
 
         <div className="grid grid-cols-2 gap-3 border-t border-border pt-3">
-          <div><Label>Usual breakfast</Label><Input value={p.usualBreakfast ?? ""} onChange={e => upd({ usualBreakfast: e.target.value || undefined })} /></div>
-          <div><Label>Usual lunch</Label><Input value={p.usualLunch ?? ""} onChange={e => upd({ usualLunch: e.target.value || undefined })} /></div>
-          <div><Label>Usual dinner</Label><Input value={p.usualDinner ?? ""} onChange={e => upd({ usualDinner: e.target.value || undefined })} /></div>
-          <div><Label>Usual snack</Label><Input value={p.usualSnack ?? ""} onChange={e => upd({ usualSnack: e.target.value || undefined })} /></div>
-          <div><Label>Usual protein shake</Label><Input value={p.usualProteinShake ?? ""} onChange={e => upd({ usualProteinShake: e.target.value || undefined })} /></div>
-          <div><Label>Usual pre-workout meal</Label><Input value={p.usualPreWorkoutMeal ?? ""} onChange={e => upd({ usualPreWorkoutMeal: e.target.value || undefined })} /></div>
-          <div><Label>Usual post-workout meal</Label><Input value={p.usualPostWorkoutMeal ?? ""} onChange={e => upd({ usualPostWorkoutMeal: e.target.value || undefined })} /></div>
+          <p className="col-span-2 text-xs text-muted-foreground">Changing a meal name here clears its saved macros. To save a name and macros together, ask Jarvis to update the usual meal.</p>
+          {USUAL_MEAL_SLOTS.map(slot => {
+            const { field, label } = usualMealSlots[slot];
+            const id = `jarvis-usual-${slot}`;
+            return (
+              <div key={slot}>
+                <label htmlFor={id} className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">Usual {label}</label>
+                <Input id={id} value={p[field] ?? ""} onChange={event => {
+                  const name = event.target.value || undefined;
+                  set(s => writeUsualMeal(s, slot, { name }));
+                }} />
+              </div>
+            );
+          })}
         </div>
       </Card>
     </section>

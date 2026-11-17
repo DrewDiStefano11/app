@@ -376,8 +376,8 @@ export function migrateFitCoreDataIfNeeded(input: AppState): AppState {
       && Number(x.weightLb) > 0 && Number.isFinite(x.createdAt),
   ).map(x => withProvenance(x, auditFor(x.id))) as AppState["bodyweightEntries"];
   const mealEntries = timestamped<AppState["mealEntries"][number]>(s.mealEntries)
-    .filter(x => Number.isFinite(x.calories) && Number.isFinite(x.protein)
-      && Number.isFinite(x.carbs) && Number.isFinite(x.fat))
+    .filter(x => Number.isFinite(x.calories) && (x.macroStatus === "unreported"
+      || [x.protein, x.carbs, x.fat].every(Number.isFinite)))
     .map(x => withProvenance(x, auditFor(x.id)));
   const sleepEntries = timestamped<AppState["sleepEntries"][number]>(s.sleepEntries)
     .filter(x => Number.isFinite(x.hours) && Number.isFinite(x.quality))
@@ -467,8 +467,10 @@ export function saveLog(state: AppState, raw: FitCoreLog): AppState {
   if (getLogsByType(state, x.type).some(y => y.id === x.id)) return state;
   if (x.type === "meal") {
     const nums = ["calories", "protein", "carbs", "fat"].map(k => Number(x.metrics[k]));
-    if (!nums.every(Number.isFinite)) return state;
-    const meal: MealEntry = { id: x.id, name: x.subtype || "Meal", type: String(x.metrics.mealType || "meal"), calories: nums[0], protein: nums[1], carbs: nums[2], fat: nums[3], notes: x.notes, createdAt: x.createdAt, source: x.source === "ai" ? "jarvis" : x.source === "health" ? "imported" : x.source, confidence: x.confidence === "unknown" ? undefined : x.confidence, originalText: x.rawInput, confirmed: x.provenance.confirmation === "confirmed", auditId: x.provenance.auditId, provenance: x.provenance };
+    const unreported = x.metrics.macroStatus === "unreported";
+    if (!Number.isFinite(nums[0]) || (!unreported && !nums.every(Number.isFinite))) return state;
+    const base = { id: x.id, name: x.subtype || "Meal", type: String(x.metrics.mealType || "meal"), calories: nums[0], notes: x.notes, createdAt: x.createdAt, source: x.source === "ai" ? "jarvis" as const : x.source === "health" ? "imported" as const : x.source, confidence: x.confidence === "unknown" ? undefined : x.confidence, originalText: x.rawInput, confirmed: x.provenance.confirmation === "confirmed", auditId: x.provenance.auditId, provenance: x.provenance };
+    const meal: MealEntry = unreported ? { ...base, macroStatus: "unreported" } : { ...base, protein: nums[1], carbs: nums[2], fat: nums[3] };
     return migrateFitCoreDataIfNeeded({ ...state, mealEntries: [...state.mealEntries, meal] });
   }
   if (x.type === "weigh_in") {
@@ -491,7 +493,14 @@ export function saveLog(state: AppState, raw: FitCoreLog): AppState {
 export function updateLog(state: AppState, logId: string, patch: Partial<FitCoreLog>): AppState {
   const old = allLogs(state).find(x => x.id === logId); if (!old) return state;
   const x = createLog({ ...old, ...patch, id: logId, type: old.type, updatedAt: Date.now() });
-  if (old.type === "meal") return migrateFitCoreDataIfNeeded({ ...state, mealEntries: state.mealEntries.map(m => m.id === logId ? { ...m, name: x.subtype || m.name, notes: x.notes, ...Object.fromEntries(["calories", "protein", "carbs", "fat"].map(k => [k, Number.isFinite(Number(x.metrics[k])) ? Number(x.metrics[k]) : m[k as keyof MealEntry]])) } as MealEntry : m) });
+  if (old.type === "meal") return migrateFitCoreDataIfNeeded({ ...state, mealEntries: state.mealEntries.map(m => {
+    if (m.id !== logId) return m;
+    const value = (key: "calories" | "protein" | "carbs" | "fat") => x.metrics[key] != null && Number.isFinite(Number(x.metrics[key])) ? Number(x.metrics[key]) : m[key];
+    const next = { ...m, name: x.subtype || m.name, notes: x.notes, calories: value("calories") ?? m.calories };
+    const protein = value("protein"), carbs = value("carbs"), fat = value("fat");
+    return protein === undefined || carbs === undefined || fat === undefined
+      ? next : { ...next, macroStatus: undefined, protein, carbs, fat };
+  }) });
   if (old.type === "weigh_in") { const weightLb = Number(x.metrics.weightLb); return Number.isFinite(weightLb) && weightLb > 0 ? { ...state, bodyweightEntries: state.bodyweightEntries.map(w => w.id === logId ? { ...w, weightLb, notes: x.notes } : w) } : state; }
   if (old.type === "check_in") return migrateFitCoreDataIfNeeded({ ...state, recoveryCheckIns: state.recoveryCheckIns.map(c => c.id === logId ? { ...c, notes: x.notes, energy: Number(x.metrics.energy) || c.energy, soreness: Number(x.metrics.soreness) || c.soreness, stress: Number(x.metrics.stress) || c.stress, motivation: Number(x.metrics.motivation) || c.motivation } : c) });
   if (old.type === "workout_session") return migrateFitCoreDataIfNeeded({ ...state, workouts: state.workouts.map(w => w.id === logId ? { ...w, name: x.subtype || w.name, notes: x.notes } : w) });
@@ -546,7 +555,7 @@ function allLogs(s: AppState): FitCoreLog[] {
   const signals = s.recoverySignals;
   return [
     ...workouts,
-    ...s.mealEntries.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "meal", subtype: x.name, createdAt: x.createdAt, notes: x.notes, metrics: { mealType: x.type, calories: x.calories, protein: x.protein, carbs: x.carbs, fat: x.fat } })),
+    ...s.mealEntries.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "meal", subtype: x.name, createdAt: x.createdAt, notes: x.notes, metrics: { mealType: x.type, calories: x.calories, ...(x.macroStatus === "unreported" ? { macroStatus: x.macroStatus } : { protein: x.protein, carbs: x.carbs, fat: x.fat }) } })),
     ...s.bodyweightEntries.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "weigh_in", subtype: "bodyweight", createdAt: x.createdAt, notes: x.notes, metrics: { weightLb: x.weightLb } })),
     ...s.recoveryCheckIns.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "check_in", subtype: "daily", createdAt: x.createdAt, notes: x.notes, metrics: { energy: x.energy, soreness: x.soreness, stress: x.stress, motivation: x.motivation } })),
     ...signals.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "recovery_signal", subtype: x.kind, createdAt: x.createdAt, notes: x.notes, relatedIds: [x.sourceLogId], tags: x.bodyArea ? [x.bodyArea] : [], metrics: { severity: x.severity } })),
@@ -560,7 +569,11 @@ export const getWorkoutHistory = (s: AppState) => [...s.workouts].sort((a, b) =>
 export function getExerciseHistory(s: AppState, exercise: string) { const q = norm(exercise); return getWorkoutHistory(s).flatMap(w => w.exercises.filter(e => norm(e.exerciseId) === q).map(e => ({ workoutId: w.id, workoutName: w.name, date: w.startedAt, exercise: e }))); }
 export const getExercisePreviousPerformance = (s: AppState, exercise: string, before = Date.now()) => getExerciseHistory(s, exercise).find(x => x.date < before && x.exercise.sets.some(set => set.completed)) ?? null;
 export function getLatestMetrics(s: AppState) { const weight = [...s.bodyweightEntries].sort((a, b) => b.createdAt - a.createdAt)[0]; return { bodyweightLb: weight?.weightLb ?? null, bodyweightAt: weight?.createdAt ?? null, checkIn: [...s.recoveryCheckIns].sort((a, b) => b.createdAt - a.createdAt)[0] ?? null }; }
-export function getDailyMacroSummary(s: AppState, at = Date.now()) { return s.mealEntries.filter(x => isoDay(x.createdAt) === isoDay(at)).reduce((n, x) => ({ calories: n.calories + x.calories, protein: n.protein + x.protein, carbs: n.carbs + x.carbs, fat: n.fat + x.fat }), { calories: 0, protein: 0, carbs: 0, fat: 0 }); }
+export function getDailyMacroSummary(s: AppState, at = Date.now()) {
+  const meals = s.mealEntries.filter(x => isoDay(x.createdAt) === isoDay(at));
+  const totals = meals.reduce((n, x) => ({ calories: n.calories + x.calories, protein: n.protein + (x.protein ?? 0), carbs: n.carbs + (x.carbs ?? 0), fat: n.fat + (x.fat ?? 0) }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  return meals.some(meal => meal.macroStatus === "unreported") ? { ...totals, protein: null, carbs: null, fat: null } : totals;
+}
 export function getNutritionSummary(s: AppState, at = Date.now()) { return { totals: getDailyMacroSummary(s, at), targets: s.nutritionTargets, meals: s.mealEntries.filter(x => isoDay(x.createdAt) === isoDay(at)) }; }
 export function getRecoverySummary(s: AppState) {
   const scores = calculatePersonalScores(s);
@@ -622,7 +635,7 @@ export function buildAICoachContext(s: AppState, section: string) {
     `Section: ${section}`,
     `Goal: ${s.profile.goal}; ${s.profile.experience}; ${s.profile.daysPerWeek}d/wk; ${s.profile.split}`,
     `Latest recorded bodyweight: ${latestWeight ? `${latestWeight.weightLb} lb on ${isoDay(latestWeight.createdAt)} (${latestWeight.provenance?.source ?? "recorded in FitCore"})` : "not logged"}`,
-    `Nutrition today: ${mealEntries.length ? `recorded totals only: ${nutrition.totals.calories} kcal; ${nutrition.totals.protein} g protein` : "no confirmed meal records"}`,
+    `Nutrition today: ${mealEntries.length ? `recorded totals only: ${nutrition.totals.calories} kcal; ${mealEntries.some(meal => meal.macroStatus === "unreported") ? "some meals have unreported macros" : `${nutrition.totals.protein} g protein`}` : "no confirmed meal records"}`,
     `Readiness: ${describe(scores.readiness)}`,
     `Recovery: ${describe(scores.recovery)}`,
     `FitCore Score: ${describe(scores.fitcore)}`,

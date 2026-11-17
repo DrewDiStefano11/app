@@ -21,7 +21,7 @@ export function MealEditor({
   onSave: (meal: MealEntry) => boolean;
   onCancel: () => void;
 }) {
-  const [failed, setFailed] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const types = MEAL_TYPES.includes(meal.type) ? MEAL_TYPES : [...MEAL_TYPES, meal.type];
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -36,19 +36,36 @@ export function MealEditor({
       return;
     }
 
-    const updated = {
+    const optionalNumber = (key: string) => {
+      const value = fields.get(key);
+      return value === null || value === "" ? undefined : Number(value);
+    };
+    const protein = optionalNumber("protein");
+    const carbs = optionalNumber("carbs");
+    const fat = optionalNumber("fat");
+    const hasAnyMacros = [protein, carbs, fat].some((value) => value !== undefined);
+    const hasAllMacros = protein !== undefined && carbs !== undefined && fat !== undefined;
+    if (hasAnyMacros && !hasAllMacros) {
+      setError("Enter protein, carbs, and fat together, or leave all three blank.");
+      return;
+    }
+
+    const details = {
       ...meal,
       name: nameInput.value === meal.name.replace(/[\r\n]/g, "") ? meal.name : name,
+      type: String(fields.get("type")),
+      calories: Number(fields.get("calories")),
+      fiber: optionalNumber("fiber"),
     };
-    updated.type = String(fields.get("type"));
-    for (const [key] of NUTRIENT_FIELDS) {
-      const value = fields.get(key);
-      if (key === "fiber" && value === "") {
-        delete updated.fiber;
-      } else {
-        updated[key] = Number(value);
-      }
-    }
+    const updated: MealEntry = hasAllMacros
+      ? { ...details, macroStatus: undefined, protein, carbs, fat }
+      : {
+          ...details,
+          macroStatus: "unreported",
+          protein: undefined,
+          carbs: undefined,
+          fat: undefined,
+        };
     const notes = String(fields.get("notes") ?? "");
     if (notes !== (meal.notes?.replace(/\r\n?/g, "\n") ?? "")) {
       if (notes) updated.notes = notes;
@@ -63,7 +80,9 @@ export function MealEditor({
       ...markProvenanceEdited(meal.provenance, { editedBy: "user" }),
       confirmation: meal.provenance?.confirmation ?? "confirmed",
     };
-    setFailed(!onSave(updated));
+    setError(
+      onSave(updated) ? null : "Meal changes could not be saved. Your edits are still here.",
+    );
   }
 
   return (
@@ -89,6 +108,11 @@ export function MealEditor({
       </label>
       <fieldset>
         <legend className="mb-2 text-sm font-medium">Meal totals</legend>
+        {meal.macroStatus === "unreported" && (
+          <p className="mb-2 text-sm text-muted-foreground">
+            Enter all three macros when you know them. Blank fields keep macros unreported.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-3">
           {NUTRIENT_FIELDS.map(([key, label]) => (
             <label key={key} className="text-sm">
@@ -98,7 +122,9 @@ export function MealEditor({
                 type="number"
                 min="0"
                 step="any"
-                required={key !== "fiber"}
+                required={
+                  key === "calories" || (key !== "fiber" && meal.macroStatus !== "unreported")
+                }
                 defaultValue={meal[key]}
               />
             </label>
@@ -122,9 +148,9 @@ export function MealEditor({
         Meal notes
         <Textarea name="notes" aria-label="Meal notes" defaultValue={meal.notes} rows={3} />
       </label>
-      {failed && (
+      {error && (
         <p role="alert" className="text-sm text-destructive">
-          Meal changes could not be saved. Your edits are still here.
+          {error}
         </p>
       )}
       <div className="flex flex-wrap gap-2">

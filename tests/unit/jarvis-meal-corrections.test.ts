@@ -54,6 +54,21 @@ test("a manual correction prevents older Jarvis meal undos", () => {
   expect(app.state.jarvisAudit.every((entry) => !entry.undone)).toBe(true);
 });
 
+test("a manual notes-only edit prevents undoing the original meal", () => {
+  const app = session();
+  const log = app.run("logMeal", lunch);
+  app.set((state) => ({
+    ...state,
+    mealEntries: state.mealEntries.map((meal) => ({
+      ...meal,
+      notes: "Added from Nutrition",
+      provenance: markProvenanceEdited(meal.provenance, { editedBy: "user" }),
+    })),
+  }));
+  expect(undoAuditEntry(log.auditId!, app.state, app.set).ok).toBe(false);
+  expect(app.state.mealEntries[0].notes).toBe("Added from Nutrition");
+});
+
 test("undo restores the latest Jarvis meal edit only when its write succeeds", () => {
   const app = session();
   app.run("logMeal", lunch);
