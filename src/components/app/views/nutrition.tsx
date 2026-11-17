@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Plus, Trash2, Utensils, Camera, Sparkles, Droplets, Pill } from "lucide-react";
+import { Plus, Pencil, Trash2, Utensils, Camera, Sparkles, Droplets, Pill } from "lucide-react";
 import { useStore, uid, isToday } from "@/lib/store";
-import { FOODS, MEAL_TEMPLATES, mealTotals } from "@/lib/data";
+import { FOODS, MEAL_TEMPLATES, MEAL_TYPES, mealTotals } from "@/lib/data";
 import type { MealEntry } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import {
@@ -20,8 +20,10 @@ import {
 } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { Tile, Eyebrow } from "@/components/app/tile";
+import { MealEditor } from "@/components/app/meal-editor";
+import { dayKey } from "@/lib/analytics/date-time";
+import { calculateMealTotals } from "@/lib/analytics/domain-metrics";
 
-const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
 type NutritionSubtab = "macros" | "quality" | "timing" | "insights";
 const NUTRITION_TABS: { id: NutritionSubtab; label: string }[] = [
   { id: "macros", label: "Macros" },
@@ -33,16 +35,44 @@ const NUTRITION_TABS: { id: NutritionSubtab; label: string }[] = [
 export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
   const { state, set } = useStore();
   const [logOpen, setLogOpen] = useState(false);
-  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<MealEntry | null>(null);
+  const [editing, setEditing] = useState<MealEntry | null>(null);
+  const [deleteFailed, setDeleteFailed] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyDate, setHistoryDate] = useState(() => dayKey(Date.now()));
   const [tab, setTab] = useState<NutritionSubtab>("macros");
   const isDeepDive = layoutMode === "deepDive";
 
   const now = Date.now();
   const today = state.mealEntries.filter((m) => isToday(m.createdAt) && m.createdAt <= now);
-  const t = today.reduce(
-    (a, m) => ({ c: a.c + m.calories, p: a.p + (m.protein ?? 0), cb: a.cb + (m.carbs ?? 0), f: a.f + (m.fat ?? 0) }),
-    { c: 0, p: 0, cb: 0, f: 0 },
-  );
+  const totals = calculateMealTotals(today);
+  const t = { c: totals.calories, p: totals.protein, cb: totals.carbs, f: totals.fat };
+  const historyMeals = historyOpen
+    ? state.mealEntries.filter(meal => meal.createdAt <= now && dayKey(meal.createdAt) === historyDate)
+    : [];
+  const historyTotals = calculateMealTotals(historyMeals);
+
+  const commitMeal = (original: MealEntry, replacement?: MealEntry) => {
+    const reviewed = JSON.stringify(original);
+    let changed = false;
+    const saved = set(current => {
+      const index = current.mealEntries.findIndex(meal => meal.id === original.id);
+      if (index < 0 || JSON.stringify(current.mealEntries[index]) !== reviewed) return current;
+      changed = true;
+      return {
+        ...current,
+        mealEntries: replacement
+          ? current.mealEntries.map((meal, position) => position === index ? replacement : meal)
+          : current.mealEntries.filter((_, position) => position !== index),
+      };
+    });
+    return saved && changed;
+  };
+
+  const requestDelete = (meal: MealEntry) => {
+    setDeleteFailed(false);
+    setConfirmDel(meal);
+  };
   const tg = state.nutritionTargets;
   const hasMeals = today.length > 0;
   const missingMacros = today.some((meal) => meal.macroStatus === "unreported");
@@ -142,7 +172,9 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
           </div>
 
           <div>
-            <SectionHeader title="Meals Today" />
+            <SectionHeader title="Meals Today"
+              action={<GhostButton onClick={() => { setDeleteFailed(false); setHistoryOpen(true); }}>Meal history</GhostButton>} />
+            {deleteFailed && !historyOpen && <MealDeleteError />}
             {today.length === 0 ? (
               <EmptyState
                 icon={<Utensils size={22} />}
@@ -159,55 +191,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                 }
               />
             ) : (
-              <div className="space-y-3">
-                {today.map((m) => (
-                  <div
-                    key={m.id}
-                    className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between group transition-all active:scale-[0.98]"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-white truncate">{m.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-                          {m.type}
-                        </span>
-                        <span className="w-1 h-1 rounded-full bg-white/10" />
-                        <span className="text-[10px] font-bold text-white/40">
-                          {new Date(m.createdAt).toLocaleTimeString([], {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        {m.source === "camera" && (
-                          <>
-                            <span className="w-1 h-1 rounded-full bg-white/10" />
-                            <span className="text-[10px] font-bold text-green-400/80">
-                              AI Estimated
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right px-3">
-                      <p className="font-display text-xl leading-none tabular-nums text-white">
-                        {Math.round(m.calories)}
-                      </p>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mt-1">
-                        {m.macroStatus === "unreported"
-                          ? "Macros unreported"
-                          : `P${Math.round(m.protein)} C${Math.round(m.carbs)} F${Math.round(m.fat)}`}
-                      </p>
-                    </div>
-                    <button
-                      aria-label="Delete meal"
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white/20 hover:text-green-400 hover:bg-green-500/10 transition-colors"
-                      onClick={() => setConfirmDel(m.id)}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <MealRows meals={today} onEdit={setEditing} onDelete={requestDelete} />
             )}
           </div>
         </div>
@@ -335,18 +319,96 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
       )}
 
       <LogMealSheet open={logOpen} onClose={() => setLogOpen(false)} />
+      <BottomSheet open={historyOpen} onClose={() => { setDeleteFailed(false); setHistoryOpen(false); }}
+        title="Meal history" height="tall" closeLabel="Close meal history"
+        manageFocus={!editing && !confirmDel}>
+        <label className="mb-4 block text-sm">
+          Meal date
+          <Input type="date" value={historyDate} max={dayKey(now)} onChange={event => {
+            setDeleteFailed(false);
+            setHistoryDate(event.target.value);
+          }} />
+        </label>
+        {deleteFailed && <MealDeleteError />}
+        {historyMeals.length ? (
+          <>
+            <p className="mb-3 text-sm text-muted-foreground">{Math.round(historyTotals.calories)} kcal logged</p>
+            <MealRows meals={historyMeals} onEdit={setEditing} onDelete={requestDelete} />
+          </>
+        ) : (
+          <p className="py-2 text-sm text-muted-foreground">No meals logged for this date.</p>
+        )}
+      </BottomSheet>
+      <BottomSheet open={!!editing} onClose={() => setEditing(null)} title="Edit meal"
+        height="tall" closeLabel="Close meal editor" manageFocus>
+        {editing && <MealEditor key={editing.id} meal={editing} onCancel={() => setEditing(null)}
+          onSave={replacement => {
+            const saved = commitMeal(editing, replacement);
+            if (saved) setEditing(null);
+            return saved;
+          }} />}
+      </BottomSheet>
       <ConfirmDialog
         open={!!confirmDel}
         onClose={() => setConfirmDel(null)}
         onConfirm={() => {
-          set((s) => ({ ...s, mealEntries: s.mealEntries.filter((x) => x.id !== confirmDel) }));
-          setConfirmDel(null);
+          if (confirmDel) setDeleteFailed(!commitMeal(confirmDel));
         }}
+        manageFocus
         title="Delete meal?"
         message="This can't be undone."
         confirmLabel="Delete"
         destructive
       />
+    </div>
+  );
+}
+
+function MealDeleteError() {
+  return <p role="alert" className="mb-2 text-sm text-destructive">Meal could not be deleted. The saved meal is still here.</p>;
+}
+
+function MealRows({ meals, onEdit, onDelete }: {
+  meals: readonly MealEntry[];
+  onEdit: (meal: MealEntry) => void;
+  onDelete: (meal: MealEntry) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {meals.map(meal => (
+        <div key={meal.id} className="premium-card flex flex-wrap items-center justify-between gap-x-2 rounded-2xl border border-white/10 bg-white/5 p-3">
+          <div className="min-w-0 flex-1">
+            <p className="break-words font-semibold text-white">{meal.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {meal.type} · {new Date(meal.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+            </p>
+            {(meal.source === "camera" || meal.provenance?.source === "ai-estimated") && (
+              <p className="text-xs text-muted-foreground">AI estimate</p>
+            )}
+            {meal.provenance?.editedBy === "user" && (
+              <p className="text-xs text-muted-foreground">Edited</p>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="font-display text-lg tabular-nums text-white">{Math.round(meal.calories)} kcal</p>
+            <p className="text-xs tabular-nums text-muted-foreground">
+              {meal.macroStatus === "unreported"
+                ? "Macros unreported"
+                : `P${Math.round(meal.protein)} C${Math.round(meal.carbs)} F${Math.round(meal.fat)}`}
+            </p>
+          </div>
+          <div className="flex">
+            <button type="button" aria-label="Edit meal" className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground hover:bg-white/10"
+              onClick={() => onEdit(meal)}>
+              <Pencil size={16} />
+            </button>
+            <button type="button" aria-label="Delete meal" className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground hover:bg-white/10"
+              onClick={() => onDelete(meal)}>
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -414,10 +476,13 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
   const [c, setC] = useState("");
   const [fat, setFat] = useState("");
   const [search, setSearch] = useState("");
+  const [saveFailed, setSaveFailed] = useState(false);
 
   const addMeal = (m: MealEntry) => {
-    set((s) => ({ ...s, mealEntries: [...s.mealEntries, m] }));
-    onClose();
+    const saved = set((s) => ({ ...s, mealEntries: [...s.mealEntries, m] }));
+    setSaveFailed(!saved);
+    if (saved) onClose();
+    return saved;
   };
 
   const filteredFoods = FOODS.filter(
@@ -430,6 +495,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
 
   return (
     <BottomSheet open={open} onClose={onClose} title="Log Meal" height="tall">
+      {saveFailed && <p role="alert" className="mb-3 text-sm text-destructive">Meal could not be saved. Try again.</p>}
       <div className="grid grid-cols-2 gap-3 mb-6 px-1 mt-2">
         <div
           className="p-3 rounded-2xl bg-gradient-to-br from-[var(--section-soft)] to-transparent border border-[var(--section-soft)] flex items-center justify-between group press transition-all cursor-pointer"
@@ -683,7 +749,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
               className="w-full rounded-xl h-14 shadow-lg text-lg"
               disabled={!name || !cal}
               onClick={() => {
-                addMeal({
+                const saved = addMeal({
                   id: uid(),
                   name,
                   type,
@@ -693,6 +759,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
                   fat: Number(fat) || 0,
                   createdAt: Date.now(),
                 });
+                if (!saved) return;
                 setName("");
                 setCal("");
                 setP("");

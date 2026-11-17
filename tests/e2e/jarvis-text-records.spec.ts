@@ -41,3 +41,78 @@ test("local text saves confirmed weigh-in, sleep and supplement records", async 
   ]);
   expect(saved.supplementLogs).toMatchObject([{ name: "creatine", dose: "5 grams" }]);
 });
+
+test("workout history, the rest timer, and the schedule answer from saved data offline", async ({
+  page,
+}) => {
+  const now = new Date(2026, 10, 16, 12);
+  await page.clock.setFixedTime(now);
+  await seedRevisionedFitCoreState(
+    page,
+    currentFitCoreState({
+      onboardingComplete: true,
+      activeWorkout: {
+        id: "today",
+        name: "Upper A",
+        startedAt: now.getTime() - 60_000,
+        restEndsAt: now.getTime() + 55_000,
+        exercises: [
+          {
+            id: "active-bench",
+            exerciseId: "bench-press",
+            completed: false,
+            sets: [{ id: "unlogged-set", completed: false, weight: 300, reps: 1 }],
+          },
+        ],
+      },
+      workouts: [9, 13].map((day, index) => ({
+        id: `saved-${day}`,
+        name: "Upper A",
+        startedAt: new Date(2026, 10, day, 12).getTime(),
+        endedAt: new Date(2026, 10, day, 13).getTime(),
+        exercises: [
+          {
+            id: `bench-${day}`,
+            exerciseId: "bench-press",
+            completed: true,
+            sets: [
+              {
+                id: `set-${day}`,
+                completed: true,
+                weight: index === 0 ? 190 : 195,
+                reps: index === 0 ? 5 : 4,
+              },
+            ],
+          },
+        ],
+      })),
+    }),
+  );
+  await expect(page.getByRole("heading", { name: "Upper A" })).toBeVisible();
+  const original = await readPersistedFitCoreState(page);
+  const requests: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/_serverFn/")) requests.push(request.url());
+  });
+  await page.context().setOffline(true);
+  await page.getByRole("button", { name: "Open Jarvis" }).click();
+  const input = page.getByRole("textbox", { name: "Jarvis message" });
+  const send = async (message: string) => {
+    await input.fill(message);
+    await input.press("Enter");
+  };
+  await send("How much did I bench last Monday?");
+  await expect(page.getByText(/190 lb × 5/)).toBeVisible();
+  await send("What about Friday?");
+  await expect(page.getByText(/195 lb × 4/)).toBeVisible();
+  await send("Compare the two.");
+  await expect(page.getByText(/190 lb × 5.*195 lb × 4/s)).toBeVisible();
+  await send("Compare today's bench sets with last week's.");
+  await expect(page.getByText(/Today: no completed sets logged/)).toBeVisible();
+  await send("How much time is left on my rest timer?");
+  await expect(page.getByText("Your rest timer has 55 seconds left.")).toBeVisible();
+  await send("What am I supposed to train tomorrow?");
+  await expect(page.getByText(/Scheduled workout: Lower A/)).toBeVisible();
+  expect(await readPersistedFitCoreState(page)).toEqual(original);
+  expect(requests).toEqual([]);
+});

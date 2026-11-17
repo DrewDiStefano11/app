@@ -378,6 +378,35 @@ test("a calorie-only dinner appears in Nutrition with unreported macros", async 
   await navigation.getByRole("button", { name: "Fuel", exact: true }).click();
   await expect(page.getByText("800 kcal logged today")).toBeVisible();
   await expect(page.getByText("Macros unreported", { exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "Edit meal", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: "Edit meal", exact: true });
+  await expect(editor.getByLabel("Protein (g)")).toHaveValue("");
+  await editor.getByLabel("Calories (kcal)").fill("750");
+  await editor.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("750 kcal logged today")).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).mealEntries).toMatchObject([
+    { id: saved.mealEntries[0].id, calories: 750, macroStatus: "unreported" },
+  ]);
+
+  await page.getByRole("button", { name: "Edit meal", exact: true }).click();
+  await editor.getByLabel("Protein (g)").fill("35");
+  await editor.getByRole("button", { name: "Save changes" }).click();
+  await expect(editor.getByRole("alert")).toContainText("Enter protein, carbs, and fat together");
+  expect((await readPersistedFitCoreState(page)).mealEntries[0]).not.toHaveProperty("protein");
+  await editor.getByLabel("Carbs (g)").fill("75");
+  await editor.getByLabel("Fat (g)").fill("34");
+  await editor.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("P35 C75 F34", { exact: true })).toBeVisible();
+  const updated = (await readPersistedFitCoreState(page)).mealEntries;
+  expect(updated).toHaveLength(1);
+  expect(updated[0]).toMatchObject({
+    id: saved.mealEntries[0].id,
+    protein: 35,
+    carbs: 75,
+    fat: 34,
+  });
+  expect(updated[0]).not.toHaveProperty("macroStatus");
   expect(requests).toEqual([]);
 });
 

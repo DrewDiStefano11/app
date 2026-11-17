@@ -8,7 +8,12 @@ export function pushAudit(set: Updater, entry: JarvisAuditEntry) {
   set((s) => ({ ...s, jarvisAudit: [entry, ...s.jarvisAudit].slice(0, 200) }));
 }
 
-export function hasAuditKey(state: AppState, tool: string, args: Record<string, unknown>) {
+export function hasAuditKey(
+  state: AppState,
+  tool: string,
+  args: Record<string, unknown>,
+  recordExists?: (entry: JarvisAuditEntry) => boolean,
+) {
   const key = actionKey(tool, args);
   if (!key) return null;
   return (
@@ -17,7 +22,8 @@ export function hasAuditKey(state: AppState, tool: string, args: Record<string, 
         !a.undone &&
         a.tool === tool &&
         a.patch?.actionKey === key &&
-        Date.now() - a.createdAt < 10 * 60_000,
+        Date.now() - a.createdAt < 10 * 60_000 &&
+        (recordExists?.(a) ?? true),
     ) ?? null
   );
 }

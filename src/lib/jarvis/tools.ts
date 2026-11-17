@@ -1,7 +1,7 @@
 import { useLibraryPortions } from "./food-reference";
 import { isUsualMealSlot, mealMacroFields, readMealMacros, readUsualMeal, USUAL_MEAL_SLOTS, usualMealSlots, writeUsualMeal, type UsualMealPreference } from "./usual-meals";
 import { correctMealPortion } from "./meal-portion";
-import type { AppState, UserGoalsProfile, JarvisSettings, Confidence, MealEntry, MealItem, SupplementLog, RecoveryCheckIn, Workout, WorkoutExercise, SetEntry, CardioEntry } from "../types";
+import type { AppState, UserGoalsProfile, JarvisSettings, JarvisAuditEntry, Confidence, MealEntry, MealItem, SupplementLog, RecoveryCheckIn, Workout, WorkoutExercise, SetEntry, CardioEntry } from "../types";
 import { createAiEstimateProvenance, createJarvisProvenance, markProvenanceEdited } from "../fitcore-data";
 import { uid, todayStart, e1RM } from "../store";
 import { EXERCISES, WORKOUT_TEMPLATES, exerciseById } from "../data";
@@ -126,6 +126,9 @@ export function isReadOnlyJarvisTool(name: string) {
 function sameDay(a: number, b = Date.now()) { return a >= dayStart(b) && a < dayStart(b) + 86400000; }
 function dayStart(ts: number) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
 function asConfidence(v: unknown, fallback: Confidence = "medium"): Confidence { return v === "high" || v === "medium" || v === "low" ? v : fallback; }
+function loggedMealExists(state: AppState, audit: JarvisAuditEntry) {
+  return state.mealEntries.some(meal => audit.entityIds?.includes(meal.id));
+}
 function todaysMealsTotal(s: AppState) {
   const start = todayStart();
   const totals = s.mealEntries.filter(meal => meal.createdAt >= start).reduce(
@@ -306,7 +309,8 @@ const handlers: Record<ToolName, ToolHandler> = {
     return { ok: true, summary, auditId, data: { id } };
   },
   logMeal: (args, { set, state, confirmed, mealPortionEdited, referenceMeal }) => {
-    const dupeAudit = hasAuditKey(state, "logMeal", args); if (dupeAudit) return duplicateResult(dupeAudit);
+    const dupeAudit = hasAuditKey(state, "logMeal", args, audit => loggedMealExists(state, audit));
+    if (dupeAudit) return duplicateResult(dupeAudit);
     const name = String(args.name ?? "").trim() || "Meal";
     const mealType = String(args.mealType ?? "snack");
     const totals = Array.isArray(args.items)
@@ -561,7 +565,9 @@ export function runTool(name: string, args: Record<string, unknown>, ctx: RunCon
     Object.assign(checked, mealItemTotals(checked.items as JarvisMealItem[]));
   }
   const draftId = textArg(checked, "draftId");
-  const existing = draftId ? ctx.state.jarvisAudit.find(entry => entry.patch?.actionKey === `draft:${draftId}`) : undefined;
+  const existing = draftId ? ctx.state.jarvisAudit.find(entry =>
+    entry.patch?.actionKey === `draft:${draftId}`
+    && (entry.entityKind !== "meal" || entry.undone || loggedMealExists(ctx.state, entry))) : undefined;
   if (existing?.tool === "undoLastAction") return { ok: true, summary: "This undo has already been applied." };
   if (existing) return existing.undone
     ? { ok: false, summary: "This draft was already resolved. Ask again to start a new draft." }
@@ -630,7 +636,8 @@ function stageUndo(auditId: string, state: AppState, set: Updater): ToolResult {
     case "meal": {
       const meal = state.mealEntries.find(item => entry.entityIds?.includes(item.id));
       const saved = entry.patch;
-      const editedByAnotherAction = meal?.provenance?.editAuditId && meal.provenance.editAuditId !== entry.id;
+      const editedByAnotherAction = meal?.source === "edited"
+        || (meal?.provenance?.editedAt != null && meal.provenance.editAuditId !== entry.id);
       if (!meal || !saved || meal.auditId !== entry.id || editedByAnotherAction
         || meal.name !== saved.name || meal.type !== saved.mealType
         || meal.calories !== saved.calories || meal.protein !== saved.protein
