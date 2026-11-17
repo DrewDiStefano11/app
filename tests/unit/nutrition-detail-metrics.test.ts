@@ -8,6 +8,8 @@ import {
   getNutritionDetailAnalytics,
 } from "../../src/lib/analytics.ts";
 import { defaultState, type AppState, type MealEntry, type Workout } from "../../src/lib/types.ts";
+import { calendarDaysWindow } from "../../src/lib/analytics/date-time.ts";
+import { nutritionMacroPoints } from "../../src/lib/analytics/nutrition-detail-metrics.ts";
 
 const NOW = new Date(2026, 1, 7, 18, 0, 0, 0).getTime();
 
@@ -163,6 +165,24 @@ test("requirement 14: duplicate IDs are deterministically counted once and repor
     result.mealCounts.rangeTotal.reasons.some(
       (reason) => reason.code === "duplicate_meal_excluded",
     ),
+  );
+});
+
+test("the chart series deduplicates meals, labels incomplete days and keeps recorded zeros", () => {
+  const entries = [
+    meal("repeat", 2, { protein: 20 }, 11),
+    meal("repeat", 2, { protein: 40 }, 12),
+    meal("invalid-protein", 2, { protein: Number.NaN }),
+    meal("zero-protein", 0, { protein: 0 }),
+    meal("future", 0, { protein: 50 }, 22),
+  ];
+  const points = nutritionMacroPoints(entries, "protein", calendarDaysWindow(7, NOW), NOW);
+  assert.deepEqual(
+    points.map(point => ({ value: point.value, complete: point.complete, ids: point.sourceMealIds })),
+    [
+      { value: 20, complete: false, ids: ["repeat"] },
+      { value: 0, complete: true, ids: ["zero-protein"] },
+    ],
   );
 });
 
