@@ -23,6 +23,7 @@ import { Tile, Eyebrow } from "@/components/app/tile";
 import { MealEditor } from "@/components/app/meal-editor";
 import { dayKey } from "@/lib/analytics/date-time";
 import { calculateMealTotals } from "@/lib/analytics/domain-metrics";
+import { MacroTrendChart } from "@/components/app/macro-trend-chart";
 
 type NutritionSubtab = "macros" | "quality" | "timing" | "insights";
 const NUTRITION_TABS: { id: NutritionSubtab; label: string }[] = [
@@ -226,11 +227,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
             </> : <p className="text-sm text-muted-foreground">No meals logged today.</p>}
           </div>
 
-          <PlannedFeatureCard
-            title="Macro Trends"
-            status="Planned"
-            description="Toggleable graphs showing Calories, Protein, Carbs, and Fat over time will be integrated here once macro-over-time trend data is supported."
-          />
+          <MacroTrendChart meals={state.mealEntries} now={now} />
         </div>
       )}
 
