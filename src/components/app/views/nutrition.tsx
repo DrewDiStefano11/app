@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Plus, Pencil, Trash2, Utensils, Camera, Sparkles, Droplets, Pill } from "lucide-react";
+import { Bookmark, Plus, Pencil, Trash2, Utensils, Camera, Sparkles, Droplets, Pill } from "lucide-react";
 import { useStore, uid, isToday } from "@/lib/store";
 import { FOODS, MEAL_TEMPLATES, MEAL_TYPES, mealTotals } from "@/lib/data";
-import type { MealEntry } from "@/lib/types";
+import type { MealEntry, SavedNutritionPreset } from "@/lib/types";
+import { addNutritionPreset, copyMealForLog, foodMeal, replaceNutritionPreset } from "@/lib/saved-nutrition";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import {
   PageHeader,
@@ -338,6 +339,14 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
       <BottomSheet open={!!editing} onClose={() => setEditing(null)} title="Edit meal"
         height="tall" closeLabel="Close meal editor" manageFocus>
         {editing && <MealEditor key={editing.id} meal={editing} onCancel={() => setEditing(null)}
+          onSavePreset={draft => {
+            let present = false;
+            const saved = set(current => {
+              present = current.mealEntries.some(meal => JSON.stringify(meal) === JSON.stringify(editing));
+              return present ? addNutritionPreset(current, { id: uid(), kind: "meal", meal: draft }) : current;
+            });
+            return saved && present;
+          }}
           onSave={replacement => {
             const saved = commitMeal(editing, replacement);
             if (saved) setEditing(null);
@@ -462,7 +471,7 @@ function MacroBar({
 
 function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { state, set } = useStore();
-  const [mode, setMode] = useState<"templates" | "foods" | "custom">("templates");
+  const [mode, setMode] = useState<"templates" | "foods" | "custom" | "saved">("templates");
   const [type, setType] = useState("dinner");
   const [name, setName] = useState("");
   const [cal, setCal] = useState("");
@@ -471,13 +480,35 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
   const [fat, setFat] = useState("");
   const [search, setSearch] = useState("");
   const [saveFailed, setSaveFailed] = useState(false);
+  const [presetMessage, setPresetMessage] = useState<{ text: string; failed: boolean } | null>(null);
+  const savedPresets = state.savedNutrition ?? [];
+  const [editingPreset, setEditingPreset] = useState<SavedNutritionPreset | null>(null);
 
   const addMeal = (m: MealEntry) => {
     const saved = set((s) => ({ ...s, mealEntries: [...s.mealEntries, m] }));
     setSaveFailed(!saved);
-    if (saved) onClose();
+    if (saved) {
+      setPresetMessage(null);
+      onClose();
+    }
     return saved;
   };
+
+  const saveFood = (meal: MealEntry, servingLabel?: string) => {
+    const preset = { id: uid(), kind: "food" as const, meal, servingLabel };
+    const saved = set(current => addNutritionPreset(current, preset));
+    setPresetMessage({
+      text: saved ? `${meal.name} saved to your library.` : "Food preset could not be saved.",
+      failed: !saved,
+    });
+  };
+
+  const customMeal = () => ({
+    id: uid(), name: name.trim(), type, createdAt: Date.now(),
+    calories: Number(cal), protein: Number(p), carbs: Number(c), fat: Number(fat),
+  });
+  const canSaveCustom = !!name.trim() && !!cal.trim() &&
+    [cal, p, c, fat].every(value => Number.isFinite(Number(value)) && Number(value) >= 0);
 
   const filteredFoods = FOODS.filter(
     (f) => !search || f.name.toLowerCase().includes(search.toLowerCase()),
@@ -487,8 +518,29 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
     new Set([...state.mealEntries].reverse().map((m) => m.name)),
   ).slice(0, 6);
 
+  if (editingPreset) {
+    const cancel = () => setEditingPreset(null);
+    return (
+      <BottomSheet open={open} onClose={cancel} title={editingPreset.kind === "food" ? "Edit saved food" : "Edit saved meal"}
+        height="tall" closeLabel="Close preset editor" manageFocus>
+        <MealEditor meal={editingPreset.meal} onCancel={cancel} onSave={meal => {
+          let changed = false;
+          const saved = set(current => {
+            const next = replaceNutritionPreset(current, editingPreset, meal);
+            changed = next !== current;
+            return next;
+          });
+          if (saved && changed) cancel();
+          return saved && changed;
+        }} />
+      </BottomSheet>
+    );
+  }
+
   return (
-    <BottomSheet open={open} onClose={onClose} title="Log Meal" height="tall">
+    <BottomSheet open={open} onClose={() => { setPresetMessage(null); setSaveFailed(false); onClose(); }}
+      title="Log Meal" height="tall" closeLabel="Close meal logger" manageFocus>
+      {presetMessage && <p role={presetMessage.failed ? "alert" : "status"} className="mb-3 text-sm">{presetMessage.text}</p>}
       {saveFailed && <p role="alert" className="mb-3 text-sm text-destructive">Meal could not be saved. Try again.</p>}
       <div className="grid grid-cols-2 gap-3 mb-6 px-1 mt-2">
         <div
@@ -524,6 +576,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
       </div>
 
       <div className="flex gap-2 mb-5 overflow-x-auto no-scrollbar">
+        <Chip active={mode === "saved"} onClick={() => { setPresetMessage(null); setMode("saved"); }}>
+          Saved
+        </Chip>
         <Chip active={mode === "templates"} onClick={() => setMode("templates")}>
           Templates
         </Chip>
@@ -534,6 +589,33 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
           Custom Entry
         </Chip>
       </div>
+
+      {mode === "saved" && (
+        <div className="space-y-2">
+          {savedPresets.length === 0 && <p className="text-sm text-muted-foreground">No saved foods or meals.</p>}
+          {savedPresets.map(preset => (
+            <div key={preset.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-border px-3 py-2">
+              <div className="flex-1">
+                <p className="font-medium">{preset.meal.name}</p>
+                {preset.servingLabel && <p className="text-xs text-muted-foreground">{preset.servingLabel}</p>}
+                <p className="text-xs text-muted-foreground">
+                  {Math.round(preset.meal.calories)} kcal · {preset.kind === "food" ? "Food" : "Meal"} · {preset.meal.type}
+                </p>
+              </div>
+              <GhostButton aria-label={`Log ${preset.meal.name}`}
+                onClick={() => addMeal(copyMealForLog(preset.meal, uid()))}>Log</GhostButton>
+              <GhostButton aria-label={`Edit ${preset.meal.name}`} onClick={() => setEditingPreset(preset)}><Pencil size={16} /></GhostButton>
+              <GhostButton aria-label={`Remove ${preset.meal.name}`} onClick={() => {
+                const saved = set(current => ({
+                  ...current,
+                  savedNutrition: (current.savedNutrition ?? []).filter(item => item.id !== preset.id),
+                }));
+                setPresetMessage(saved ? null : { text: "Preset could not be removed.", failed: true });
+              }}><Trash2 size={16} /></GhostButton>
+            </div>
+          ))}
+        </div>
+      )}
 
       {mode === "templates" && (
         <div className="mb-4">
@@ -548,7 +630,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
                   return (
                     <Chip
                       key={n}
-                      onClick={() => addMeal({ ...m, id: uid(), createdAt: Date.now() })}
+                      onClick={() => addMeal(copyMealForLog(m, uid()))}
                     >
                       {n}
                     </Chip>
@@ -635,34 +717,24 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
             </Select>
           </div>
           <div className="space-y-2 max-h-[45dvh] overflow-y-auto pr-1">
-            {filteredFoods.map((f) => (
-              <button
-                key={f.id}
-                onClick={() =>
-                  addMeal({
-                    id: uid(),
-                    name: f.name,
-                    type,
-                    calories: f.calories,
-                    protein: f.protein,
-                    carbs: f.carbs,
-                    fat: f.fat,
-                    createdAt: Date.now(),
-                  })
-                }
-                className="w-full text-left p-4 rounded-2xl bg-white/5 border border-white/10 flex justify-between items-center press transition-all"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-white text-sm truncate">{f.name}</p>
-                  <p className="text-[10px] font-bold text-white/40 mt-0.5">{f.servingLabel}</p>
-                </div>
-                <div className="text-right shrink-0 ml-4">
-                  <p className="text-base font-display text-white tabular-nums">{f.calories}</p>
-                  <p className="text-[9px] font-bold text-white/30 uppercase tracking-tighter">
-                    P{f.protein} C{f.carbs} F{f.fat}
-                  </p>
-                </div>
-              </button>
+            {filteredFoods.map(food => (
+              <div key={food.id} className="flex items-center rounded-2xl border border-white/10 bg-white/5 pr-2">
+                <button type="button" onClick={() => addMeal(foodMeal(food, type, uid()))}
+                  className="flex min-w-0 flex-1 items-center justify-between gap-2 p-3 text-left press">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{food.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{food.servingLabel}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-display tabular-nums">{food.calories} kcal</p>
+                    <p className="text-xs tabular-nums text-muted-foreground">P{food.protein} C{food.carbs} F{food.fat}</p>
+                  </div>
+                </button>
+                <GhostButton aria-label={`Save ${food.name}`} className="h-11 w-11 justify-center px-0"
+                  onClick={() => saveFood(foodMeal(food, type, uid()), food.servingLabel)}>
+                  <Bookmark size={16} />
+                </GhostButton>
+              </div>
             ))}
             {filteredFoods.length === 0 && (
               <p className="text-center py-8 text-white/20 text-sm font-medium italic">
@@ -741,18 +813,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
           <div className="pt-4">
             <PrimaryButton
               className="w-full rounded-xl h-14 shadow-lg text-lg"
-              disabled={!name || !cal}
+              disabled={!canSaveCustom}
               onClick={() => {
-                const saved = addMeal({
-                  id: uid(),
-                  name,
-                  type,
-                  calories: Number(cal) || 0,
-                  protein: Number(p) || 0,
-                  carbs: Number(c) || 0,
-                  fat: Number(fat) || 0,
-                  createdAt: Date.now(),
-                });
+                const saved = addMeal(customMeal());
                 if (!saved) return;
                 setName("");
                 setCal("");
@@ -763,6 +826,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
             >
               Add to Daily Log
             </PrimaryButton>
+            <GhostButton className="mt-2 w-full" disabled={!canSaveCustom} onClick={() => saveFood(customMeal())}>
+              Save as reusable food
+            </GhostButton>
           </div>
         </div>
       )}

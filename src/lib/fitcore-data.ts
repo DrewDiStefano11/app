@@ -120,12 +120,12 @@ const STATE_KEYS = new Set<keyof AppState>([
   "workouts", "activeWorkout", "workoutTemplates", "customExercises", "cardioEntries",
   "mealEntries", "bodyweightEntries", "sleepEntries", "recoveryCheckIns", "recoverySignals", "muscleFatigue",
   "prs", "goals", "progressPhotos", "aiMessages", "reminders", "demoMode", "jarvisSettings",
-  "jarvisAudit", "jarvisLearning", "userGoalsProfile", "supplementLogs", "dismissedSuggestions",
+  "jarvisAudit", "jarvisLearning", "userGoalsProfile", "supplementLogs", "dismissedSuggestions", "savedNutrition",
 ]);
 const ARRAY_KEYS = new Set<keyof AppState>([
   "workouts", "workoutTemplates", "customExercises", "cardioEntries", "mealEntries",
   "bodyweightEntries", "sleepEntries", "recoveryCheckIns", "recoverySignals", "prs", "goals",
-  "progressPhotos", "aiMessages", "jarvisAudit", "supplementLogs", "dismissedSuggestions",
+  "progressPhotos", "aiMessages", "jarvisAudit", "supplementLogs", "dismissedSuggestions", "savedNutrition",
 ]);
 const OBJECT_KEYS = new Set<keyof AppState>([
   "profile", "personalization", "nutritionTargets", "muscleFatigue", "reminders",
