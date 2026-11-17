@@ -168,3 +168,19 @@ test("pain-only Jarvis notes and a partial meal day cannot create readiness or i
   expect(buildDailyDecision(state, at).nutrition.underEatingWarning).toBe(false);
   expect(getWhatChangedSignals(state, at).some((signal) => signal.type === "training_frequency")).toBe(false);
 });
+
+test("cleared targets do not reuse an older Jarvis profile goal in the daily decision", () => {
+  const state = {
+    ...defaultState,
+    nutritionTargets: { ...defaultState.nutritionTargets, calories: 0, protein: 0 },
+    userGoalsProfile: { calorieGoal: 2600, proteinGoal: 180 },
+    mealEntries: [{
+      id: "meal", createdAt: now - 3_600_000, name: "Lunch", type: "lunch",
+      calories: 440, protein: 24, carbs: 56, fat: 12,
+    }],
+  };
+  const { nutrition } = buildDailyDecision(state, now);
+  expect(nutrition.calorieGap).toBeNull();
+  expect(nutrition.proteinGap).toBeNull();
+  expect(nutrition.reason).toBe("No calorie or protein targets are set for today.");
+});

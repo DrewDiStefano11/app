@@ -323,7 +323,23 @@ const handlers: Record<ToolName, ToolHandler> = {
     pushAudit(set, { id: auditId, tool: "updateDailyCheckIn", summary: "Updated today's check-in", status: "logged", entityIds: [last.id], entityKind: "checkinEdit", patch: { prev: last, next: patch }, createdAt: editedAt });
     return { ok: true, summary: "Check-in updated", auditId };
   },
-  suggestNutritionAction: (_a, { state, settings }) => { if (!settings.nutritionSuggestions) return { ok: true, summary: "nutrition suggestions off", data: { suggestion: null } }; const totals = todaysMealsTotal(state), ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein, ctarget = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, proteinGap = ptarget - totals.protein, calorieGap = ctarget - totals.calories; const suggestion = proteinGap > 30 ? `You're ${proteinGap}g short on protein.` : calorieGap > 500 ? `Still ${calorieGap} kcal under target.` : "Macros look on track."; return { ok: true, summary: suggestion, data: { suggestion, proteinGap, calorieGap } }; },
+  suggestNutritionAction: (_a, { state, settings }) => {
+    if (!settings.nutritionSuggestions) return { ok: true, summary: "nutrition suggestions off", data: { suggestion: null } };
+    const totals = todaysMealsTotal(state);
+    const proteinTarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein;
+    const calorieTarget = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories;
+    const proteinGap = proteinTarget > 0 ? proteinTarget - totals.protein : null;
+    const calorieGap = calorieTarget > 0 ? calorieTarget - totals.calories : null;
+    if (proteinGap === null && calorieGap === null) {
+      return { ok: true, summary: "No calorie or protein targets are set.", data: { suggestion: null, proteinGap, calorieGap } };
+    }
+    const suggestion = proteinGap !== null && proteinGap > 30
+      ? `You're ${proteinGap}g short on protein.`
+      : calorieGap !== null && calorieGap > 500
+        ? `Still ${calorieGap} kcal under target.`
+        : "Logged intake is close to your set targets.";
+    return { ok: true, summary: suggestion, data: { suggestion, proteinGap, calorieGap } };
+  },
   createWorkoutDraft: (args) => { const draft = workoutPayload(args); if (!draft.exercises.length) return { ok: false, summary: "no exercises found", error: "Add at least one exercise." }; return { ok: true, summary: `Review ${draft.name}: ${draft.exercises.length} exercises`, needsConfirmation: true, data: { ...draft, durationMin: Math.round((draft.endedAt - draft.startedAt) / 60000), exercises: draft.exercises.map(e => ({ ...e, name: exerciseById(e.exerciseId)?.name ?? e.exerciseId })) } }; },
   logWorkout: (args, { set, state, confirmed }) => {
     const dupeAudit = hasAuditKey(state, "logWorkout", args); if (dupeAudit) return duplicateResult(dupeAudit);

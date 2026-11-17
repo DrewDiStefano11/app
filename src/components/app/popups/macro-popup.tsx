@@ -27,7 +27,7 @@ export function MacroDetailSheet({ open, onClose }: { open: boolean; onClose: ()
           {todayMeals.length > 0 ? <>
           <div className="flex items-baseline gap-2 mt-1">
             <span className="font-display text-4xl">{today.calories}</span>
-            <span className="text-xs text-white/40 font-bold uppercase">/ {targets.calories} kcal</span>
+            <span className="text-xs text-white/40 font-bold uppercase">{targets.calories > 0 ? `/ ${targets.calories} kcal` : "kcal · No target"}</span>
           </div>
           <div className="grid grid-cols-3 gap-3 mt-4">
             <MacroRing label="P" val={today.protein} target={targets.protein} color="rgb(239 68 68)" />
@@ -57,7 +57,7 @@ function MacroRing({ label, val, target, color }: { label: string; val: number; 
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="font-display text-lg leading-none" style={{ color }}>{Math.round(val)}</span>
-          <span className="text-[9px] text-white/40 font-bold">/{target}g</span>
+          <span className="text-[9px] text-white/40 font-bold">{target > 0 ? `/${target}g` : "g · No target"}</span>
         </div>
       </div>
       <span className="text-[10px] font-bold uppercase tracking-wider text-white/50 mt-1">{label}</span>
