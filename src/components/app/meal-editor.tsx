@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { GhostButton, Input, PrimaryButton, Select, Textarea } from "@/components/app/ui";
 import { markProvenanceEdited } from "@/lib/fitcore-data";
+import { requiresNutritionPresetConfirmation } from "@/lib/saved-nutrition";
 import { MEAL_TYPES } from "@/lib/data";
 import type { MealEntry } from "@/lib/types";
 
@@ -16,12 +17,16 @@ export function MealEditor({
   meal,
   onSave,
   onCancel,
+  onSavePreset,
 }: {
   meal: MealEntry;
   onSave: (meal: MealEntry) => boolean;
   onCancel: () => void;
+  onSavePreset?: (meal: MealEntry) => boolean;
 }) {
   const [failed, setFailed] = useState(false);
+  const [presetStatus, setPresetStatus] = useState<"saved" | "failed" | null>(null);
+  const confirmEstimate = requiresNutritionPresetConfirmation(meal);
   const types = MEAL_TYPES.includes(meal.type) ? MEAL_TYPES : [...MEAL_TYPES, meal.type];
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -49,10 +54,25 @@ export function MealEditor({
         updated[key] = Number(value);
       }
     }
-    const notes = String(fields.get("notes") ?? "");
-    if (notes !== (meal.notes?.replace(/\r\n?/g, "\n") ?? "")) {
+    const notes = fields.get("notes");
+    if (typeof notes === "string" && notes !== (meal.notes?.replace(/\r\n?/g, "\n") ?? "")) {
       if (notes) updated.notes = notes;
       else delete updated.notes;
+    }
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    if (onSavePreset && submitter instanceof HTMLButtonElement && submitter.value === "preset") {
+      if (confirmEstimate) {
+        updated.confirmed = true;
+        updated.confidence = "high";
+        updated.provenance = {
+          ...meal.provenance,
+          source: meal.provenance?.source ?? (meal.source === "camera" ? "ai-estimated" : "jarvis"),
+          confirmation: "confirmed",
+          confidence: "high",
+        };
+      }
+      setPresetStatus(onSavePreset(updated) ? "saved" : "failed");
+      return;
     }
     if (JSON.stringify(updated) === JSON.stringify(meal)) {
       onCancel();
@@ -118,19 +138,36 @@ export function MealEditor({
           </ul>
         </details>
       )}
-      <label className="block text-sm">
-        Meal notes
-        <Textarea name="notes" aria-label="Meal notes" defaultValue={meal.notes} rows={3} />
-      </label>
+      {onSavePreset && (
+        <label className="block text-sm">
+          Meal notes
+          <Textarea name="notes" aria-label="Meal notes" defaultValue={meal.notes} rows={3} />
+        </label>
+      )}
       {failed && (
         <p role="alert" className="text-sm text-destructive">
           Meal changes could not be saved. Your edits are still here.
+        </p>
+      )}
+      {presetStatus === "saved" && (
+        <p role="status" className="text-sm">
+          Meal saved to your library.
+        </p>
+      )}
+      {presetStatus === "failed" && (
+        <p role="alert" className="text-sm text-destructive">
+          Meal preset could not be saved.
         </p>
       )}
       <div className="flex flex-wrap gap-2">
         <GhostButton onClick={onCancel}>Cancel changes</GhostButton>
         <PrimaryButton type="submit">Save changes</PrimaryButton>
       </div>
+      {onSavePreset && (
+        <GhostButton type="submit" name="action" value="preset">
+          {confirmEstimate ? "Confirm values and save preset" : "Save as reusable meal"}
+        </GhostButton>
+      )}
     </form>
   );
 }

@@ -87,6 +87,13 @@ export interface MealEntry {
   provenance?: DataProvenance;
 }
 
+export interface SavedNutritionPreset {
+  id: string;
+  kind: "food" | "meal";
+  meal: MealEntry;
+  servingLabel?: string;
+}
+
 export interface SupplementLog {
   id: string;
   name: string;
@@ -399,6 +406,7 @@ export interface AppState {
   customExercises: CustomExercise[];
   cardioEntries: CardioEntry[];
   mealEntries: MealEntry[];
+  savedNutrition?: SavedNutritionPreset[];
   bodyweightEntries: BodyweightEntry[];
   sleepEntries: SleepEntry[];
   recoveryCheckIns: RecoveryCheckIn[];

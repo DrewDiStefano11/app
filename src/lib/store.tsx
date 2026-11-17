@@ -214,7 +214,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const reset = useCallback(() => {
     apply(() => defaultState);
   }, [apply]);
-  const exportJson = useCallback(() => JSON.stringify(state, null, 2), [state]);
+  const exportJson = useCallback(() => JSON.stringify({ ...state, savedNutrition: state.savedNutrition ?? [] }, null, 2), [state]);
   const importJson = useCallback(
     (text: string) => {
       try {
