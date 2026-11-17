@@ -277,6 +277,8 @@ export const FOODS: Food[] = [
   f("whey","Protein Powder","protein","1 scoop",120,24,3,1),
 ];
 
+export const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
+
 export interface MealTemplateItem { foodId: string; servings: number }
 export interface MealTemplate {
   id: string; name: string; type: string;

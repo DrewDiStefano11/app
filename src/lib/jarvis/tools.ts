@@ -94,7 +94,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   { name: "getDailyDecision", description: "Get today's structured training, nutrition, recovery, what-changed, confidence, provenance, and single next-action decision.", parameters: emptyParams },
 ];
 
-export type Updater = (u: (s: AppState) => AppState) => void;
+export type Updater = (u: (s: AppState) => AppState) => boolean | void;
 export interface RunContext {
   state: AppState;
   set: Updater;
@@ -108,10 +108,18 @@ function pushAudit(set: Updater, entry: JarvisAuditEntry) {
   set(s => ({ ...s, jarvisAudit: [entry, ...s.jarvisAudit].slice(0, 200) }));
 }
 
-function hasAuditKey(state: AppState, tool: string, args: Record<string, unknown>) {
+function hasAuditKey(
+  state: AppState,
+  tool: string,
+  args: Record<string, unknown>,
+  exists?: (entry: JarvisAuditEntry) => boolean,
+) {
   const key = actionKey(tool, args);
   if (!key) return null;
-  return state.jarvisAudit.find(a => !a.undone && a.tool === tool && a.patch?.actionKey === key && Date.now() - a.createdAt < 10 * 60_000) ?? null;
+  return state.jarvisAudit.find(a =>
+    !a.undone && a.tool === tool && a.patch?.actionKey === key &&
+    Date.now() - a.createdAt < 10 * 60_000 && (!exists || exists(a))
+  ) ?? null;
 }
 
 function actionKey(tool: string, args: Record<string, unknown>) {
@@ -266,7 +274,10 @@ const handlers: Record<ToolName, ToolHandler> = {
   saveJarvisLearning: (args, { set, settings }) => { if (!settings.learningEnabled) return { ok: false, summary: "learning disabled", error: "Memory/learning is off" }; const key = String(args.key ?? "").trim(); if (!key) return { ok: false, summary: "missing key", error: "key required" }; set(s => ({ ...s, jarvisLearning: { ...s.jarvisLearning, [key]: args.value } })); return { ok: true, summary: `Learned: ${key}` }; },
   getJarvisLearnedPreferences: (_a, { state }) => ({ ok: true, summary: "learned prefs", data: state.jarvisLearning }),
   logMeal: (args, { set, state, confirmed }) => {
-    const dupeAudit = hasAuditKey(state, "logMeal", args); if (dupeAudit) return duplicateResult(dupeAudit);
+    const dupeAudit = hasAuditKey(state, "logMeal", args, audit =>
+      state.mealEntries.some(meal => audit.entityIds?.includes(meal.id))
+    );
+    if (dupeAudit) return duplicateResult(dupeAudit);
     const name = String(args.name ?? "").trim() || "Meal", mealType = String(args.mealType ?? "snack"), calories = Math.round(Number(args.calories) || 0), protein = Math.round(Number(args.protein) || 0), carbs = Math.round(Number(args.carbs) || 0), fat = Math.round(Number(args.fat) || 0);
     if (calories <= 0 && protein <= 0) return { ok: false, summary: "empty meal", error: "Meal needs at least some macros." };
     const existing = state.mealEntries.find(m => sameDay(m.createdAt) && normalizeText(m.originalText) === normalizeText(args.originalText) && normalizeText(args.originalText)); if (existing) return { ok: true, summary: "That's already logged.", data: { duplicate: true, existing: [existing.id] } };
@@ -480,19 +491,71 @@ export function runTool(name: string, args: Record<string, unknown>, ctx: RunCon
   return h(args, ctx);
 }
 
+function auditAfterUndo(state: AppState, entry: JarvisAuditEntry): AppState["jarvisAudit"] {
+  const undo: JarvisAuditEntry = {
+    id: uid(),
+    tool: "undoLastAction",
+    summary: `Undid: ${entry.summary}`,
+    status: "undone",
+    entityIds: entry.entityIds,
+    entityKind: entry.entityKind,
+    createdAt: Date.now(),
+  };
+  return [undo, ...state.jarvisAudit.map(audit =>
+    audit.id === entry.id ? { ...audit, undone: true, status: "undone" as const } : audit
+  )].slice(0, 200);
+}
+
+function undoMealAudit(entry: JarvisAuditEntry, set: Updater): ToolResult {
+  const previous = (entry.patch as { prev?: MealEntry } | undefined)?.prev;
+  const mealId = previous?.id ?? entry.entityIds?.[0];
+  let applied = false;
+  const saved = set(state => {
+    const pending = state.jarvisAudit.find(audit => audit.id === entry.id && !audit.undone);
+    if (!pending || !mealId) return state;
+    const current = state.mealEntries.find(meal => meal.id === mealId);
+
+    let meals: MealEntry[];
+    if (entry.entityKind === "mealDelete") {
+      if (current || !previous) return state;
+      meals = [...state.mealEntries, previous];
+    } else if (entry.entityKind === "mealEdit") {
+      if (!previous || current?.provenance?.editAuditId !== entry.id) return state;
+      meals = state.mealEntries.map(meal => meal.id === mealId ? previous : meal);
+    } else {
+      if (!current || current.source === "edited" || current.provenance?.editedAt != null) return state;
+      meals = state.mealEntries.filter(meal => meal.id !== mealId);
+    }
+
+    applied = true;
+    return { ...state, mealEntries: meals, jarvisAudit: auditAfterUndo(state, entry) };
+  });
+  if (!applied) return {
+    ok: false,
+    summary: "Meal could not be undone",
+    error: "The meal changed after this action.",
+  };
+  if (saved === false) return {
+    ok: false,
+    summary: "Meal could not be undone",
+    error: "FitCore could not save the undo.",
+  };
+  return { ok: true, summary: `Undid: ${entry.summary}` };
+}
+
 export function undoAuditEntry(auditId: string, state: AppState, set: Updater): ToolResult {
   const entry = state.jarvisAudit.find(a => a.id === auditId);
   if (!entry || entry.undone) return { ok: false, summary: "nothing to undo" };
+  if (entry.entityKind === "meal" || entry.entityKind === "mealEdit" || entry.entityKind === "mealDelete") {
+    return undoMealAudit(entry, set);
+  }
   switch (entry.entityKind) {
     case "bodyweight": set(s => ({ ...s, bodyweightEntries: s.bodyweightEntries.filter(e => !(entry.entityIds ?? []).includes(e.id)) })); break;
     case "supplement": set(s => ({ ...s, supplementLogs: s.supplementLogs.filter(e => !(entry.entityIds ?? []).includes(e.id)) })); break;
     case "checkin": set(s => ({ ...s, recoveryCheckIns: s.recoveryCheckIns.filter(e => !(entry.entityIds ?? []).includes(e.id)) })); break;
-    case "meal": set(s => ({ ...s, mealEntries: s.mealEntries.filter(e => !(entry.entityIds ?? []).includes(e.id)) })); break;
     case "cardio": set(s => ({ ...s, cardioEntries: s.cardioEntries.filter(e => !(entry.entityIds ?? []).includes(e.id)) })); break;
     case "workout": set(s => ({ ...s, workouts: s.workouts.filter(e => !(entry.entityIds ?? []).includes(e.id)), activeWorkout: s.activeWorkout && (entry.entityIds ?? []).includes(s.activeWorkout.id) ? null : s.activeWorkout })); break;
     case "activeSet": set(s => ({ ...s, activeWorkout: s.activeWorkout ? { ...s.activeWorkout, exercises: s.activeWorkout.exercises.map(e => ({ ...e, sets: e.sets.filter(st => !(entry.entityIds ?? []).includes(st.id)) })) } : null })); break;
-    case "mealEdit": { const prev = (entry.patch as { prev?: MealEntry } | undefined)?.prev; if (prev) set(s => ({ ...s, mealEntries: s.mealEntries.map(m => m.id === prev.id ? prev : m) })); break; }
-    case "mealDelete": { const prev = (entry.patch as { prev?: MealEntry } | undefined)?.prev; if (prev) set(s => ({ ...s, mealEntries: [...s.mealEntries, prev] })); break; }
     case "workoutEdit":
     case "activeWorkoutEdit": { const prev = (entry.patch as { prev?: Workout } | undefined)?.prev; if (prev) set(s => entry.entityKind === "activeWorkoutEdit" ? { ...s, activeWorkout: prev } : { ...s, workouts: s.workouts.map(w => w.id === prev.id ? prev : w) }); break; }
     case "workoutDelete": { const prev = (entry.patch as { prev?: Workout } | undefined)?.prev; if (prev) set(s => ({ ...s, workouts: [...s.workouts, prev] })); break; }
@@ -507,6 +570,6 @@ export function undoAuditEntry(auditId: string, state: AppState, set: Updater): 
     case "profile": { const prev = (entry.patch as { prev?: Record<string, unknown> } | undefined)?.prev; if (prev) set(s => ({ ...s, userGoalsProfile: prev as UserGoalsProfile })); break; }
     case "jarvisSettings": { const prev = (entry.patch as { prev?: JarvisSettings } | undefined)?.prev; if (prev) set(s => ({ ...s, jarvisSettings: prev })); break; }
   }
-  set(s => ({ ...s, jarvisAudit: [ { id: uid(), tool: "undoLastAction", summary: `Undid: ${entry.summary}`, status: "undone" as const, entityIds: entry.entityIds, entityKind: entry.entityKind, createdAt: Date.now() }, ...s.jarvisAudit.map(a => a.id === auditId ? { ...a, undone: true, status: "undone" as const } : a) ].slice(0, 200) }));
+  set(s => ({ ...s, jarvisAudit: auditAfterUndo(s, entry) }));
   return { ok: true, summary: `Undid: ${entry.summary}` };
 }

@@ -244,7 +244,7 @@ function normalizeProvenance(
         ? audit.createdAt
         : undefined,
     editAuditId: cleanText(existing.editAuditId)
-      ?? (legacySource === "edited" ? audit?.id : undefined),
+      ?? (legacySource === "edited" && !Number.isFinite(existing.editedAt) ? audit?.id : undefined),
   };
 }
 
