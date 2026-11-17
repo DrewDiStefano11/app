@@ -2,8 +2,9 @@ import { useState } from "react";
 import { Bookmark, Plus, Pencil, Trash2, Utensils, Camera, Sparkles, Droplets, Pill } from "lucide-react";
 import { useStore, uid, isToday } from "@/lib/store";
 import { FOODS, MEAL_TEMPLATES, MEAL_TYPES, mealTotals } from "@/lib/data";
-import type { MealEntry, SavedNutritionPreset } from "@/lib/types";
+import type { MealEntry, NutritionTargets, SavedNutritionPreset } from "@/lib/types";
 import { addNutritionPreset, copyMealForLog, foodMeal, replaceNutritionPreset } from "@/lib/saved-nutrition";
+import { NutritionTargetsEditor } from "@/components/app/nutrition-targets-editor";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import {
   PageHeader,
@@ -37,6 +38,7 @@ const NUTRITION_TABS: { id: NutritionSubtab; label: string }[] = [
 export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
   const { state, set } = useStore();
   const [logOpen, setLogOpen] = useState(false);
+  const [reviewedTargets, setReviewedTargets] = useState<NutritionTargets | null>(null);
   const [confirmDel, setConfirmDel] = useState<MealEntry | null>(null);
   const [editing, setEditing] = useState<MealEntry | null>(null);
   const [deleteFailed, setDeleteFailed] = useState(false);
@@ -88,6 +90,9 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
         title="Nutrition"
         subtitle={hasMeals ? `${Math.round(t.c)} kcal logged today` : "No meals logged today"}
       />
+      <div className="mb-3 px-5">
+        <GhostButton onClick={() => setReviewedTargets(tg)}>Edit nutrition targets</GhostButton>
+      </div>
       {isDeepDive && <SubTabs tabs={NUTRITION_TABS} active={tab} onChange={setTab} />}
 
       {!isDeepDive && (
@@ -107,9 +112,9 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
             </div>
             {hasMeals && <div className="flex items-center justify-between gap-6">
               <div className="flex flex-col items-center gap-2">
-                <Ring value={t.c} max={tg.calories} size={96} label="kcal" />
+                {tg.calories > 0 ? <Ring value={t.c} max={tg.calories} size={96} label="kcal" /> : <p className="text-xl font-semibold">{Math.round(t.c)} kcal</p>}
                 <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">
-                  {Math.round((t.c / Math.max(1, tg.calories)) * 100)}% Goal
+                  {tg.calories > 0 ? `${Math.round(t.c / tg.calories * 100)}% Goal` : "No calorie target"}
                 </p>
               </div>
               <div className="flex-1 space-y-3">
@@ -315,6 +320,28 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
         </div>
       )}
 
+      <BottomSheet open={!!reviewedTargets} onClose={() => setReviewedTargets(null)}
+        title="Nutrition targets" closeLabel="Close nutrition targets" manageFocus>
+        {reviewedTargets && <NutritionTargetsEditor targets={reviewedTargets}
+          onCancel={() => setReviewedTargets(null)} onSave={targets => {
+            let changed = false;
+            const saved = set(current => {
+              if (JSON.stringify(current.nutritionTargets) !== JSON.stringify(reviewedTargets)) return current;
+              changed = true;
+              return {
+                ...current,
+                nutritionTargets: targets,
+                userGoalsProfile: {
+                  ...current.userGoalsProfile,
+                  ...(targets.calories !== reviewedTargets.calories && { calorieGoal: targets.calories }),
+                  ...(targets.protein !== reviewedTargets.protein && { proteinGoal: targets.protein }),
+                },
+              };
+            });
+            if (saved && changed) setReviewedTargets(null);
+            return saved && changed;
+          }} />}
+      </BottomSheet>
       <LogMealSheet open={logOpen} onClose={() => setLogOpen(false)} />
       <BottomSheet open={historyOpen} onClose={() => { setDeleteFailed(false); setHistoryOpen(false); }}
         title="Meal history" height="tall" closeLabel="Close meal history"
@@ -449,14 +476,13 @@ function MacroBar({
   unit: string;
   color?: string;
 }) {
-  const pct = Math.min(100, (value / Math.max(1, target)) * 100);
+  const pct = target > 0 ? Math.min(100, value / target * 100) : 0;
   return (
     <div>
       <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-1.5">
         <span className="text-white/40">{label}</span>
         <span className="text-white/80 tabular-nums">
-          {Math.round(value)}/{target}
-          {unit}
+          {target > 0 ? `${Math.round(value)}/${target}${unit}` : `${Math.round(value)}${unit} · No target`}
         </span>
       </div>
       <div className="h-1.5 rounded-full overflow-hidden bg-white/5">

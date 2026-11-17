@@ -155,16 +155,15 @@ export function GoalsPanel({ compact = false }: { compact?: boolean }) {
 
 function GoalRowItem({ row, compact }: { row: GoalRow; compact?: boolean }) {
   const { current, target, color, label, unit, fmt = fmtInt, inverse } = row;
-  const safeTarget = target || 1;
-  const rawPct = (current / safeTarget) * 100;
+  const rawPct = target > 0 ? (current / target) * 100 : 0;
   const pct = Math.max(0, Math.min(100, rawPct));
-  const status = statusFor(rawPct, inverse);
+  const status = target > 0 ? statusFor(rawPct, inverse) : { label: "No target", color: "var(--muted-foreground)" };
   return (
     <div>
       <div className="flex items-baseline justify-between gap-2">
         <span className={`${compact ? "text-[10px]" : "text-[11px]"} font-bold uppercase tracking-wider text-white/70 truncate`}>{label}</span>
         <span className={`${compact ? "text-[10px]" : "text-[11px]"} font-bold tabular-nums text-white/90`}>
-          {fmt(current)}<span className="text-white/40"> / {fmt(target)} {unit}</span>
+          {fmt(current)}<span className="text-white/40">{target > 0 ? ` / ${fmt(target)} ${unit}` : ` ${unit}`}</span>
         </span>
       </div>
       <div className="h-1.5 mt-1 bg-white/5 rounded-full overflow-hidden">

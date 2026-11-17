@@ -374,8 +374,8 @@ export function buildDailyDecisionContext(state: AppState, now = Date.now()): Da
   const caloriesToday = trustedTodayMeals.reduce((sum, item) => sum + item.calories, 0);
   const proteinToday = trustedTodayMeals.reduce((sum, item) => sum + item.protein, 0);
   const carbsToday = trustedTodayMeals.reduce((sum, item) => sum + item.carbs, 0);
-  const calorieTarget = state.nutritionTargets.calories || state.userGoalsProfile.calorieGoal || 0;
-  const proteinTarget = state.nutritionTargets.protein || state.userGoalsProfile.proteinGoal || 0;
+  const calorieTarget = state.nutritionTargets.calories ?? state.userGoalsProfile.calorieGoal ?? 0;
+  const proteinTarget = state.nutritionTargets.protein ?? state.userGoalsProfile.proteinGoal ?? 0;
   const trainingVolume = recentWorkouts.reduce((sum, item) => sum + workoutVolume(item), 0);
   const previousTrainingVolume = previousWorkouts.reduce(
     (sum, item) => sum + workoutVolume(item),
@@ -946,6 +946,8 @@ export function buildDailyDecision(state: AppState, now = Date.now()): DailyDeci
   } else if (!context.todayMeals.length) {
     nutritionRecommendation = "Log today's meals before making a calorie or macro adjustment.";
     nutritionReason = "No nutrition entries are available for today.";
+  } else if (calorieGap === null && proteinGap === null) {
+    nutritionReason = "No calorie or protein targets are set for today.";
   } else if (proteinGap != null && proteinGap >= 30) {
     const nextMealProtein = Math.max(35, Math.min(45, Math.round(proteinGap / 5) * 5));
     nutritionRecommendation = `Protein is behind target; prioritize about ${nextMealProtein}g at your next meal.`;

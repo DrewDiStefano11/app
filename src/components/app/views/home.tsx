@@ -208,7 +208,7 @@ function HomeDailyView({
     () => [
       view.workouts.some((workout) => isToday(workout.startedAt) && Boolean(workout.endedAt)),
       view.mealEntries.some((meal) => isToday(meal.createdAt)),
-      targets.protein > 0 && meals.protein >= targets.protein,
+      ...(targets.protein > 0 ? [meals.protein >= targets.protein] : []),
       view.recoveryCheckIns.some((checkIn) => isToday(checkIn.createdAt)),
       view.bodyweightEntries.some((entry) => isToday(entry.createdAt)),
     ],
@@ -392,7 +392,7 @@ function HomeDailyView({
             <div className="mt-2 font-display text-4xl leading-none">
               <CountUp value={meals.calories} />
               <span className="ml-1 text-xs font-bold uppercase text-white/30">
-                / {targets.calories}
+                {targets.calories > 0 ? `/ ${targets.calories}` : "kcal"}
               </span>
             </div>
             <div className="mt-5 space-y-2">
@@ -419,7 +419,7 @@ function HomeDailyView({
               />
             </div>
             <div className="mt-3 text-[9px] font-bold uppercase tracking-widest text-white/35">
-              {kcalPct}% of daily goal · logged so far
+              {targets.calories > 0 ? `${kcalPct}% of daily goal · logged so far` : "No calorie target"}
             </div>
             </> : <p className="mt-2 text-sm text-muted-foreground">No meals logged today</p>}
           </Tile>
@@ -820,7 +820,7 @@ function MacroBar({
       <div className="flex justify-between text-[10px] font-bold tabular-nums">
         <span className="text-white/40">{label}</span>
         <span className="text-white/80">
-          {Math.round(value)}/{target}g
+          {target > 0 ? `${Math.round(value)}/${target}g` : `${Math.round(value)}g · No target`}
         </span>
       </div>
       <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-white/5">
