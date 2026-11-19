@@ -132,6 +132,60 @@ export function WhoopDashboard({ compact = false }: { compact?: boolean }) {
   }
 
   const { recovery, sleep, cycle, activities, history } = summary;
+  if (compact) {
+    return (
+      <section aria-label="WHOOP measurements">
+        <Card className="space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">WHOOP daily status</h2>
+              <p className="text-xs text-muted-foreground">
+                Measured by WHOOP · last synced{" "}
+                <time dateTime={snapshot.lastSyncedAt}>
+                  {new Date(snapshot.lastSyncedAt).toLocaleTimeString([], {
+                    hour: "numeric",
+                    minute: "2-digit",
+                  })}
+                </time>
+              </p>
+            </div>
+            <span className="rounded-full border border-border px-2 py-1 text-[10px] font-medium">
+              WHOOP
+            </span>
+          </div>
+          <dl className="grid grid-cols-3 gap-3">
+            <Metric name="WHOOP Recovery" value={number(recovery?.score, "%")} />
+            <Metric name="Sleep performance" value={number(sleep?.performance, "%")} />
+            <Metric name="Daily Strain" value={number(cycle?.strain)} />
+          </dl>
+          <div className="border-t border-border pt-3">
+            <dl className="grid grid-cols-3 gap-3">
+              <Metric name="HRV" value={number(recovery?.hrvMs, " ms")} />
+              <Metric name="Resting heart rate" value={number(recovery?.restingHeartRate, " bpm")} />
+              <Metric name="Time asleep" value={hours(sleep?.asleepMs)} />
+            </dl>
+          </div>
+          {(recovery || sleep || cycle) && (
+            <p className="text-xs text-muted-foreground">
+              {[
+                recovery && `Recovery ${dateLabel.format(new Date(recovery.at))}`,
+                sleep && `Sleep ${dateLabel.format(new Date(sleep.at))}`,
+                cycle && `Strain cycle ${dateLabel.format(new Date(cycle.at))}`,
+              ].filter(Boolean).join(" · ")}
+            </p>
+          )}
+          {activities.length > 0 && (
+            <p className="border-t border-border pt-3 text-xs text-muted-foreground">
+              Recent WHOOP activity: {activities.slice(0, 2).map((row) => getWhoopActivity(row).sport).join(", ")}
+            </p>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            FitCore Readiness and FitCore Score are separate estimates from your logged data.
+          </p>
+        </Card>
+      </section>
+    );
+  }
   return (
     <section aria-label="WHOOP measurements">
       <Card className="space-y-4">

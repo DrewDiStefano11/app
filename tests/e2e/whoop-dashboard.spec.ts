@@ -125,6 +125,8 @@ test("Home and Recovery show measured WHOOP data only while the owner has access
   await seedMinimalOnboardedState(page);
   await gotoDashboard(page);
   const panel = page.getByRole("region", { name: "WHOOP measurements" });
+  await expect(panel.getByRole("heading", { name: "WHOOP daily status" })).toBeVisible();
+  await expect(panel.getByText("Daily Strain")).toBeVisible();
   await expect(panel.getByText("0%", { exact: true })).toBeVisible();
   await expect(panel.getByText("54 ms")).toBeVisible();
   await expect(panel.getByText("Unavailable")).toBeVisible();
@@ -133,6 +135,8 @@ test("Home and Recovery show measured WHOOP data only while the owner has access
 
   await page.getByRole("button", { name: "Recover", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Recovery", exact: true })).toBeVisible();
+  await expect(panel.getByRole("heading", { name: "WHOOP measurements" })).toBeVisible();
+  await expect(page.getByText("FitCore estimates · logged inputs")).toBeVisible();
   await expect(panel.getByText("Deep sleep")).toBeVisible();
   await expect(panel.getByText("14 breaths/min")).toBeVisible();
   await panel.getByText("Recent WHOOP recovery").click();
