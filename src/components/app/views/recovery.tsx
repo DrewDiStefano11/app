@@ -8,7 +8,6 @@ import { useStore, uid } from "@/lib/store";
 import type { FatigueLevel } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import { muscleMap } from "@/lib/analytics";
-import { addCalendarDays, dayKey } from "@/lib/analytics/date-time";
 import { recordedRecoveryCheckIns } from "@/lib/analytics/observed-fitness";
 import { BodyHeatmap } from "@/components/app/body-heatmap";
 import {
@@ -28,6 +27,10 @@ import {
 } from "@/components/app/ui";
 import { BottomSheet } from "@/components/app/sheet";
 import { WhoopDashboard } from "@/components/app/whoop-dashboard";
+import { useWhoopSnapshot } from "@/hooks/use-whoop-snapshot";
+import { selectSleepEvidence } from "@/lib/whoop/evidence";
+import { WhoopHealthFields, WhoopSleepFields } from "@/components/app/native-whoop-fields";
+import { sleepDuration } from "@/lib/whoop/format";
 
 const MUSCLES = [
   "chest",
@@ -64,19 +67,36 @@ function RecoveryReadinessSummary() {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">FitCore estimates · logged inputs</p>
+      <p className="text-xs uppercase tracking-wider text-muted-foreground">
+        Recovery & FitCore Readiness
+      </p>
       <div className="grid grid-cols-2 gap-2">
-        {([{ id: "readiness", name: "Readiness", metric: readiness },
-          { id: "recovery", name: "Recovery", metric: recovery }] as const).map(({ id, name, metric }) => (
-          <button key={id} type="button" onClick={() => setFocus(id)}
-            className="tile p-2 text-left">
+        {(
+          [
+            { id: "readiness", name: "Readiness", metric: readiness },
+            { id: "recovery", name: "Recovery", metric: recovery },
+          ] as const
+        ).map(({ id, name, metric }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setFocus(id)}
+            className="tile p-2 text-left"
+          >
             <span className="block text-xs font-semibold">{name}</span>
-            <span className="block text-2xl font-bold tabular-nums">{metric.value ?? "—"}</span>
+            <span className="block text-2xl font-bold tabular-nums">
+              {metric.value ?? "—"}
+              {metric.measurement && metric.value !== null ? "%" : ""}
+            </span>
             <span className="block text-xs text-muted-foreground">{scoreStatusLabel(metric)}</span>
           </button>
         ))}
       </div>
-      <ReadinessDetailSheet open={focus !== null} onClose={() => setFocus(null)} focus={focus ?? "readiness"} />
+      <ReadinessDetailSheet
+        open={focus !== null}
+        onClose={() => setFocus(null)}
+        focus={focus ?? "readiness"}
+      />
     </div>
   );
 }
@@ -93,10 +113,6 @@ export function RecoveryView({ layoutMode = "daily" }: { layoutMode?: LayoutMode
         title="Recovery"
         subtitle={`${scoreStatusLabel(readiness)} · ${isDeepDive ? "Deep Dive" : "Daily View"}`}
       />
-
-      <div className="mx-4">
-        <WhoopDashboard />
-      </div>
 
       {!isDeepDive ? (
         <DailyViewRecovery />
@@ -121,12 +137,10 @@ function DailyViewRecovery() {
   const [sleepOpen, setSleepOpen] = useState(false);
   const [fatigueOpen, setFatigueOpen] = useState(false);
 
-  const lastSleep = state.sleepEntries[state.sleepEntries.length - 1];
+  const sleep = selectSleepEvidence(state, useWhoopSnapshot());
+  const lastSleep = sleep.last;
   const lastCheck = recordedRecoveryCheckIns(state).sort((a, b) => b.createdAt - a.createdAt)[0];
-  const weekSleep = state.sleepEntries.filter((s) => s.createdAt > Date.now() - 7 * 86400000);
-  const avgSleep = weekSleep.length
-    ? (weekSleep.reduce((a, s) => a + s.hours, 0) / weekSleep.length).toFixed(1)
-    : "—";
+  const avgSleep = sleep.averageHours?.toFixed(1) ?? "—";
   const sleepGoal = state.profile.sleepGoalH ?? 8;
 
   const sore = MUSCLES.filter((m) => state.muscleFatigue[m] && state.muscleFatigue[m] !== "fresh");
@@ -136,7 +150,8 @@ function DailyViewRecovery() {
       <div className="card-elev p-5 section-gradient ring-section">
         <RecoveryReadinessSummary />
         <p className="mt-2 text-xs text-muted-foreground">
-          WHOOP measurements above are separate from FitCore's logged-data estimates.
+          WHOOP supplies measured recovery. FitCore Readiness combines available evidence; tap a
+          score for its sources.
         </p>
         <div className="flex gap-2 mt-4">
           <PrimaryButton className="flex-1" onClick={() => setCheckOpen(true)}>
@@ -152,13 +167,24 @@ function DailyViewRecovery() {
 
       <div className="grid grid-cols-2 gap-3">
         <StatCard
-          label="Logged sleep"
-          value={lastSleep ? `${lastSleep.hours}h` : "—"}
-          sub={lastSleep ? `q ${lastSleep.quality}/10` : ""}
+          label="Last sleep"
+          value={lastSleep ? sleepDuration(lastSleep.hours * 3600000) : "—"}
+          sub={
+            lastSleep
+              ? `${lastSleep.source === "whoop" ? "WHOOP" : "Manual"} · ${new Date(lastSleep.at).toLocaleDateString()}${lastSleep.quality !== null ? ` · q ${lastSleep.quality}/10` : ""}`
+              : "Unavailable"
+          }
           accent
         />
-        <StatCard label="Logged 7d avg" value={`${avgSleep}h`} sub={`goal ${sleepGoal}h`} />
+        <StatCard
+          label="7d sleep avg"
+          value={`${avgSleep}h`}
+          sub={`${sleep.nights.length} observed nights · goal ${sleepGoal}h`}
+        />
       </div>
+      <WhoopSleepFields />
+      <SectionHeader title="Health signals" />
+      <WhoopHealthFields />
 
       <Card className="active:scale-[0.98] cursor-pointer" onClick={() => setFatigueOpen(true)}>
         <div className="flex justify-between items-center mb-2">
@@ -166,7 +192,9 @@ function DailyViewRecovery() {
           <span className="text-xs text-muted-foreground">Update &rarr;</span>
         </div>
         {sore.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No soreness or fatigue is currently recorded.</p>
+          <p className="text-xs text-muted-foreground">
+            No soreness or fatigue is currently recorded.
+          </p>
         ) : (
           <div className="flex flex-wrap gap-1">
             {sore.map((m) => (
@@ -192,7 +220,8 @@ function DailyViewRecovery() {
               {new Date(lastCheck.createdAt).toLocaleDateString()}
             </p>
             <p>
-              ⚡{lastCheck.energy} • Soreness {lastCheck.soreness}/10 • Stress {lastCheck.stress}/10 • 🔥
+              ⚡{lastCheck.energy} • Soreness {lastCheck.soreness}/10 • Stress {lastCheck.stress}/10
+              • 🔥
               {lastCheck.motivation}
             </p>
           </div>
@@ -230,7 +259,8 @@ function HealthTab() {
               {new Date(lastCheck.createdAt).toLocaleDateString()}
             </p>
             <p>
-              ⚡{lastCheck.energy} • Soreness {lastCheck.soreness}/10 • Stress {lastCheck.stress}/10 • 🔥
+              ⚡{lastCheck.energy} • Soreness {lastCheck.soreness}/10 • Stress {lastCheck.stress}/10
+              • 🔥
               {lastCheck.motivation}
             </p>
           </div>
@@ -238,6 +268,7 @@ function HealthTab() {
       )}
 
       <SectionHeader title="Health Signals" />
+      <WhoopHealthFields />
       <div className="grid grid-cols-2 gap-3">
         <Card className="p-3">
           <p className="text-sm font-medium">Temperature</p>
@@ -263,6 +294,7 @@ function HealthTab() {
       </Card>
 
       <SectionHeader title="Strain Tracking" />
+      <WhoopDashboard />
       <div className="grid grid-cols-2 gap-3">
         <PlannedFeatureCard
           title="Muscular Strain"
@@ -353,11 +385,10 @@ function BodyTab() {
       <div className="grid grid-cols-2 gap-2">
         {MUSCLES.map((m) => {
           const lvl = state.muscleFatigue[m];
-          const next: FatigueLevel =
-            !lvl
-              ? "fresh"
-              : lvl === "fresh"
-                ? "moderate"
+          const next: FatigueLevel = !lvl
+            ? "fresh"
+            : lvl === "fresh"
+              ? "moderate"
               : lvl === "moderate"
                 ? "fatigued"
                 : lvl === "fatigued"
@@ -461,50 +492,48 @@ function SleepDeepDiveTab() {
   const { state } = useStore();
   const [sleepOpen, setSleepOpen] = useState(false);
 
-  const days = 7;
-  const now = Date.now();
-  const byDate = new Map<string, typeof state.sleepEntries[number]>();
-  state.sleepEntries
-    .filter((entry) => entry.createdAt >= addCalendarDays(now, 1 - days) && entry.createdAt <= now)
-    .sort((a, b) => a.createdAt - b.createdAt)
-    .forEach((entry) => byDate.set(dayKey(entry.createdAt), entry));
-  const sleeps = [...byDate.values()];
+  const sleep = selectSleepEvidence(state, useWhoopSnapshot());
+  const sleeps = sleep.nights;
   const maxHours = Math.max(8, ...sleeps.map((entry) => entry.hours));
-  const history = Array.from({ length: days }, (_, index) => {
-    const date = addCalendarDays(now, index + 1 - days);
-    return { date, hours: byDate.get(dayKey(date))?.hours ?? null };
-  });
-  const sleepAvg = sleeps.length
-    ? (sleeps.reduce((a, s) => a + s.hours, 0) / sleeps.length).toFixed(1)
-    : "—";
-  const qAvg = sleeps.length
-    ? (sleeps.reduce((a, s) => a + s.quality, 0) / sleeps.length).toFixed(1)
-    : "—";
-  const consistency = Math.round((sleeps.length / days) * 100);
+  const history = sleep.history.map((row) => ({ ...row, hours: row.observation?.hours ?? null }));
+  const sleepAvg = sleep.averageHours?.toFixed(1) ?? "—";
+  const qAvg = sleep.manualQuality?.toFixed(1) ?? "—";
+  const consistency = Math.round((sleeps.length / 7) * 100);
 
   return (
     <div className="px-5 space-y-4">
       <div className="grid grid-cols-3 gap-3">
         <StatCard label="Sleep avg" value={`${sleepAvg}h`} accent />
-        <StatCard label="Quality" value={`${qAvg}`} sub="/10" />
+        <StatCard label="Manual quality" value={`${qAvg}`} sub="/10 · subjective only" />
         <StatCard label="Logged" value={`${consistency}%`} sub="of days" />
       </div>
 
+      <WhoopSleepFields />
       <SectionHeader title="Recorded sleep" />
       <Card>
         {sleeps.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-4 text-center">No sleep logged in the last 7 days.</p>
+          <p className="text-sm text-muted-foreground py-4 text-center">
+            No sleep logged in the last 7 days.
+          </p>
         ) : (
           <ol className="grid grid-cols-7 gap-1">
-            {history.map(({ date, hours }) => (
+            {history.map(({ date, at, hours, observation }) => (
               <li key={date} className="min-w-0 text-center text-xs tabular-nums">
                 <div className="h-20 flex items-end justify-center" aria-hidden="true">
-                  {hours !== null && <span className="w-4 rounded-t bg-[var(--section)]" style={{ height: `${(hours / maxHours) * 100}%` }} />}
+                  {hours !== null && (
+                    <span
+                      className="w-4 rounded-t bg-[var(--section)]"
+                      style={{ height: `${(hours / maxHours) * 100}%` }}
+                    />
+                  )}
                 </div>
-                <time dateTime={dayKey(date)} className="block text-muted-foreground">
-                  {new Date(date).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                <time dateTime={date} className="block text-muted-foreground">
+                  {new Date(at).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
                 </time>
-                <span>{hours === null ? "—" : `${hours}h`}</span>
+                <span>{hours === null ? "—" : `${Math.round(hours * 100) / 100}h`}</span>
+                <span className="block text-[10px] text-muted-foreground">
+                  {observation?.source === "whoop" ? "WHOOP" : observation ? "Manual" : ""}
+                </span>
               </li>
             ))}
           </ol>
@@ -608,11 +637,21 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   };
   return (
     <BottomSheet open={open} onClose={close} title="Log sleep">
-      <div className="space-y-4" onChange={() => { if (confirmed) setConfirmed(false); }}>
+      <div
+        className="space-y-4"
+        onChange={() => {
+          if (confirmed) setConfirmed(false);
+        }}
+      >
         <div className="grid grid-cols-2 gap-3">
           <div>
             <Label>Hours</Label>
-            <Input aria-label="Hours" inputMode="decimal" value={hours} onChange={(e) => setHours(e.target.value)} />
+            <Input
+              aria-label="Hours"
+              inputMode="decimal"
+              value={hours}
+              onChange={(e) => setHours(e.target.value)}
+            />
           </div>
           <div>
             <div className="flex justify-between">
@@ -641,10 +680,14 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
           </div>
         </div>
         <label className="flex items-start gap-2 text-sm text-muted-foreground">
-          <input type="checkbox" checked={confirmed} onChange={(event) => {
-            event.stopPropagation();
-            setConfirmed(event.target.checked);
-          }} />
+          <input
+            type="checkbox"
+            checked={confirmed}
+            onChange={(event) => {
+              event.stopPropagation();
+              setConfirmed(event.target.checked);
+            }}
+          />
           I confirm the sleep hours and quality I entered.
         </label>
         <PrimaryButton className="w-full" onClick={submit} disabled={!valid || !confirmed}>

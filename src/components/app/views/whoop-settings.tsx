@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { GhostButton, Input } from "@/components/app/ui";
 import {
   announceWhoopSnapshot,
+  notifyWhoopSessionChanged,
   requestWhoopSync,
   subscribeToWhoopChanges,
   whoopApi as api,
@@ -47,6 +48,7 @@ export function WhoopSettings({
   };
 
   useEffect(() => {
+    let announcedConnection = false;
     const readStatus = () => {
       if (document.visibilityState !== "visible") return;
       statusRequest.current?.abort();
@@ -54,7 +56,12 @@ export function WhoopSettings({
       statusRequest.current = request;
       void getStatus(request.signal)
         .then((info) => {
-          if (!request.signal.aborted) setStatusInfo(info);
+          if (request.signal.aborted) return;
+          setStatusInfo(info);
+          if (!showSafariHandoff && info.status === "connected" && !announcedConnection) {
+            announcedConnection = true;
+            notifyWhoopSessionChanged();
+          }
         })
         .catch(() => {
           if (!request.signal.aborted) setStatusInfo({ status: "unavailable", lastSyncedAt: null });
@@ -75,7 +82,7 @@ export function WhoopSettings({
       window.removeEventListener("pageshow", readStatus);
       document.removeEventListener("visibilitychange", readStatus);
     };
-  }, []);
+  }, [showSafariHandoff]);
 
   async function unlock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -93,6 +100,7 @@ export function WhoopSettings({
       if (response.status === 401) {
         setMessage("That access key did not match.");
       } else if (response.ok) {
+        notifyWhoopSessionChanged();
         updateStatus(await getStatus());
       } else {
         setMessage("WHOOP access is unavailable right now.");

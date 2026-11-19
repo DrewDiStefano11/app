@@ -100,6 +100,8 @@ export function getWhoopDashboard(
       return {
         id: sleep.id,
         at: timestamp(sleep),
+        start: "start" in sleep ? sleep.start : null,
+        end: "end" in sleep ? (sleep.end ?? null) : null,
         timezoneOffset: "timezone_offset" in sleep ? (sleep.timezone_offset ?? null) : null,
         state: measurementState(sleep),
         performance: measurement(sleep.score, "sleep_performance_percentage"),

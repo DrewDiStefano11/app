@@ -3,7 +3,8 @@
   "git": {
     "deploymentEnabled": {
       "codex/fitcore-whoop-integration": false,
-      "codex/whoop-first-account-readiness": false
+      "codex/whoop-first-account-readiness": false,
+      "codex/whoop-native-auto-refresh": false
     }
   }
 }
