@@ -124,12 +124,12 @@ export function HomeView({
 
       <div className="space-y-4 px-4">
         <ViewModeToggle mode={layoutMode} onModeChange={onLayoutModeChange} />
+        <WhoopDashboard compact />
 
         {layoutMode === "daily" ? (
           <HomeDailyView setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
         ) : (
           <>
-            <WhoopDashboard compact />
             <HomeDeepDive setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
           </>
         )}
@@ -502,8 +502,6 @@ function HomeDailyView({
           )}
         </span>
       </button>
-
-      <WhoopDashboard compact />
 
       <div className="grid grid-cols-3 gap-3 pb-2">
         <QuickAction
