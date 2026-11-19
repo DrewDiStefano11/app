@@ -1,322 +1,94 @@
-import { useEffect, useMemo, useState } from "react";
-import { Card } from "@/components/app/ui";
-import { getWhoopRecoveryAnalytics } from "@/lib/analytics/recovery-detail-metrics";
+import { useWhoopSnapshot } from "@/hooks/use-whoop-snapshot";
 import { useStore } from "@/lib/store";
-import { readWhoopSnapshot, requestWhoopSync, subscribeToWhoopChanges } from "@/lib/whoop/browser";
-import {
-  getWhoopActivity,
-  matchWhoopStrengthWorkout,
-  type WhoopSnapshot,
-} from "@/lib/whoop/dashboard";
+import { selectWhoopEvidence } from "@/lib/whoop/evidence";
+import { getWhoopActivity, matchWhoopStrengthWorkout } from "@/lib/whoop/dashboard";
+import { measuredNumber, sleepDuration } from "@/lib/whoop/format";
+import { Card } from "./ui";
 
-const dateLabel = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+const dateLabel = (at: string) =>
+  new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 
-function number(value: number | null | undefined, unit = "") {
-  return value == null ? "Unavailable" : String(Math.round(value * 10) / 10) + unit;
-}
-
-function hours(ms: number | null | undefined) {
-  if (ms == null) return "Unavailable";
-  const minutes = Math.round(ms / 60_000);
-  return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
-
-function scoreState(state: string | undefined) {
-  if (state === "calibrating") return "WHOOP is calibrating.";
-  if (state === "pending") return "WHOOP is calculating this score.";
-  return null;
-}
-
-function Metric({ name, value }: { name: string; value: string }) {
-  return (
-    <div className="min-w-0 space-y-0.5">
-      <dt className="text-xs leading-snug text-muted-foreground">{name}</dt>
-      <dd className="text-sm font-semibold tabular-nums">{value}</dd>
-    </div>
-  );
-}
-
-export function WhoopDashboard({ compact = false }: { compact?: boolean }) {
-  const [snapshot, setSnapshot] = useState<WhoopSnapshot | null>(null);
-  const [hasLiveDisplay, setHasLiveDisplay] = useState(false);
-  const [refreshMessage, setRefreshMessage] = useState("");
+/** Historical detail only. Current measurements belong to native Recovery/Sleep fields. */
+export function WhoopDashboard() {
+  const snapshot = useWhoopSnapshot();
   const {
-    state: { workouts },
+    state: { workouts, demoMode },
   } = useStore();
-  useEffect(() => {
-    let request: AbortController | undefined;
-    let expiry: number | undefined;
-    const clear = () => {
-      request?.abort();
-      window.clearTimeout(expiry);
-      setSnapshot(null);
-    };
-    const refresh = () => {
-      request?.abort();
-      if (document.visibilityState !== "visible") {
-        clear();
-        return;
-      }
-      const current = new AbortController();
-      request = current;
-      void readWhoopSnapshot(current.signal)
-        .then((data) => {
-          if (current.signal.aborted) return;
-          window.clearTimeout(expiry);
-          const remaining = data ? Date.parse(data.accessExpiresAt) - Date.now() : 0;
-          if (remaining > 0) {
-            setSnapshot(data);
-            setHasLiveDisplay(!!data && "version" in data);
-            setRefreshMessage("");
-            expiry = window.setTimeout(clear, Math.min(remaining, 2_147_483_647));
-          } else {
-            setSnapshot(null);
-          }
-        })
-        .catch(() => {
-          if (!current.signal.aborted) setSnapshot(null);
-        });
-    };
-    const unsubscribe = subscribeToWhoopChanges((change) => {
-      if (change === "clear") {
-        clear();
-        setHasLiveDisplay(false);
-      } else refresh();
-    });
-    const poll = window.setInterval(refresh, 120_000);
-    refresh();
-    document.addEventListener("visibilitychange", refresh);
-    window.addEventListener("online", refresh);
-    window.addEventListener("pageshow", refresh);
-    window.addEventListener("pagehide", clear);
-    return () => {
-      request?.abort();
-      window.clearTimeout(expiry);
-      window.clearInterval(poll);
-      unsubscribe();
-      document.removeEventListener("visibilitychange", refresh);
-      window.removeEventListener("online", refresh);
-      window.removeEventListener("pageshow", refresh);
-      window.removeEventListener("pagehide", clear);
-    };
-  }, []);
-
-  const summary = useMemo(() => snapshot && getWhoopRecoveryAnalytics(snapshot), [snapshot]);
-  if (!snapshot || !summary) {
-    if (!hasLiveDisplay) return null;
-    return (
-      <Card className="space-y-2">
-        <p className="text-sm">WHOOP measurements need a fresh sync.</p>
-        <button
-          type="button"
-          className="text-sm font-semibold underline underline-offset-2"
-          onClick={async () => {
-            setRefreshMessage("Syncing…");
-            try {
-              const response = await requestWhoopSync();
-              setRefreshMessage(response.ok ? "" : "WHOOP could not sync yet. Try again shortly.");
-            } catch {
-              setRefreshMessage("Check your connection and try again.");
-            }
-          }}
-        >
-          Refresh WHOOP
-        </button>
-        {refreshMessage && (
-          <p role="status" className="text-xs">
-            {refreshMessage}
-          </p>
-        )}
-      </Card>
-    );
-  }
-
-  const { recovery, sleep, cycle, activities, history } = summary;
-  if (compact) {
-    return (
-      <section aria-label="WHOOP measurements">
-        <Card className="space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="font-semibold">WHOOP daily status</h2>
-              <p className="text-xs text-muted-foreground">
-                Measured by WHOOP · last synced{" "}
-                <time dateTime={snapshot.lastSyncedAt}>
-                  {new Date(snapshot.lastSyncedAt).toLocaleTimeString([], {
-                    hour: "numeric",
-                    minute: "2-digit",
-                  })}
-                </time>
-              </p>
-            </div>
-            <span className="rounded-full border border-border px-2 py-1 text-[10px] font-medium">
-              WHOOP
-            </span>
-          </div>
-          <dl className="grid grid-cols-3 gap-3">
-            <Metric name="WHOOP Recovery" value={number(recovery?.score, "%")} />
-            <Metric name="Sleep performance" value={number(sleep?.performance, "%")} />
-            <Metric name="Daily Strain" value={number(cycle?.strain)} />
-          </dl>
-          <div className="border-t border-border pt-3">
-            <dl className="grid grid-cols-3 gap-3">
-              <Metric name="HRV" value={number(recovery?.hrvMs, " ms")} />
-              <Metric name="Resting heart rate" value={number(recovery?.restingHeartRate, " bpm")} />
-              <Metric name="Time asleep" value={hours(sleep?.asleepMs)} />
-            </dl>
-          </div>
-          {(recovery || sleep || cycle) && (
-            <p className="text-xs text-muted-foreground">
-              {[
-                recovery && `Recovery ${dateLabel.format(new Date(recovery.at))}`,
-                sleep && `Sleep ${dateLabel.format(new Date(sleep.at))}`,
-                cycle && `Strain cycle ${dateLabel.format(new Date(cycle.at))}`,
-              ].filter(Boolean).join(" · ")}
-            </p>
-          )}
-          {activities.length > 0 && (
-            <p className="border-t border-border pt-3 text-xs text-muted-foreground">
-              Recent WHOOP activity: {activities.slice(0, 2).map((row) => getWhoopActivity(row).sport).join(", ")}
-            </p>
-          )}
-          <p className="text-[11px] text-muted-foreground">
-            FitCore Readiness and FitCore Score are separate estimates from your logged data.
-          </p>
-        </Card>
-      </section>
-    );
-  }
+  const summary = demoMode ? null : selectWhoopEvidence(snapshot);
+  if (!summary || (!summary.history.length && !summary.activities.length)) return null;
   return (
-    <section aria-label="WHOOP measurements">
-      <Card className="space-y-4">
-        <div className="space-y-1">
-          <h2 className="font-semibold">WHOOP measurements</h2>
-          <p className="text-xs text-muted-foreground">
-            Last synced{" "}
-            <time dateTime={snapshot.lastSyncedAt}>
-              {new Date(snapshot.lastSyncedAt).toLocaleString()}
-            </time>
-          </p>
-        </div>
-        <div className="space-y-2">
-          {recovery && (
-            <p className="text-xs text-muted-foreground">
-              Recovery · {dateLabel.format(new Date(recovery.at))}
-            </p>
-          )}
-          {scoreState(recovery?.state) && <p className="text-sm">{scoreState(recovery?.state)}</p>}
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Metric name="WHOOP Recovery" value={number(recovery?.score, "%")} />
-            <Metric name="HRV" value={number(recovery?.hrvMs, " ms")} />
-            <Metric name="Resting heart rate" value={number(recovery?.restingHeartRate, " bpm")} />
-          </dl>
-        </div>
-        <div className="space-y-2 border-t border-border pt-3">
-          {sleep && (
-            <p className="text-xs text-muted-foreground">
-              Sleep · {dateLabel.format(new Date(sleep.at))}
-            </p>
-          )}
-          {scoreState(sleep?.state) && <p className="text-sm">{scoreState(sleep?.state)}</p>}
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <Metric name="Sleep performance" value={number(sleep?.performance, "%")} />
-            <Metric name="Time asleep" value={hours(sleep?.asleepMs)} />
-            {!compact && (
-              <>
-                <Metric name="Light sleep" value={hours(sleep?.lightMs)} />
-                <Metric name="Deep sleep" value={hours(sleep?.deepMs)} />
-                <Metric name="REM sleep" value={hours(sleep?.remMs)} />
-                <Metric name="Awake" value={hours(sleep?.awakeMs)} />
-                <Metric
-                  name="Respiratory rate"
-                  value={number(sleep?.respiratoryRate, " breaths/min")}
-                />
-              </>
-            )}
-          </dl>
-        </div>
-        <div className="space-y-2 border-t border-border pt-3">
-          {cycle && (
-            <p className="text-xs text-muted-foreground">
-              Cycle started {dateLabel.format(new Date(cycle.at))}
-            </p>
-          )}
-          {scoreState(cycle?.state) && <p className="text-sm">{scoreState(cycle?.state)}</p>}
-          <dl className="grid grid-cols-2 gap-3">
-            <Metric name="Daily Strain" value={number(cycle?.strain)} />
-            {cycle?.steps != null && (
-              <Metric name="WHOOP steps" value={cycle.steps.toLocaleString()} />
-            )}
-          </dl>
-        </div>
-        {!compact && (
-          <>
-            {history.length > 1 && (
-              <details className="space-y-2 border-t border-border pt-3">
-                <summary className="cursor-pointer text-sm font-medium">
-                  Recent WHOOP recovery
-                </summary>
-                <table className="w-full text-left text-xs tabular-nums">
-                  <thead>
-                    <tr>
-                      <th scope="col">Date</th>
-                      <th scope="col">Recovery</th>
-                      <th scope="col">HRV</th>
-                      <th scope="col">Resting HR</th>
+    <div className="space-y-3" aria-label="WHOOP historical details">
+      {summary.history.length > 0 && (
+        <Card>
+          <details>
+            <summary className="cursor-pointer text-sm font-medium">Recent WHOOP recovery</summary>
+            <div className="overflow-x-auto mt-3">
+              <table className="w-full text-left text-xs tabular-nums">
+                <thead>
+                  <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Recovery</th>
+                    <th scope="col">HRV</th>
+                    <th scope="col">Resting HR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {summary.history.slice(0, 7).map((row) => (
+                    <tr key={row.id} className="border-t border-border">
+                      <th scope="row" className="py-2">
+                        <time dateTime={row.at}>{dateLabel(row.at)}</time>
+                      </th>
+                      <td>{row.state === "scored" ? measuredNumber(row.score, "%") : row.state}</td>
+                      <td>{measuredNumber(row.hrvMs, " ms")}</td>
+                      <td>{measuredNumber(row.restingHeartRate, " bpm")}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {history.slice(0, 7).map((row) => (
-                      <tr key={row.id} className="border-t border-border">
-                        <th scope="row" className="py-1.5">
-                          {dateLabel.format(new Date(row.at))}
-                        </th>
-                        <td>
-                          {row.state === "calibrating"
-                            ? "Calibrating"
-                            : row.state === "pending"
-                              ? "Pending"
-                              : number(row.score, "%")}
-                        </td>
-                        <td>{number(row.hrvMs, " ms")}</td>
-                        <td>{number(row.restingHeartRate, " bpm")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </details>
-            )}
-            {activities.slice(0, 5).map((row) => {
-              const activity = getWhoopActivity(row);
-              const match = matchWhoopStrengthWorkout(row, activities, workouts);
-              return (
-                <details key={row.id} className="space-y-2 border-t border-border pt-3">
-                  <summary className="cursor-pointer text-sm font-medium">
-                    {activity.sport} · {dateLabel.format(new Date(activity.at))}
-                  </summary>
-                  {match && <p className="text-xs">Matched FitCore workout: {match.name}</p>}
-                  {scoreState(activity.state) && (
-                    <p className="text-sm">{scoreState(activity.state)}</p>
-                  )}
-                  <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    <Metric name="Workout Strain" value={number(activity.strain)} />
-                    <Metric
-                      name="Average heart rate"
-                      value={number(activity.averageHeartRate, " bpm")}
-                    />
-                    <Metric name="Peak heart rate" value={number(activity.maxHeartRate, " bpm")} />
-                    {activity.zoneMs.map((value, zone) =>
-                      value === null ? null : (
-                        <Metric key={zone} name={`Zone ${zone}`} value={hours(value)} />
-                      ),
-                    )}
-                  </dl>
-                </details>
-              );
-            })}
-          </>
-        )}
-      </Card>
-    </section>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        </Card>
+      )}
+      {summary.activities.slice(0, 10).map((row) => {
+        const activity = getWhoopActivity(row);
+        const match = matchWhoopStrengthWorkout(row, summary.activities, workouts);
+        return (
+          <Card key={row.id}>
+            <details>
+              <summary className="cursor-pointer text-sm font-medium">
+                {activity.sport} · {dateLabel(activity.at)} · WHOOP
+              </summary>
+              <p className="mt-2 text-xs text-muted-foreground">
+                <time dateTime={activity.at}>{new Date(activity.at).toLocaleString()}</time> ·{" "}
+                {activity.state}
+              </p>
+              {match && <p className="text-xs">Matched FitCore workout: {match.name}</p>}
+              <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt>Workout Strain</dt>
+                  <dd>{measuredNumber(activity.strain)}</dd>
+                </div>
+                <div>
+                  <dt>Average heart rate</dt>
+                  <dd>{measuredNumber(activity.averageHeartRate, " bpm")}</dd>
+                </div>
+                <div>
+                  <dt>Peak heart rate</dt>
+                  <dd>{measuredNumber(activity.maxHeartRate, " bpm")}</dd>
+                </div>
+                {activity.zoneMs.map((value, zone) =>
+                  value === null ? null : (
+                    <div key={zone}>
+                      <dt>Zone {zone}</dt>
+                      <dd>{sleepDuration(value)}</dd>
+                    </div>
+                  ),
+                )}
+              </dl>
+            </details>
+          </Card>
+        );
+      })}
+    </div>
   );
 }

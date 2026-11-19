@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AppState } from "@/lib/types";
+import { useWhoopSnapshot } from "@/hooks/use-whoop-snapshot";
 import {
   calculatePersonalScores,
   scoreStatusLabel,
@@ -7,6 +8,7 @@ import {
 } from "@/lib/analytics/personal-scores";
 
 export function usePersonalScores(state: AppState, enabled = true) {
+  const snapshot = useWhoopSnapshot();
   const [refreshCount, setRefreshCount] = useState(0);
   useEffect(() => {
     if (!enabled) return;
@@ -19,11 +21,15 @@ export function usePersonalScores(state: AppState, enabled = true) {
       window.clearInterval(timer);
     };
   }, [enabled]);
-  return useMemo(() => calculatePersonalScores(state), [state, refreshCount]);
+  return useMemo(
+    () => calculatePersonalScores(state, Date.now(), snapshot),
+    [state, refreshCount, snapshot],
+  );
 }
 
 const sourceNames: Record<PersonalScore["evidence"][number]["records"][number]["source"], string> =
   {
+    whoop: "WHOOP",
     manual: "Manual entry",
     recorded: "Recorded in FitCore",
     demo: "Demo Data",
@@ -81,7 +87,10 @@ export function ScoreEvidence({ metric }: { metric: PersonalScore }) {
 export function ScoreValue({ metric }: { metric: PersonalScore }) {
   return (
     <div className="space-y-1">
-      <p className="font-display text-4xl tabular-nums">{metric.value ?? "—"}</p>
+      <p className="font-display text-4xl tabular-nums">
+        {metric.value ?? "—"}
+        {metric.measurement && metric.value !== null ? "%" : ""}
+      </p>
       <p className="text-xs text-muted-foreground">{scoreStatusLabel(metric)}</p>
     </div>
   );

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { useStore, uid } from "@/lib/store";
+import { useWhoopSnapshot } from "@/hooks/use-whoop-snapshot";
 import { weeklyVolumeSeries, bodyweightDelta, momentumScore } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
@@ -98,7 +99,7 @@ function DailyViewContent() {
   const topGoals = state.goals.filter((g) => g.pinned).slice(0, 2);
   const goalList = topGoals.length ? topGoals : state.goals.slice(0, 2);
 
-  const mScore = momentumScore(state);
+  const mScore = momentumScore(state, Date.now(), useWhoopSnapshot());
 
   const submitWeighIn = () => {
     const wt = Number(w);
@@ -845,7 +846,7 @@ function AnalyticsTab() {
 
 function GoalsTab() {
   const { state } = useStore();
-  const mScore = momentumScore(state);
+  const mScore = momentumScore(state, Date.now(), useWhoopSnapshot());
   const [openDetail, setOpenDetail] = useState<"momentum" | null>(null);
 
   return (

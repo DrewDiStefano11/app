@@ -1,4 +1,5 @@
 import type { AppState, Workout } from "./types";
+import type { WhoopSnapshot } from "./whoop/dashboard";
 import { EXERCISES, type MuscleGroup } from "./data";
 import { calculatePersonalScores } from "./analytics/personal-scores";
 import {
@@ -609,8 +610,8 @@ export interface MomentumResult {
   factors: MomentumFactor[];
 }
 
-export function momentumScore(state: AppState, now = Date.now()): MomentumResult {
-  const scores = calculatePersonalScores(state, now);
+export function momentumScore(state: AppState, now = Date.now(), snapshot?: WhoopSnapshot | null): MomentumResult {
+  const scores = calculatePersonalScores(state, now, snapshot);
   const parts = [
     { id: "training", label: "Training consistency", weight: 35 },
     { id: "nutrition", label: "Nutrition adherence", weight: 25 },
@@ -631,7 +632,7 @@ export function momentumScore(state: AppState, now = Date.now()): MomentumResult
   );
   return {
     score,
-    label: state.demoMode ? "Demo Data" : score !== null ? "Logged Activity" :
+    label: state.demoMode ? "Demo Data" : score !== null ? (scores.recovery.measurement ? "Activity & recovery" : "Logged Activity") :
       stale ? "Stale" : recent ? "Limited Data" : "Not Enough Data",
     explanation: score === null
       ? "Momentum needs recent evidence in at least two areas to summarize your logged activity."
