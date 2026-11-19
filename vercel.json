@@ -2,7 +2,8 @@
   "installCommand": "npm ci",
   "git": {
     "deploymentEnabled": {
-      "codex/fitcore-whoop-integration": false
+      "codex/fitcore-whoop-integration": false,
+      "codex/whoop-first-account-readiness": false
     }
   }
 }

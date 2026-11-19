@@ -209,7 +209,8 @@ export function WhoopSettings({
           )}
           {returnResult === "failed" && (
             <p role="status" className="text-sm">
-              WHOOP could not be connected. Try again.
+              WHOOP could not be connected. If you approved access in WHOOP, check your connected
+              apps in WHOOP and remove FitCore before trying again.
             </p>
           )}
           <form action={api + "/connect"} method="post">

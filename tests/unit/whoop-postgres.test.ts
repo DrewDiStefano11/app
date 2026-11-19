@@ -4,6 +4,74 @@ import { test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { createWhoopStore } from "../../src/lib/whoop/postgres.server";
 
+test("the production runtime role can sync and delete but cannot change schemas or read unrelated data", async () => {
+  const database = new PGlite();
+  try {
+    for (const file of [
+      "001-credentials.sql",
+      "002-sync.sql",
+      "003-webhooks.sql",
+      "004-cache.sql",
+      "005-jarvis-read.sql",
+    ]) {
+      await database.exec(
+        await readFile(new URL("../../db/whoop/" + file, import.meta.url), "utf8"),
+      );
+    }
+    await database.exec(
+      "create schema unrelated; create table unrelated.private_data (id integer)",
+    );
+    await database.exec(
+      await readFile(
+        new URL("../../db/whoop/operations/runtime-role.sql", import.meta.url),
+        "utf8",
+      ),
+    );
+    await database.exec("set role fitcore_whoop_runtime");
+    const store = createWhoopStore(async (statement, parameters) => {
+      return (await database.query(statement, parameters)).rows;
+    });
+    const session = await store.createSession("synthetic-owner", "synthetic-digest", 60);
+    const other = await store.createSession("other-owner", "other-digest", 60);
+    const expired = await store.createSession("expired-owner", "expired-digest", -1);
+    assert.equal(await store.beginAttempt(session, "proof", 60), true);
+    assert.equal(await store.claimAttempt(other, "proof"), null);
+    const attempt = (await store.claimAttempt(session, "proof"))!;
+    assert.equal(await store.saveConnection(session, attempt, "encrypted-synthetic", 3600), true);
+    const claim = (await store.claimSync(session))!;
+    // saveSync reads webhook_events even during the live-only first release.
+    assert.ok(await store.saveSync(session, claim.id, claim.syncId, [], 0, claim.eventRevision, 0));
+    assert.equal(await store.getSnapshot(other), null);
+    assert.equal(await store.claimSync({ ...other, ownerId: session.ownerId }), null);
+    assert.equal(await store.getSession("expired-digest"), null);
+    assert.equal(await store.beginAttempt(expired, "expired-proof", 60), false);
+    for (const statement of [
+      "create schema forbidden",
+      "create table fitcore_whoop.forbidden (id integer)",
+      "create table public.forbidden (id integer)",
+      "create temporary table forbidden (id integer)",
+      "alter table fitcore_whoop.sessions add column forbidden integer",
+      "drop table fitcore_whoop.webhook_events",
+      "select * from unrelated.private_data",
+      "update fitcore_whoop.sessions set expires_at = now()",
+      "update fitcore_whoop.webhook_events set trace_id = 'changed'",
+      "insert into fitcore_whoop.webhook_events default values",
+    ]) {
+      await assert.rejects(database.exec(statement), { code: "42501" });
+    }
+    const pending = (await store.claimDisconnect(session))!;
+    assert.equal(
+      await store.finishDisconnect(session.ownerId, pending.id, pending.disconnectId),
+      true,
+    );
+    assert.equal(await store.getConnection(session.ownerId), null);
+    await store.deleteSession(session.id);
+    assert.equal(await store.getSession("synthetic-digest"), null);
+  } finally {
+    await database.close();
+  }
+});
+
 test("Postgres isolates sessions, claims state once and atomically rotates token pairs", async () => {
   const database = new PGlite();
   try {

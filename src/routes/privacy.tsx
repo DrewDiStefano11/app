@@ -21,7 +21,7 @@ function PrivacyPolicy() {
           Back to FitCore
         </Link>
         <h1 className="text-3xl font-bold sm:text-4xl">FitCore Privacy Policy</h1>
-        <p className="text-sm text-muted-foreground">Updated November 16, 2026</p>
+        <p className="text-sm text-muted-foreground">Updated November 19, 2026</p>
       </header>
 
       <div className="space-y-7 leading-relaxed text-muted-foreground">
@@ -68,8 +68,9 @@ function PrivacyPolicy() {
             cleanup is configured, FitCore can keep an expiring snapshot in the private database.
             Otherwise FitCore displays the response in the open browser view. Disconnect WHOOP
             clears the measurements and attempts to revoke access at WHOOP before deleting stored
-            credentials. Deleted records may remain in the database provider&apos;s recovery copies
-            for up to six hours on the configured free plan. If revocation fails, you can also
+            credentials. On Neon Free, deleted records may remain in instant-restore history for up
+            to six hours. Separately created snapshots, database branches, and external exports can
+            retain copies longer and require separate deletion. If revocation fails, you can also
             remove the connection in WHOOP.
           </p>
           <p>
