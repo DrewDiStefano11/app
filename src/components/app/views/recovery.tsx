@@ -64,7 +64,7 @@ function RecoveryReadinessSummary() {
 
   return (
     <div className="space-y-2">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">Today's readiness</p>
+      <p className="text-xs uppercase tracking-wider text-muted-foreground">FitCore estimates · logged inputs</p>
       <div className="grid grid-cols-2 gap-2">
         {([{ id: "readiness", name: "Readiness", metric: readiness },
           { id: "recovery", name: "Recovery", metric: recovery }] as const).map(({ id, name, metric }) => (
@@ -135,6 +135,9 @@ function DailyViewRecovery() {
     <div className="px-5 space-y-4 pt-2">
       <div className="card-elev p-5 section-gradient ring-section">
         <RecoveryReadinessSummary />
+        <p className="mt-2 text-xs text-muted-foreground">
+          WHOOP measurements above are separate from FitCore's logged-data estimates.
+        </p>
         <div className="flex gap-2 mt-4">
           <PrimaryButton className="flex-1" onClick={() => setCheckOpen(true)}>
             <Plus size={16} />
@@ -149,12 +152,12 @@ function DailyViewRecovery() {
 
       <div className="grid grid-cols-2 gap-3">
         <StatCard
-          label="Last sleep"
+          label="Logged sleep"
           value={lastSleep ? `${lastSleep.hours}h` : "—"}
           sub={lastSleep ? `q ${lastSleep.quality}/10` : ""}
           accent
         />
-        <StatCard label="7d avg" value={`${avgSleep}h`} sub={`goal ${sleepGoal}h`} />
+        <StatCard label="Logged 7d avg" value={`${avgSleep}h`} sub={`goal ${sleepGoal}h`} />
       </div>
 
       <Card className="active:scale-[0.98] cursor-pointer" onClick={() => setFatigueOpen(true)}>
