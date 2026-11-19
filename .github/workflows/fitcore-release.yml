@@ -13,7 +13,7 @@ permissions:
 jobs:
   production-workout:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -37,6 +37,7 @@ jobs:
         run: >-
           npm run test:e2e -- --reporter=line
           --project=iphone-webkit --project=mobile-390x844
+          whoop-callback.spec.ts whoop-dashboard.spec.ts whoop-jarvis.spec.ts whoop-sync.spec.ts privacy-policy.spec.ts
           workout-release-safety settings-data-safety-lifecycle-smoke
           active-workout-lifecycle-smoke workout-offline-reopen bench-program reusable-workouts workout-rest-timer training-routines personal-scores workout-storage-headroom workout-substitutions exercise-library workout-history-management
           meal-corrections macro-trends saved-nutrition nutrition-targets

@@ -27,6 +27,7 @@ import {
   PlannedFeatureCard,
 } from "@/components/app/ui";
 import { BottomSheet } from "@/components/app/sheet";
+import { WhoopDashboard } from "@/components/app/whoop-dashboard";
 
 const MUSCLES = [
   "chest",
@@ -92,6 +93,10 @@ export function RecoveryView({ layoutMode = "daily" }: { layoutMode?: LayoutMode
         title="Recovery"
         subtitle={`${scoreStatusLabel(readiness)} · ${isDeepDive ? "Deep Dive" : "Daily View"}`}
       />
+
+      <div className="mx-4">
+        <WhoopDashboard />
+      </div>
 
       {!isDeepDive ? (
         <DailyViewRecovery />
@@ -174,12 +179,6 @@ function DailyViewRecovery() {
         )}
       </Card>
 
-      <PlannedFeatureCard
-        title="Wearable Connection"
-        status="Planned"
-        description="Apple Watch / Whoop sync will appear here."
-      />
-
       {lastCheck && (
         <Card>
           <p className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
@@ -235,26 +234,8 @@ function HealthTab() {
         </Card>
       )}
 
-      <PlannedFeatureCard
-        title="Apple Watch / Whoop"
-        status="Planned"
-        description="Connect your wearable to sync continuous health and recovery signals."
-      />
-
       <SectionHeader title="Health Signals" />
       <div className="grid grid-cols-2 gap-3">
-        <Card className="p-3">
-          <p className="text-sm font-medium">HRV</p>
-          <p className="text-xs text-muted-foreground mt-1">Needs wearable sync</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-sm font-medium">Resting HR</p>
-          <p className="text-xs text-muted-foreground mt-1">Needs wearable sync</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-sm font-medium">Respiratory Rate</p>
-          <p className="text-xs text-muted-foreground mt-1">Planned</p>
-        </Card>
         <Card className="p-3">
           <p className="text-sm font-medium">Temperature</p>
           <p className="text-xs text-muted-foreground mt-1">Planned</p>
@@ -266,10 +247,6 @@ function HealthTab() {
         <Card className="p-3">
           <p className="text-sm font-medium">Stress</p>
           <p className="text-xs text-muted-foreground mt-1">Planned</p>
-        </Card>
-        <Card className="p-3">
-          <p className="text-sm font-medium">Steps</p>
-          <p className="text-xs text-muted-foreground mt-1">Needs wearable sync</p>
         </Card>
         <Card className="p-3">
           <p className="text-sm font-medium">Calories Burned</p>
@@ -532,11 +509,6 @@ function SleepDeepDiveTab() {
       </Card>
 
       <div className="grid grid-cols-2 gap-3">
-        <PlannedFeatureCard
-          title="Sleep Stages"
-          status="Planned"
-          description="Needs wearable sync."
-        />
         <PlannedFeatureCard title="Sleep Debt" status="Planned" description="Needs more data." />
         <PlannedFeatureCard
           title="Consistency"

@@ -14,6 +14,7 @@ import { Onboarding } from "@/components/app/views/onboarding";
 import { buildAICoachContext } from "@/lib/fitcore-data";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import type { SectionId } from "@/lib/types";
+import { requestWhoopSync } from "@/lib/whoop/browser";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -59,6 +60,55 @@ function FitCoreApp() {
   const hasActiveWorkout = activeWorkoutId !== undefined;
   const showActiveWorkout = activeWorkoutId !== undefined && activeWorkoutId !== overviewWorkoutId;
   const displayedSection = hasActiveWorkout ? "training" : section;
+  useEffect(() => {
+    if (!hasHydrated || !state.onboardingComplete) return;
+    let nextAttempt = 0;
+    let pending: number | undefined;
+    let disposed = false;
+    let syncing = false;
+    let liveOnly = false;
+    let retryRequired = false;
+    const foreground = () => !disposed && document.visibilityState === "visible" && navigator.onLine;
+    const syncWhileOpen = async (retry: boolean) => {
+      if (!foreground() || syncing) return;
+      syncing = true;
+      try {
+        const response = await requestWhoopSync("automatic");
+        if (!foreground()) return;
+        if (response.ok) liveOnly = response.status === 200;
+        const retryAfter = Number(response.headers.get("Retry-After"));
+        nextAttempt = Date.now() + Math.max(120, retryAfter || 0) * 1000;
+        retryRequired = response.status === 409 && !retry;
+        if (retryRequired) {
+          pending = window.setTimeout(() => void syncWhileOpen(true), 120_000);
+        }
+      } catch {
+        nextAttempt = Date.now() + 120_000;
+      } finally {
+        syncing = false;
+      }
+    };
+    const syncOnOpen = () => {
+      window.clearTimeout(pending);
+      if (!foreground() || syncing) return;
+      const delay = nextAttempt - Date.now();
+      if (delay <= 0) void syncWhileOpen(retryRequired);
+      else if (liveOnly || retryRequired) {
+        pending = window.setTimeout(() => void syncWhileOpen(retryRequired), delay);
+      }
+    };
+    syncOnOpen();
+    document.addEventListener("visibilitychange", syncOnOpen);
+    window.addEventListener("online", syncOnOpen);
+    window.addEventListener("pageshow", syncOnOpen);
+    return () => {
+      disposed = true;
+      window.clearTimeout(pending);
+      document.removeEventListener("visibilitychange", syncOnOpen);
+      window.removeEventListener("online", syncOnOpen);
+      window.removeEventListener("pageshow", syncOnOpen);
+    };
+  }, [hasHydrated, state.onboardingComplete]);
   const persistenceProblem = persistenceRequiresReload
     ? "FitCore needs to reload the latest saved data before it can save changes."
     : persistenceStatus === "storage_error" || persistenceStatus === "blocked"

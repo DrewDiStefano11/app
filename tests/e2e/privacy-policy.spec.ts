@@ -9,5 +9,6 @@ test("serves the FitCore privacy policy to signed-out visitors", async ({ reques
   expect(html).toContain("FitCore Privacy Policy");
   expect(html).toContain("AI features");
   expect(html).toContain("Export and deletion");
+  expect(html).toContain('href="mailto:ddistefano1210@gmail.com"');
   expect(html).toContain("Back to FitCore");
 });

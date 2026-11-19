@@ -35,6 +35,7 @@ import { StartWorkoutSheet } from "@/components/app/popups/start-workout-popup";
 import { VolumeDetailSheet } from "@/components/app/popups/volume-popup";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import { ViewModeToggle } from "@/components/app/shared/view-mode-toggle";
+import { WhoopDashboard } from "@/components/app/whoop-dashboard";
 import { Eyebrow, Tile } from "@/components/app/tile";
 import {
 
@@ -127,7 +128,10 @@ export function HomeView({
         {layoutMode === "daily" ? (
           <HomeDailyView setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
         ) : (
-          <HomeDeepDive setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
+          <>
+            <WhoopDashboard compact />
+            <HomeDeepDive setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
+          </>
         )}
       </div>
 
@@ -499,6 +503,8 @@ function HomeDailyView({
         </span>
       </button>
 
+      <WhoopDashboard compact />
+
       <div className="grid grid-cols-3 gap-3 pb-2">
         <QuickAction
           icon={<Plus size={21} />}
@@ -697,21 +703,6 @@ function HomeDeepDive({
         <p className="text-xs text-white/50 leading-relaxed">
           AI will correlate your training load, macro adherence, and sleep quality to provide
           actionable next steps.
-        </p>
-        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white/30">
-          Planned
-        </div>
-      </section>
-
-      <section className="rounded-[var(--radius-card)] border border-border border-dashed bg-card/50 p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Activity size={14} className="text-[var(--recovery)]" />
-          <h3 className="text-xs font-bold uppercase tracking-widest text-white/60">
-            Wearable Integrations
-          </h3>
-        </div>
-        <p className="text-xs text-white/50 leading-relaxed">
-          Apple Watch & Whoop data will sync here for deeper readiness explanations.
         </p>
         <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white/30">
           Planned
