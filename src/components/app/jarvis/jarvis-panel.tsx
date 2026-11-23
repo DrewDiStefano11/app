@@ -158,6 +158,7 @@ export function JarvisPanel({ section }: { section: string }) {
   const stateRef = useRef(state);
   const onPhotoReply = useCallback((content: string) => setMessages(previous => [...previous, { id: uid(), role: "assistant", content, createdAt: Date.now(), local: true }]), []);
   const photo = usePhotoMeal({ active: open, stateRef, commit: set, onReply: onPhotoReply, onBusyChange: setPhotoBusy, onUsage: recordDiagnostics });
+  const { open: openMealPhoto, reopen: reopenPhotoMeal } = photo;
   const sendingRef = useRef(false);
   const whoopEpoch = useRef(0);
   const conversation = useRef<JarvisTextContext>({});
@@ -216,11 +217,11 @@ export function JarvisPanel({ section }: { section: string }) {
     const openPhoto = (event: Event) => {
       const mealId = (event as CustomEvent<{ mealId?: string }>).detail?.mealId;
       setOpen(true);
-      if (mealId) photo.reopen(mealId); else photo.open();
+      if (mealId) reopenPhotoMeal(mealId); else openMealPhoto();
     };
     window.addEventListener("fitcore:meal-photo", openPhoto);
     return () => window.removeEventListener("fitcore:meal-photo", openPhoto);
-  }, [photo.open, photo.reopen]);
+  }, [openMealPhoto, reopenPhotoMeal]);
   useEffect(() => { if (open && !photo.shown) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [open, messages.length, photo.shown]);
   useEffect(() => {
     const h = (event: Event) => {

@@ -43,7 +43,7 @@ export function savePhotoMealDraft(
   if (
     target &&
     fingerprint(migrateFitCoreDataIfNeeded(state).mealEntries.find((m) => m.id === target.id)) !==
-      fingerprint(target)
+      fingerprint(migrateFitCoreDataIfNeeded({ ...state, mealEntries: [target] }).mealEntries[0])
   )
     return {
       ok: false,

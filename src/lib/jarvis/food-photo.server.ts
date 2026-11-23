@@ -26,7 +26,7 @@ async function requestJson<T>(key: string, system: string, content: unknown, sch
     return await Promise.race([aborted, (async () => {
       const response = await (dependencies.fetch ?? fetch)("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, signal: controller.signal,
-        body: JSON.stringify({ model: PHOTO_MODEL, messages: [{ role: "system", content: system }, { role: "user", content }], response_format: { type: "json_object" }, temperature: 0.2, max_completion_tokens: 3000, stream: false }),
+        body: JSON.stringify({ model: PHOTO_MODEL, reasoning_effort: "none", messages: [{ role: "system", content: system }, { role: "user", content }], response_format: { type: "json_object" }, temperature: 0.2, max_completion_tokens: 3000, stream: false }),
       });
       if (controller.signal.aborted) { void response.body?.cancel().catch(() => {}); throw new Error("Interrupted"); }
       if (!response.ok) {

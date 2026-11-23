@@ -9,6 +9,7 @@ test("one isolated vision request returns validated ingredients; no automatic re
     expect(url).toBe("https://api.groq.com/openai/v1/chat/completions");
     const body = JSON.parse(String(init?.body));
     expect(body.model).toBe("qwen/qwen3.8-27b");
+    expect(body.reasoning_effort).toBe("none");
     expect(body.messages).toHaveLength(2);
     expect(body.messages[1].content[1].image_url.url).toBe(request.imageDataUrl);
     expect(JSON.stringify(body.messages[1])).not.toMatch(/whoop|workout|profile/i);

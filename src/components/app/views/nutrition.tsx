@@ -534,11 +534,15 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
     });
   };
 
+  const completeCustomMacros = [p, c, fat].every(value => value.trim() !== "");
+  const emptyCustomMacros = [p, c, fat].every(value => value.trim() === "");
   const customMeal = () => ({
     id: uid(), name: name.trim(), type, createdAt: Date.now(),
-    calories: Number(cal), protein: Number(p), carbs: Number(c), fat: Number(fat),
+    calories: Number(cal),
+    ...(completeCustomMacros ? { protein: Number(p), carbs: Number(c), fat: Number(fat) } : { macroStatus: "unreported" as const }),
   });
   const canSaveCustom = !!name.trim() && !!cal.trim() &&
+    (emptyCustomMacros || completeCustomMacros) &&
     [cal, p, c, fat].every(value => Number.isFinite(Number(value)) && Number(value) >= 0);
 
   const filteredFoods = FOODS.filter(
@@ -841,6 +845,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
               </div>
             </div>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">Enter all three macros, or leave all three blank to mark them unreported.</p>
           <div className="pt-4">
             <PrimaryButton
               className="w-full rounded-xl h-14 shadow-lg text-lg"

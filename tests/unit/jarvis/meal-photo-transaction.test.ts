@@ -12,6 +12,41 @@ import { todayMealEntries } from "../../../src/lib/analytics/observed-fitness";
 import { createFitCoreBackupEnvelope } from "../../../src/lib/data-backup";
 import { migrateFitCoreDataIfNeeded } from "../../../src/lib/fitcore-data";
 
+test("an unchanged manual meal without explicit provenance can be revised without a false stale conflict", () => {
+  let state = structuredClone(defaultState);
+  state.mealEntries = [
+    {
+      id: "manual",
+      name: "Rice",
+      type: "dinner",
+      calories: 205,
+      protein: 4,
+      carbs: 45,
+      fat: 0,
+      createdAt: Date.now(),
+      notes: "User note",
+      items: [{ name: "Rice", qty: "1 cup", calories: 205, protein: 4, carbs: 45, fat: 0 }],
+    },
+  ];
+  const target = structuredClone(state.mealEntries[0]);
+  const draft = createPhotoMealDraft(estimate, "manual-correction");
+  const revised = revisePhotoMealLocally(draft, "the rice was 2 cups");
+  if (!revised?.ok) throw new Error("No revision");
+  const result = savePhotoMealDraft(
+    revised.draft,
+    state,
+    (update) => {
+      state = migrateFitCoreDataIfNeeded(update(state));
+      return true;
+    },
+    true,
+    target,
+  );
+  expect(result.ok).toBe(true);
+  expect(state.mealEntries).toHaveLength(1);
+  expect(state.mealEntries[0]).toMatchObject({ id: target.id, calories: 410, notes: target.notes });
+});
+
 const estimate = {
   name: "Rice",
   mealType: "dinner",

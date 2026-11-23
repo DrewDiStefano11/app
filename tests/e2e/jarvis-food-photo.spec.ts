@@ -8,6 +8,53 @@ import type { AppState } from "../../src/lib/types";
 
 test.use({ serviceWorkers: "block" });
 
+test("Fuel opens the photo workflow and existing meals are conversationally corrected in place", async ({
+  page,
+}) => {
+  const original = {
+    id: "existing-rice",
+    name: "Rice dinner",
+    type: "dinner",
+    calories: 205,
+    protein: 4,
+    carbs: 45,
+    fat: 0,
+    notes: "User note: cooked weight, no butter.",
+    createdAt: Date.now(),
+    items: [{ name: "Rice", qty: "1 cup", calories: 205, protein: 4, carbs: 45, fat: 0 }],
+  };
+  await seedRevisionedFitCoreState(
+    page,
+    currentFitCoreState({
+      onboardingComplete: true,
+      mealEntries: [original],
+      jarvisSettings: { allowCloudText: false },
+    }),
+  );
+  await page.getByRole("button", { name: "Fuel", exact: true }).click();
+  await page.getByRole("button", { name: "Log Meal", exact: true }).first().click();
+  await page.getByRole("button", { name: "Photo Log", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Meal photo review" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Log Meal", exact: true })).toBeHidden();
+  await page.getByRole("button", { name: "Discard meal photo", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Edit meal", exact: true }).click();
+  await page.getByRole("button", { name: "Correct with Jarvis", exact: true }).click();
+  const review = page.getByRole("region", { name: "Meal photo review" });
+  await expect(review.getByText("205 kcal", { exact: true })).toBeVisible();
+  await page.getByRole("textbox", { name: "Jarvis message" }).fill("the rice was 2 cups");
+  await page.getByRole("button", { name: "Send message to Jarvis", exact: true }).click();
+  await expect(review.getByText("410 kcal", { exact: true })).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).mealEntries[0].calories).toBe(205);
+  await review.getByRole("button", { name: "Save corrected meal", exact: true }).click();
+  await expect(review.getByRole("button", { name: "Undo saved meal", exact: true })).toBeVisible();
+  const meals = (await readPersistedFitCoreState(page)).mealEntries;
+  expect(meals).toHaveLength(1);
+  expect(meals[0]).toMatchObject({ id: original.id, calories: 410, notes: original.notes });
+  await review.getByRole("button", { name: "Undo saved meal", exact: true }).click();
+  expect((await readPersistedFitCoreState(page)).mealEntries[0]).toMatchObject(original);
+});
+
 test("voice corrections and voice confirmation share the photo review without reuploading the image", async ({
   page,
 }) => {
@@ -199,7 +246,8 @@ test("food photo is independently estimated, conversationally corrected, explici
   ).toBeVisible();
   expect(calls).toBe(1);
   expect((await readPersistedFitCoreState(page)).mealEntries).toHaveLength(0);
-  await page.screenshot({ path: testInfo.outputPath("food-photo-review.png"), fullPage: true });
+  await review.getByText("698 kcal", { exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("food-photo-review.png"), fullPage: false });
   await input.fill("Looks good, save it.");
   await input.press("Control+Enter");
   await expect(review.getByRole("button", { name: "Undo saved meal", exact: true })).toBeVisible();

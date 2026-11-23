@@ -184,3 +184,12 @@ User reports physical iPhone WHOOP data loss on both hidden/foreground and full 
 Final WHOOP evidence: implementation commit `c0e9d12`; 950 units/0 failures, TypeScript, scoped production lint and final Vercel build passed. Final production mobile WHOOP lifecycle/callback/Jarvis-isolation batch passed36/36 in2.9 minutes. No production source changed after this artifact build. Physical installed-iPhone acceptance remains pending; no manual deployment or cache-permission changes performed. Publish focused PR from codex/fitcore-whoop-lifecycle into main, then resume photo/library on preserved919446a.
 
 WHOOP lifecycle fix published in draft PR #307: https://github.com/DrewDiStefano11/app/pull/307 (head0eab045). Integrated its tested code into the photo branch before resuming photo final acceptance.
+
+
+### Preserved photo checkpoint for user-requested #306/#307 integration
+
+- Resumed photo/voice/library development after publishing WHOOP #307. Integrated its source into photo branch (f58c24b). Photo-specific mobile development batch10/10 passed, including spoken correction/confirmation and single-image upload.
+- Closed remaining Freebuff BUG-02 Fuel custom-food gap: blank macros persist as unreported for both meal and reusable food; partial macros are rejected. New browser test reproduced the enabled-save defect before the fix, then passed in both engines in the production batch.
+- Full units968 passed, TypeScript/scoped semantic lint and Vercel build passed. Production integration batch48/50 passed (6.5 minutes): two new existing-manual-meal correction cases falsely rejected an unchanged raw target because default provenance was normalized on only one side. Added failing unit, normalized both comparisons, then affected transaction/server/library units9/9 passed. This final guard fix still needs production rerun; do not claim50/50. Rapid Save fix and text/voice acceptance passed in both engines.
+- Model uses documented Groq instruct mode reasoning_effort=none; provider docs rechecked https://console.groq.com/docs/model/qwen/qwen3.8-27b .
+- User now reports #305 merged into main, #306 all CI green but old base, #307 conflicts following #305 merge. Current food work is being committed intact before reconciling #306 then #307 against latest main, validating focused diffs and merging in that order under explicit authorization. Resume photo acceptance/publish after that integration. No repeated general audits.
