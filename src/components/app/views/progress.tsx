@@ -15,12 +15,12 @@ import {
   ChevronRight,
   Dumbbell,
   Zap,
-  LineChart,
   Flame,
 } from "lucide-react";
 
 import { useStore, uid } from "@/lib/store";
 import { useWhoopSnapshot } from "@/hooks/use-whoop-snapshot";
+import { MetricComparison } from "@/components/app/metric-comparison";
 import { weeklyVolumeSeries, bodyweightDelta, momentumScore } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
@@ -55,7 +55,7 @@ export function ProgressView({ layoutMode = "daily" }: { layoutMode?: LayoutMode
   const [tab, setTab] = useState<DeepDiveTab>("analytics");
   const isDeepDive = layoutMode === "deepDive";
   return (
-    <div className="pb-24" style={{ "--section": "var(--gold)" } as any}>
+    <div className="pb-24">
       <PageHeader
         title="Progress"
         subtitle={`Your trends and milestones - ${isDeepDive ? "Deep Dive" : "Daily View"}`}
@@ -632,12 +632,9 @@ function PhotosSection() {
 
 function AnalyticsTab() {
   const { state } = useStore();
+  const snapshot = useWhoopSnapshot();
   const [range, setRange] = useState<"14d" | "30d" | "90d">("30d");
-  const [metricA, setMetricA] = useState<
-    "calories" | "protein" | "volume" | "sleep" | "hrv" | "soreness"
-  >("calories");
-  const [metricB, setMetricB] = useState<"weight" | "strength" | "performance">("weight");
-  const [openDetail, setOpenDetail] = useState<"volume" | "bw" | "correlation" | "momentum" | null>(
+  const [openDetail, setOpenDetail] = useState<"volume" | "bw" | "momentum" | null>(
     null,
   );
 
@@ -650,7 +647,7 @@ function AnalyticsTab() {
     () => [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt),
     [state.bodyweightEntries],
   );
-  const bwInRange = sortedBw.filter((b) => b.createdAt > Date.now() - days * 86400000);
+  const bwInRange = sortedBw.filter((b) => b.createdAt <= Date.now() && b.createdAt > Date.now() - days * 86400000);
 
   return (
     <div className="px-5 space-y-4">
@@ -668,46 +665,7 @@ function AnalyticsTab() {
       </div>
 
       <SectionHeader title="Correlations" />
-      <Card>
-        <p className="text-sm font-medium mb-3">Compare Metrics</p>
-        <div className="flex gap-2 mb-4">
-          <Select
-            value={metricA}
-            onChange={(e) => setMetricA(e.target.value as any)}
-            className="flex-1 bg-background text-xs py-1.5 px-2"
-          >
-            <option value="calories">Calories</option>
-            <option value="protein">Protein</option>
-            <option value="volume">Volume</option>
-            <option value="sleep">Sleep</option>
-            <option value="hrv">HRV</option>
-            <option value="soreness">Soreness</option>
-          </Select>
-          <span className="text-muted-foreground self-center text-xs">vs</span>
-          <Select
-            value={metricB}
-            onChange={(e) => setMetricB(e.target.value as any)}
-            className="flex-1 bg-background text-xs py-1.5 px-2"
-          >
-            <option value="weight">Weight</option>
-            <option value="strength">Strength</option>
-            <option value="performance">Performance</option>
-          </Select>
-        </div>
-
-        <div
-          className="h-32 bg-[var(--surface-2)] rounded-xl border border-dashed border-border flex items-center justify-center cursor-pointer active:scale-[0.98] transition-transform"
-          onClick={() => setOpenDetail("correlation")}
-        >
-          <div className="text-center text-muted-foreground px-4">
-            <LineChart className="mx-auto mb-2 opacity-50" size={24} />
-            <p className="text-sm font-medium">Needs more data</p>
-            <p className="text-xs mt-1">
-              Log both {metricA} and {metricB} consistently for 14+ days to see their relationship.
-            </p>
-          </div>
-        </div>
-      </Card>
+      <MetricComparison state={state} snapshot={snapshot} days={days} />
 
       <SectionHeader title="Long-term Trends" />
 
@@ -755,7 +713,7 @@ function AnalyticsTab() {
         <div className="flex justify-between items-start mb-2">
           <div>
             <p className="font-semibold flex items-center gap-1">Bodyweight Trend</p>
-            <p className="text-xs text-muted-foreground mt-0.5">Fluctuations vs. True Trend</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Recorded weigh-ins</p>
           </div>
           <ChevronRight size={16} className="text-muted-foreground" />
         </div>
@@ -771,34 +729,6 @@ function AnalyticsTab() {
           </div>
         )}
       </Card>
-
-      <BottomSheet
-        open={openDetail === "correlation"}
-        onClose={() => setOpenDetail(null)}
-        title={`${metricA} vs ${metricB}`}
-      >
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
-            This visualization will compare how your{" "}
-            <strong className="capitalize text-foreground">{metricA}</strong> relates to your{" "}
-            <strong className="capitalize text-foreground">{metricB}</strong> over time.
-          </p>
-          <div className="bg-[var(--surface-2)] p-4 rounded-xl text-sm">
-            <p className="font-medium mb-1 flex items-center gap-1">
-              <Info size={14} className="text-[var(--section)]" /> What this might suggest
-            </p>
-            <p className="text-muted-foreground">
-              Observing this relationship can help identify if changes in {metricA} are positively
-              or negatively impacting your {metricB}. Note that correlations do not guarantee
-              causation.
-            </p>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            <strong>Status:</strong> Needs more consistent daily logs to generate a valid
-            statistical comparison. Ensure you are logging {metricA} and {metricB} data.
-          </p>
-        </div>
-      </BottomSheet>
 
       <BottomSheet
         open={openDetail === "volume"}
@@ -833,9 +763,8 @@ function AnalyticsTab() {
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Daily weight fluctuations are normal and expected due to water retention, glycogen
-            storage, sodium intake, and digestion. The long-term trend line shown here filters out
-            daily noise to reveal your actual direction of progress over {days} days.
+            This chart connects your recorded weigh-ins over the selected {days} days.
+            It does not smooth daily fluctuations or estimate missing measurements.
           </p>
         </div>
       </BottomSheet>
