@@ -16,6 +16,7 @@ type Connection = {
   revision: number;
   eventRevision: number;
   lastSyncedAt: string | null;
+  lastDeletedAt?: string | null;
   status: "connected" | "reconnect_required" | "disconnecting";
 };
 
@@ -146,8 +147,11 @@ export function createWhoopStore(query: Query) {
       const [connection] = await query<Connection>(
         `select id, token_envelope as envelope, expires_at::text as "expiresAt", revision, status,
            event_revision as "eventRevision",
-           to_char(last_synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "lastSyncedAt"
-         from fitcore_whoop.connections where owner_id = $1`,
+           to_char(last_synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "lastSyncedAt",
+           (select to_char(max(event.received_at) at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')
+            from fitcore_whoop.webhook_events event
+            where event.connection_id = connection.id and event.event_type like '%.deleted') as "lastDeletedAt"
+         from fitcore_whoop.connections connection where owner_id = $1`,
         [ownerId],
       );
       return connection ?? null;

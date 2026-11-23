@@ -250,6 +250,7 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
         {
           status: connection?.status ?? "disconnected",
           lastSyncedAt: connection?.lastSyncedAt ?? null,
+          lastDeletedAt: connection?.lastDeletedAt,
           version:
             connection?.status === "connected"
               ? connection.id + ":" + connection.eventRevision

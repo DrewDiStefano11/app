@@ -185,8 +185,17 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
     expect(fetched).toBe(0);
 
     const removeRecovery = () => hook("recovery-1", "recovery.deleted");
+    const beforeDeletion = (await store.getConnection(owner))!.lastDeletedAt;
     expect((await integration.webhook(removeRecovery())).status).toBe(204);
     expect((await integration.webhook(removeRecovery())).status).toBe(204);
+    const deletionWatermark = (await store.getConnection(owner))!.lastDeletedAt;
+    expect(Date.parse(deletionWatermark!)).toBeGreaterThanOrEqual(Date.parse(beforeDeletion!));
+    const statusReply = await integration.status(
+      new Request(origin + "/api/whoop/status", {
+        headers: { Cookie: "__Host-fitcore-whoop-session=" + sessionToken },
+      }),
+    );
+    expect((await statusReply.json()).lastDeletedAt).toBe(deletionWatermark);
     expect((await store.getSnapshot(session))?.records.map((row) => row.kind)).toEqual([
       "sleep",
       "workout",
@@ -259,10 +268,12 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
     expect(await store.getSnapshot(session)).toBeNull();
     expect((await store.getConnection(owner))?.lastSyncedAt).toBe(beforeJarvis?.lastSyncedAt);
     expect(await access?.isCurrent()).toBe(true);
+    const watermarkBeforeUpdate = (await store.getConnection(owner))!.lastDeletedAt;
     expect(
       (await integration.webhook(hook("new-event", "workout.updated", workoutId))).status,
     ).toBe(204);
     expect(await access?.isCurrent()).toBe(false);
+    expect((await store.getConnection(owner))!.lastDeletedAt).toBe(watermarkBeforeUpdate);
     jarvisRead = false;
 
     await db.exec("update fitcore_whoop.connections set sync_after = null");

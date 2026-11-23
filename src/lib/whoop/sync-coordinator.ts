@@ -88,13 +88,13 @@ export function createWhoopSyncCoordinator(transport: Transport) {
     if (expiresAt <= transport.now()) publish(null);
   }
 
-  function resetEvidence(change: Change) {
+  function resetEvidence(change: Change, retainSnapshot = false) {
     generation++;
     reading?.abort();
     nextRenewal = 0;
-    version = undefined;
+    if (!retainSnapshot) version = undefined;
     if (change === "updated") {
-      publish(null);
+      if (!retainSnapshot) publish(null);
     } else {
       snapshot = null;
       snapshotSource = undefined;
@@ -183,14 +183,31 @@ export function createWhoopSyncCoordinator(transport: Transport) {
     if (info?.status === "connected") {
       const nextVersion = typeof info.version === "string" ? info.version : undefined;
       const versionChanged = version !== undefined && version !== nextVersion;
-      if (versionChanged) resetEvidence("updated");
+      if (versionChanged) {
+        // Revisions also advance for ordinary provider updates. Retain the
+        // original lease only when authenticated status proves this is the same
+        // connection with no deletion since this snapshot was synchronized.
+        // Missing metadata (including older servers) remains fail-closed.
+        const sameConnection =
+          nextVersion !== undefined &&
+          nextVersion.lastIndexOf(":") > 0 &&
+          version !== undefined &&
+          version.lastIndexOf(":") > 0 &&
+          nextVersion.slice(0, nextVersion.lastIndexOf(":")) ===
+            version.slice(0, version.lastIndexOf(":"));
+        const noDeletion =
+          info.lastDeletedAt === null ||
+          (typeof info.lastDeletedAt === "string" &&
+            Date.parse(info.lastDeletedAt) < Date.parse(snapshot?.lastSyncedAt ?? ""));
+        resetEvidence("updated", Boolean(snapshot && sameConnection && noDeletion));
+      }
       version = nextVersion;
       authorization = "connected";
       const cachedSnapshotChanged =
         snapshotSource === "cached" &&
         (typeof info.lastSyncedAt === "string" || info.lastSyncedAt === null) &&
         info.lastSyncedAt !== snapshot?.lastSyncedAt;
-      if ((restoreCache || versionChanged) && (!snapshot || cachedSnapshotChanged)) {
+      if (versionChanged || (restoreCache && (!snapshot || cachedSnapshotChanged))) {
         await restoreCachedSnapshot(signal);
       }
     } else if (!response.ok && !isAuthorizationError(response)) {
@@ -463,7 +480,9 @@ export function createWhoopSyncCoordinator(transport: Transport) {
       active = false;
       cancelStatusCheck();
       authorization = "unknown";
-      resetEvidence("updated");
+      // Stopping the refresh owner is not an authorization loss. Keep the
+      // original lease and its expiry timer through unmount/remount.
+      resetEvidence("updated", true);
       arm();
     },
     setForeground,

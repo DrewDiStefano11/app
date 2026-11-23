@@ -156,9 +156,11 @@ test("a malformed renewal never hides unexpired previous evidence or extends its
 
 test("cold startup retries at the server's remaining cooldown instead of restarting two minutes", async () => {
   let attempts = 0;
-  const fixture = setup((_mode, now) => ++attempts === 1
-    ? new Response(null, { status: 409, headers: { "Retry-After": "10" } })
-    : live(now));
+  const fixture = setup((_mode, now) =>
+    ++attempts === 1
+      ? new Response(null, { status: 409, headers: { "Retry-After": "10" } })
+      : live(now),
+  );
   fixture.launch();
   await drain();
   expect(attempts).toBe(1);
@@ -183,13 +185,19 @@ test("continues to retry recoverable 409s and network failures", async () => {
   expect(requests.map(({ at }) => at)).toEqual([0, 120_000, 240_000, 360_000, 480_000]);
 });
 
-test.each([[409, "0"], [409, "invalid"], [429, "10"]] as const)(
+test.each([
+  [409, "0"],
+  [409, "invalid"],
+  [429, "10"],
+] as const)(
   "status %s with Retry-After %s preserves the default minimum cooldown",
   async (status, retry) => {
     let attempts = 0;
-    const fixture = setup((_mode, now) => ++attempts === 1
-      ? new Response(null, { status, headers: { "Retry-After": retry } })
-      : live(now));
+    const fixture = setup((_mode, now) =>
+      ++attempts === 1
+        ? new Response(null, { status, headers: { "Retry-After": retry } })
+        : live(now),
+    );
     fixture.launch();
     await drain();
     await fixture.runFor(119_999);
@@ -746,6 +754,103 @@ test("provider revision change clears the previous snapshot before the cooldown 
   expect(fixture.coordinator.getSnapshot()).not.toBeNull();
   fixture.setStatus(() => Response.json({ status: "connected", version: "synthetic:2" }));
   await fixture.coordinator.revalidate();
+  expect(fixture.coordinator.getSnapshot()).toBeNull();
+  expect(fixture.requests).toHaveLength(1);
+});
+
+test("ordinary provider updates retain the original snapshot through a delayed atomic replacement", async () => {
+  const replacement = Promise.withResolvers<Response>();
+  let attempts = 0;
+  const fixture = setup((_, now) =>
+    ++attempts === 1 ? live(now, 10 * minute) : replacement.promise,
+  );
+  fixture.launch();
+  await drain();
+  const original = fixture.coordinator.getSnapshot();
+  fixture.setStatus(() =>
+    Response.json({ status: "connected", version: "synthetic:2", lastDeletedAt: null }),
+  );
+  await fixture.coordinator.revalidate();
+  expect(fixture.coordinator.getSnapshot()).toBe(original);
+  expect(fixture.coordinator.getSnapshot()?.accessExpiresAt).toBe(original?.accessExpiresAt);
+  await fixture.runFor(2 * minute);
+  expect(fixture.requests).toHaveLength(2);
+  expect(fixture.coordinator.getRefreshing()).toBe(true);
+  expect(fixture.coordinator.getSnapshot()).toBe(original);
+  replacement.resolve(live(start + 2 * minute, 10 * minute, "synthetic:2"));
+  await drain();
+  expect(fixture.coordinator.getSnapshot()?.lastSyncedAt).toBe(
+    new Date(start + 2 * minute).toISOString(),
+  );
+  expect(fixture.coordinator.getSnapshot()).not.toBe(original);
+});
+
+test.each([null, "2026-11-19T11:59:59Z"])(
+  "safe update with deletion watermark %s retains data during a failed sync",
+  async (lastDeletedAt) => {
+    let attempts = 0;
+    const fixture = setup((_, now) =>
+      ++attempts === 1 ? live(now, 10 * minute) : new Response(null, { status: 429 }),
+    );
+    fixture.launch();
+    await drain();
+    const original = fixture.coordinator.getSnapshot();
+    fixture.setStatus(() =>
+      Response.json({ status: "connected", version: "synthetic:2", lastDeletedAt }),
+    );
+    await fixture.coordinator.revalidate();
+    await fixture.runFor(2 * minute);
+    expect(fixture.coordinator.getSnapshot()).toBe(original);
+    await fixture.runFor(8 * minute);
+    expect(fixture.coordinator.getSnapshot()).toBeNull();
+  },
+);
+
+test.each([
+  { version: "synthetic:2", lastDeletedAt: new Date(start).toISOString() },
+  { version: "synthetic:2", lastDeletedAt: new Date(start + 1).toISOString() },
+  { version: "synthetic:2", lastDeletedAt: "invalid" },
+  { version: "another:1", lastDeletedAt: null },
+  { version: "synthetic:2" },
+])(
+  "revision change invalidates when deletion or connection safety is unproven: %j",
+  async (info) => {
+    const fixture = setup((_, now) => live(now));
+    fixture.launch();
+    await drain();
+    fixture.setStatus(() => Response.json({ status: "connected", ...info }));
+    await fixture.coordinator.revalidate();
+    expect(fixture.coordinator.getSnapshot()).toBeNull();
+  },
+);
+
+test("refresh owner stop/start retains the lease, expiration and connection fence", async () => {
+  const fixture = setup((_, now) => live(now, 10 * minute));
+  fixture.launch();
+  await drain();
+  const original = fixture.coordinator.getSnapshot();
+  fixture.coordinator.stop();
+  expect(fixture.coordinator.getSnapshot()).toBe(original);
+  fixture.coordinator.start();
+  await drain();
+  expect(fixture.coordinator.getSnapshot()).toBe(original);
+  fixture.coordinator.stop();
+  fixture.setStatus(() =>
+    Response.json({ status: "connected", version: "another:1", lastDeletedAt: null }),
+  );
+  fixture.coordinator.start();
+  await drain();
+  expect(fixture.coordinator.getSnapshot()).toBeNull();
+});
+
+test("a stopped refresh owner still clears its retained snapshot at the original deadline", async () => {
+  const fixture = setup((_, now) => live(now, 10 * minute));
+  fixture.launch();
+  await drain();
+  fixture.coordinator.stop();
+  await fixture.runFor(10 * minute - 1);
+  expect(fixture.coordinator.getSnapshot()).not.toBeNull();
+  await fixture.runFor(1);
   expect(fixture.coordinator.getSnapshot()).toBeNull();
   expect(fixture.requests).toHaveLength(1);
 });

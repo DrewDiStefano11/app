@@ -31,7 +31,7 @@ async function waitForRefreshToSettle(page: Page) {
   const expand = page.getByRole("button", { name: /Expand navigation/ });
   if (await expand.isVisible()) await expand.click();
   await page.getByRole("button", { name: "Recover", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "WHOOP updated" })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "WHOOP last synced" })).toBeVisible();
   if (await expand.isVisible()) await expand.click();
   await page.getByRole("button", { name: "Home", exact: true }).click();
 }

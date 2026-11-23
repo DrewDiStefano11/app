@@ -1,0 +1,35 @@
+# WHOOP last-valid snapshot continuity — November 23, 2026
+
+Based on main 318f065, preserving #307 and #314. The user's latest physical-iPhone report supersedes earlier acceptance notes: complete close/reopen still loses WHOOP values. Physical resolution is unconfirmed.
+
+## Verified cause and focused change
+
+Production's Vercel environment list was inspected read-only on November 23. It contains only the seven original WHOOP variables. `WHOOP_SNAPSHOT_CACHE_ENABLED`, `WHOOP_BACKGROUND_ENABLED`, and `CRON_SECRET` are absent. No settings or credentials changed. A fresh JavaScript process therefore normally has no durable measurement snapshot to restore. `/records` already authenticates and reads the server snapshot concurrently with status; changing request timing alone cannot recover terminated RAM.
+
+The shared coordinator separately cleared valid measurements when the refresh owner stopped and when status reported a new provider event revision. Event revisions advance for updates as well as deletions. The two new regressions fail against original main.
+
+The coordinator now retains the original snapshot and deadline when its refresh owner stops. Its expiry timer still runs, and restart revalidates the existing connection version. For provider revision changes, authenticated status includes the last deletion receipt time from the same database statement as the connection version. A snapshot survives only when the connection identity matches and the deletion watermark is explicitly null or strictly older than that snapshot's successful sync. Missing/invalid metadata, connection changes, deletions, definitive authorization loss and expiry still invalidate. Existing generation/abort fences reject superseded responses. No schema migration is needed; the runtime role already has SELECT on webhook metadata.
+
+Home, Recovery, Sleep, Stats and Deep Dive continue using the existing single external snapshot store and selectors. Sync progress remains separate. Valid replacements publish once with the complete record collection. Recoverable errors and rate limits do not alter a valid original lease or its successful-sync timestamp. The status text says “WHOOP last synced” after a request settles.
+
+## Cache policy and the remaining production prerequisite
+
+WHOOP's current API Terms, effective October 6, 2026, section 4.2.2 prohibit permanent copies and cached copies beyond the provider's cache header. Section 4.2.6 requires deletion when API access ends. See [WHOOP API Terms](https://developer.whoop.com/api-terms-of-use/).
+
+No published universal duration was established for Recovery, Sleep, Cycle or Workout. The **actual authenticated response headers have not been observed in this session**, so no specific live retention duration or claim that WHOOP forbids all caching is justified. Vercel marks the production credentials as Secret and disables copying their values. User approval for a read-only header check does not make those values retrievable through that UI.
+
+Existing policy evaluates every page of all four collections. `no-store`, `no-cache`, missing/ambiguous `max-age`, invalid Date/Age or exhausted freshness prevent persistent caching. A positive lifetime is reduced by Date/Age and request time; the shortest remaining page lifetime bounds the complete snapshot. Mixed restricted and permitted pages cannot produce a durable combined snapshot. Browser display remains bounded by session authorization, the current server display lease and the shortest positive page freshness; no deadline is extended by retries or this change.
+
+The existing Postgres path additionally requires the snapshot flag and a configured background cleanup secret. It subtracts **32 hours** from provider freshness to allow daily cleanup, six-hour database recovery copies and drift, and caps serving at **24 hours**. A short positive cache lifetime therefore does not make this database path usable. Enabling flags alone would not solve that limitation. Cleanup failure and the database's actual backup/branch retention must also be verified before activation. No cache flags, browser health storage, backups or server measurement retention are enabled here.
+
+`bun scripts/whoop-cache-headers.ts` is a narrowly scoped read-only probe for a trusted environment that already has the existing server variables securely injected. It reads the current encrypted connection, requires a token with at least 30 seconds remaining, and requests one page from each collection. It prints only collection name, HTTP status, Cache-Control, Age and Date, then cancels each response body. It performs no credential refresh, writes, retries, snapshot storage or measurement logging, and stops on a provider rejection. Do not paste secrets into a command or the chat. Its sample headers establish only those responses' policy; actual sync still checks every page.
+
+Until real headers and appropriate storage/cleanup guarantees are established, production remains live-only. A complete restart can restore a permitted unexpired server snapshot when one exists, but cannot reuse terminated RAM. Offline cold restart cannot restore a server-only snapshot. This is a remaining operational/policy prerequisite, not a proven physical-iPhone fix. Broader follow-on development waits behind that primary objective.
+
+## Regression coverage and acceptance
+
+Focused unit and real Postgres integration cases cover ordinary updates, deletion metadata, original expiration, controller restart, connection replacement, rate limiting, atomic publication and existing authorization fences. Browser regressions cover cross-screen continuity and close the entire WebKit/Chromium engine before launching a second process with only the prior browser's ordinary persisted state. The second process tests authorized server restoration before delayed status, automatic replacement, expired/revoked rejection, and absence of WHOOP data in local/session storage, IndexedDB state or Cache Storage. These use synthetic routes, not live provider measurements; the existing server tests independently exercise session isolation and cache permissions.
+
+Run the production-artifact WHOOP dashboard and sync-continuity suites in iPhone WebKit and mobile Chromium. Record results in the PR. Repository-wide lint currently includes existing CRLF/formatting failures and four existing semantic violations; scoped changed-code lint and TypeScript are the useful additional checks. Do not claim full lint is clean.
+
+Physical acceptance after the verified deployment: fully terminate and reopen the installed iPhone PWA, observe whether authorized values appear before fresh sync, confirm replacement without blanks, and repeat across original expiry, temporary provider failure, lock and disconnect. The user must confirm the physical outcome before calling the issue resolved.
