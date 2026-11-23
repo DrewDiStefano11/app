@@ -175,3 +175,7 @@ Freebuff reports are now available: branch `freebuff/bd2ddd2dfd6e1e767988885d`, 
 - #304 retargeted to main and merged as `ebc5f41a923d023881bb9e9ab11760154af1e72f`. Final merged tree verified equal to reviewed daily tree plus the validated 35-minute release-job ceiling, all test selectors retained. Original code diff against d87b7a9 is only the workflow budget/comments.
 - Follow-up drafts #305 (activity/scroll) and #306 (save safety, head ecb3710) remain separately preserved. User merge authorization specifically covered #303/#304. No manual deployment or provider changes performed.
 - Resume photo/library implementation now. Official Groq vision docs rechecked 2026-11-23: https://console.groq.com/docs/vision lists qwen/qwen3.8-27b with JSON mode, matching checkpoint model.
+
+### Chronological workout history (Freebuff BUG-13)
+
+Confirmed against main dfe29ab with a failing browser test: unsorted imported sessions showed an older Last workout. Isolated codex/fitcore-workout-history-order now selects latest startedAt and sorts a copy for displayed history; persisted order remains unchanged. Coverage includes7d/all filters and reload plus existing history correction/deletion/rejected-write cases.2 focused units, TypeScript/scoped semantic lint, Vercel build,6 development and6 final production mobile cases passed. Independent read-only review clear. No broader audit, schema/dependency change or manual deployment. Publish this focused PR, then return to the photo/library integration checks on c7e1813 (#308), with weigh-in #309 preserved independently.
