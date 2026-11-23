@@ -81,3 +81,10 @@ export function recoveryCheckInReadinessScore(checkIn: RecoveryCheckIn): number 
     ) * 100,
   );
 }
+
+
+/** Logged local-day records only; a future timestamp cannot contribute to today's totals. */
+export function todayMealEntries(state: Pick<AppState, "mealEntries">, now = Date.now()) {
+  const date = dayKey(now);
+  return state.mealEntries.filter(meal => Number.isFinite(meal.createdAt) && meal.createdAt > 0 && meal.createdAt <= now && dayKey(meal.createdAt) === date);
+}

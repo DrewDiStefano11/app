@@ -8,6 +8,21 @@ import {
 test.use({ serviceWorkers: "block" });
 
 test.beforeEach(async ({ page }) => {
+  // Isolate the foreground coordinator as well as the Jarvis status query.
+  for (const endpoint of ["records", "sync"]) {
+    await page.route(`**/api/whoop/${endpoint}`, (route) =>
+      route.fulfill({
+        json: {
+          records: [],
+          lastSyncedAt: new Date().toISOString(),
+          accessExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+        },
+      }),
+    );
+  }
+});
+
+test.beforeEach(async ({ page }) => {
   await page.route("**/api/whoop/status", (route) =>
     route.fulfill({ json: { status: "connected", jarvisSharingAvailable: true } }),
   );

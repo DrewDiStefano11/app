@@ -81,7 +81,7 @@ export function queryBenchHistory(
 
   const names = WEEKDAYS.join("|");
   const direct = new RegExp(
-    `^(?:what did i bench|how much did i bench|what was my bench weight)(?: last (${names}))?$`,
+    `^(?:what did i bench|how much did i bench|what was my bench weight)(?: last (${names})| last time)?$`,
   ).exec(text);
   const followUp = prior.length
     ? new RegExp(`^what about (?:last )?(${names})$`).exec(text)

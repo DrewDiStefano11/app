@@ -5,7 +5,7 @@ import { jarvisProviderKeys } from "@/lib/jarvis/provider-keys";
 import { useStore } from "@/lib/store";
 import type { JarvisSettings } from "@/lib/types";
 import { testAiConnection } from "@/lib/ai.functions";
-import { GEMINI_MODELS, GROQ_MODELS, selectedGroqModel } from "@/lib/jarvis/provider-models";
+import { GEMINI_MODELS, GROQ_MODELS, JARVIS_GEMINI_PERSONAL_DATA_ENABLED, GEMINI_PERSONAL_DATA_NOTICE, selectedGroqModel } from "@/lib/jarvis/provider-models";
 import { Card, GhostButton, Input, Label, PrimaryButton, Select } from "../ui";
 
 const AI_DIAGNOSTICS_STORAGE = "fitcore.jarvis.aiDiagnostics.v1";
@@ -236,7 +236,7 @@ export function JarvisSettingsCard() {
             <Label>Provider</Label>
             <Select value={s.aiProvider ?? "groq"} onChange={e => upd({ aiProvider: e.target.value as JarvisSettings["aiProvider"] })}>
               <option value="groq">Groq - recommended/default</option>
-              <option value="gemini">Gemini - backup</option>
+              <option value="gemini" disabled={!JARVIS_GEMINI_PERSONAL_DATA_ENABLED}>Gemini - unavailable for personal data</option>
               {s.aiProvider === "legacy-lovable" && <option disabled value="legacy-lovable">Shared access unavailable</option>}
             </Select>
           </div>
@@ -262,12 +262,12 @@ export function JarvisSettingsCard() {
             <StatusLine status={groqStatus} text={groqStatusText} />
             <Toggle label="Auto model routing" val={s.autoModelRouting !== false} onChange={v => upd({ autoModelRouting: v })} hint="Uses Qwen 3.8 for requests with tools." />
             <Toggle label="Auto fallback when model fails" val={s.autoAiFallback === true} onChange={v => upd({ autoAiFallback: v })} hint="Allows one attempt with a second Groq model." />
-            <Toggle label="Allow Gemini fallback" val={Boolean(s.allowGeminiFallback)} onChange={v => upd({ allowGeminiFallback: v })} hint="Allows a second request to Google Gemini with the same text after an eligible Groq error." />
+            <p className="text-xs text-muted-foreground">{GEMINI_PERSONAL_DATA_NOTICE}</p>
           </div>
 
           <div className="rounded-2xl border border-border bg-[var(--surface-2)] p-3 space-y-3">
             <p className="text-sm font-semibold">Gemini backup</p>
-            <p className="text-xs text-muted-foreground">Gemini is kept for backup text, image-food estimation, and future multimodal features. Free quota can be limited.</p>
+            <p className="text-xs text-muted-foreground">Gemini personal-data requests and fallback are disabled. Connection tests send a synthetic prompt only.</p>
             <p className="text-xs text-muted-foreground">{modelLabel(geminiModel)}</p>
             <div>
               <Label>Gemini API key</Label>

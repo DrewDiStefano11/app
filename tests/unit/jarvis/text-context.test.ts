@@ -351,3 +351,13 @@ test("an extra scoop adjusts one matching item in the reviewed meal", () => {
     reply: expect.stringContaining("Name one item"),
   });
 });
+
+
+test("last time bench questions answer from the saved completed set locally", () => {
+  const state = structuredClone(defaultState);
+  state.workouts = [{ id: "saved", name: "Bench", startedAt: Date.now() - 120_000,
+    endedAt: Date.now() - 60_000, exercises: [{ id: "row", exerciseId: "bench-press", completed: true,
+      sets: [{ id: "set", completed: true, weight: 185, reps: 8 }] }] }];
+  const result = interpretJarvisText("What did I bench last time?", state);
+  expect(result && "reply" in result ? result.reply : null).toContain("185 lb × 8");
+});

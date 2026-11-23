@@ -1,3 +1,4 @@
+import { JARVIS_GEMINI_PERSONAL_DATA_ENABLED } from "@/lib/jarvis/provider-models";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Sparkles, Send, Loader2, Mic } from "lucide-react";
 import { BottomSheet } from "../sheet";
@@ -299,13 +300,13 @@ export function JarvisPanel({ section }: { section: string }) {
         provider,
         geminiKeyMode: normalizedKeyMode(settings.geminiKeyMode),
         geminiModel: settings.geminiModel,
-        userGeminiApiKey: (provider === "gemini" || settings.allowGeminiFallback) && savedGeminiKey ? savedGeminiKey : undefined,
+        userGeminiApiKey: JARVIS_GEMINI_PERSONAL_DATA_ENABLED && (provider === "gemini" || settings.allowGeminiFallback) && savedGeminiKey ? savedGeminiKey : undefined,
         groqKeyMode: normalizedKeyMode(settings.groqKeyMode),
         groqModel: settings.groqModel,
         userGroqApiKey: provider === "groq" && savedGroqKey ? savedGroqKey : undefined,
         autoModelRouting: settings.autoModelRouting !== false,
         autoAiFallback: settings.autoAiFallback === true,
-        allowGeminiFallback: Boolean(settings.allowGeminiFallback),
+        allowGeminiFallback: JARVIS_GEMINI_PERSONAL_DATA_ENABLED && Boolean(settings.allowGeminiFallback),
       } }) as ChatResp;
       if (includeWhoop && sentWhoopEpoch !== whoopEpoch.current) return;
       recordDiagnostics(res.diagnostics);

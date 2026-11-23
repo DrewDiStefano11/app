@@ -1,4 +1,6 @@
-import { useLibraryPortions } from "./food-reference";
+import { todayMealEntries } from "../analytics/observed-fitness";
+import { calculateMealTotals } from "../analytics/domain-metrics";
+import { resolveLibraryPortions } from "./food-reference";
 import { isUsualMealSlot, mealMacroFields, readMealMacros, readUsualMeal, USUAL_MEAL_SLOTS, usualMealSlots, writeUsualMeal, type UsualMealPreference } from "./usual-meals";
 import { correctMealPortion } from "./meal-portion";
 import { latestRecoveryCheckInToday } from "./recovery-text";
@@ -131,17 +133,8 @@ function loggedMealExists(state: AppState, audit: JarvisAuditEntry) {
   return state.mealEntries.some(meal => audit.entityIds?.includes(meal.id));
 }
 function todaysMealsTotal(s: AppState) {
-  const start = todayStart();
-  const totals = s.mealEntries.filter(meal => meal.createdAt >= start).reduce(
-    (totals, meal) => ({
-      calories: totals.calories + meal.calories,
-      protein: totals.protein + (meal.protein ?? 0),
-      carbs: totals.carbs + (meal.carbs ?? 0),
-      fat: totals.fat + (meal.fat ?? 0),
-      mealsWithoutMacros: totals.mealsWithoutMacros + Number(meal.macroStatus === "unreported"),
-    }),
-    { calories: 0, protein: 0, carbs: 0, fat: 0, mealsWithoutMacros: 0 },
-  );
+  const meals = todayMealEntries(s);
+  const totals = { ...calculateMealTotals(meals), mealsWithoutMacros: meals.filter(meal => meal.macroStatus === "unreported").length };
   return totals.mealsWithoutMacros
     ? { ...totals, protein: null, carbs: null, fat: null }
     : totals;
@@ -199,7 +192,7 @@ const handlers: Record<ToolName, ToolHandler> = {
     return { ok: true, summary: "today snapshot", data: { calories: `${tot.calories} / ${tgt.calories}`, protein: tot.protein === null ? "Some meals have unreported macros." : `${tot.protein}g / ${tgt.protein}g`, lastWorkout: last ? { name: last.name, daysAgo: Math.floor((Date.now() - last.startedAt) / 86400000) } : null, lastCheckIn: ci ? { energy: ci.energy, soreness: ci.soreness, stress: ci.stress } : null } };
   },
   getNutritionStatus: (_a, { state }) => {
-    const meals = state.mealEntries.filter(item => sameDay(item.createdAt));
+    const meals = todayMealEntries(state);
     if (!meals.length) return { ok: true, summary: "There are no meals logged today." };
     const totals = todaysMealsTotal(state);
     const summary = totals.protein === null ? `Today's meal log: ${totals.calories} kcal. Some meals have unreported macros.` : `Today's meal log: ${totals.calories} kcal and ${totals.protein} g protein, including saved estimates.`;
@@ -410,7 +403,7 @@ const handlers: Record<ToolName, ToolHandler> = {
   },
   getSupplementStatus: (_a, { state }) => { const today = state.supplementLogs.filter(s => s.createdAt >= todayStart()), routine = state.userGoalsProfile.supplementRoutine ?? [], taken = today.map(s => s.name.toLowerCase()); return { ok: true, summary: `${today.length} taken today`, data: { takenToday: today, routine, missing: routine.filter(r => !taken.some(t => t.includes(r.toLowerCase()))) } }; },
   getMissedHabits: (_a, { state }) => { const missed: { habit: string; reason: string }[] = [], totals = todaysMealsTotal(state), target = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein; if (totals.protein !== null && totals.protein < ptarget * 0.7 && Date.now() - todayStart() > 12 * 3600000) missed.push({ habit: "protein", reason: `${totals.protein}g / ${ptarget}g target` }); if (totals.calories < target * 0.5 && Date.now() - todayStart() > 14 * 3600000) missed.push({ habit: "calories", reason: `${totals.calories} / ${target} kcal` }); if (!state.bodyweightEntries.some(b => b.createdAt >= todayStart()) && state.userGoalsProfile.normalWeighInTime) missed.push({ habit: "weigh-in", reason: "not logged today" }); if (!state.recoveryCheckIns.some(c => c.createdAt >= todayStart())) missed.push({ habit: "check-in", reason: "no daily check-in yet" }); return { ok: true, summary: `${missed.length} missed habits`, data: missed }; },
-  getDailyReviewSummary: (_a, { state }) => { const totals = todaysMealsTotal(state), target = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein, meals = state.mealEntries.filter(m => m.createdAt >= todayStart()), supps = state.supplementLogs.filter(s => s.createdAt >= todayStart()), ci = state.recoveryCheckIns.filter(c => c.createdAt >= todayStart()).at(-1), bw = state.bodyweightEntries.filter(b => b.createdAt >= todayStart()).at(-1), workout = state.workouts.find(w => w.startedAt >= todayStart()); return { ok: true, summary: "daily review", data: { calories: { logged: totals.calories, target, remaining: Math.max(0, target - totals.calories) }, protein: { logged: totals.protein, target: ptarget, remaining: totals.protein === null ? null : Math.max(0, ptarget - totals.protein) }, macros: totals, mealsLogged: meals.length, lowConfidenceMeals: meals.filter(m => m.confidence === "low").length, supplementsToday: supps.map(s => s.name), bodyweight: bw?.weightLb ?? null, checkIn: ci ?? null, workoutToday: workout?.name ?? null } }; },
+  getDailyReviewSummary: (_a, { state }) => { const totals = todaysMealsTotal(state), target = state.userGoalsProfile.calorieGoal ?? state.nutritionTargets.calories, ptarget = state.userGoalsProfile.proteinGoal ?? state.nutritionTargets.protein, meals = todayMealEntries(state), supps = state.supplementLogs.filter(s => s.createdAt >= todayStart()), ci = state.recoveryCheckIns.filter(c => c.createdAt >= todayStart()).at(-1), bw = state.bodyweightEntries.filter(b => b.createdAt >= todayStart()).at(-1), workout = state.workouts.find(w => w.startedAt >= todayStart()); return { ok: true, summary: "daily review", data: { calories: { logged: totals.calories, target, remaining: Math.max(0, target - totals.calories) }, protein: { logged: totals.protein, target: ptarget, remaining: totals.protein === null ? null : Math.max(0, ptarget - totals.protein) }, macros: totals, mealsLogged: meals.length, lowConfidenceMeals: meals.filter(m => m.confidence === "low").length, supplementsToday: supps.map(s => s.name), bodyweight: bw?.weightLb ?? null, checkIn: ci ?? null, workoutToday: workout?.name ?? null } }; },
   updateDailyCheckIn: (args, { set, state, confirmed, now = new Date() }) => {
     const last = latestRecoveryCheckInToday(state, now);
     if (!last) return { ok: false, summary: "no check-in today", error: "Run logDailyCheckIn first." };
@@ -556,7 +549,7 @@ export function runTool(name: string, args: Record<string, unknown>, ctx: RunCon
   if ((name === "logMeal" || name === "logReferenceMeal") && Array.isArray(checked.items)) {
     const items = checked.items as JarvisMealItem[];
     if (name === "logMeal" && !ctx.confirmed) {
-      const referenced = useLibraryPortions(items);
+      const referenced = resolveLibraryPortions(items);
       checked.items = referenced.items;
       if (referenced.matched.length) {
         const note = `Used FitCore food library values for ${referenced.matched.join(", ").slice(0, 960)}.`;

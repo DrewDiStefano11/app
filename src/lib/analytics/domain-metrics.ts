@@ -1,6 +1,6 @@
 import type { AppState, RecoveryCheckIn, Workout } from "../types";
 import { calculateNutritionAdherence, calculateRecoveryEstimate } from "./personal-scores";
-import { calculateWorkoutVolume, recordedRecoveryCheckIns, recoveryCheckInReadinessScore } from "./observed-fitness";
+import { calculateWorkoutVolume, todayMealEntries, recordedRecoveryCheckIns, recoveryCheckInReadinessScore } from "./observed-fitness";
 export { calculateSetVolume, calculateWorkoutVolume, recoveryCheckInReadinessScore } from "./observed-fitness";
 import {
   allTimeWindow,
@@ -1295,9 +1295,9 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
   const previousRange = previous7DaysWindow(now);
   const historyRange = allTimeWindow(now);
   const validMeals = state.mealEntries.filter(
-    (meal) => validTimestamp(meal.createdAt) && dateRangeContains(historyRange, meal.createdAt),
+    (meal) => validTimestamp(meal.createdAt) && meal.createdAt <= now && dateRangeContains(historyRange, meal.createdAt),
   );
-  const todayMeals = validMeals.filter((meal) => dateRangeContains(today, meal.createdAt));
+  const todayMeals = todayMealEntries(state, now);
   const missingMacros = todayMeals.some((meal) => meal.macroStatus === "unreported");
   const recentMeals = validMeals.filter((meal) => dateRangeContains(recentRange, meal.createdAt));
   const previousMeals = validMeals.filter((meal) =>

@@ -33,3 +33,8 @@ export function selectedGeminiModel(_model?: unknown): CurrentGeminiModel {
 
 // Photo analysis reopens with explicit image review and consent in the photo milestone.
 export const JARVIS_PHOTO_ANALYSIS_ENABLED = false;
+
+
+// Unpaid Gemini terms prohibit personal/sensitive input. No paid use is authorized.
+export const JARVIS_GEMINI_PERSONAL_DATA_ENABLED = false;
+export const GEMINI_PERSONAL_DATA_NOTICE = "Gemini is unavailable for personal fitness data under its unpaid-service terms. Choose Groq or use local logging.";

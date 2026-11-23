@@ -110,7 +110,7 @@ export function queryLibraryMeal(
   };
 }
 
-export function useLibraryPortions(items: JarvisMealItem[]) {
+export function resolveLibraryPortions(items: JarvisMealItem[]) {
   const matched: string[] = [];
   const resolved = items.map((item) => {
     const food = lookup(item.name.trim().toLowerCase());

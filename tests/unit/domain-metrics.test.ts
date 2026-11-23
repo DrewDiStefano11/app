@@ -214,7 +214,7 @@ test("nutrition analytics use real logged-day totals and averages", () => {
       }),
     ],
   });
-  const analytics = getNutritionAnalytics(state, NOW);
+  const analytics = getNutritionAnalytics(state, localTime(2026, 0, 15, 20));
 
   assert.equal(analytics.caloriesToday.value, 1500);
   assert.equal(analytics.proteinToday.value, 120);

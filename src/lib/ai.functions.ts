@@ -23,6 +23,8 @@ import {
 
 import {
   JARVIS_PHOTO_ANALYSIS_ENABLED,
+  JARVIS_GEMINI_PERSONAL_DATA_ENABLED,
+  GEMINI_PERSONAL_DATA_NOTICE,
   STORED_GEMINI_MODELS,
   STORED_GROQ_MODELS,
 } from "./jarvis/provider-models";
@@ -96,6 +98,7 @@ function parseJsonText(raw: string) {
 export const aiChat = createServerFn({ method: "POST" })
   .inputValidator(chatInputSchema)
   .handler(async ({ data }) => {
+    if (data.provider === "gemini" && !JARVIS_GEMINI_PERSONAL_DATA_ENABLED) return fail(GEMINI_PERSONAL_DATA_NOTICE, "permission_denied");
     try {
       if (data.includeWhoop === true) {
         setResponseHeader("Cache-Control", "no-store");
@@ -121,7 +124,7 @@ export const aiChat = createServerFn({ method: "POST" })
         }
         return { ...result, whoopExpiresAt: shared.expiresAt };
       }
-      return await callChatProvider(data);
+      return await callChatProvider({ ...data, allowGeminiFallback: JARVIS_GEMINI_PERSONAL_DATA_ENABLED && data.allowGeminiFallback === true });
     } catch {
       const p = safeProvider(data.provider);
       return fail(
@@ -244,6 +247,7 @@ export const testAiConnection = createServerFn({ method: "POST" })
 export const estimateFoodFromText = createServerFn({ method: "POST" })
   .inputValidator(estimateTextInputSchema)
   .handler(async ({ data }) => {
+    if (data.provider === "gemini" && !JARVIS_GEMINI_PERSONAL_DATA_ENABLED) return fail(GEMINI_PERSONAL_DATA_NOTICE, "permission_denied");
     if (!data.text?.trim())
       return {
         ok: false as const,
@@ -267,7 +271,7 @@ ${data.learnedHints ? `\nUser's known portions/preferences:\n${data.learnedHints
         data.provider,
         system,
         data.mealType ? `Meal type: ${data.mealType}\n\n${data.text}` : data.text,
-        data,
+        { ...data, allowGeminiFallback: JARVIS_GEMINI_PERSONAL_DATA_ENABLED && data.allowGeminiFallback === true },
       );
       if (!result.ok) return result;
       const p = parseJsonText(result.text);

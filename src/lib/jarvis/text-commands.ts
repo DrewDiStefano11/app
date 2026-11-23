@@ -1,3 +1,5 @@
+import { todayMealEntries } from "../analytics/observed-fitness";
+import { calculateMealTotals } from "../analytics/domain-metrics";
 import { queryLibraryMeal } from "./food-reference";
 import { queryMealPortion } from "./meal-portion";
 import { queryRecoveryText, type RecoveryDraft } from "./recovery-text";
@@ -556,9 +558,7 @@ export function interpretJarvisText(
   if (history) return { reply: history.reply, nextContext: { benchHistory: history.history } };
 
   if (/^show (?:everything|what) i(?:'ve| have) eaten today$/.test(text)) {
-    const meals = state.mealEntries.filter(
-      (meal) => new Date(meal.createdAt).toDateString() === now.toDateString(),
-    );
+    const meals = todayMealEntries(state, now.getTime());
     return {
       reply: meals.length
         ? meals
@@ -594,16 +594,12 @@ export function interpretJarvisText(
   }
 
   if (/^how (?:much protein|many calories) have i (?:eaten|logged)(?: today)?$/.test(text)) {
-    const meals = state.mealEntries.filter(
-      (meal) => new Date(meal.createdAt).toDateString() === now.toDateString(),
-    );
+    const meals = todayMealEntries(state, now.getTime());
     if (!meals.length) return { reply: "There are no meals logged today." };
     const protein = text.includes("protein");
     const missing = meals.filter((meal) => meal.macroStatus === "unreported").length;
-    const total = meals.reduce(
-      (sum, meal) => sum + (protein ? (meal.protein ?? 0) : meal.calories),
-      0,
-    );
+    const totals = calculateMealTotals(meals);
+    const total = protein ? totals.protein : totals.calories;
     if (protein && missing) {
       const recorded =
         missing === meals.length
