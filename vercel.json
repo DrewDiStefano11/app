@@ -11,7 +11,9 @@
       "codex/fitcore-record-consistency": false,
       "codex/fitcore-save-safety": false,
       "codex/fitcore-food-photo": false,
-      "codex/fitcore-whoop-lifecycle": false
+      "codex/fitcore-whoop-lifecycle": false,
+      "codex/fitcore-weigh-in-safety": false,
+      "codex/fitcore-core-release-integration": false
     }
   }
 }
