@@ -15,7 +15,7 @@ export function WhoopSyncStatus() {
   const { state } = useStore();
   if (state.demoMode || (!snapshot && !refreshing)) return null;
   return <p className="px-5 pb-3 text-xs text-muted-foreground" role="status">
-    {refreshing ? "WHOOP refreshing" : "WHOOP updated"}
+    {refreshing ? "WHOOP refreshing" : "WHOOP last synced"}
     {snapshot && <> · <time dateTime={snapshot.lastSyncedAt}>{new Date(snapshot.lastSyncedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</time></>}
   </p>;
 }
