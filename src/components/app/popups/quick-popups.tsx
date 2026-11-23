@@ -1,10 +1,13 @@
 import { useMemo, useRef, useState } from "react";
 import { Camera, Loader2, Sparkles, ImagePlus, Check, AlertCircle } from "lucide-react";
 import { BottomSheet } from "../sheet";
+import { SleepQualitySelect } from "@/components/app/sleep-quality-select";
 import { useStore, uid } from "@/lib/store";
 import { useServerFn } from "@tanstack/react-start";
 import { estimateMealMacros } from "@/lib/ai.functions";
+import { JARVIS_PHOTO_ANALYSIS_ENABLED } from "@/lib/jarvis/provider-models";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
+import { parseBodyweightLb, recordManualBodyweight, MIN_BODYWEIGHT_LB, MAX_BODYWEIGHT_LB, BODYWEIGHT_INPUT_ERROR, BODYWEIGHT_SAVE_ERROR } from "@/lib/bodyweight-entry";
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
 
@@ -20,6 +23,7 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [p, setP] = useState("");
   const [c, setC] = useState("");
   const [f, setF] = useState("");
+  const [saveFailed, setSaveFailed] = useState(false);
 
   const [photo, setPhoto] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -30,11 +34,12 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
   const reset = () => {
     setName(""); setType("dinner"); setCal(""); setP(""); setC(""); setF("");
     setPhoto(null); setAiLoading(false); setAiError(null); setAiConfidence(null); setAiNotes(null);
+    setSaveFailed(false);
   };
   const close = () => { reset(); onClose(); };
 
   const onFile = async (file: File) => {
-    if (!file) return;
+    if (!file || !JARVIS_PHOTO_ANALYSIS_ENABLED) return;
     setAiError(null);
     const reader = new FileReader();
     reader.onload = async () => {
@@ -63,22 +68,26 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
     reader.readAsDataURL(file);
   };
 
-  const canSave = name.trim() && Number(cal) > 0;
+  const completeMacros = [p, c, f].every(value => value.trim() !== "");
+  const emptyMacros = [p, c, f].every(value => value.trim() === "");
+  const canSave = name.trim() && Number.isFinite(Number(cal)) && Number(cal) > 0 &&
+    (emptyMacros || (completeMacros && [p, c, f].every(value => Number.isFinite(Number(value)) && Number(value) >= 0)));
   const save = () => {
     if (!canSave) return;
-    set(s => ({ ...s, mealEntries: [...s.mealEntries, {
+    const saved = set(s => ({ ...s, mealEntries: [...s.mealEntries, {
       id: uid(), name: name.trim(), type,
-      calories: Number(cal) || 0, protein: Number(p) || 0, carbs: Number(c) || 0, fat: Number(f) || 0,
+      calories: Number(cal),
+      ...(completeMacros ? { protein: Number(p), carbs: Number(c), fat: Number(f) } : { macroStatus: "unreported" as const }),
       createdAt: Date.now(),
     }]}));
+    if (!saved) { setSaveFailed(true); return; }
     close();
   };
 
   return (
     <BottomSheet open={open} onClose={close} title="Log Meal" height="tall">
       <div className="space-y-4">
-        {/* AI camera */}
-        <div className="tile p-4">
+        {JARVIS_PHOTO_ANALYSIS_ENABLED && <div className="tile p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles size={14} className="text-[var(--section)]" />
@@ -138,7 +147,7 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
               <span>{aiError}</span>
             </div>
           )}
-        </div>
+        </div>}
 
         {/* Manual entry */}
         <div className="space-y-3">
@@ -160,6 +169,8 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
           </div>
         </div>
 
+        <p className="text-xs text-white/50">Enter all three macros, or leave all three blank to mark them unreported.</p>
+        {saveFailed && <p role="alert" className="text-sm text-red-300">Meal could not be saved. Your draft is still here. Free device storage or resolve the storage warning, then retry.</p>}
         <div className="flex gap-2 pt-1">
           <button onClick={close} className="flex-1 h-12 rounded-xl border border-white/15 bg-white/5 font-bold text-white/80">Cancel</button>
           <button onClick={save} disabled={!canSave}
@@ -181,7 +192,8 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [stress, setStress] = useState(3);
   const [motivation, setMotivation] = useState(8);
   const [sleepHours, setSleepHours] = useState("");
-  const [sleepQ, setSleepQ] = useState(7);
+  const [sleepQ, setSleepQ] = useState(0);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [notes, setNotes] = useState("");
 
   const [confirmed, setConfirmed] = useState(false);
@@ -189,6 +201,7 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
   const validSleep = !sleepHours || (sleepDuration > 0 && sleepDuration <= 24);
   const close = () => {
     setConfirmed(false);
+    setSaveFailed(false);
     onClose();
   };
 
@@ -204,8 +217,8 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
       }
       return next;
     });
-    if (!saved) return;
-    setNotes(""); setSleepHours("");
+    if (!saved) { setSaveFailed(true); return; }
+    setNotes(""); setSleepHours(""); setSleepQ(0);
     close();
   };
 
@@ -224,11 +237,7 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
             <input type="number" inputMode="decimal" value={sleepHours} onChange={e => setSleepHours(e.target.value)}
               placeholder="7.5 hrs"
               className="px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white outline-none focus:border-[var(--section)]" />
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-white/40 font-bold uppercase">Quality {sleepQ}/10</span>
-              <input type="range" min={1} max={10} value={sleepQ} onChange={e => setSleepQ(Number(e.target.value))}
-                className="accent-[var(--section)]" />
-            </div>
+            <SleepQualitySelect value={sleepQ} onChange={setSleepQ} />
           </div>
         </div>
 
@@ -246,6 +255,7 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
           I confirm these ratings and any sleep details reflect what I experienced.
         </label>
         {!validSleep && <p role="alert" className="text-xs text-destructive">Enter up to 24 hours of sleep.</p>}
+        {saveFailed && <p role="alert" className="text-sm text-destructive">Check-in could not be saved. Your entries are still here.</p>}
         <div className="flex gap-2 pt-1">
           <button onClick={close} className="flex-1 h-12 rounded-xl border border-white/15 bg-white/5 font-bold text-white/80">Cancel</button>
           <button onClick={save} disabled={!confirmed || !validSleep} className="flex-1 h-12 rounded-xl font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"
@@ -263,6 +273,9 @@ export function WeighInSheet({ open, onClose }: { open: boolean; onClose: () => 
   const { state, set } = useStore();
   const [w, setW] = useState(String(state.profile.bodyweightLb));
   const [notes, setNotes] = useState("");
+  const [saveFailed, setSaveFailed] = useState(false);
+  const weightLb = parseBodyweightLb(w);
+  const invalidWeight = w.trim() !== "" && weightLb === undefined;
 
   const recent = useMemo(() => {
     return [...state.bodyweightEntries]
@@ -272,16 +285,13 @@ export function WeighInSheet({ open, onClose }: { open: boolean; onClose: () => 
   }, [state.bodyweightEntries]);
 
   const last = state.bodyweightEntries[state.bodyweightEntries.length - 1];
-  const delta = last ? Number(w) - last.weightLb : 0;
+  const delta = last && weightLb !== undefined ? weightLb - last.weightLb : 0;
 
   const save = () => {
-    const wt = Number(w);
-    if (!wt) return;
-    set(s => ({ ...s,
-      bodyweightEntries: [...s.bodyweightEntries, { id: uid(), weightLb: wt, notes: notes || undefined, createdAt: Date.now() }],
-      profile: { ...s.profile, bodyweightLb: wt },
-      goals: s.goals.map(g => g.type === "bodyweight" ? { ...g, current: wt } : g),
-    }));
+    if (weightLb === undefined) return;
+    const saved = set(s => recordManualBodyweight(s, { id: uid(), weightLb, notes: notes || undefined, createdAt: Date.now() }));
+    if (!saved) { setSaveFailed(true); return; }
+    setSaveFailed(false);
     setNotes("");
     onClose();
   };
@@ -292,10 +302,10 @@ export function WeighInSheet({ open, onClose }: { open: boolean; onClose: () => 
         <div className="tile p-4">
           <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Current weight</div>
           <div className="flex items-baseline gap-2 mt-1">
-            <input type="number" inputMode="decimal" value={w} onChange={e => setW(e.target.value)}
+            <input type="number" inputMode="decimal" min={MIN_BODYWEIGHT_LB} max={MAX_BODYWEIGHT_LB} step="any" aria-label="Weight in pounds" aria-invalid={invalidWeight} aria-describedby={invalidWeight || saveFailed ? "home-weight-error" : undefined} value={w} onChange={e => { setW(e.target.value); setSaveFailed(false); }}
               className="font-display text-5xl bg-transparent outline-none w-32 tabular-nums text-white border-b border-white/10 focus:border-[var(--section)]" />
             <span className="text-sm text-white/40 font-bold uppercase">lb</span>
-            {last && (
+            {last && weightLb !== undefined && (
               <span className={`ml-auto text-xs font-bold tabular-nums ${delta > 0 ? "text-green-400" : delta < 0 ? "text-red-400" : "text-white/40"}`}>
                 {delta > 0 ? "+" : ""}{delta.toFixed(1)} vs last
               </span>
@@ -325,11 +335,12 @@ export function WeighInSheet({ open, onClose }: { open: boolean; onClose: () => 
 
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 h-12 rounded-xl border border-white/15 bg-white/5 font-bold text-white/80">Cancel</button>
-          <button onClick={save} className="flex-1 h-12 rounded-xl font-bold text-white flex items-center justify-center gap-2"
+          <button onClick={save} disabled={weightLb === undefined} className="flex-1 h-12 rounded-xl font-bold text-white flex items-center justify-center gap-2 disabled:opacity-40"
             style={{ background: "var(--section)" }}>
             <Check size={16} /> Save weigh-in
           </button>
         </div>
+        {(invalidWeight || saveFailed) && <p id="home-weight-error" role="alert" className="text-sm text-red-300">{invalidWeight ? BODYWEIGHT_INPUT_ERROR : BODYWEIGHT_SAVE_ERROR}</p>}
       </div>
     </BottomSheet>
   );

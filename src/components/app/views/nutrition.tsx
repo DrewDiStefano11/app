@@ -1,8 +1,10 @@
 import { useState } from "react";
-import { Plus, Trash2, Utensils, Camera, Sparkles, Droplets, Pill } from "lucide-react";
+import { Bookmark, Plus, Pencil, Trash2, Utensils, Camera, Sparkles, Droplets, Pill } from "lucide-react";
 import { useStore, uid, isToday } from "@/lib/store";
-import { FOODS, MEAL_TEMPLATES, mealTotals } from "@/lib/data";
-import type { MealEntry } from "@/lib/types";
+import { FOODS, MEAL_TEMPLATES, MEAL_TYPES, mealTotals } from "@/lib/data";
+import type { MealEntry, NutritionTargets, SavedNutritionPreset } from "@/lib/types";
+import { addNutritionPreset, copyMealForLog, foodMeal, replaceNutritionPreset } from "@/lib/saved-nutrition";
+import { NutritionTargetsEditor } from "@/components/app/nutrition-targets-editor";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import {
   PageHeader,
@@ -20,8 +22,11 @@ import {
 } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { Tile, Eyebrow } from "@/components/app/tile";
+import { MealEditor } from "@/components/app/meal-editor";
+import { dayKey } from "@/lib/analytics/date-time";
+import { calculateMealTotals } from "@/lib/analytics/domain-metrics";
+import { MacroTrendChart } from "@/components/app/macro-trend-chart";
 
-const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
 type NutritionSubtab = "macros" | "quality" | "timing" | "insights";
 const NUTRITION_TABS: { id: NutritionSubtab; label: string }[] = [
   { id: "macros", label: "Macros" },
@@ -33,18 +38,48 @@ const NUTRITION_TABS: { id: NutritionSubtab; label: string }[] = [
 export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMode }) {
   const { state, set } = useStore();
   const [logOpen, setLogOpen] = useState(false);
-  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [reviewedTargets, setReviewedTargets] = useState<NutritionTargets | null>(null);
+  const [confirmDel, setConfirmDel] = useState<MealEntry | null>(null);
+  const [editing, setEditing] = useState<MealEntry | null>(null);
+  const [deleteFailed, setDeleteFailed] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyDate, setHistoryDate] = useState(() => dayKey(Date.now()));
   const [tab, setTab] = useState<NutritionSubtab>("macros");
   const isDeepDive = layoutMode === "deepDive";
 
   const now = Date.now();
   const today = state.mealEntries.filter((m) => isToday(m.createdAt) && m.createdAt <= now);
-  const t = today.reduce(
-    (a, m) => ({ c: a.c + m.calories, p: a.p + m.protein, cb: a.cb + m.carbs, f: a.f + m.fat }),
-    { c: 0, p: 0, cb: 0, f: 0 },
-  );
+  const totals = calculateMealTotals(today);
+  const t = { c: totals.calories, p: totals.protein, cb: totals.carbs, f: totals.fat };
+  const historyMeals = historyOpen
+    ? state.mealEntries.filter(meal => meal.createdAt <= now && dayKey(meal.createdAt) === historyDate)
+    : [];
+  const historyTotals = calculateMealTotals(historyMeals);
+
+  const commitMeal = (original: MealEntry, replacement?: MealEntry) => {
+    const reviewed = JSON.stringify(original);
+    let changed = false;
+    const saved = set(current => {
+      const index = current.mealEntries.findIndex(meal => meal.id === original.id);
+      if (index < 0 || JSON.stringify(current.mealEntries[index]) !== reviewed) return current;
+      changed = true;
+      return {
+        ...current,
+        mealEntries: replacement
+          ? current.mealEntries.map((meal, position) => position === index ? replacement : meal)
+          : current.mealEntries.filter((_, position) => position !== index),
+      };
+    });
+    return saved && changed;
+  };
+
+  const requestDelete = (meal: MealEntry) => {
+    setDeleteFailed(false);
+    setConfirmDel(meal);
+  };
   const tg = state.nutritionTargets;
   const hasMeals = today.length > 0;
+  const missingMacros = today.some((meal) => meal.macroStatus === "unreported");
 
   const supplements = state.supplementLogs
     ? state.supplementLogs.filter((s) => isToday(s.createdAt))
@@ -56,6 +91,9 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
         title="Nutrition"
         subtitle={hasMeals ? `${Math.round(t.c)} kcal logged today` : "No meals logged today"}
       />
+      <div className="mb-3 px-5">
+        <GhostButton onClick={() => setReviewedTargets(tg)}>Edit nutrition targets</GhostButton>
+      </div>
       {isDeepDive && <SubTabs tabs={NUTRITION_TABS} active={tab} onChange={setTab} />}
 
       {!isDeepDive && (
@@ -75,12 +113,12 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
             </div>
             {hasMeals && <div className="flex items-center justify-between gap-6">
               <div className="flex flex-col items-center gap-2">
-                <Ring value={t.c} max={tg.calories} size={96} label="kcal" />
+                {tg.calories > 0 ? <Ring value={t.c} max={tg.calories} size={96} label="kcal" /> : <p className="text-xl font-semibold">{Math.round(t.c)} kcal</p>}
                 <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">
-                  {Math.round((t.c / Math.max(1, tg.calories)) * 100)}% Goal
+                  {tg.calories > 0 ? `${Math.round(t.c / tg.calories * 100)}% Goal` : "No calorie target"}
                 </p>
               </div>
-              <div className="flex-1 space-y-3">
+              {missingMacros ? <p className="flex-1 text-sm text-muted-foreground">Some meals have unreported macros.</p> : <div className="flex-1 space-y-3">
                 <MacroBar
                   label="Protein"
                   value={t.p}
@@ -96,7 +134,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                   color="rgb(245 158 11)"
                 />
                 <MacroBar label="Fat" value={t.f} target={tg.fat} unit="g" color="rgb(34 197 94)" />
-              </div>
+              </div>}
             </div>}
           </Tile>
 
@@ -141,7 +179,9 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
           </div>
 
           <div>
-            <SectionHeader title="Meals Today" />
+            <SectionHeader title="Meals Today"
+              action={<GhostButton onClick={() => { setDeleteFailed(false); setHistoryOpen(true); }}>Meal history</GhostButton>} />
+            {deleteFailed && !historyOpen && <MealDeleteError />}
             {today.length === 0 ? (
               <EmptyState
                 icon={<Utensils size={22} />}
@@ -158,53 +198,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                 }
               />
             ) : (
-              <div className="space-y-3">
-                {today.map((m) => (
-                  <div
-                    key={m.id}
-                    className="premium-card p-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between group transition-all active:scale-[0.98]"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-white truncate">{m.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-                          {m.type}
-                        </span>
-                        <span className="w-1 h-1 rounded-full bg-white/10" />
-                        <span className="text-[10px] font-bold text-white/40">
-                          {new Date(m.createdAt).toLocaleTimeString([], {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        {m.source === "camera" && (
-                          <>
-                            <span className="w-1 h-1 rounded-full bg-white/10" />
-                            <span className="text-[10px] font-bold text-green-400/80">
-                              AI Estimated
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right px-3">
-                      <p className="font-display text-xl leading-none tabular-nums text-white">
-                        {Math.round(m.calories)}
-                      </p>
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-white/30 mt-1">
-                        P{Math.round(m.protein)} C{Math.round(m.carbs)} F{Math.round(m.fat)}
-                      </p>
-                    </div>
-                    <button
-                      aria-label="Delete meal"
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-white/20 hover:text-green-400 hover:bg-green-500/10 transition-colors"
-                      onClick={() => setConfirmDel(m.id)}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <MealRows meals={today} onEdit={setEditing} onDelete={requestDelete} />
             )}
           </div>
         </div>
@@ -214,7 +208,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
         <div className="px-5 space-y-4 mt-2">
           <SectionHeader title="Macro detail" />
           <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
-            {hasMeals ? <>
+            {missingMacros ? <p className="text-sm text-muted-foreground">Some meals have unreported macros.</p> : hasMeals ? <>
             <MacroBar
               label="Protein"
               value={t.p}
@@ -240,11 +234,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
             </> : <p className="text-sm text-muted-foreground">No meals logged today.</p>}
           </div>
 
-          <PlannedFeatureCard
-            title="Macro Trends"
-            status="Planned"
-            description="Toggleable graphs showing Calories, Protein, Carbs, and Fat over time will be integrated here once macro-over-time trend data is supported."
-          />
+          <MacroTrendChart meals={state.mealEntries} now={now} />
         </div>
       )}
 
@@ -331,19 +321,129 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
         </div>
       )}
 
+      <BottomSheet open={!!reviewedTargets} onClose={() => setReviewedTargets(null)}
+        title="Nutrition targets" closeLabel="Close nutrition targets" manageFocus>
+        {reviewedTargets && <NutritionTargetsEditor targets={reviewedTargets}
+          onCancel={() => setReviewedTargets(null)} onSave={targets => {
+            let changed = false;
+            const saved = set(current => {
+              if (JSON.stringify(current.nutritionTargets) !== JSON.stringify(reviewedTargets)) return current;
+              changed = true;
+              return {
+                ...current,
+                nutritionTargets: targets,
+                userGoalsProfile: {
+                  ...current.userGoalsProfile,
+                  ...(targets.calories !== reviewedTargets.calories && { calorieGoal: targets.calories }),
+                  ...(targets.protein !== reviewedTargets.protein && { proteinGoal: targets.protein }),
+                },
+              };
+            });
+            if (saved && changed) setReviewedTargets(null);
+            return saved && changed;
+          }} />}
+      </BottomSheet>
       <LogMealSheet open={logOpen} onClose={() => setLogOpen(false)} />
+      <BottomSheet open={historyOpen} onClose={() => { setDeleteFailed(false); setHistoryOpen(false); }}
+        title="Meal history" height="tall" closeLabel="Close meal history"
+        manageFocus={!editing && !confirmDel}>
+        <label className="mb-4 block text-sm">
+          Meal date
+          <Input type="date" value={historyDate} max={dayKey(now)} onChange={event => {
+            setDeleteFailed(false);
+            setHistoryDate(event.target.value);
+          }} />
+        </label>
+        {deleteFailed && <MealDeleteError />}
+        {historyMeals.length ? (
+          <>
+            <p className="mb-3 text-sm text-muted-foreground">{Math.round(historyTotals.calories)} kcal logged</p>
+            <MealRows meals={historyMeals} onEdit={setEditing} onDelete={requestDelete} />
+          </>
+        ) : (
+          <p className="py-2 text-sm text-muted-foreground">No meals logged for this date.</p>
+        )}
+      </BottomSheet>
+      <BottomSheet open={!!editing} onClose={() => setEditing(null)} title="Edit meal"
+        height="tall" closeLabel="Close meal editor" manageFocus>
+        {editing && <>
+          {editing.items?.length && editing.macroStatus !== "unreported" ? <button type="button" className="min-h-11 mb-3 w-full rounded-xl border border-border px-3" onClick={() => { const mealId = editing.id; setEditing(null); window.dispatchEvent(new CustomEvent("fitcore:meal-photo", { detail: { mealId } })); }}>Correct with Jarvis</button> : null}
+          <MealEditor key={editing.id} meal={editing} onCancel={() => setEditing(null)}
+          onSavePreset={draft => {
+            let present = false;
+            const saved = set(current => {
+              present = current.mealEntries.some(meal => JSON.stringify(meal) === JSON.stringify(editing));
+              return present ? addNutritionPreset(current, { id: uid(), kind: "meal", meal: draft }) : current;
+            });
+            return saved && present;
+          }}
+          onSave={replacement => {
+            const saved = commitMeal(editing, replacement);
+            if (saved) setEditing(null);
+            return saved;
+          }} /></>}
+      </BottomSheet>
       <ConfirmDialog
         open={!!confirmDel}
         onClose={() => setConfirmDel(null)}
         onConfirm={() => {
-          set((s) => ({ ...s, mealEntries: s.mealEntries.filter((x) => x.id !== confirmDel) }));
-          setConfirmDel(null);
+          if (confirmDel) setDeleteFailed(!commitMeal(confirmDel));
         }}
+        manageFocus
         title="Delete meal?"
         message="This can't be undone."
         confirmLabel="Delete"
         destructive
       />
+    </div>
+  );
+}
+
+function MealDeleteError() {
+  return <p role="alert" className="mb-2 text-sm text-destructive">Meal could not be deleted. The saved meal is still here.</p>;
+}
+
+function MealRows({ meals, onEdit, onDelete }: {
+  meals: readonly MealEntry[];
+  onEdit: (meal: MealEntry) => void;
+  onDelete: (meal: MealEntry) => void;
+}) {
+  return (
+    <div className="space-y-3">
+      {meals.map(meal => (
+        <div key={meal.id} className="premium-card flex flex-wrap items-center justify-between gap-x-2 rounded-2xl border border-white/10 bg-white/5 p-3">
+          <div className="min-w-0 flex-1">
+            <p className="break-words font-semibold text-white">{meal.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {meal.type} · {new Date(meal.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+            </p>
+            {(meal.source === "camera" || meal.provenance?.source === "ai-estimated") && (
+              <p className="text-xs text-muted-foreground">AI estimate</p>
+            )}
+            {meal.provenance?.editedBy === "user" && (
+              <p className="text-xs text-muted-foreground">Edited</p>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="font-display text-lg tabular-nums text-white">{Math.round(meal.calories)} kcal</p>
+            <p className="text-xs tabular-nums text-muted-foreground">
+              {meal.macroStatus === "unreported"
+                ? "Macros unreported"
+                : `P${Math.round(meal.protein)} C${Math.round(meal.carbs)} F${Math.round(meal.fat)}`}
+            </p>
+          </div>
+          <div className="flex">
+            <button type="button" aria-label="Edit meal" className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground hover:bg-white/10"
+              onClick={() => onEdit(meal)}>
+              <Pencil size={16} />
+            </button>
+            <button type="button" aria-label="Delete meal" className="grid h-11 w-11 place-items-center rounded-full text-muted-foreground hover:bg-white/10"
+              onClick={() => onDelete(meal)}>
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -381,14 +481,13 @@ function MacroBar({
   unit: string;
   color?: string;
 }) {
-  const pct = Math.min(100, (value / Math.max(1, target)) * 100);
+  const pct = target > 0 ? Math.min(100, value / target * 100) : 0;
   return (
     <div>
       <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-1.5">
         <span className="text-white/40">{label}</span>
         <span className="text-white/80 tabular-nums">
-          {Math.round(value)}/{target}
-          {unit}
+          {target > 0 ? `${Math.round(value)}/${target}${unit}` : `${Math.round(value)}${unit} · No target`}
         </span>
       </div>
       <div className="h-1.5 rounded-full overflow-hidden bg-white/5">
@@ -403,7 +502,7 @@ function MacroBar({
 
 function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { state, set } = useStore();
-  const [mode, setMode] = useState<"templates" | "foods" | "custom">("templates");
+  const [mode, setMode] = useState<"templates" | "foods" | "custom" | "saved">("templates");
   const [type, setType] = useState("dinner");
   const [name, setName] = useState("");
   const [cal, setCal] = useState("");
@@ -411,11 +510,40 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
   const [c, setC] = useState("");
   const [fat, setFat] = useState("");
   const [search, setSearch] = useState("");
+  const [saveFailed, setSaveFailed] = useState(false);
+  const [presetMessage, setPresetMessage] = useState<{ text: string; failed: boolean } | null>(null);
+  const savedPresets = state.savedNutrition ?? [];
+  const [editingPreset, setEditingPreset] = useState<SavedNutritionPreset | null>(null);
 
   const addMeal = (m: MealEntry) => {
-    set((s) => ({ ...s, mealEntries: [...s.mealEntries, m] }));
-    onClose();
+    const saved = set((s) => ({ ...s, mealEntries: [...s.mealEntries, m] }));
+    setSaveFailed(!saved);
+    if (saved) {
+      setPresetMessage(null);
+      onClose();
+    }
+    return saved;
   };
+
+  const saveFood = (meal: MealEntry, servingLabel?: string) => {
+    const preset = { id: uid(), kind: "food" as const, meal, servingLabel };
+    const saved = set(current => addNutritionPreset(current, preset));
+    setPresetMessage({
+      text: saved ? `${meal.name} saved to your library.` : "Food preset could not be saved.",
+      failed: !saved,
+    });
+  };
+
+  const completeCustomMacros = [p, c, fat].every(value => value.trim() !== "");
+  const emptyCustomMacros = [p, c, fat].every(value => value.trim() === "");
+  const customMeal = () => ({
+    id: uid(), name: name.trim(), type, createdAt: Date.now(),
+    calories: Number(cal),
+    ...(completeCustomMacros ? { protein: Number(p), carbs: Number(c), fat: Number(fat) } : { macroStatus: "unreported" as const }),
+  });
+  const canSaveCustom = !!name.trim() && !!cal.trim() &&
+    (emptyCustomMacros || completeCustomMacros) &&
+    [cal, p, c, fat].every(value => Number.isFinite(Number(value)) && Number(value) >= 0);
 
   const filteredFoods = FOODS.filter(
     (f) => !search || f.name.toLowerCase().includes(search.toLowerCase()),
@@ -425,12 +553,34 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
     new Set([...state.mealEntries].reverse().map((m) => m.name)),
   ).slice(0, 6);
 
+  if (editingPreset) {
+    const cancel = () => setEditingPreset(null);
+    return (
+      <BottomSheet open={open} onClose={cancel} title={editingPreset.kind === "food" ? "Edit saved food" : "Edit saved meal"}
+        height="tall" closeLabel="Close preset editor" manageFocus>
+        <MealEditor meal={editingPreset.meal} onCancel={cancel} onSave={meal => {
+          let changed = false;
+          const saved = set(current => {
+            const next = replaceNutritionPreset(current, editingPreset, meal);
+            changed = next !== current;
+            return next;
+          });
+          if (saved && changed) cancel();
+          return saved && changed;
+        }} />
+      </BottomSheet>
+    );
+  }
+
   return (
-    <BottomSheet open={open} onClose={onClose} title="Log Meal" height="tall">
+    <BottomSheet open={open} onClose={() => { setPresetMessage(null); setSaveFailed(false); onClose(); }}
+      title="Log Meal" height="tall" closeLabel="Close meal logger" manageFocus>
+      {presetMessage && <p role={presetMessage.failed ? "alert" : "status"} className="mb-3 text-sm">{presetMessage.text}</p>}
+      {saveFailed && <p role="alert" className="mb-3 text-sm text-destructive">Meal could not be saved. Try again.</p>}
       <div className="grid grid-cols-2 gap-3 mb-6 px-1 mt-2">
-        <div
+        <button type="button" aria-label="Photo Log"
           className="p-3 rounded-2xl bg-gradient-to-br from-[var(--section-soft)] to-transparent border border-[var(--section-soft)] flex items-center justify-between group press transition-all cursor-pointer"
-          onClick={() => window.dispatchEvent(new CustomEvent("fitcore:open-ai"))}
+          onClick={() => { onClose(); window.dispatchEvent(new CustomEvent("fitcore:meal-photo")); }}
         >
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-green-500/20 flex items-center justify-center text-green-400">
@@ -443,7 +593,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
               </p>
             </div>
           </div>
-        </div>
+        </button>
 
         <div className="p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between opacity-50 pointer-events-none">
           <div className="flex items-center gap-2">
@@ -461,6 +611,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
       </div>
 
       <div className="flex gap-2 mb-5 overflow-x-auto no-scrollbar">
+        <Chip active={mode === "saved"} onClick={() => { setPresetMessage(null); setMode("saved"); }}>
+          Saved
+        </Chip>
         <Chip active={mode === "templates"} onClick={() => setMode("templates")}>
           Templates
         </Chip>
@@ -471,6 +624,33 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
           Custom Entry
         </Chip>
       </div>
+
+      {mode === "saved" && (
+        <div className="space-y-2">
+          {savedPresets.length === 0 && <p className="text-sm text-muted-foreground">No saved foods or meals.</p>}
+          {savedPresets.map(preset => (
+            <div key={preset.id} className="flex flex-wrap items-center gap-2 rounded-xl border border-border px-3 py-2">
+              <div className="flex-1">
+                <p className="font-medium">{preset.meal.name}</p>
+                {preset.servingLabel && <p className="text-xs text-muted-foreground">{preset.servingLabel}</p>}
+                <p className="text-xs text-muted-foreground">
+                  {Math.round(preset.meal.calories)} kcal · {preset.kind === "food" ? "Food" : "Meal"} · {preset.meal.type}
+                </p>
+              </div>
+              <GhostButton aria-label={`Log ${preset.meal.name}`}
+                onClick={() => addMeal(copyMealForLog(preset.meal, uid()))}>Log</GhostButton>
+              <GhostButton aria-label={`Edit ${preset.meal.name}`} onClick={() => setEditingPreset(preset)}><Pencil size={16} /></GhostButton>
+              <GhostButton aria-label={`Remove ${preset.meal.name}`} onClick={() => {
+                const saved = set(current => ({
+                  ...current,
+                  savedNutrition: (current.savedNutrition ?? []).filter(item => item.id !== preset.id),
+                }));
+                setPresetMessage(saved ? null : { text: "Preset could not be removed.", failed: true });
+              }}><Trash2 size={16} /></GhostButton>
+            </div>
+          ))}
+        </div>
+      )}
 
       {mode === "templates" && (
         <div className="mb-4">
@@ -485,7 +665,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
                   return (
                     <Chip
                       key={n}
-                      onClick={() => addMeal({ ...m, id: uid(), createdAt: Date.now() })}
+                      onClick={() => addMeal(copyMealForLog(m, uid()))}
                     >
                       {n}
                     </Chip>
@@ -572,34 +752,24 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
             </Select>
           </div>
           <div className="space-y-2 max-h-[45dvh] overflow-y-auto pr-1">
-            {filteredFoods.map((f) => (
-              <button
-                key={f.id}
-                onClick={() =>
-                  addMeal({
-                    id: uid(),
-                    name: f.name,
-                    type,
-                    calories: f.calories,
-                    protein: f.protein,
-                    carbs: f.carbs,
-                    fat: f.fat,
-                    createdAt: Date.now(),
-                  })
-                }
-                className="w-full text-left p-4 rounded-2xl bg-white/5 border border-white/10 flex justify-between items-center press transition-all"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-white text-sm truncate">{f.name}</p>
-                  <p className="text-[10px] font-bold text-white/40 mt-0.5">{f.servingLabel}</p>
-                </div>
-                <div className="text-right shrink-0 ml-4">
-                  <p className="text-base font-display text-white tabular-nums">{f.calories}</p>
-                  <p className="text-[9px] font-bold text-white/30 uppercase tracking-tighter">
-                    P{f.protein} C{f.carbs} F{f.fat}
-                  </p>
-                </div>
-              </button>
+            {filteredFoods.map(food => (
+              <div key={food.id} className="flex items-center rounded-2xl border border-white/10 bg-white/5 pr-2">
+                <button type="button" onClick={() => addMeal(foodMeal(food, type, uid()))}
+                  className="flex min-w-0 flex-1 items-center justify-between gap-2 p-3 text-left press">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{food.name}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{food.servingLabel}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-display tabular-nums">{food.calories} kcal</p>
+                    <p className="text-xs tabular-nums text-muted-foreground">P{food.protein} C{food.carbs} F{food.fat}</p>
+                  </div>
+                </button>
+                <GhostButton aria-label={`Save ${food.name}`} className="h-11 w-11 justify-center px-0"
+                  onClick={() => saveFood(foodMeal(food, type, uid()), food.servingLabel)}>
+                  <Bookmark size={16} />
+                </GhostButton>
+              </div>
             ))}
             {filteredFoods.length === 0 && (
               <p className="text-center py-8 text-white/20 text-sm font-medium italic">
@@ -675,21 +845,14 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
               </div>
             </div>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">Enter all three macros, or leave all three blank to mark them unreported.</p>
           <div className="pt-4">
             <PrimaryButton
               className="w-full rounded-xl h-14 shadow-lg text-lg"
-              disabled={!name || !cal}
+              disabled={!canSaveCustom}
               onClick={() => {
-                addMeal({
-                  id: uid(),
-                  name,
-                  type,
-                  calories: Number(cal) || 0,
-                  protein: Number(p) || 0,
-                  carbs: Number(c) || 0,
-                  fat: Number(fat) || 0,
-                  createdAt: Date.now(),
-                });
+                const saved = addMeal(customMeal());
+                if (!saved) return;
                 setName("");
                 setCal("");
                 setP("");
@@ -699,6 +862,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
             >
               Add to Daily Log
             </PrimaryButton>
+            <GhostButton className="mt-2 w-full" disabled={!canSaveCustom} onClick={() => saveFood(customMeal())}>
+              Save as reusable food
+            </GhostButton>
           </div>
         </div>
       )}

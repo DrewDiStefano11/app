@@ -21,7 +21,7 @@ function PrivacyPolicy() {
           Back to FitCore
         </Link>
         <h1 className="text-3xl font-bold sm:text-4xl">FitCore Privacy Policy</h1>
-        <p className="text-sm text-muted-foreground">Updated November 16, 2026</p>
+        <p className="text-sm text-muted-foreground">Updated November 23, 2026</p>
       </header>
 
       <div className="space-y-7 leading-relaxed text-muted-foreground">
@@ -33,27 +33,77 @@ function PrivacyPolicy() {
             FitCore saves the information you enter, such as workouts, nutrition, sleep, recovery
             check-ins, progress photos, and profile settings, in browser storage on the device you
             use. Core tracking works without a FitCore account. FitCore does not automatically sync
-            your tracking history across devices. This version does not collect data from WHOOP.
+            your tracking history across devices.
           </p>
         </section>
 
         <section className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">AI features</h2>
           <p>
-            Using Jarvis or an AI estimate can send your message, the details you enter, and
-            relevant fitness context through FitCore&apos;s server to the configured AI provider.
-            Providers can include Lovable&apos;s AI gateway, Google Gemini, or Groq. Their privacy
-            terms apply to the information they receive. Selecting a meal photo for an AI estimate
-            sends the photo through FitCore&apos;s server to Gemini before you save the meal. Voice
-            input uses your browser&apos;s speech recognition, which may send audio to a speech
-            service. If you submit the transcript to Jarvis, the transcript is treated as your
-            message.
+            Ordinary fitness tracking and supported Jarvis commands work locally. If you enable
+            cloud text, FitCore can send your message and a bounded set of recent user messages
+            through its server to Groq, using your own provider key. Gemini requests for personal
+            fitness data and automatic Gemini fallback are disabled under its unpaid-service terms.
+            Food-photo estimation is optional and uses your configured Groq key after explicit
+            consent for each selected photo. FitCore resizes the image locally and removes metadata
+            before sending it through its server to Groq. The photo is not stored in tracking
+            history or backups. Later conversational corrections send the current meal estimate
+            and correction text, without resending the image or attaching fitness history or WHOOP
+            data. The estimate stays in a review draft until you explicitly confirm saving.
           </p>
           <p>
-            Jarvis activity, text associated with saved records, and AI preferences can stay on your
-            device. If you enter your own AI provider keys, FitCore can save them in this browser.
-            Saved keys can accompany AI requests to FitCore&apos;s server for provider
-            authentication. You can remove your keys in Jarvis settings.
+            Short voice recordings are optional. After enabling voice input, pressing Record voice
+            starts the microphone; stopping it sends that clip through FitCore&apos;s server to Groq
+            for transcription. FitCore processes the recording for that request and does not save
+            audio clips in tracking history or backups. Existing fitness records and WHOOP snapshots
+            are not attached to transcription requests. The transcript appears in an editable field;
+            it does not create fitness records until you send the text and confirm a reviewed
+            action. Closing or clearing Jarvis, leaving the foreground, or losing connectivity
+            cancels recording or transcription in progress. Groq&apos;s own data handling and
+            retention terms apply:{" "}
+            <a href="https://console.groq.com/docs/your-data" className="text-primary underline">
+              Groq data controls
+            </a>
+            .
+          </p>
+          <p>
+            Jarvis activity, text associated with confirmed records, and AI preferences can stay on
+            your device. Provider keys can be used temporarily until reload or explicitly remembered
+            in this browser; they accompany authorized requests for provider authentication. You can
+            remove them in Jarvis settings. Bounded usage diagnostics store request times, model and
+            status, audio duration and a paid-rate cost estimate, without audio clips or
+            transcripts. The estimate is not a charge or confirmation that your provider account has
+            free quota.
+          </p>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="text-xl font-semibold text-foreground">WHOOP connection</h2>
+          <p>
+            Where the connection is enabled, selecting Connect WHOOP sends you to WHOOP for
+            authorization. FitCore stores the connection and its encrypted authorization credentials
+            on a private database, and uses an essential browser cookie to recognize your FitCore
+            integration session. When FitCore syncs, it requests a rolling 30-day window of WHOOP
+            recovery, sleep, cycle and workout records. When WHOOP permits caching and scheduled
+            cleanup is configured, FitCore can keep an expiring snapshot in the private database.
+            Otherwise FitCore displays the response in the open browser view. Disconnect WHOOP
+            clears the measurements and attempts to revoke access at WHOOP before deleting stored
+            credentials. On Neon Free, deleted records may remain in instant-restore history for up
+            to six hours. Separately created snapshots, database branches, and external exports can
+            retain copies longer and require separate deletion. If revocation fails, you can also
+            remove the connection in WHOOP.
+          </p>
+          <p>
+            When background sync is enabled, FitCore stores WHOOP notification identifiers to
+            recognize repeat deliveries and keep deleted records from returning in an older
+            response. Scheduled cleanup removes receipt records after two days and deletion records
+            after 31 days. Disconnect WHOOP deletes these records from the live database.
+          </p>
+          <p>
+            FitCore displays those measurements in an unlocked browser session. The imported records
+            are excluded from FitCore tracking backups. If you choose to share recent WHOOP
+            measurements with a Jarvis message, FitCore sends the available measurements and their
+            dates to the AI provider shown in the Jarvis panel for that request.
           </p>
         </section>
 
@@ -80,6 +130,17 @@ function PrivacyPolicy() {
             preferences. To remove those copies and settings from this installation, clear FitCore
             site data in your browser or installed web app. Downloaded backups and information
             already sent to an AI provider are managed separately.
+          </p>
+        </section>
+
+        <section id="support" className="space-y-2">
+          <h2 className="text-xl font-semibold text-foreground">Support and privacy requests</h2>
+          <p>
+            For help connecting WHOOP or to request access to or deletion of your data, email{" "}
+            <a href="mailto:ddistefano1210@gmail.com" className="text-primary underline">
+              ddistefano1210@gmail.com
+            </a>
+            .
           </p>
         </section>
       </div>

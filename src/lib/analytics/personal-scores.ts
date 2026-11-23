@@ -1,17 +1,21 @@
 import type { AppState, DataProvenance, RecoveryCheckIn, SleepEntry, Workout } from "../types";
 import { addCalendarDays, dayKey, startOfDay } from "./date-time";
-import { calculateWorkoutVolume, recordedRecoveryCheckIns, recoveryCheckInReadinessScore } from "./observed-fitness";
+import { calculateWorkoutVolume, hasRecordedSleepQuality, recordedRecoveryCheckIns, recordedSleepEntries, recoveryCheckInReadinessScore } from "./observed-fitness";
 import { clampScore } from "./safe-math";
+import { currentWhoopRecovery, recoveryAsOf, selectWhoopEvidence } from "../whoop/evidence";
+import type { WhoopSnapshot } from "../whoop/dashboard";
 
 export type ScoreStatus = "unavailable" | "limited" | "stale" | "available";
 
 interface Evidence {
   label: string;
   detail?: string;
-  records: { at: number; source: DataProvenance["source"] | "recorded" | "demo" }[];
+  records: { at: number; source: DataProvenance["source"] | "recorded" | "demo" | "whoop" }[];
 }
 
 export interface PersonalScore {
+  sourceLabel?: "FitCore estimate";
+  measurement?: { source: "whoop"; at: string; state: string };
   value: number | null;
   status: ScoreStatus;
   evidenceQuality: "insufficient" | "provisional" | "supported";
@@ -79,15 +83,9 @@ function observeReadiness(state: AppState, now: number) {
   const checked = recordedRecoveryCheckIns(state)
     .map((record) => ({ ...record, at: record.createdAt }))
     .filter((record) => isGrounded(record) && record.at <= now);
-  const slept = state.sleepEntries
-    .map((record) => ({ ...record, at: record.createdAt }))
-    .filter(
-      (record) =>
-        isGrounded(record) &&
-        record.at <= now &&
-        range(record.hours, 0, 24) &&
-        range(record.quality, 1, 10),
-    );
+  const slept = recordedSleepEntries(state, now)
+    .filter(hasRecordedSleepQuality)
+    .map((record) => ({ ...record, at: record.createdAt }));
   return { checked, slept };
 }
 
@@ -165,17 +163,34 @@ function readinessEstimate(state: AppState, now: number) {
   );
 }
 
-export function readinessHistory(state: AppState, now = Date.now()) {
+export function readinessHistory(
+  state: AppState,
+  now = Date.now(),
+  snapshot?: WhoopSnapshot | null,
+) {
   const { checked, slept } = observeReadiness(state, now);
+  const summary = state.demoMode ? null : selectWhoopEvidence(snapshot, now);
   return Array.from({ length: 14 }, (_, index) => {
     const date = addCalendarDays(startOfDay(now), index - 13);
     const end = addCalendarDays(date, 1);
-    const score = readinessFrom(
-      state,
-      checked.filter((row) => row.at >= date && row.at < end),
-      slept.filter((row) => row.at >= date && row.at < end),
-      { checks: [], sleeps: [] },
-    );
+    const cutoff = index === 13 ? now : end - 1;
+    const row = recoveryAsOf(summary, cutoff);
+    const observed =
+      index === 13 ||
+      [...checked, ...slept].some((record) => record.at >= date && record.at < end) ||
+      summary?.history.some(
+        (record) => Date.parse(record.at) >= date && Date.parse(record.at) < end,
+      );
+    const score =
+      observed && row
+        ? readinessWithWhoop(
+            state,
+            checked.filter((record) => recent(record, cutoff, FRESH_READINESS_DAYS)),
+            row,
+          )
+        : observed
+          ? readinessEstimate(state, cutoff)
+          : readinessFrom(state, [], [], { checks: [], sleeps: [] });
     return {
       date: dayKey(date),
       label: new Date(date).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
@@ -224,7 +239,10 @@ function trainingScore(state: AppState, all: Workout[], now: number) {
 }
 
 export function calculateNutritionAdherence(state: AppState, now: number) {
+  const incompleteDays = new Set(state.mealEntries.filter((meal) => meal.macroStatus === "unreported").map((meal) => dayKey(meal.createdAt)));
   const recorded = state.mealEntries
+    .filter((meal) => meal.macroStatus !== "unreported")
+    .filter((meal) => !incompleteDays.has(dayKey(meal.createdAt)))
     .map((meal) => ({ ...meal, at: meal.createdAt }))
     .filter(
       (meal) =>
@@ -276,7 +294,11 @@ export function calculateNutritionAdherence(state: AppState, now: number) {
     status,
     value,
     [source("Recorded meals", evidence, state.demoMode)],
-    available ? [] : ["Record breakfast, lunch and dinner on three recent days and set calorie and protein targets"],
+    available
+      ? []
+      : [
+          "Record breakfast, lunch and dinner on three recent days and set calorie and protein targets",
+        ],
     "An estimate of calorie and protein target adherence on days with all three main meals recorded. Partial days and today are excluded.",
   );
   return { score, entries, completeDays: complete.length };
@@ -306,7 +328,7 @@ function recoveryEstimate(state: AppState, readiness: PersonalScore, all: Workou
       : readiness.status === "stale" || loaded.length
         ? "stale"
         : "unavailable";
-  return metric(
+  const result = metric(
     state.demoMode,
     status,
     enough ? readiness.value! * 0.6 + load * 0.4 : null,
@@ -338,6 +360,7 @@ function recoveryEstimate(state: AppState, readiness: PersonalScore, all: Workou
     ],
     "A training and self-report estimate. Once supported, readiness contributes 60% and recent logged lifting volume compared with earlier logged volume contributes 40%.",
   );
+  return { ...result, sourceLabel: "FitCore estimate" as const };
 }
 
 function progressEstimate(state: AppState, all: Workout[], now: number) {
@@ -387,8 +410,14 @@ function progressEstimate(state: AppState, all: Workout[], now: number) {
     changes.length ? 60 + average(changes) * 200 : null,
     [
       source(
-        changes.length ? "Comparable strength sessions" : relevant.length ? "Recent workouts" : "Earlier workouts",
-        (changes.length ? [...inputs.values()] : relevant.length ? relevant : all.slice(-5)).map(workoutEvidence),
+        changes.length
+          ? "Comparable strength sessions"
+          : relevant.length
+            ? "Recent workouts"
+            : "Earlier workouts",
+        (changes.length ? [...inputs.values()] : relevant.length ? relevant : all.slice(-5)).map(
+          workoutEvidence,
+        ),
         state.demoMode,
       ),
     ],
@@ -422,16 +451,82 @@ function combined(
   );
 }
 
-export function calculateRecoveryEstimate(state: AppState, now = Date.now()) {
-  return recoveryEstimate(state, readinessEstimate(state, now), trainingEvidence(state, now), now);
+function whoopScore(
+  state: AppState,
+  row: NonNullable<ReturnType<typeof currentWhoopRecovery>>,
+): PersonalScore {
+  const measured = row.state === "scored" && row.score !== null && row.score <= 100;
+  return {
+    ...metric(
+      state.demoMode,
+      measured ? "available" : "unavailable",
+      null,
+      [
+        {
+          label: "WHOOP Recovery",
+          records: [{ at: Date.parse(row.at), source: "whoop" }],
+          detail: "Official WHOOP Recovery; no FitCore recalculation.",
+        },
+      ],
+      measured ? [] : [`WHOOP Recovery is ${row.state === "scored" ? "unavailable" : row.state}.`],
+      "The original WHOOP Recovery measurement, reported on the date shown. FitCore does not recreate WHOOP Recovery.",
+    ),
+    value: measured ? row.score : null,
+    measurement: { source: "whoop", at: row.at, state: row.state },
+  };
 }
 
-export function calculatePersonalScores(state: AppState, now = Date.now()) {
-  const readiness = readinessEstimate(state, now);
+function readinessWithWhoop(
+  state: AppState,
+  checks: (RecoveryCheckIn & RecordTime)[],
+  row: NonNullable<ReturnType<typeof currentWhoopRecovery>>,
+): PersonalScore {
+  const measured = whoopScore(state, row);
+  const check = checks.length ? average(checks.map(recoveryCheckInReadinessScore)) : null;
+  const supported = measured.value !== null && check !== null;
+  return metric(
+    state.demoMode,
+    supported ? "available" : "limited",
+    supported ? measured.value! * 0.7 + check! * 0.3 : null,
+    [...measured.evidence, source("Recovery check-ins", checks, state.demoMode)],
+    [...measured.missing, ...(check === null ? ["Record a recent recovery check-in"] : [])],
+    "FitCore Readiness = 70% WHOOP Recovery + 30% recent subjective check-in score. Both are required. Check-ins average energy, motivation, reversed soreness and reversed stress on a 1–10 scale. Sleep, HRV and heart rate are not added again because WHOOP Recovery already reflects wearable recovery evidence. This is a FitCore heuristic, not a WHOOP score.",
+  );
+}
+
+export function calculateRecoveryEstimate(
+  state: AppState,
+  now = Date.now(),
+  snapshot?: WhoopSnapshot | null,
+) {
+  const row = state.demoMode ? null : currentWhoopRecovery(snapshot, now);
+  return row
+    ? whoopScore(state, row)
+    : recoveryEstimate(state, readinessEstimate(state, now), trainingEvidence(state, now), now);
+}
+
+export function calculatePersonalScores(
+  state: AppState,
+  now = Date.now(),
+  snapshot?: WhoopSnapshot | null,
+) {
+  const manualReadiness = readinessEstimate(state, now);
+  const row = state.demoMode ? null : currentWhoopRecovery(snapshot, now);
+  const readiness = row
+    ? readinessWithWhoop(
+        state,
+        observeReadiness(state, now).checked.filter((check) =>
+          recent(check, now, FRESH_READINESS_DAYS),
+        ),
+        row,
+      )
+    : manualReadiness;
   const workouts = trainingEvidence(state, now);
   const training = trainingScore(state, workouts, now);
   const { score: nutrition } = calculateNutritionAdherence(state, now);
-  const recovery = recoveryEstimate(state, readiness, workouts, now);
+  const recovery = row
+    ? whoopScore(state, row)
+    : recoveryEstimate(state, manualReadiness, workouts, now);
   const progress = progressEstimate(state, workouts, now);
   const performance = combined(
     state.demoMode,
@@ -455,6 +550,12 @@ export function calculatePersonalScores(state: AppState, now = Date.now()) {
 }
 
 export function scoreStatusLabel(metric: PersonalScore): string {
+  if (metric.measurement) {
+    const { state, at } = metric.measurement;
+    return `WHOOP · ${metric.value !== null ? "Measured" : state === "pending" ? "Pending" : state === "calibrating" ? "Calibrating" : "Unavailable"} · ${new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  }
+  if (metric.sourceLabel && metric.value !== null)
+    return metric.demo ? "Demo Data · FitCore estimate" : metric.sourceLabel;
   const status = {
     unavailable: "Not enough data",
     limited: "Limited data",

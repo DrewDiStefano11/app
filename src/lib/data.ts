@@ -1,6 +1,6 @@
 // Seed data: exercises, workout templates, food library, meal templates.
 
-import type { WorkoutTemplateReference } from "./types";
+import type { CustomExercise, WorkoutTemplateReference } from "./types";
 import { BENCH_PROGRAM_ID } from "./bench-program";
 
 export type MuscleGroup =
@@ -17,6 +17,24 @@ export interface Exercise {
   defaultSets: number;
   defaultReps: string;
   cues?: string[];
+}
+
+export function filterExerciseCatalog<T extends Exercise | CustomExercise>(
+  exercises: readonly T[],
+  query: string,
+): readonly T[] {
+  const search = query.trim().toLowerCase();
+  if (!search) return exercises;
+  const terms = search.split(/\s+/);
+  return exercises.filter((exercise) => {
+    const searchable = [
+      exercise.name,
+      exercise.equipment,
+      ...exercise.primary,
+      ...(exercise.secondary ?? []),
+    ].join(" ").toLowerCase();
+    return terms.every((term) => searchable.includes(term));
+  });
 }
 
 const ex = (
@@ -258,6 +276,8 @@ export const FOODS: Food[] = [
   f("balsamic","Balsamic Vinegar","other","1 tbsp",15,0,3,0),
   f("whey","Protein Powder","protein","1 scoop",120,24,3,1),
 ];
+
+export const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
 
 export interface MealTemplateItem { foodId: string; servings: number }
 export interface MealTemplate {

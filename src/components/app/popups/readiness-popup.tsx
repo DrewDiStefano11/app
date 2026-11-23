@@ -3,6 +3,7 @@ import { ScoreEvidence, ScoreValue, usePersonalScores } from "../score-evidence"
 import { useStore } from "@/lib/store";
 import { readinessHistory, scoreStatusLabel } from "@/lib/analytics/personal-scores";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip } from "recharts";
+import { useWhoopSnapshot } from "@/hooks/use-whoop-snapshot";
 
 export function ReadinessDetailSheet({
   open,
@@ -15,12 +16,14 @@ export function ReadinessDetailSheet({
 }) {
   const { view } = useStore();
   const scores = usePersonalScores(view, open);
-  const series = open && focus === "readiness" ? readinessHistory(view) : [];
+  const snapshot = useWhoopSnapshot();
+  const series = open && focus === "readiness" ? readinessHistory(view, Date.now(), snapshot) : [];
   return (
     <BottomSheet
       open={open}
       onClose={onClose}
       title={focus === "recovery" ? "Recovery Score" : "Readiness Score"}
+      closeLabel="Close score details"
       height="tall"
     >
       <div className="space-y-4">
@@ -32,7 +35,8 @@ export function ReadinessDetailSheet({
           <div className="tile space-y-3 p-4">
             <h3 className="text-sm font-semibold">14-day readiness history</h3>
             <p className="text-xs text-muted-foreground">
-              Estimates use records from that day. Days without readings have gaps.
+              Each point uses the preceding 48 hours of evidence as of that day. Today's point
+              matches the current estimate; earlier days without observations have gaps.
             </p>
             {series.some((day) => day.value !== null) ? (
               <>

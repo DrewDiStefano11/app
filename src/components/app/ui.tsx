@@ -269,6 +269,7 @@ export function Chip({
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
         "btn-control chip-control min-h-9 px-3 py-1.5 rounded-full text-xs font-semibold border whitespace-nowrap transition-[color,background-color,border-color,transform] press",
         active

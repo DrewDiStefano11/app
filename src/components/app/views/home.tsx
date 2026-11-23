@@ -37,10 +37,8 @@ import type { LayoutMode } from "@/components/app/layout-primitives";
 import { ViewModeToggle } from "@/components/app/shared/view-mode-toggle";
 import { Eyebrow, Tile } from "@/components/app/tile";
 import {
-
   momentumScore,
   muscleMap,
-
   todayMealTotals,
   totalVolumeInRange,
   trainingStreak,
@@ -52,6 +50,7 @@ import { activeRoutineSession } from "@/lib/training-routines";
 import { useLocalCalendarDate } from "@/hooks/use-local-calendar-date";
 import { scoreStatusLabel } from "@/lib/analytics/personal-scores";
 import { usePersonalScores } from "@/components/app/score-evidence";
+import { useWhoopSnapshot } from "@/hooks/use-whoop-snapshot";
 import { GRAPH_PREFS, usePersistentState } from "@/lib/persist";
 import { isToday, useStore } from "@/lib/store";
 import type { AppState, SectionId } from "@/lib/types";
@@ -83,6 +82,7 @@ export function HomeView({
   onLayoutModeChange: (mode: LayoutMode) => void;
 }) {
   const { view, state } = useStore();
+  const snapshot = useWhoopSnapshot();
   const name = (state.profile as { name?: string }).name ?? "ATHLETE";
   const streak = useMemo(() => trainingStreak(view), [view]);
   const weekVol = useMemo(() => totalVolumeInRange(view, 7), [view]);
@@ -127,7 +127,9 @@ export function HomeView({
         {layoutMode === "daily" ? (
           <HomeDailyView setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
         ) : (
-          <HomeDeepDive setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
+          <>
+            <HomeDeepDive setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />
+          </>
         )}
       </div>
 
@@ -146,7 +148,7 @@ export function HomeView({
       <MomentumDetailSheet
         open={popup === "momentum"}
         onClose={() => setPopup(null)}
-        momentum={momentumScore(view)}
+        momentum={momentumScore(view, Date.now(), snapshot)}
       />
       <HeatmapDetailSheet open={popup === "heatmap"} onClose={() => setPopup(null)} />
       <StartWorkoutSheet
@@ -174,9 +176,15 @@ function HomeDailyView({
 }) {
   const { view, state } = useStore();
 
-  const { fitcore, training: trainingDriver, nutrition: nutritionDriver, readiness, recovery } = usePersonalScores(view);
+  const {
+    fitcore,
+    training: trainingDriver,
+    nutrition: nutritionDriver,
+    readiness,
+    recovery,
+  } = usePersonalScores(view);
   const score = fitcore.value;
-  const momentum = momentumScore(view);
+  const momentum = momentumScore(view, Date.now(), useWhoopSnapshot());
 
   const [heatMode] = usePersistentState<HeatMode>("heatmap.mode", "load");
   const loadMap = useMemo(() => muscleMap(view, heatMode), [view, heatMode]);
@@ -185,9 +193,13 @@ function HomeDailyView({
   const meals = todayMealTotals(view, now);
   const weekVol = useMemo(() => totalVolumeInRange(view, 7), [view]);
   const lastWeekVol = useMemo(() => totalVolumeInRange(view, 14) - weekVol, [view, weekVol]);
-  const volDelta = lastWeekVol > 0 && weekVol > 0 ? Math.round(((weekVol - lastWeekVol) / lastWeekVol) * 100) : null;
+  const volDelta =
+    lastWeekVol > 0 && weekVol > 0
+      ? Math.round(((weekVol - lastWeekVol) / lastWeekVol) * 100)
+      : null;
   const targets = state.nutritionTargets;
   const hasMealsToday = view.mealEntries.some((meal) => isToday(meal.createdAt) && meal.createdAt <= now);
+  const missingMacrosToday = view.mealEntries.some((meal) => isToday(meal.createdAt) && meal.createdAt <= now && meal.macroStatus === "unreported");
   const kcalPct =
     targets.calories > 0 ? Math.min(100, Math.round((meals.calories / targets.calories) * 100)) : 0;
   const proteinPct =
@@ -201,14 +213,15 @@ function HomeDailyView({
   const customSession = activeRoutineSession(state, date);
   const benchDay = configuredBenchDay(scheduledBenchDay(date), state.workoutTemplates);
   const assignedWorkout = customSession
-    ? customSession.template?.name ?? (customSession.day ? customSession.routine.name : "Rest Day")
+    ? (customSession.template?.name ??
+      (customSession.day ? customSession.routine.name : "Rest Day"))
     : [benchDay.name, benchDay.durationLabel].filter(Boolean).join(" · ");
 
   const dailyTargets = useMemo(
     () => [
       view.workouts.some((workout) => isToday(workout.startedAt) && Boolean(workout.endedAt)),
       view.mealEntries.some((meal) => isToday(meal.createdAt)),
-      targets.protein > 0 && meals.protein >= targets.protein,
+      ...(targets.protein > 0 ? [meals.protein >= targets.protein] : []),
       view.recoveryCheckIns.some((checkIn) => isToday(checkIn.createdAt)),
       view.bodyweightEntries.some((entry) => isToday(entry.createdAt)),
     ],
@@ -240,7 +253,9 @@ function HomeDailyView({
     { id: "readiness", value: readiness.value },
     { id: "recovery", value: recovery.value },
     { id: "momentum", value: momentum.score },
-  ].filter(item => item.value !== null).sort((a, b) => b.value! - a.value!)[0]?.id;
+  ]
+    .filter((item) => item.value !== null)
+    .sort((a, b) => b.value! - a.value!)[0]?.id;
 
   const scoreDrivers = [
     { label: "Training", value: trainingDriver },
@@ -254,15 +269,20 @@ function HomeDailyView({
     setMuscle(nextMuscle);
   };
 
-  const insight = readiness.status === "available"
-    ? "Readiness is an estimate from recent sleep and recovery check-ins. Tap Readiness to see its sources."
-    : "Log recent sleep and a recovery check-in to get a fuller readiness estimate.";
+  const insight =
+    readiness.status === "available"
+      ? "Readiness is a FitCore estimate from the evidence available now. Tap Readiness to see its sources and formula."
+      : "Log recent sleep and a recovery check-in to get a fuller readiness estimate.";
 
   return (
     <>
       <section className="home-orbit-hero" aria-label="FitCore status">
         <span
-          className={strongestOrbit ? `home-score-connector home-score-connector--${strongestOrbit}` : "hidden"}
+          className={
+            strongestOrbit
+              ? `home-score-connector home-score-connector--${strongestOrbit}`
+              : "hidden"
+          }
           aria-hidden="true"
         />
         <button
@@ -290,12 +310,14 @@ function HomeDailyView({
           <span className="home-score-progress" aria-hidden="true">
             <span style={{ width: `${score ?? 0}%` }} />
           </span>
-          {volDelta !== null && <span className="home-score-trend">
-            <b className={volDelta >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]"}>
-              {volDelta >= 0 ? "↑" : "↓"} {Math.abs(volDelta)}%
-            </b>
-            logged volume vs last week
-          </span>}
+          {volDelta !== null && (
+            <span className="home-score-trend">
+              <b className={volDelta >= 0 ? "text-[var(--success)]" : "text-[var(--danger)]"}>
+                {volDelta >= 0 ? "↑" : "↓"} {Math.abs(volDelta)}%
+              </b>
+              logged volume vs last week
+            </span>
+          )}
         </button>
 
         <div className="home-orbit-field" aria-label="Daily status scores">
@@ -312,6 +334,7 @@ function HomeDailyView({
           <OrbitalScore
             label="Recovery"
             value={recovery.value}
+            measured={!!recovery.measurement}
             status={scoreStatusLabel(recovery)}
             color="var(--success)"
             className="home-orbit-score--recovery"
@@ -363,7 +386,6 @@ function HomeDailyView({
                         ? "Biggest gap"
                         : "Most worked"}
                   </p>
-
                 </div>
                 <div
                   className="home-muscle-map"
@@ -388,40 +410,46 @@ function HomeDailyView({
             className="home-section-card home-section-card--macros"
           >
             <Eyebrow color="var(--nutrition)">Macros</Eyebrow>
-            {hasMealsToday ? <>
-            <div className="mt-2 font-display text-4xl leading-none">
-              <CountUp value={meals.calories} />
-              <span className="ml-1 text-xs font-bold uppercase text-white/30">
-                / {targets.calories}
-              </span>
-            </div>
-            <div className="mt-5 space-y-2">
-              <MacroBar
-                label="P"
-                value={meals.protein}
-                target={targets.protein}
-                pct={proteinPct}
-                color="rgb(239 68 68)"
-              />
-              <MacroBar
-                label="C"
-                value={meals.carbs}
-                target={targets.carbs}
-                pct={carbsPct}
-                color="rgb(245 158 11)"
-              />
-              <MacroBar
-                label="F"
-                value={meals.fat}
-                target={targets.fat}
-                pct={fatPct}
-                color="rgb(34 197 94)"
-              />
-            </div>
-            <div className="mt-3 text-[9px] font-bold uppercase tracking-widest text-white/35">
-              {kcalPct}% of daily goal · logged so far
-            </div>
-            </> : <p className="mt-2 text-sm text-muted-foreground">No meals logged today</p>}
+            {hasMealsToday ? (
+              <>
+                <div className="mt-2 font-display text-4xl leading-none">
+                  <CountUp value={meals.calories} />
+                  <span className="ml-1 text-xs font-bold uppercase text-white/30">
+                    {targets.calories > 0 ? `/ ${targets.calories}` : "kcal"}
+                  </span>
+                </div>
+                {missingMacrosToday ? <p className="mt-5 text-sm text-muted-foreground">Some meals have unreported macros.</p> : <div className="mt-5 space-y-2">
+                  <MacroBar
+                    label="P"
+                    value={meals.protein}
+                    target={targets.protein}
+                    pct={proteinPct}
+                    color="rgb(239 68 68)"
+                  />
+                  <MacroBar
+                    label="C"
+                    value={meals.carbs}
+                    target={targets.carbs}
+                    pct={carbsPct}
+                    color="rgb(245 158 11)"
+                  />
+                  <MacroBar
+                    label="F"
+                    value={meals.fat}
+                    target={targets.fat}
+                    pct={fatPct}
+                    color="rgb(34 197 94)"
+                  />
+                </div>}
+                <div className="mt-3 text-[9px] font-bold uppercase tracking-widest text-white/35">
+                  {targets.calories > 0
+                    ? `${kcalPct}% of daily goal · logged so far`
+                    : "No calorie target"}
+                </div>
+              </>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">No meals logged today</p>
+            )}
           </Tile>
 
           <GoalsPanel compact />
@@ -444,10 +472,17 @@ function HomeDailyView({
             <div
               className="mt-3 text-[10px] font-bold uppercase tracking-widest"
               style={{
-                color: volDelta === null ? "var(--muted-foreground)" : volDelta >= 0 ? "var(--success)" : "var(--danger)",
+                color:
+                  volDelta === null
+                    ? "var(--muted-foreground)"
+                    : volDelta >= 0
+                      ? "var(--success)"
+                      : "var(--danger)",
               }}
             >
-              {volDelta === null ? "No comparable weeks" : `${volDelta >= 0 ? "↑" : "↓"} ${Math.abs(volDelta)}% logged volume`}
+              {volDelta === null
+                ? "No comparable weeks"
+                : `${volDelta >= 0 ? "↑" : "↓"} ${Math.abs(volDelta)}% logged volume`}
             </div>
           </Tile>
 
@@ -476,6 +511,7 @@ function HomeDailyView({
 
       <button
         onClick={openAi}
+        aria-label="Open Jarvis"
         className="home-ai-insight animate-tile-in press"
         style={{ animationDelay: "260ms" }}
       >
@@ -491,11 +527,7 @@ function HomeDailyView({
         <Play size={21} className="relative fill-white" />
         <span className="home-start-copy">
           <span className="font-display text-2xl uppercase tracking-wide">Start Workout</span>
-          {assignedWorkout && (
-            <span>
-              {assignedWorkout}
-            </span>
-          )}
+          {assignedWorkout && <span>{assignedWorkout}</span>}
         </span>
       </button>
 
@@ -531,9 +563,15 @@ function HomeDeepDive({
 }) {
   const { view, state } = useStore();
 
-  const { fitcore, training: trainingDriver, nutrition: nutritionDriver, readiness, recovery } = usePersonalScores(view);
+  const {
+    fitcore,
+    training: trainingDriver,
+    nutrition: nutritionDriver,
+    readiness,
+    recovery,
+  } = usePersonalScores(view);
   const score = fitcore.value;
-  const momentum = momentumScore(view);
+  const momentum = momentumScore(view, Date.now(), useWhoopSnapshot());
 
   const scoreDrivers = [
     { label: "Training", value: trainingDriver },
@@ -595,7 +633,9 @@ function HomeDeepDive({
                 {driver.label}
               </p>
               <div className="mt-1 flex items-baseline gap-1">
-                <p className="text-lg font-bold tabular-nums text-white">{driver.value.value ?? "—"}</p>
+                <p className="text-lg font-bold tabular-nums text-white">
+                  {driver.value.value ?? "—"}
+                </p>
                 <p className="text-[10px] text-white/40">/100</p>
               </div>
               <p className="text-[9px] text-[var(--section)] font-bold mt-1 uppercase">
@@ -652,7 +692,10 @@ function HomeDeepDive({
           <div>
             <p className="text-sm font-bold text-white">Readiness Analysis</p>
             <p className="text-xs text-white/50 mt-0.5">
-              Readiness {readiness.value ?? "—"} · {scoreStatusLabel(readiness)}. Recovery {recovery.value ?? "—"}.
+              Readiness {readiness.value ?? "—"} · {scoreStatusLabel(readiness)}. Recovery{" "}
+              {recovery.value ?? "—"}
+              {recovery.measurement && recovery.value !== null ? "%" : ""} ·{" "}
+              {scoreStatusLabel(recovery)}.
             </p>
           </div>
           <ChevronRight size={18} className="text-white/30" />
@@ -705,21 +748,6 @@ function HomeDeepDive({
 
       <section className="rounded-[var(--radius-card)] border border-border border-dashed bg-card/50 p-4">
         <div className="flex items-center gap-2 mb-2">
-          <Activity size={14} className="text-[var(--recovery)]" />
-          <h3 className="text-xs font-bold uppercase tracking-widest text-white/60">
-            Wearable Integrations
-          </h3>
-        </div>
-        <p className="text-xs text-white/50 leading-relaxed">
-          Apple Watch & Whoop data will sync here for deeper readiness explanations.
-        </p>
-        <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white/30">
-          Planned
-        </div>
-      </section>
-
-      <section className="rounded-[var(--radius-card)] border border-border border-dashed bg-card/50 p-4">
-        <div className="flex items-center gap-2 mb-2">
           <Calendar size={14} className="text-white/40" />
           <h3 className="text-xs font-bold uppercase tracking-widest text-white/60">
             Dashboard Modular Customization
@@ -748,6 +776,7 @@ function OrbitalScore({
   className,
   onClick,
   countDelay,
+  measured = false,
 }: {
   label: string;
   value: number | null;
@@ -756,6 +785,7 @@ function OrbitalScore({
   className: string;
   onClick: () => void;
   countDelay?: number;
+  measured?: boolean;
 }) {
   const size = 78;
   const radius = size / 2 - 5;
@@ -766,10 +796,14 @@ function OrbitalScore({
       onClick={onClick}
       className={`home-orbit-score ${className} press`}
       style={{ "--orbit-color": color } as CSSProperties}
-      aria-label={`${label} ${value ?? "—"} · ${status}`}
+      aria-label={`${label} ${value ?? "—"}${measured && value !== null ? "%" : ""} · ${status}`}
     >
       <span className="home-orbit-label">{label}</span>
-      {status !== "Calculated estimate" && <span className="text-[9px] text-white/60">{status}</span>}
+      {(status !== "Calculated estimate" || label === "Readiness") && (
+        <span className="text-[9px] text-white/60">
+          {status === "Calculated estimate" ? "FitCore estimate" : status}
+        </span>
+      )}
       <span className="home-orbit-ring">
         <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
           <circle
@@ -794,7 +828,16 @@ function OrbitalScore({
           />
         </svg>
         <span className="home-orbit-value">
-          {value === null ? "—" : <CountUp value={value} delay={countDelay} duration={820} />}
+          {value === null ? (
+            "—"
+          ) : measured ? (
+            <>
+              {value}
+              <span className="text-[10px]">%</span>
+            </>
+          ) : (
+            <CountUp value={value} delay={countDelay} duration={820} />
+          )}
         </span>
         <span className="home-orbit-glint" aria-hidden="true" />
       </span>
@@ -820,7 +863,7 @@ function MacroBar({
       <div className="flex justify-between text-[10px] font-bold tabular-nums">
         <span className="text-white/40">{label}</span>
         <span className="text-white/80">
-          {Math.round(value)}/{target}g
+          {target > 0 ? `${Math.round(value)}/${target}g` : `${Math.round(value)}g · No target`}
         </span>
       </div>
       <div className="mt-0.5 h-1 overflow-hidden rounded-full bg-white/5">

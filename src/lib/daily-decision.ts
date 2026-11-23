@@ -1,5 +1,5 @@
 import { exerciseById } from "./data";
-import { recordedRecoveryCheckIns } from "./analytics/observed-fitness";
+import { hasRecordedSleepQuality, recordedRecoveryCheckIns, recordedSleepEntries } from "./analytics/observed-fitness";
 import { dayKey as dateKey, startOfDay } from "./analytics/date-time";
 import type {
   AppState,
@@ -309,7 +309,7 @@ export function getDataTrustSummary(state: AppState, now = Date.now()): DataTrus
   const missingKeySignals: string[] = [];
   if (!state.recoveryCheckIns.some((item) => item.createdAt >= now - 48 * 60 * 60 * 1000))
     missingKeySignals.push("recent recovery check-in");
-  if (!state.sleepEntries.some((item) => item.createdAt >= now - 36 * 60 * 60 * 1000))
+  if (!recordedSleepEntries(state, now).some((item) => item.createdAt >= now - 36 * 60 * 60 * 1000))
     missingKeySignals.push("recent sleep");
   if (!state.workouts.some((item) => item.startedAt >= recentCutoff) && !state.activeWorkout)
     missingKeySignals.push("recent training");
@@ -363,19 +363,20 @@ export function buildDailyDecisionContext(state: AppState, now = Date.now()): Da
   const latestCheckIn =
     recentCheckIns.find((item) => item.createdAt >= now - 48 * 60 * 60 * 1000) ?? null;
   const previousCheckIn = recentCheckIns.find((item) => item.id !== latestCheckIn?.id) ?? null;
-  const latestSleep =
-    latestFirst(state.sleepEntries.filter((item) => item.createdAt >= now - 36 * 60 * 60 * 1000 &&
-      item.createdAt <= now && item.provenance?.confirmation !== "unconfirmed"))[0] ?? null;
+  const latestSleep = recordedSleepEntries(state, now)
+    .filter((item) => item.createdAt >= now - 36 * 60 * 60 * 1000)
+    .at(-1) ?? null;
   const recentRecoverySignals = latestFirst(
     state.recoverySignals.filter(
       (item) => item.createdAt >= now - 7 * DAY && item.createdAt <= now,
     ),
   );
   const caloriesToday = trustedTodayMeals.reduce((sum, item) => sum + item.calories, 0);
-  const proteinToday = trustedTodayMeals.reduce((sum, item) => sum + item.protein, 0);
-  const carbsToday = trustedTodayMeals.reduce((sum, item) => sum + item.carbs, 0);
-  const calorieTarget = state.nutritionTargets.calories || state.userGoalsProfile.calorieGoal || 0;
-  const proteinTarget = state.nutritionTargets.protein || state.userGoalsProfile.proteinGoal || 0;
+  const proteinToday = trustedTodayMeals.reduce((sum, item) => sum + (item.protein ?? 0), 0);
+  const carbsToday = trustedTodayMeals.reduce((sum, item) => sum + (item.carbs ?? 0), 0);
+  const missingMacros = trustedTodayMeals.some((item) => item.macroStatus === "unreported");
+  const calorieTarget = state.nutritionTargets.calories ?? state.userGoalsProfile.calorieGoal ?? 0;
+  const proteinTarget = state.nutritionTargets.protein ?? state.userGoalsProfile.proteinGoal ?? 0;
   const trainingVolume = recentWorkouts.reduce((sum, item) => sum + workoutVolume(item), 0);
   const previousTrainingVolume = previousWorkouts.reduce(
     (sum, item) => sum + workoutVolume(item),
@@ -414,7 +415,7 @@ export function buildDailyDecisionContext(state: AppState, now = Date.now()): Da
     hasThreeMeals(trustedTodayMeals) &&
     hour >= 19 &&
     ((calorieTarget > 0 && caloriesToday < calorieTarget * expectedProgress * 0.72) ||
-      (proteinTarget > 0 && proteinToday < proteinTarget * expectedProgress * 0.65));
+      (!missingMacros && proteinTarget > 0 && proteinToday < proteinTarget * expectedProgress * 0.65));
   const trust = getDataTrustSummary(state, now);
   const dataUsed: DataUsed[] = [];
   if (recentWorkouts.length)
@@ -449,6 +450,12 @@ export function buildDailyDecisionContext(state: AppState, now = Date.now()): Da
       area: "recovery",
       whyItMatters: "Recent sleep can materially change training intensity.",
       suggestedUserAction: "Log last night's sleep.",
+    });
+  else if (!hasRecordedSleepQuality(latestSleep))
+    dataMissing.push({
+      area: "recovery",
+      whyItMatters: "Sleep duration is recorded, and sleep quality is missing.",
+      suggestedUserAction: "Record sleep quality.",
     });
   if (!todayMeals.length)
     dataMissing.push({
@@ -672,9 +679,10 @@ export function getWhatChangedSignals(state: AppState, now = Date.now()): WhatCh
     const loggedDays = completeDates.length;
     if (loggedDays >= 2) {
       const usualCalories = priorMeals.reduce((sum, item) => sum + item.calories, 0) / loggedDays;
-      const usualProtein = priorMeals.reduce((sum, item) => sum + item.protein, 0) / loggedDays;
+      const proteinIncomplete = [...context.trustedTodayMeals, ...priorMeals].some((meal) => meal.macroStatus === "unreported");
+      const usualProtein = proteinIncomplete ? 0 : priorMeals.reduce((sum, item) => sum + (item.protein ?? 0), 0) / loggedDays;
       const caloriesRatio = context.caloriesToday / usualCalories;
-      const proteinRatio = usualProtein ? context.proteinToday / usualProtein : caloriesRatio;
+      const proteinRatio = proteinIncomplete ? Number.POSITIVE_INFINITY : usualProtein ? context.proteinToday / usualProtein : caloriesRatio;
       if (caloriesRatio <= 0.65 || proteinRatio <= 0.65) {
         signals.push({
           type: "nutrition",
@@ -766,20 +774,25 @@ export function getWhatChangedSignals(state: AppState, now = Date.now()): WhatCh
   return signals.slice(0, 6);
 }
 
+const SHORT_SLEEP_LIMIT_HOURS = 5;
+
+function poorSleepEvidence(sleep: NonNullable<DailyDecisionContext["latestSleep"]>): boolean {
+  return sleep.hours < 5.5 || (hasRecordedSleepQuality(sleep) && sleep.quality <= 3);
+}
+
 function chooseDecisionType(context: DailyDecisionContext): DecisionType {
   const checkIn = context.latestCheckIn;
   const severePain = context.painSeverity >= 7;
   const highSoreness = (checkIn?.soreness ?? 0) >= 8;
   const lowEnergy = (checkIn?.energy ?? 10) <= 3;
-  const poorSleep = context.latestSleep
-    ? context.latestSleep.hours < 5.5 || context.latestSleep.quality <= 3
-    : false;
+  const poorSleep = context.latestSleep != null && poorSleepEvidence(context.latestSleep);
   const veryFatigued = context.muscleGroupsToLimit.length >= 3;
   const loadSpike =
     context.previousTrainingVolume > 0 &&
     context.trainingVolume > context.previousTrainingVolume * 1.35;
 
   if (severePain || (highSoreness && lowEnergy)) return "recover";
+  if (context.latestSleep && context.latestSleep.hours < SHORT_SLEEP_LIMIT_HOURS) return "train_light";
   if (context.painSeverity >= 5 || highSoreness || (poorSleep && lowEnergy)) return "train_light";
   if ((loadSpike && (lowEnergy || poorSleep || (checkIn?.soreness ?? 0) >= 6)) || veryFatigued)
     return "deload";
@@ -791,7 +804,8 @@ function chooseDecisionType(context: DailyDecisionContext): DecisionType {
     checkIn.energy >= 8 &&
     checkIn.soreness <= 3 &&
     checkIn.stress <= 5 &&
-    context.latestSleep !== null && context.latestSleep.hours >= 7 && context.latestSleep.quality >= 6;
+    context.latestSleep !== null && context.latestSleep.hours >= 7 &&
+    hasRecordedSleepQuality(context.latestSleep) && context.latestSleep.quality >= 6;
   return goodRecovery && context.recentWorkouts.length > 0 ? "train_hard" : "train_normal";
 }
 
@@ -836,15 +850,17 @@ function buildLimitingFactors(context: DailyDecisionContext): LimitingFactor[] {
       explanation: `Energy is ${context.latestCheckIn?.energy}/10, which lowers confidence in max-effort work.`,
       dataUsed: recoveryData,
     });
-  if (context.latestSleep && (context.latestSleep.hours < 7 || context.latestSleep.quality < 6))
+  const sleep = context.latestSleep;
+  if (sleep && (sleep.hours < 7 || (hasRecordedSleepQuality(sleep) && sleep.quality < 6))) {
+    const quality = hasRecordedSleepQuality(sleep) ? ` with quality ${sleep.quality}/10` : "";
     factors.push({
       type: "sleep",
-      severity:
-        context.latestSleep.hours < 5.5 || context.latestSleep.quality <= 3 ? "high" : "medium",
-      confidence: confidenceOf([context.latestSleep]),
-      explanation: `${context.latestSleep.hours} hours of sleep with quality ${context.latestSleep.quality}/10 may limit recovery.`,
-      dataUsed: recoveryData.filter((item) => item.ids.includes(context.latestSleep!.id)),
+      severity: poorSleepEvidence(sleep) ? "high" : "medium",
+      confidence: confidenceOf([sleep]),
+      explanation: `${sleep.hours} hours of sleep${quality} may limit recovery.`,
+      dataUsed: recoveryData.filter((item) => item.ids.includes(sleep.id)),
     });
+  }
   if (context.underEating)
     factors.push({
       type: "nutrition",
@@ -884,9 +900,11 @@ export function buildDailyDecision(state: AppState, now = Date.now()): DailyDeci
     train_light:
       context.painSeverity >= 5
         ? "A pain or discomfort signal makes intensity reduction the safest choice."
-        : context.underEating
-          ? "Confirmed fueling is behind today, so hard training is softened."
-          : "Soreness, fatigue, or sleep signals support reducing intensity.",
+        : context.latestSleep && context.latestSleep.hours < SHORT_SLEEP_LIMIT_HOURS
+          ? `You logged ${context.latestSleep.hours} hours of sleep, so keep the session light and avoid max-effort sets.`
+          : context.underEating
+            ? "Confirmed fueling is behind today, so hard training is softened."
+            : "Soreness, fatigue, or sleep signals support reducing intensity.",
     deload: "Recent load and recovery signals favor a lower-volume, lower-intensity session.",
     recover:
       "Current pain, soreness, or fatigue signals make a recovery-focused day the safer recommendation.",
@@ -934,7 +952,8 @@ export function buildDailyDecision(state: AppState, now = Date.now()): DailyDeci
   };
 
   const calorieGap = context.calorieTarget ? context.calorieTarget - context.caloriesToday : null;
-  const proteinGap = context.proteinTarget ? context.proteinTarget - context.proteinToday : null;
+  const missingMacros = context.trustedTodayMeals.some((meal) => meal.macroStatus === "unreported");
+  const proteinGap = context.proteinTarget && !missingMacros ? context.proteinTarget - context.proteinToday : null;
   let nutritionRecommendation = "Keep meals balanced and continue logging confirmed intake.";
   let nutritionReason = "Confirmed nutrition is reasonably aligned with today's target.";
   let carbTimingSuggestion: string | null = null;
@@ -946,6 +965,11 @@ export function buildDailyDecision(state: AppState, now = Date.now()): DailyDeci
   } else if (!context.todayMeals.length) {
     nutritionRecommendation = "Log today's meals before making a calorie or macro adjustment.";
     nutritionReason = "No nutrition entries are available for today.";
+  } else if (calorieGap === null && proteinGap === null) {
+    nutritionReason = "No calorie or protein targets are set for today.";
+  } else if (missingMacros && !context.underEating) {
+    nutritionRecommendation = "Add the missing meal macros when available.";
+    nutritionReason = "Some meals have unreported macros.";
   } else if (proteinGap != null && proteinGap >= 30) {
     const nextMealProtein = Math.max(35, Math.min(45, Math.round(proteinGap / 5) * 5));
     nutritionRecommendation = `Protein is behind target; prioritize about ${nextMealProtein}g at your next meal.`;
@@ -972,11 +996,13 @@ export function buildDailyDecision(state: AppState, now = Date.now()): DailyDeci
   const sleepSignal: RecoveryDecision["sleepSignal"] =
     !context.latestSleep || context.latestSleep.createdAt < now - 36 * 60 * 60 * 1000
       ? "missing"
-      : context.latestSleep.hours >= 7 && context.latestSleep.quality >= 6
-        ? "good"
-        : context.latestSleep.hours < 5.5 || context.latestSleep.quality <= 3
-          ? "poor"
-          : "fair";
+      : poorSleepEvidence(context.latestSleep)
+        ? "poor"
+        : !hasRecordedSleepQuality(context.latestSleep)
+          ? "missing"
+          : context.latestSleep.hours >= 7 && context.latestSleep.quality >= 6
+            ? "good"
+            : "fair";
   const limitingFactors = buildLimitingFactors(context);
   const recoveryLimiters = limitingFactors
     .filter((item) => item.type !== "missing_data")

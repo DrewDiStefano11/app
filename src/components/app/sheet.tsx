@@ -1,7 +1,31 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useVisibleViewport } from "@/hooks/use-visible-viewport";
+
+function keepDialogFocus(event: KeyboardEvent<HTMLDivElement>, onClose: () => void) {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    onClose();
+    return;
+  }
+  if (event.key !== "Tab") return;
+  const focusable = [...event.currentTarget.querySelectorAll<HTMLElement>(
+    "button, a[href], input, select, textarea, [tabindex]",
+  )].filter((element) => element.tabIndex >= 0 && !element.matches(":disabled") && element.getClientRects().length);
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (!first) {
+    event.preventDefault();
+  } else if (event.shiftKey && (event.target === first || event.target === event.currentTarget)) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && event.target === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
 
 export function BottomSheet({
   open,
@@ -9,13 +33,42 @@ export function BottomSheet({
   title,
   children,
   height = "auto",
+  closeLabel,
+  manageFocus = false,
+  fitViewport = false,
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
   children: ReactNode;
   height?: "auto" | "tall" | "full";
+  closeLabel?: string;
+  manageFocus?: boolean;
+  fitViewport?: boolean;
 }) {
+  const viewport = useVisibleViewport(open && fitViewport);
+  const surface = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open || !fitViewport) return;
+    const scroller = surface.current?.querySelector<HTMLElement>(".sheet-scroll");
+    if (!scroller) return;
+    let frame = 0;
+    const keepFocusedFieldVisible = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const field = document.activeElement;
+        if (!(field instanceof HTMLElement) || !scroller.contains(field) || !field.matches("input, textarea, select, [contenteditable=true]")) return;
+        const bounds = scroller.getBoundingClientRect();
+        const target = field.getBoundingClientRect();
+        // Move only the sheet's own scroll region and only the distance needed.
+        if (target.bottom > bounds.bottom - 12) scroller.scrollTop += target.bottom - bounds.bottom + 12;
+        else if (target.top < bounds.top + 12) scroller.scrollTop += target.top - bounds.top - 12;
+      });
+    };
+    scroller.addEventListener("focusin", keepFocusedFieldVisible);
+    keepFocusedFieldVisible();
+    return () => { cancelAnimationFrame(frame); scroller.removeEventListener("focusin", keepFocusedFieldVisible); };
+  }, [open, fitViewport, viewport]);
   useEffect(() => {
     if (!open) return;
     const orig = document.body.style.overflow;
@@ -25,20 +78,37 @@ export function BottomSheet({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !manageFocus) return;
+    const previous = document.activeElement;
+    surface.current?.focus({ preventScroll: true });
+    return () => {
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, [open, manageFocus]);
+
   if (!open) return null;
   const section = typeof document !== "undefined" ? document.querySelector('.phone-shell')?.getAttribute('data-section') || 'home' : 'home';
   return createPortal(
-    <div className="sheet-root fixed inset-0 z-50 flex items-end justify-center" data-section={section}>
+    <div className="sheet-root fixed inset-0 z-50 flex items-end justify-center" data-section={section} data-compact={fitViewport && viewport && viewport.height < 600 ? "true" : undefined}
+      style={fitViewport && viewport ? { top: viewport.top, height: viewport.height, bottom: "auto", "--sheet-visible-height": `${viewport.height}px` } as React.CSSProperties : undefined}>
       <div
         className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in"
         onClick={onClose}
       />
       <div
+        ref={surface}
+        role={manageFocus ? "dialog" : undefined}
+        aria-label={manageFocus ? title : undefined}
+        aria-modal={manageFocus || undefined}
+        tabIndex={manageFocus ? -1 : undefined}
+        onKeyDown={manageFocus ? (event) => keepDialogFocus(event, onClose) : undefined}
         className={cn(
           "sheet-surface relative w-full max-w-[480px] mx-auto rounded-t-[var(--radius-modal)] animate-in slide-in-from-bottom duration-300 overflow-hidden",
           height === "tall" && "max-h-[88dvh]",
           height === "full" && "h-[100dvh] rounded-none",
         )}
+        style={fitViewport ? { maxHeight: "min(88dvh, var(--sheet-visible-height, 100dvh))" } : undefined}
       >
         <div className="sheet-header flex min-h-16 items-center justify-between border-b border-white/[0.06] px-5 pb-3 pt-5">
           <div className="sheet-grabber absolute left-1/2 top-2 -translate-x-1/2 h-1 w-10 rounded-full bg-white/25" />
@@ -47,6 +117,7 @@ export function BottomSheet({
           </h3>
           <button
             onClick={onClose}
+            aria-label={closeLabel}
             className="btn-control grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/75 transition-colors hover:bg-white/10 hover:text-white press"
           >
             <X size={18} />
@@ -54,7 +125,7 @@ export function BottomSheet({
         </div>
         <div
           className="sheet-scroll overflow-y-auto px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-4"
-          style={{ maxHeight: "calc(88dvh - 60px)" }}
+          style={{ maxHeight: fitViewport ? "calc(min(88dvh, var(--sheet-visible-height, 100dvh)) - 64px)" : "calc(88dvh - 60px)" }}
         >
           {children}
         </div>
@@ -72,6 +143,7 @@ export function ConfirmDialog({
   message,
   confirmLabel = "Confirm",
   destructive,
+  manageFocus = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -80,7 +152,20 @@ export function ConfirmDialog({
   message: string;
   confirmLabel?: string;
   destructive?: boolean;
+  manageFocus?: boolean;
 }) {
+  const cancel = useRef<HTMLButtonElement>(null);
+  const descriptionId = useId();
+
+  useEffect(() => {
+    if (!open || !manageFocus) return;
+    const previous = document.activeElement;
+    cancel.current?.focus({ preventScroll: true });
+    return () => {
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, [open, manageFocus]);
+
   if (!open) return null;
   const section = typeof document !== "undefined" ? document.querySelector('.phone-shell')?.getAttribute('data-section') || 'home' : 'home';
   return createPortal(
@@ -89,11 +174,17 @@ export function ConfirmDialog({
         className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md"
         onClick={onClose}
       />
-      <div className="sheet-surface relative w-full max-w-sm rounded-[var(--radius-modal)] p-5">
+      <div className="sheet-surface relative w-full max-w-sm rounded-[var(--radius-modal)] p-5"
+        role={manageFocus ? "alertdialog" : undefined}
+        aria-modal={manageFocus || undefined}
+        aria-label={manageFocus ? title : undefined}
+        aria-describedby={manageFocus ? descriptionId : undefined}
+        onKeyDown={manageFocus ? (event) => keepDialogFocus(event, onClose) : undefined}>
         <h3 className="font-semibold text-lg text-white">{title}</h3>
-        <p className="text-sm text-white/70 mt-2">{message}</p>
+        <p id={descriptionId} className="text-sm text-white/70 mt-2">{message}</p>
         <div className="mt-5 flex gap-2 border-t border-white/[0.06] pt-4">
           <button
+            ref={cancel}
             onClick={onClose}
             className="btn-control flex-1 px-4 py-2.5 rounded-xl border border-white/15 bg-white/5 font-medium text-white"
           >

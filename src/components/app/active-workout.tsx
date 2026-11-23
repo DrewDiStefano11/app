@@ -3,8 +3,13 @@ import {
   ArrowLeft, Plus, Check, X, Trash2, Timer as TimerIcon, ChevronUp, ChevronDown,
   GripVertical, Calculator, Pencil, Sparkles,
 } from "lucide-react";
-import { useStore, uid, e1RM } from "@/lib/store";
-import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, tracksWorkoutMinutes, type Exercise, type MuscleGroup } from "@/lib/data";
+import { useStore, uid } from "@/lib/store";
+import { DEFAULT_REST_SECONDS, restTimerAfterSet } from "@/lib/active-workout-state";
+import { hasPerformedSet } from "@/lib/analytics/observed-fitness";
+import { applyWorkoutPersonalRecords, workoutRecordImprovements } from "@/lib/workout-personal-records";
+import { downloadFitCoreBackup } from "@/lib/fitcore-backup-download";
+import { isDefaultManualProvenance } from "@/lib/fitcore-data";
+import { EXERCISES, MAX_WORKOUT_TEMPLATE_SETS, exerciseById, filterExerciseCatalog, tracksWorkoutMinutes, type Exercise, type MuscleGroup } from "@/lib/data";
 import { BENCH_PROGRAM_ID, formatWorkoutTarget } from "@/lib/bench-program";
 import type {
   AppState, Workout, WorkoutExercise, SetEntry, CustomExercise, Goal,
@@ -31,9 +36,6 @@ const ALL_MUSCLES: MuscleGroup[] = [
   "chest", "back", "shoulders", "biceps", "triceps",
   "quads", "hamstrings", "glutes", "calves", "core", "cardio",
 ];
-
-const DEFAULT_REST_SECONDS = 90;
-const MAX_REST_SECONDS = 24 * 60 * 60;
 
 function fmtTime(ms: number) {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -69,6 +71,76 @@ function makeDemoPrevSets(exerciseId: string, count: number): SetEntry[] {
 
 /* ===================== Main view ===================== */
 
+function WorkoutBackupButton() {
+  const { exportJson, persistenceRequiresReload } = useStore();
+  return (
+    <div className="space-y-1">
+      <GhostButton onClick={() => downloadFitCoreBackup(exportJson())}>
+        Export saved data
+      </GhostButton>
+      {persistenceRequiresReload && (
+        <p className="text-xs text-muted-foreground">
+          This tab’s last verified copy may omit changes saved elsewhere.
+        </p>
+      )}
+    </div>
+  );
+}
+
+const EXERCISE_FIELDS = new Set([
+  "id", "exerciseId", "sets", "notes", "completed", "exerciseTags", "target", "provenance",
+]);
+const SET_FIELDS = new Set([
+  "id", "reps", "weight", "durationMin", "distanceMi", "modifier", "completed", "provenance",
+]);
+
+function workoutActivityIds(audit: AppState["jarvisAudit"], workout: Workout) {
+  const ids = new Set(audit.flatMap((entry) => entry.entityIds ?? []));
+  for (const entry of audit) {
+    if (entry.entityKind !== "activeSetDelete" || entry.undone) continue;
+    const patch = entry.patch as { exerciseEntryId?: unknown; exerciseId?: unknown } | undefined;
+    if (typeof patch?.exerciseEntryId === "string" && patch.exerciseEntryId) {
+      ids.add(patch.exerciseEntryId);
+    } else if (typeof patch?.exerciseId === "string") {
+      for (const exercise of workout.exercises) {
+        if (exercise.exerciseId === patch.exerciseId) ids.add(exercise.id);
+      }
+    }
+  }
+  for (const key of workout.restLoggedSetKeys ?? []) {
+    try {
+      const pair: unknown = JSON.parse(key);
+      if (Array.isArray(pair) && typeof pair[0] === "string" && typeof pair[1] === "string") {
+        ids.add(pair[0]);
+      }
+    } catch {
+      // Legacy markers that do not identify an exercise cannot protect a specific row.
+    }
+  }
+  return ids;
+}
+
+function hasExerciseLog(exercise: WorkoutExercise, activityIds: ReadonlySet<string>) {
+  return (
+    activityIds.has(exercise.id) ||
+    exercise.completed ||
+    Boolean(exercise.notes || exercise.exerciseTags?.length) ||
+    (exercise.provenance !== undefined && !isDefaultManualProvenance(exercise.provenance)) ||
+    Object.keys(exercise).some((key) => !EXERCISE_FIELDS.has(key)) ||
+    exercise.sets.some((set) =>
+      activityIds.has(set.id) ||
+      set.completed ||
+      set.weight !== undefined ||
+      set.reps !== undefined ||
+      set.durationMin !== undefined ||
+      set.distanceMi !== undefined ||
+      (set.modifier !== undefined && set.modifier !== "normal") ||
+      (set.provenance !== undefined && !isDefaultManualProvenance(set.provenance)) ||
+      Object.keys(set).some((key) => !SET_FIELDS.has(key)),
+    )
+  );
+}
+
 export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
   const { state, set, persistenceRequiresReload } = useStore();
   const w = state.activeWorkout!;
@@ -76,7 +148,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
   const restRemaining = Math.max(0, Math.ceil(((w.restEndsAt ?? 0) - Math.max(now, Date.now())) / 1000));
 
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
-  const [exercisePicker, setExercisePicker] = useState(false);
+  const [exercisePicker, setExercisePicker] = useState<"add" | { rowId: string } | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [finishOpen, setFinishOpen] = useState(false);
@@ -116,9 +188,9 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
     return saved;
   };
 
-  const updateActive = (fn: (w: Workout) => Workout, onDiscard?: () => void) =>
+  const updateActive = (fn: (workout: Workout, state: AppState) => Workout, onDiscard?: () => void) =>
     !pendingEdit && commitEdit({
-      apply: (s, activeWorkout) => ({ ...s, activeWorkout: fn(activeWorkout) }),
+      apply: (s, activeWorkout) => ({ ...s, activeWorkout: fn(activeWorkout, s) }),
       onDiscard,
     });
 
@@ -140,17 +212,9 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
     const next = edit(current);
     const editedSet = editedSetId ? next.sets.find(set => set.id === editedSetId) : undefined;
     const previousSet = editedSetId ? current.sets.find(set => set.id === editedSetId) : undefined;
-    const restSeconds = Math.min(current.target?.rest ?? DEFAULT_REST_SECONDS, MAX_REST_SECONDS);
-    const loggedSetKeys = workout.restLoggedSetKeys ?? [];
-    const setKey = editedSetId ? JSON.stringify([current.id, editedSetId]) : undefined;
-    const firstSetEdit = previousSet && editedSet && setKey && !loggedSetKeys.includes(setKey);
-    const rememberSet = firstSetEdit && (previousSet.completed || editedSet.completed);
-    const startRest = restSeconds > 0 && firstSetEdit && !previousSet.completed &&
-      editedSet.completed && editedSet.durationMin == null;
     return {
       ...workout,
-      ...(startRest ? { restEndsAt: Date.now() + Math.round(restSeconds * 1000) } : {}),
-      ...(rememberSet ? { restLoggedSetKeys: [...loggedSetKeys, setKey] } : {}),
+      ...restTimerAfterSet(workout, current, previousSet, editedSet, Date.now()),
       exercises: workout.exercises.map(exercise => exercise.id === id ? next : exercise),
     };
   });
@@ -165,21 +229,48 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
       return { ...w, exercises: arr };
     });
 
-  const addExercise = (exerciseId: string) => {
+  const selectedRow = exercisePicker && exercisePicker !== "add"
+    ? w.exercises.find((exercise) => exercise.id === exercisePicker.rowId)
+    : undefined;
+  const activityIds = useMemo(
+    () => workoutActivityIds(state.jarvisAudit, w),
+    [state.jarvisAudit, w],
+  );
+  const keepsOriginal = selectedRow !== undefined && hasExerciseLog(selectedRow, activityIds);
+  const pickerTitle = selectedRow
+    ? keepsOriginal ? "Add alternative" : "Swap exercise"
+    : "Add exercise";
+
+  const pickExercise = (exerciseId: string) => {
     const ex = findEx(exerciseId);
-    if (!ex) return;
+    if (!ex || !exercisePicker || exerciseId === selectedRow?.exerciseId) return;
     const we: WorkoutExercise = {
       id: uid(), exerciseId, completed: false, exerciseTags: [],
       sets: Array.from({ length: ("defaultSets" in ex ? ex.defaultSets : 3) || 3 }, () => ({
         id: uid(), modifier: "normal", completed: false,
       })),
     };
-    updateActive(w => ({ ...w, exercises: [...w.exercises, we] }));
-    setExercisePicker(false);
+    const rowId = exercisePicker === "add" ? null : exercisePicker.rowId;
+    const saved = updateActive((workout, current) => {
+      if (rowId === null) return { ...workout, exercises: [...workout.exercises, we] };
+      const index = workout.exercises.findIndex((exercise) => exercise.id === rowId);
+      if (index < 0) return workout;
+      const keepOriginal = hasExerciseLog(
+        workout.exercises[index],
+        workoutActivityIds(current.jarvisAudit, workout),
+      );
+      const exercises = [...workout.exercises];
+      exercises.splice(keepOriginal ? index + 1 : index, keepOriginal ? 0 : 1, we);
+      return { ...workout, exercises };
+    });
+    if (saved && rowId !== null) {
+      setOpenMap((current) => ({ ...current, [rowId]: false, [we.id]: true }));
+    }
+    setExercisePicker(null);
   };
 
   const addCustom = (c: CustomExercise) => {
-    if (pendingEdit) return;
+    if (pendingEdit) return false;
     const we: WorkoutExercise = {
       id: uid(), exerciseId: c.id, completed: false, exerciseTags: [],
       sets: Array.from({ length: 3 }, () => ({ id: uid(), modifier: "normal", completed: false })),
@@ -204,7 +295,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div className="pb-32">
+    <div className="active-workout pb-32">
       {/* Header with real timer */}
       <div className="sticky top-0 z-10 glass border-b border-border">
         <div className="px-5 py-3 flex items-center gap-3">
@@ -220,6 +311,16 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
             <TimerIcon size={14} style={{ color: "var(--section)" }} />
             <span className="font-mono tabular-nums text-sm font-bold">{fmtTime(now - w.startedAt)}</span>
           </div>
+          <button type="button" aria-label="Open Jarvis"
+            onClick={() => {
+              const expanded = w.exercises.filter(isOpen);
+              window.dispatchEvent(new CustomEvent("fitcore:open-jarvis", {
+                detail: expanded.length === 1 ? { workoutId: w.id, exerciseEntryId: expanded[0].id } : undefined,
+              }));
+            }}
+            className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-muted-foreground">
+            <Sparkles size={18} />
+          </button>
           <button onClick={() => setConfirmCancel(true)} aria-label="Discard workout"
             className="p-2 rounded-lg hover:bg-[var(--surface-2)] text-muted-foreground">
             <X size={18} />
@@ -262,6 +363,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
                 pendingEdit.onDiscard?.();
                 setPendingEdit(null);
               }}>Keep saved values</GhostButton>
+              <WorkoutBackupButton />
             </div>
           </div>
         )}
@@ -272,8 +374,8 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
           <EmptyState title="No exercises yet" description="Add your first exercise to start logging sets."
             action={
               <div className="flex gap-2">
-                <PrimaryButton onClick={() => setExercisePicker(true)}><Plus size={16} />Add</PrimaryButton>
-                <GhostButton onClick={() => setCustomOpen(true)}>Custom</GhostButton>
+                <PrimaryButton onClick={() => setExercisePicker("add")}><Plus size={16} />Add</PrimaryButton>
+                <GhostButton onClick={() => setCustomOpen(true)} disabled={!!pendingEdit}>Custom</GhostButton>
               </div>
             } />
         )}
@@ -293,6 +395,8 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
             onToggle={() => toggleOpen(we.id)}
             onMove={dir => moveExercise(we.id, dir)}
             onDelete={() => updateActive(w => ({ ...w, exercises: w.exercises.filter(x => x.id !== we.id) }))}
+            onChooseAlternative={pendingEdit ? undefined : () => setExercisePicker({ rowId: we.id })}
+            keepOriginal={hasExerciseLog(we, activityIds)}
             onComplete={() => toggleExerciseComplete(we.id)}
             onChange={(edit, setId) => updateExercise(we.id, edit, setId)}
             onOpenPlate={() => setPlateFor(we.id)}
@@ -301,8 +405,8 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
 
         {w.exercises.length > 0 && (
           <div className="grid grid-cols-2 gap-2 pt-1">
-            <GhostButton onClick={() => setExercisePicker(true)}><Plus size={16} />Exercise</GhostButton>
-            <GhostButton onClick={() => setCustomOpen(true)}><Sparkles size={14} />Custom</GhostButton>
+            <GhostButton onClick={() => setExercisePicker("add")}><Plus size={16} />Exercise</GhostButton>
+            <GhostButton onClick={() => setCustomOpen(true)} disabled={!!pendingEdit}><Sparkles size={14} />Custom</GhostButton>
           </div>
         )}
       </div>
@@ -318,8 +422,14 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      <ExercisePicker open={exercisePicker} onClose={() => setExercisePicker(false)}
-        customExercises={state.customExercises} onPick={addExercise} />
+      <ExercisePicker open={exercisePicker !== null} onClose={() => setExercisePicker(null)}
+        title={pickerTitle} excludeExerciseId={selectedRow?.exerciseId}
+        description={selectedRow
+          ? keepsOriginal
+            ? "Your original exercise and its saved entries will stay in this workout."
+            : "The new exercise starts with blank sets for this workout."
+          : undefined}
+        customExercises={state.customExercises} onPick={pickExercise} />
 
       <CustomExerciseSheet open={customOpen} onClose={() => setCustomOpen(false)} onSave={addCustom} />
 
@@ -349,7 +459,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
 
 function ExerciseCard({
   we, exercise, isActive, isOpen, canMoveUp, canMoveDown,
-  previousWorkout, demoMode, programExercise, onToggle, onMove, onDelete, onComplete, onChange, onOpenPlate,
+  previousWorkout, demoMode, programExercise, onToggle, onMove, onDelete, onChooseAlternative, keepOriginal, onComplete, onChange, onOpenPlate,
 }: {
   we: WorkoutExercise;
   exercise: Exercise | CustomExercise | undefined;
@@ -363,6 +473,8 @@ function ExerciseCard({
   onToggle: () => void;
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
+  onChooseAlternative?: () => void;
+  keepOriginal: boolean;
   onComplete: () => void;
   onChange: (fn: (e: WorkoutExercise) => WorkoutExercise, editedSetId?: string) => void;
   onOpenPlate: () => void;
@@ -549,6 +661,9 @@ function ExerciseCard({
                 <Calculator size={14} />
               </GhostButton>
             )}
+            <GhostButton className="py-2 text-xs" onClick={onChooseAlternative} disabled={!onChooseAlternative}>
+              {keepOriginal ? "Add alternative" : "Swap exercise"}
+            </GhostButton>
             <button onClick={onDelete} aria-label="Remove exercise"
               className="px-3 py-2 rounded-xl border border-border text-muted-foreground hover:text-destructive">
               <Trash2 size={14} />
@@ -662,26 +777,31 @@ function SetRow({ index, st, prev, done, duration, bodyweight, armedTag, onArmed
 
 /* ===================== Exercise picker (built-in + custom) ===================== */
 
-export function ExercisePicker({ open, onClose, customExercises, onPick }: {
+export function ExercisePicker({
+  open, onClose, customExercises, onPick, title = "Add exercise", excludeExerciseId, description,
+}: {
   open: boolean; onClose: () => void;
   customExercises: CustomExercise[];
   onPick: (id: string) => void;
+  title?: string;
+  excludeExerciseId?: string;
+  description?: string;
 }) {
   const [q, setQ] = useState("");
   const all = useMemo(
     () => [...customExercises.map(c => ({ ...c, isCustom: true as const })), ...EXERCISES.map(e => ({ ...e, isCustom: false as const }))],
     [customExercises],
   );
-  const filtered = all.filter(e =>
-    !q || e.name.toLowerCase().includes(q.toLowerCase())
-    || e.primary.some(p => String(p).toLowerCase().includes(q.toLowerCase())),
-  );
+  const filtered = open
+    ? filterExerciseCatalog(all, q).filter((exercise) => exercise.id !== excludeExerciseId)
+    : [];
   return (
-    <BottomSheet open={open} onClose={onClose} title="Add exercise" height="tall">
+    <BottomSheet open={open} onClose={() => { setQ(""); onClose(); }} title={title} height="tall">
+      {description && <p className="mb-3 text-sm text-muted-foreground">{description}</p>}
       <Input placeholder="Search exercise or muscle…" value={q} onChange={e => setQ(e.target.value)} autoFocus />
       <div className="mt-3 space-y-1.5 max-h-[60dvh] overflow-y-auto">
         {filtered.map(e => (
-          <button key={e.id} onClick={() => onPick(e.id)}
+          <button key={e.id} onClick={() => { setQ(""); onPick(e.id); }}
             className="w-full text-left p-3 rounded-xl bg-[var(--surface-2)] hover:ring-1 hover:ring-[var(--section)]">
             <div className="flex items-center gap-2">
               <p className="font-medium text-sm">{e.name}</p>
@@ -700,8 +820,13 @@ export function ExercisePicker({ open, onClose, customExercises, onPick }: {
 
 /* ===================== Custom exercise sheet ===================== */
 
-function CustomExerciseSheet({ open, onClose, onSave }: {
-  open: boolean; onClose: () => void; onSave: (c: CustomExercise) => void;
+export function CustomExerciseSheet({
+  open, onClose, onSave, submitLabel = "Add to workout",
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSave: (exercise: CustomExercise) => boolean | void;
+  submitLabel?: string;
 }) {
   const [name, setName] = useState("");
   const [primary, setPrimary] = useState<MuscleGroup>("chest");
@@ -711,11 +836,22 @@ function CustomExerciseSheet({ open, onClose, onSave }: {
   const [tracking, setTracking] = useState<NonNullable<CustomExercise["tracking"]>>("weight_reps");
   const [notes, setNotes] = useState("");
 
-  const reset = () => { setName(""); setPrimary("chest"); setSecondary([]); setEquipment("dumbbell"); setCategory("compound"); setTracking("weight_reps"); setNotes(""); };
+  const [saveFailed, setSaveFailed] = useState(false);
+
+  const reset = () => {
+    setName("");
+    setPrimary("chest");
+    setSecondary([]);
+    setEquipment("dumbbell");
+    setCategory("compound");
+    setTracking("weight_reps");
+    setNotes("");
+    setSaveFailed(false);
+  };
 
   const save = () => {
     if (!name.trim()) return;
-    onSave({
+    const saved = onSave({
       id: "custom-" + uid(),
       name: name.trim(),
       primary: [primary],
@@ -727,21 +863,25 @@ function CustomExerciseSheet({ open, onClose, onSave }: {
       isCustom: true,
       createdAt: Date.now(),
     });
+    if (saved === false) {
+      setSaveFailed(true);
+      return;
+    }
     reset();
   };
 
   return (
-    <BottomSheet open={open} onClose={() => { onClose(); reset(); }} title="New custom exercise" height="tall">
+    <BottomSheet open={open} onClose={() => { onClose(); reset(); }} title="New custom exercise" height="tall" closeLabel="Cancel custom exercise" manageFocus>
       <div className="space-y-3">
-        <div><Label>Name</Label><Input placeholder="e.g. Landmine Press" value={name} onChange={e => setName(e.target.value)} /></div>
+        <div><Label>Name</Label><Input aria-label="Name" placeholder="e.g. Landmine Press" value={name} onChange={e => setName(e.target.value)} /></div>
         <div className="grid grid-cols-2 gap-2">
           <div><Label>Primary muscle</Label>
-            <Select value={primary} onChange={e => setPrimary(e.target.value as MuscleGroup)}>
+            <Select aria-label="Primary muscle" value={primary} onChange={e => setPrimary(e.target.value as MuscleGroup)}>
               {ALL_MUSCLES.map(m => <option key={m} value={m}>{m}</option>)}
             </Select>
           </div>
           <div><Label>Equipment</Label>
-            <Select value={equipment} onChange={e => setEquipment(e.target.value)}>
+            <Select aria-label="Equipment" value={equipment} onChange={e => setEquipment(e.target.value)}>
               {["barbell", "dumbbell", "machine", "cable", "bodyweight", "kettlebell", "band", "other"].map(o => <option key={o}>{o}</option>)}
             </Select>
           </div>
@@ -759,14 +899,14 @@ function CustomExerciseSheet({ open, onClose, onSave }: {
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div><Label>Type</Label>
-            <Select value={category} onChange={e => setCategory(e.target.value as CustomExercise["category"])}>
+            <Select aria-label="Type" value={category} onChange={e => setCategory(e.target.value as CustomExercise["category"])}>
               <option value="compound">strength / compound</option>
               <option value="isolation">isolation</option>
               <option value="cardio">cardio</option>
             </Select>
           </div>
           <div><Label>Tracking</Label>
-            <Select value={tracking} onChange={e => setTracking(e.target.value as typeof tracking)}>
+            <Select aria-label="Tracking" value={tracking} onChange={e => setTracking(e.target.value as typeof tracking)}>
               <option value="weight_reps">weight × reps</option>
               <option value="bodyweight">bodyweight reps</option>
               <option value="time">time</option>
@@ -774,11 +914,9 @@ function CustomExerciseSheet({ open, onClose, onSave }: {
             </Select>
           </div>
         </div>
-        <div><Label>Notes (optional)</Label><Textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} /></div>
-        <PrimaryButton onClick={save} disabled={!name.trim()} className="w-full">Add to workout</PrimaryButton>
-        <p className="text-[11px] text-muted-foreground text-center">
-          Saved to your exercise library — reuse it in future workouts.
-        </p>
+        <div><Label>Notes (optional)</Label><Textarea aria-label="Notes (optional)" rows={2} value={notes} onChange={e => setNotes(e.target.value)} /></div>
+        {saveFailed && <p role="alert" className="text-sm text-destructive">Exercise could not be saved. Your entries are still here.</p>}
+        <PrimaryButton onClick={save} disabled={!name.trim()} className="w-full">{submitLabel}</PrimaryButton>
       </div>
     </BottomSheet>
   );
@@ -865,40 +1003,20 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
   const requiredExercises = w?.exercises.filter(e => !e.target?.optional) ?? [];
   const completedEx = requiredExercises.filter(e => e.completed).length;
   const muscles = new Set<string>();
-  w?.exercises.forEach(e => findEx(e.exerciseId)?.primary.forEach(m => muscles.add(m)));
+  w?.exercises.filter(e => e.sets.some(set => hasPerformedSet(set) && set.modifier !== "warmup"))
+    .forEach(e => findEx(e.exerciseId)?.primary.forEach(m => muscles.add(m)));
 
-  // PR detection
-  const newPRs = useMemo(() => {
-    if (!w) return [] as { exerciseId: string; est: number; weight: number; reps: number }[];
-    const out: { exerciseId: string; est: number; weight: number; reps: number }[] = [];
-    for (const we of w.exercises) {
-      for (const s of we.sets) {
-        if (s.completed && s.weight && s.reps && s.modifier !== "warmup") {
-          const est = e1RM(s.weight, s.reps);
-          const prev = state.prs.find(p => p.exerciseId === we.exerciseId && p.type === "1rm");
-          if (!prev || est > prev.value) {
-            const existing = out.findIndex(x => x.exerciseId === we.exerciseId);
-            const entry = { exerciseId: we.exerciseId, est, weight: s.weight, reps: s.reps };
-            if (existing >= 0) { if (out[existing].est < est) out[existing] = entry; }
-            else out.push(entry);
-          }
-        }
-      }
-    }
-    return out;
-  }, [w, state.prs]);
+  const newPRs = useMemo(
+    () => w ? workoutRecordImprovements(w, state.workouts, state.customExercises) : [],
+    [w, state.workouts, state.customExercises],
+  );
 
   // Note → metric suggestions
   const suggestions = useMemo(() => extractNoteSuggestions(notes), [notes]);
 
   const confirmSave = () => {
     // Update PRs
-    const prs = [...state.prs];
-    for (const pr of newPRs) {
-      const idx = prs.findIndex(p => p.exerciseId === pr.exerciseId && p.type === "1rm");
-      const entry = { id: uid(), exerciseId: pr.exerciseId, type: "1rm" as const, value: pr.est, weight: pr.weight, reps: pr.reps, date: Date.now() };
-      if (idx >= 0) prs[idx] = entry; else prs.push(entry);
-    }
+    const prs = applyWorkoutPersonalRecords(state.prs, newPRs, uid, Date.now());
 
     // Goals — bump weekly_workouts goals
     const goals: Goal[] = state.goals.map(g => g.type === "weekly_workouts" ? { ...g, current: Math.min(g.target, g.current + 1) } : g);
@@ -950,7 +1068,7 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
   if (!w) return null;
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Finish workout" height="tall">
+    <BottomSheet open={open} onClose={onClose} title="Finish workout" height="tall" fitViewport>
       <div className="space-y-4">
         {/* Summary */}
         <div className="grid grid-cols-3 gap-2">
@@ -969,7 +1087,7 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
               {newPRs.map(pr => (
                 <p key={pr.exerciseId} className="text-sm">
                   <span className="font-semibold">{findEx(pr.exerciseId)?.name}</span>
-                  <span className="text-muted-foreground"> · est {pr.est} ({pr.weight}×{pr.reps})</span>
+                  <span className="text-muted-foreground"> · est {Math.round(pr.value)} ({pr.weight}×{pr.reps})</span>
                 </p>
               ))}
             </div>
@@ -1014,12 +1132,15 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
         </div>
 
         {(saveFailed || persistenceRequiresReload) && (
-          <p role="alert" className="text-sm text-destructive">
-            Workout could not be saved. Your workout and notes are still here.{" "}
-            {persistenceRequiresReload
-              ? "Copy your notes before reloading, then reopen the workout."
-              : "Try saving again."}
-          </p>
+          <div role="alert" className="space-y-2">
+            <p className="text-sm text-destructive">
+              Workout could not be saved. Your workout and notes are still here.{" "}
+              {persistenceRequiresReload
+                ? "Copy your notes before reloading, then reopen the workout."
+                : "Try saving again."}
+            </p>
+            <WorkoutBackupButton />
+          </div>
         )}
         <div className="flex gap-2 pt-1">
           <GhostButton className="flex-1" onClick={onClose}>

@@ -1,3 +1,20 @@
 {
-  "installCommand": "npm ci"
+  "installCommand": "npm ci",
+  "git": {
+    "deploymentEnabled": {
+      "codex/fitcore-whoop-integration": false,
+      "codex/whoop-first-account-readiness": false,
+      "codex/whoop-native-auto-refresh": false,
+      "codex/fitcore-core-integration": false,
+      "codex/fitcore-jarvis-voice": false,
+      "codex/fitcore-daily-usability": false,
+      "codex/fitcore-record-consistency": false,
+      "codex/fitcore-save-safety": false,
+      "codex/fitcore-food-photo": false,
+      "codex/fitcore-whoop-lifecycle": false,
+      "codex/fitcore-weigh-in-safety": false,
+      "codex/fitcore-core-release-integration": false,
+      "codex/fitcore-workout-history-order": false
+    }
+  }
 }

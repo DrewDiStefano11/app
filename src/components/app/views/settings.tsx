@@ -12,6 +12,7 @@ import {
   User,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
+import { downloadFitCoreBackup } from "@/lib/fitcore-backup-download";
 import type { Profile } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import { Card, GhostButton, Input, Label, PageHeader, Select, SubTabs } from "@/components/app/ui";
@@ -19,6 +20,7 @@ import { ConfirmDialog } from "@/components/app/sheet";
 import { JarvisSettingsCard } from "@/components/app/jarvis/settings-card";
 import { JarvisActivityCard } from "@/components/app/jarvis/activity-view";
 import { GoalsProfileCard } from "@/components/app/jarvis/goals-profile-card";
+import { WhoopSettings } from "./whoop-settings";
 
 type SettingsSectionId = "profile" | "preferences" | "data" | "integrations";
 
@@ -183,15 +185,7 @@ export function SettingsView({
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const downloadBackup = () => {
-    const blob = new Blob([exportJson()], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `fitcore-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const downloadBackup = () => downloadFitCoreBackup(exportJson());
 
   const handleImport = (f: File | null) => {
     if (!f) return;
@@ -753,24 +747,18 @@ export function SettingsView({
               <HubCard
                 id="integrations"
                 title="Integrations & Devices"
-                description="Planned home for future connected health and device sources."
-                status="Presentational only"
+                description="Manage connected health and device sources."
                 icon={<Database size={18} />}
                 expanded={expanded.integrations}
                 onToggle={toggleSection}
               >
+                <WhoopSettings showSafariHandoff />
                 <FutureRows
                   rows={[
                     {
                       label: "Apple Watch",
                       detail:
                         "Planned support for HRV, resting heart rate, sleep, steps, calories, respiratory rate, and workout detection.",
-                      status: "Planned",
-                    },
-                    {
-                      label: "Whoop",
-                      detail:
-                        "Planned support for recovery, strain, sleep, HRV, RHR, and respiratory rate.",
                       status: "Planned",
                     },
                     {

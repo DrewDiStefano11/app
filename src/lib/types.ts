@@ -1,3 +1,4 @@
+import type { STORED_GEMINI_MODELS, STORED_GROQ_MODELS } from "./jarvis/provider-models";
 import type { TemplateExercise } from "./data";
 
 export type SectionId = "home" | "training" | "nutrition" | "recovery" | "progress";
@@ -69,11 +70,11 @@ export interface MealItem {
   provenance?: DataProvenance;
 }
 
-export interface MealEntry {
+interface MealEntryBase {
   id: string;
   name: string;
   type: string;
-  calories: number; protein: number; carbs: number; fat: number;
+  calories: number;
   fiber?: number;
   notes?: string;
   createdAt: number;
@@ -85,6 +86,18 @@ export interface MealEntry {
   confirmed?: boolean;
   auditId?: string;
   provenance?: DataProvenance;
+}
+
+export type MealEntry = MealEntryBase & (
+  | { macroStatus?: never; protein: number; carbs: number; fat: number }
+  | { macroStatus: "unreported"; protein?: never; carbs?: never; fat?: never }
+);
+
+export interface SavedNutritionPreset {
+  id: string;
+  kind: "food" | "meal";
+  meal: MealEntry;
+  servingLabel?: string;
 }
 
 export interface SupplementLog {
@@ -166,8 +179,8 @@ export type JarvisAiProvider = "groq" | "gemini" | "legacy-lovable";
 export type AiKeyMode = "local" | "environment" | "user";
 export type GeminiKeyMode = AiKeyMode;
 export type GroqKeyMode = AiKeyMode;
-export type GeminiModel = "gemini-2.5-flash-lite" | "gemini-2.5-flash";
-export type GroqModel = "llama-3.1-8b-instant" | "llama-3.3-70b-versatile" | "qwen/qwen3-32b";
+export type GeminiModel = (typeof STORED_GEMINI_MODELS)[number];
+export type GroqModel = (typeof STORED_GROQ_MODELS)[number];
 
 export interface JarvisSettings {
   enabled: boolean;
@@ -185,6 +198,7 @@ export interface JarvisSettings {
   autoModelRouting: boolean;
   autoAiFallback: boolean;
   allowGeminiFallback: boolean;
+  allowCloudText?: boolean;
   autoLogSupplements: boolean;
   autoLogBodyweight: boolean;
   askBeforeMealEstimates: boolean;
@@ -220,13 +234,14 @@ export const defaultJarvisSettings: JarvisSettings = {
   aiProvider: "groq",
   geminiKeyMode: "local",
   geminiUserKeySaved: false,
-  geminiModel: "gemini-2.5-flash-lite",
+  geminiModel: "gemini-3.5-flash-lite",
   groqKeyMode: "local",
   groqUserKeySaved: false,
-  groqModel: "qwen/qwen3-32b",
+  groqModel: "qwen/qwen3.8-27b",
   autoModelRouting: true,
-  autoAiFallback: true,
+  autoAiFallback: false,
   allowGeminiFallback: false,
+  allowCloudText: false,
   autoLogSupplements: true,
   autoLogBodyweight: true,
   askBeforeMealEstimates: true,
@@ -399,6 +414,7 @@ export interface AppState {
   customExercises: CustomExercise[];
   cardioEntries: CardioEntry[];
   mealEntries: MealEntry[];
+  savedNutrition?: SavedNutritionPreset[];
   bodyweightEntries: BodyweightEntry[];
   sleepEntries: SleepEntry[];
   recoveryCheckIns: RecoveryCheckIn[];

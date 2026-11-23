@@ -4,7 +4,7 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [main, "codex/fitcore-core-integration", "codex/fitcore-jarvis-voice", "codex/fitcore-daily-usability", "codex/fitcore-record-consistency", "codex/fitcore-save-safety"]
   schedule:
     - cron: "0 0 * * 0"
 

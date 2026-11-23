@@ -24,6 +24,39 @@ const localTime = (year: number, month: number, date: number, hours = 12): numbe
 
 const NOW = localTime(2026, 0, 15, 15);
 
+test("calorie-only meals count calories while withholding incomplete daily macro totals", () => {
+  const analytics = getNutritionAnalytics(
+    makeState({
+      mealEntries: [
+        {
+          id: "dinner",
+          name: "Dinner",
+          type: "dinner",
+          calories: 800,
+          macroStatus: "unreported",
+          createdAt: NOW - 1200,
+        },
+        {
+          id: "snack",
+          name: "Snack",
+          type: "snack",
+          calories: 120,
+          protein: 5,
+          carbs: 8,
+          fat: 8,
+          createdAt: NOW - 1000,
+        },
+      ],
+    }),
+    NOW,
+  );
+  assert.equal(analytics.caloriesToday.value, 920);
+  assert.equal(analytics.proteinToday.value, null);
+  assert.equal(analytics.proteinRemaining.value, null);
+  assert.equal(analytics.targetCompletion.protein.value, null);
+  assert.equal(analytics.protein7dAverage.value, null);
+});
+
 function makeState(overrides: Partial<AppState> = {}): AppState {
   const base = structuredClone(defaultState);
   return {
@@ -181,7 +214,7 @@ test("nutrition analytics use real logged-day totals and averages", () => {
       }),
     ],
   });
-  const analytics = getNutritionAnalytics(state, NOW);
+  const analytics = getNutritionAnalytics(state, localTime(2026, 0, 15, 20));
 
   assert.equal(analytics.caloriesToday.value, 1500);
   assert.equal(analytics.proteinToday.value, 120);

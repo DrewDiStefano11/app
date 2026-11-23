@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useVisibleViewport } from "@/hooks/use-visible-viewport";
 import { Apple, Dumbbell, Heart, Home, Mic, Send, Sparkles, TrendingUp, X } from "lucide-react";
 import type { SectionId } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -11,23 +12,6 @@ const items: { id: SectionId; label: string; Icon: typeof Dumbbell }[] = [
   { id: "progress", label: "Stats", Icon: TrendingUp },
 ];
 
-type SpeechRecognitionEventLike = Event & {
-  results: ArrayLike<{ 0: { transcript: string } }>;
-};
-
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start: () => void;
-  stop: () => void;
-  onresult: ((event: SpeechRecognitionEventLike) => void) | null;
-  onend: (() => void) | null;
-  onerror: (() => void) | null;
-};
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
-
 export function BottomNav({
   active,
   onChange,
@@ -39,9 +23,15 @@ export function BottomNav({
   const [collapsed, setCollapsed] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
-  const [listening, setListening] = useState(false);
+  const input = useRef<HTMLTextAreaElement>(null);
+  const viewport = useVisibleViewport(composerOpen);
+  useLayoutEffect(() => {
+    if (!composerOpen || !input.current) return;
+    const field = input.current;
+    field.style.height = "0px";
+    field.style.height = `${Math.min(144, Math.max(48, field.scrollHeight))}px`;
+  }, [composerOpen, prompt]);
   const lastScrollY = useRef(0);
-  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -58,13 +48,6 @@ export function BottomNav({
     return () => window.removeEventListener("scroll", handleScroll);
   }, [composerOpen]);
 
-  useEffect(
-    () => () => {
-      recognitionRef.current?.stop();
-    },
-    [],
-  );
-
   const submitPrompt = () => {
     const text = prompt.trim();
     if (!text) return;
@@ -72,37 +55,6 @@ export function BottomNav({
     setPrompt("");
     setComposerOpen(false);
     setCollapsed(true);
-  };
-
-  const toggleVoice = () => {
-    if (listening) {
-      recognitionRef.current?.stop();
-      setListening(false);
-      return;
-    }
-    const speechWindow = window as typeof window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-    const Recognition = speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
-    if (!Recognition) {
-      setComposerOpen(false);
-      window.dispatchEvent(new CustomEvent("fitcore:open-ai"));
-      return;
-    }
-    const recognition = new Recognition();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    recognition.lang = "en-US";
-    recognition.onresult = (event) => {
-      const transcript = event.results[0]?.[0]?.transcript ?? "";
-      setPrompt((current) => `${current}${current ? " " : ""}${transcript}`.trim());
-    };
-    recognition.onend = () => setListening(false);
-    recognition.onerror = () => setListening(false);
-    recognitionRef.current = recognition;
-    setListening(true);
-    recognition.start();
   };
 
   const activeItem = items.find((item) => item.id === active) ?? items[0];
@@ -116,6 +68,7 @@ export function BottomNav({
         composerOpen && "app-bottom-nav--composing",
       )}
       aria-label="Primary navigation"
+      style={viewport && composerOpen ? { bottom: Math.max(0, window.innerHeight - viewport.height - viewport.top) } : undefined}
     >
       <div className="app-bottom-nav__inner pointer-events-auto w-full max-w-[480px] px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2">
         <div className="nav-shell command-bar">
@@ -124,30 +77,30 @@ export function BottomNav({
               <button
                 onClick={() => {
                   setComposerOpen(false);
-                  setPrompt("");
                 }}
                 className="command-bar__icon press"
                 aria-label="Close AI composer"
               >
                 <X size={18} />
               </button>
-              <input
+              <textarea
+                ref={input}
+                rows={1}
                 autoFocus
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") submitPrompt();
+                  if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) { event.preventDefault(); submitPrompt(); }
                 }}
-                placeholder={listening ? "Listening…" : "Ask or log anything…"}
+                placeholder="Ask or log anything…"
                 aria-label="Message Jarvis"
+                aria-description="Return adds a new line. Use Send or Control Enter to submit."
               />
               <button
-                onClick={toggleVoice}
-                className={cn(
-                  "command-bar__icon press",
-                  listening && "command-bar__icon--listening",
-                )}
-                aria-label={listening ? "Stop listening" : "Speak to Jarvis"}
+                type="button"
+                disabled
+                className="command-bar__icon"
+                aria-label="Voice input unavailable"
               >
                 <Mic size={18} />
               </button>

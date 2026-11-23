@@ -1,3 +1,4 @@
+import { STORED_GEMINI_MODELS, STORED_GROQ_MODELS } from "./jarvis/provider-models";
 import { MAX_WORKOUT_TEMPLATE_SETS } from "./data";
 import { BENCH_PROGRAM } from "./bench-program";
 
@@ -107,6 +108,7 @@ const ARRAY_COLLECTIONS = [
   "supplementLogs",
 ] as const;
 
+const OPTIONAL_ARRAY_FIELDS = ["savedNutrition"] as const;
 const REQUIRED_ARRAY_FIELDS = [...ARRAY_COLLECTIONS, "dismissedSuggestions"] as const;
 
 const OBJECT_FIELDS = [
@@ -120,8 +122,8 @@ const OBJECT_FIELDS = [
   "userGoalsProfile",
 ] as const;
 
-const CHECKED_COLLECTIONS = [...REQUIRED_ARRAY_FIELDS, "activeWorkout"].sort();
-const TOP_LEVEL_SET = new Set<string>(TOP_LEVEL_FIELDS);
+const CHECKED_COLLECTIONS = [...REQUIRED_ARRAY_FIELDS, ...OPTIONAL_ARRAY_FIELDS, "activeWorkout"].sort();
+const TOP_LEVEL_SET = new Set<string>([...TOP_LEVEL_FIELDS, ...OPTIONAL_ARRAY_FIELDS]);
 const ARRAY_COLLECTION_SET = new Set<string>(REQUIRED_ARRAY_FIELDS);
 const OBJECT_FIELD_SET = new Set<string>(OBJECT_FIELDS);
 
@@ -935,10 +937,13 @@ function validateMeal(
   record: PlainRecord,
   location: RecordLocation,
 ): void {
-  const required = ["id", "name", "type", "calories", "protein", "carbs", "fat", "createdAt"];
+  const macros = ["protein", "carbs", "fat"];
+  const unreported = record.macroStatus === "unreported";
+  const required = ["id", "name", "type", "calories", "createdAt", ...(unreported ? [] : macros)];
   missingFields(context, record, location, required);
   unknownFields(context, record, location, [
     ...required,
+    "macroStatus",
     "fiber",
     "notes",
     "items",
@@ -950,6 +955,14 @@ function validateMeal(
     "auditId",
     "provenance",
   ]);
+  if (Object.hasOwn(record, "macroStatus")) {
+    validateEnum(context, record.macroStatus, location, "macroStatus", ["unreported"]);
+  }
+  if (unreported && [...macros, "items"].some((field) => Object.hasOwn(record, field))) {
+    context.add("invalid_field_type", "error", fieldPath(location, "macroStatus"), {
+      collection: location.collection, recordId: location.recordId, field: "macroStatus",
+    });
+  }
   if (Object.hasOwn(record, "id")) validateString(context, record.id, location, "id", { id: true });
   for (const field of ["name", "type"] as const) {
     if (Object.hasOwn(record, field))
@@ -1264,6 +1277,22 @@ function validateSupplement(
   validateOptionalProvenance(context, record, location);
 }
 
+function validateSavedNutritionPreset(
+  context: ValidationContext,
+  record: PlainRecord,
+  location: RecordLocation,
+): void {
+  const required = ["id", "kind", "meal"];
+  missingFields(context, record, location, required);
+  unknownFields(context, record, location, [...required, "servingLabel"]);
+  if (Object.hasOwn(record, "id")) validateString(context, record.id, location, "id", { id: true });
+  if (Object.hasOwn(record, "kind")) validateEnum(context, record.kind, location, "kind", ["food", "meal"]);
+  validateOptionalString(context, record, location, "servingLabel");
+  if (Object.hasOwn(record, "meal")) {
+    validateObjectRecord(context, record.meal, location.collection, fieldPath(location, "meal"), validateMeal);
+  }
+}
+
 const COLLECTION_VALIDATORS: Record<
   string,
   (context: ValidationContext, record: PlainRecord, location: RecordLocation) => void
@@ -1273,6 +1302,7 @@ const COLLECTION_VALIDATORS: Record<
   customExercises: validateCustomExercise,
   cardioEntries: validateCardio,
   mealEntries: validateMeal,
+  savedNutrition: validateSavedNutritionPreset,
   bodyweightEntries: validateBodyweight,
   sleepEntries: validateSleep,
   recoveryCheckIns: validateRecoveryCheckIn,
@@ -1628,6 +1658,7 @@ function validateJarvisSettings(context: ValidationContext, value: PlainRecord):
     "autoModelRouting",
     "autoAiFallback",
     "allowGeminiFallback",
+    "allowCloudText",
     "autoLogSupplements",
     "autoLogBodyweight",
     "askBeforeMealEstimates",
@@ -1656,9 +1687,9 @@ function validateJarvisSettings(context: ValidationContext, value: PlainRecord):
     ["proactive", ["off", "low", "normal", "high"]],
     ["aiProvider", ["groq", "gemini", "legacy-lovable"]],
     ["geminiKeyMode", ["local", "environment", "user"]],
-    ["geminiModel", ["gemini-2.5-flash-lite", "gemini-2.5-flash"]],
+    ["geminiModel", STORED_GEMINI_MODELS],
     ["groqKeyMode", ["local", "environment", "user"]],
-    ["groqModel", ["llama-3.1-8b-instant", "llama-3.3-70b-versatile", "qwen/qwen3-32b"]],
+    ["groqModel", STORED_GROQ_MODELS],
     ["foodEstimateDetail", ["simple", "normal", "detailed"]],
     ["weeklyReviewDay", ["sun", "mon", "tue", "wed", "thu", "fri", "sat"]],
   ];
@@ -1714,7 +1745,12 @@ function validateTopLevelValues(context: ValidationContext, root: PlainRecord): 
 }
 
 function validateCollections(context: ValidationContext, root: PlainRecord): void {
-  for (const collection of ARRAY_COLLECTIONS) {
+  for (const collection of OPTIONAL_ARRAY_FIELDS) {
+    if (Object.hasOwn(root, collection) && !Array.isArray(root[collection])) {
+      context.add("invalid_top_level_type", "error", `$.${collection}`, { field: collection, value: root[collection] });
+    }
+  }
+  for (const collection of [...ARRAY_COLLECTIONS, ...OPTIONAL_ARRAY_FIELDS]) {
     const value = root[collection];
     if (!Array.isArray(value)) continue;
     const validator = COLLECTION_VALIDATORS[collection];

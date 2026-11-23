@@ -95,6 +95,7 @@ test("sleep requires recorded hours and confirmation", async ({ page }) => {
   const save = sheet.getByRole("button", { name: "Save sleep", exact: true });
   await expect(save).toBeDisabled();
   await sheet.getByRole("textbox", { name: "Hours" }).fill("8");
+  await sheet.getByRole("combobox", { name: "Sleep quality" }).selectOption("7");
   await expect(save).toBeDisabled();
   await sheet.getByRole("checkbox", { name: /I confirm the sleep hours/ }).check();
   await save.click();

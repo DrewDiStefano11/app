@@ -1,6 +1,6 @@
 import type { AppState, RecoveryCheckIn, Workout } from "../types";
 import { calculateNutritionAdherence, calculateRecoveryEstimate } from "./personal-scores";
-import { calculateWorkoutVolume, recordedRecoveryCheckIns, recoveryCheckInReadinessScore } from "./observed-fitness";
+import { calculateWorkoutVolume, todayMealEntries, recordedRecoveryCheckIns, recoveryCheckInReadinessScore } from "./observed-fitness";
 export { calculateSetVolume, calculateWorkoutVolume, recoveryCheckInReadinessScore } from "./observed-fitness";
 import {
   allTimeWindow,
@@ -1248,6 +1248,7 @@ function targetMetric(
   excludedRecordCount: number,
   exclusions: MetricExclusion[],
   confidenceReasons: MetricReason[],
+  incomplete = false,
 ): AnalyticsMetric<number> {
   const validTarget = finiteNonNegative(target);
   const loggedDayCount = entries.length ? 1 : 0;
@@ -1257,14 +1258,15 @@ function targetMetric(
     domain: "nutrition",
     kind: "point_in_time",
     unit: "percent",
-    value: validTarget > 0 ? clampPercent(safeRatio(total, validTarget) * 100) : null,
-    status: validTarget > 0 ? (entries.length ? "ready" : "needs_more_data") : "unavailable",
+    value: validTarget > 0 && !incomplete ? clampPercent(safeRatio(total, validTarget) * 100) : null,
+    status: validTarget > 0 ? (entries.length && !incomplete ? "ready" : "needs_more_data") : "unavailable",
     confidence: confidenceForSample(loggedDayCount),
     dateRange: range,
     sampleSize: loggedDayCount,
     reason:
       validTarget <= 0
         ? "Nutrition target is zero or not configured."
+        : incomplete ? "Some meals have unreported macros."
         : entries.length
           ? null
           : "No meals are logged for this calendar day.",
@@ -1293,9 +1295,10 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
   const previousRange = previous7DaysWindow(now);
   const historyRange = allTimeWindow(now);
   const validMeals = state.mealEntries.filter(
-    (meal) => validTimestamp(meal.createdAt) && dateRangeContains(historyRange, meal.createdAt),
+    (meal) => validTimestamp(meal.createdAt) && meal.createdAt <= now && dateRangeContains(historyRange, meal.createdAt),
   );
-  const todayMeals = validMeals.filter((meal) => dateRangeContains(today, meal.createdAt));
+  const todayMeals = todayMealEntries(state, now);
+  const missingMacros = todayMeals.some((meal) => meal.macroStatus === "unreported");
   const recentMeals = validMeals.filter((meal) => dateRangeContains(recentRange, meal.createdAt));
   const previousMeals = validMeals.filter((meal) =>
     dateRangeContains(previousRange, meal.createdAt),
@@ -1306,10 +1309,12 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
   const dailyRecords = Object.values(grouped).map((entries) => ({
     timestamp: Math.min(...entries.map((entry) => entry.createdAt)),
     totals: calculateMealTotals(entries),
+    completeMacros: entries.every((entry) => entry.macroStatus !== "unreported"),
   }));
   const previousDailyRecords = Object.values(previousGrouped).map((entries) => ({
     timestamp: Math.min(...entries.map((entry) => entry.createdAt)),
     totals: calculateMealTotals(entries),
+    completeMacros: entries.every((entry) => entry.macroStatus !== "unreported"),
   }));
   const dailyTotals = dailyRecords.map((record) => record.totals);
   const targets = state.nutritionTargets;
@@ -1325,7 +1330,7 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
   const invalidMacroValueCount = state.mealEntries.reduce(
     (count, meal) =>
       count +
-      [meal.calories, meal.protein, meal.carbs, meal.fat].filter(
+      (meal.macroStatus === "unreported" ? [meal.calories] : [meal.calories, meal.protein, meal.carbs, meal.fat]).filter(
         (value) => !Number.isFinite(value) || value < 0,
       ).length,
     0,
@@ -1387,6 +1392,7 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
     excludedMealCount,
     sourceExclusions,
     invalidValueReasons,
+    missingMacros,
   );
   const carbsTarget = targetMetric(
     FITCORE_METRIC_IDS.nutrition.carbsTargetPercent,
@@ -1399,6 +1405,7 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
     excludedMealCount,
     sourceExclusions,
     invalidValueReasons,
+    missingMacros,
   );
   const fatTarget = targetMetric(
     FITCORE_METRIC_IDS.nutrition.fatTargetPercent,
@@ -1411,6 +1418,7 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
     excludedMealCount,
     sourceExclusions,
     invalidValueReasons,
+    missingMacros,
   );
   const targetMetrics = [caloriesTarget, proteinTarget, carbsTarget, fatTarget];
   const availableTargetValues = targetMetrics
@@ -1434,17 +1442,19 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
   const previousCaloriesAverage = previousDailyRecords.length
     ? safeAverage(previousDailyRecords.map((record) => record.totals.calories))
     : null;
-  const currentProteinAverage = dailyTotals.length
-    ? safeAverage(dailyTotals.map((day) => day.protein))
+  const currentProteinDays = dailyRecords.filter((record) => record.completeMacros);
+  const previousProteinDays = previousDailyRecords.filter((record) => record.completeMacros);
+  const currentProteinAverage = currentProteinDays.length
+    ? safeAverage(currentProteinDays.map((record) => record.totals.protein))
     : null;
-  const previousProteinAverage = previousDailyRecords.length
-    ? safeAverage(previousDailyRecords.map((record) => record.totals.protein))
+  const previousProteinAverage = previousProteinDays.length
+    ? safeAverage(previousProteinDays.map((record) => record.totals.protein))
     : null;
   const nutritionTrend = (field: "calories" | "protein") => {
     const currentAverage = field === "calories" ? currentCaloriesAverage : currentProteinAverage;
     const previousAverage = field === "calories" ? previousCaloriesAverage : previousProteinAverage;
     return calculateTrendQuality({
-      values: [...previousDailyRecords, ...dailyRecords].map((record) => ({
+      values: [...previousDailyRecords, ...dailyRecords].filter(record => field === "calories" || record.completeMacros).map((record) => ({
         timestamp: record.timestamp,
         value: record.totals[field],
       })),
@@ -1462,6 +1472,7 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
     label: string,
     unit: AnalyticsUnit,
     value: number,
+    incomplete = false,
   ): AnalyticsMetric<number> =>
     metric({
       id,
@@ -1469,12 +1480,12 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
       domain: "nutrition",
       kind: "point_in_time",
       unit,
-      value,
-      status: todayStatus,
+      value: incomplete ? null : value,
+      status: incomplete ? "needs_more_data" : todayStatus,
       confidence: confidenceForSample(todayMeals.length ? 1 : 0),
       dateRange: today,
       sampleSize: todayMeals.length ? 1 : 0,
-      reason: todayReason,
+      reason: incomplete ? "Some meals have unreported macros." : todayReason,
       ...nutritionSource(todayMeals, 1),
       partialPeriod: true,
       lastLoggedAt,
@@ -1499,14 +1510,16 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
       "Protein today",
       "grams",
       totals.protein,
+      missingMacros,
     ),
     carbsToday: todayMetric(
       FITCORE_METRIC_IDS.nutrition.carbsToday,
       "Carbohydrates today",
       "grams",
       totals.carbs,
+      missingMacros,
     ),
-    fatToday: todayMetric(FITCORE_METRIC_IDS.nutrition.fatToday, "Fat today", "grams", totals.fat),
+    fatToday: todayMetric(FITCORE_METRIC_IDS.nutrition.fatToday, "Fat today", "grams", totals.fat, missingMacros),
     targetCompletion: {
       calories: caloriesTarget,
       protein: proteinTarget,
@@ -1518,8 +1531,8 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
         domain: "nutrition",
         kind: "point_in_time",
         unit: "percent",
-        value: availableTargetValues.length ? safeAverage(availableTargetValues) : null,
-        status: !availableTargetValues.length
+        value: availableTargetValues.length && !missingMacros ? safeAverage(availableTargetValues) : null,
+        status: missingMacros ? "needs_more_data" : !availableTargetValues.length
           ? "unavailable"
           : todayMeals.length
             ? "ready"
@@ -1527,7 +1540,7 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
         confidence: confidenceForSample(todayMeals.length ? 1 : 0),
         dateRange: today,
         sampleSize: todayMeals.length ? 1 : 0,
-        reason: !availableTargetValues.length
+        reason: missingMacros ? "Some meals have unreported macros." : !availableTargetValues.length
           ? "No positive macro targets are configured."
           : todayReason,
         ...nutritionSource(todayMeals, 1),
@@ -1565,12 +1578,12 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
       domain: "nutrition",
       kind: "point_in_time",
       unit: "grams",
-      value: proteinTargetValue > 0 ? Math.max(0, proteinTargetValue - totals.protein) : null,
-      status: proteinTargetValue > 0 ? todayStatus : "unavailable",
+      value: proteinTargetValue > 0 && !missingMacros ? Math.max(0, proteinTargetValue - totals.protein) : null,
+      status: missingMacros ? "needs_more_data" : proteinTargetValue > 0 ? todayStatus : "unavailable",
       confidence: confidenceForSample(todayMeals.length ? 1 : 0),
       dateRange: today,
       sampleSize: todayMeals.length ? 1 : 0,
-      reason: proteinTargetValue > 0 ? todayReason : "Protein target is zero or not configured.",
+      reason: missingMacros ? "Some meals have unreported macros." : proteinTargetValue > 0 ? todayReason : "Protein target is zero or not configured.",
       ...nutritionSource(todayMeals, 1),
       targetRequired: true,
       targetAvailable: proteinTargetValue > 0,
@@ -1601,11 +1614,11 @@ export function getNutritionAnalytics(state: AppState, now = Date.now()): Nutrit
       domain: "nutrition",
       unit: "grams",
       value: currentProteinAverage,
-      status: recentStatus,
-      confidence: confidenceForSample(dailyTotals.length),
+      status: currentProteinDays.length ? "ready" : "needs_more_data",
+      confidence: confidenceForSample(currentProteinDays.length),
       dateRange: recentRange,
-      sampleSize: dailyTotals.length,
-      reason: recentReason,
+      sampleSize: currentProteinDays.length,
+      reason: currentProteinDays.length ? null : "No days with complete macro records in the last 7 days.",
       ...nutritionSource(recentMeals, 7),
       partialPeriod: true,
       trendQuality: nutritionTrend("protein"),

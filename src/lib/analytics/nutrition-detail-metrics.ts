@@ -362,8 +362,8 @@ function mealFingerprint(meal: MealEntry): string {
   });
 }
 
-function collectMeals(state: AppState, range: DateRange, now: number): MealCollection {
-  const candidates = state.mealEntries
+function collectMeals(entries: readonly MealEntry[], range: DateRange, now: number): MealCollection {
+  const candidates = entries
     .map((meal) => ({
       meal,
       identityValid: typeof meal.id === "string" && meal.id.trim() !== "",
@@ -749,8 +749,10 @@ function macroDistribution(
   macro: "calories" | "protein",
 ): MealMacroDistribution {
   const valid = meals
-    .filter((meal) => meal.valid[macro] && meal.meal[macro] > 0)
-    .map((meal) => ({ mealId: meal.meal.id, mealName: meal.meal.name, value: meal.meal[macro] }))
+    .flatMap(({ meal, valid }) => {
+      const value = meal[macro];
+      return valid[macro] && value !== undefined && value > 0 ? [{ mealId: meal.id, mealName: meal.name, value }] : [];
+    })
     .sort((a, b) => a.mealId.localeCompare(b.mealId));
   const values = valid.map((item) => item.value);
   const total = safeSum(values);
@@ -840,6 +842,15 @@ function dailyMacroPoints(buckets: readonly DayBucket[], macro: NutritionMacro):
         complete: valid.length === bucket.meals.length,
       };
     });
+}
+
+export function nutritionMacroPoints(
+  entries: readonly MealEntry[],
+  macro: NutritionMacro,
+  range: DateRange,
+  now: number,
+): DailyMacroPoint[] {
+  return dailyMacroPoints(dayBuckets(collectMeals(entries, range, now).meals), macro);
 }
 
 function consistencyMetric(
@@ -1381,7 +1392,7 @@ export function getNutritionDetailAnalytics(
   const now = finiteTimestamp(options.now) ? options.now : Date.now();
   const days = Math.max(1, Math.trunc(options.days ?? 7));
   const range = calendarDaysWindow(days, now);
-  const collection = collectMeals(state, range, now);
+  const collection = collectMeals(state.mealEntries, range, now);
   const buckets = dayBuckets(collection.meals);
   const requestedDays = expectedDays(range);
   const counts = mealCountAnalytics(collection, range, now);

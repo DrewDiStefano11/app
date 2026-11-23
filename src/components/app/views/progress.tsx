@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { prepareProgressPhoto, progressPhotoFitsStorage } from "@/lib/progress-photo";
+import { parseBodyweightLb, recordManualBodyweight, MIN_BODYWEIGHT_LB, MAX_BODYWEIGHT_LB, BODYWEIGHT_INPUT_ERROR, BODYWEIGHT_SAVE_ERROR } from "@/lib/bodyweight-entry";
 import {
   Camera,
   Plus,
@@ -18,6 +20,7 @@ import {
 } from "lucide-react";
 
 import { useStore, uid } from "@/lib/store";
+import { useWhoopSnapshot } from "@/hooks/use-whoop-snapshot";
 import { weeklyVolumeSeries, bodyweightDelta, momentumScore } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
@@ -77,6 +80,9 @@ export function ProgressView({ layoutMode = "daily" }: { layoutMode?: LayoutMode
 function DailyViewContent() {
   const { state, set } = useStore();
   const [w, setW] = useState(String(state.profile.bodyweightLb));
+  const [saveFailed, setSaveFailed] = useState(false);
+  const weightLb = parseBodyweightLb(w);
+  const invalidWeight = w.trim() !== "" && weightLb === undefined;
   const [openDetail, setOpenDetail] = useState<"weight" | "goals" | "momentum" | "photo" | null>(
     null,
   );
@@ -98,20 +104,13 @@ function DailyViewContent() {
   const topGoals = state.goals.filter((g) => g.pinned).slice(0, 2);
   const goalList = topGoals.length ? topGoals : state.goals.slice(0, 2);
 
-  const mScore = momentumScore(state);
+  const mScore = momentumScore(state, Date.now(), useWhoopSnapshot());
 
   const submitWeighIn = () => {
-    const wt = Number(w);
-    if (!wt) return;
-    set((s) => ({
-      ...s,
-      bodyweightEntries: [
-        ...s.bodyweightEntries,
-        { id: uid(), weightLb: wt, createdAt: Date.now() },
-      ],
-      profile: { ...s.profile, bodyweightLb: wt },
-      goals: s.goals.map((g) => (g.type === "bodyweight" ? { ...g, current: wt } : g)),
-    }));
+    if (weightLb === undefined) return;
+    const saved = set(s => recordManualBodyweight(s, { id: uid(), weightLb, createdAt: Date.now() }));
+    if (!saved) { setSaveFailed(true); return; }
+    setSaveFailed(false);
     setW("");
   };
 
@@ -129,13 +128,15 @@ function DailyViewContent() {
         <div className="flex gap-2">
           <Input
             className="flex-1 bg-background"
+            type="number" min={MIN_BODYWEIGHT_LB} max={MAX_BODYWEIGHT_LB} step="any" aria-label="Weight in pounds" aria-invalid={invalidWeight} aria-describedby={invalidWeight || saveFailed ? "daily-weight-error" : undefined}
             inputMode="decimal"
             value={w}
-            onChange={(e) => setW(e.target.value)}
+            onChange={(e) => { setW(e.target.value); setSaveFailed(false); }}
             placeholder="Weight in lb"
           />
-          <PrimaryButton onClick={submitWeighIn}>Save</PrimaryButton>
+          <PrimaryButton disabled={weightLb === undefined} onClick={submitWeighIn}>Save</PrimaryButton>
         </div>
+        {(invalidWeight || saveFailed) && <p id="daily-weight-error" role="alert" className="mt-2 text-sm text-destructive">{invalidWeight ? BODYWEIGHT_INPUT_ERROR : BODYWEIGHT_SAVE_ERROR}</p>}
       </Card>
 
       {/* Weight Trend Card */}
@@ -441,6 +442,9 @@ function BodyTab() {
 function WeightSection() {
   const { state, set } = useStore();
   const [w, setW] = useState(String(state.profile.bodyweightLb));
+  const [saveFailed, setSaveFailed] = useState(false);
+  const weightLb = parseBodyweightLb(w);
+  const invalidWeight = w.trim() !== "" && weightLb === undefined;
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const sorted = useMemo(
     () => [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt),
@@ -456,17 +460,11 @@ function WeightSection() {
   const dMonth = bodyweightDelta(state, 30);
 
   const submit = () => {
-    const wt = Number(w);
-    if (!wt) return;
-    set((s) => ({
-      ...s,
-      bodyweightEntries: [
-        ...s.bodyweightEntries,
-        { id: uid(), weightLb: wt, createdAt: Date.now() },
-      ],
-      profile: { ...s.profile, bodyweightLb: wt },
-      goals: s.goals.map((g) => (g.type === "bodyweight" ? { ...g, current: wt } : g)),
-    }));
+    if (weightLb === undefined) return;
+    const saved = set(s => recordManualBodyweight(s, { id: uid(), weightLb, createdAt: Date.now() }));
+    if (!saved) { setSaveFailed(true); return; }
+    setSaveFailed(false);
+    setW("");
   };
 
   return (
@@ -481,13 +479,15 @@ function WeightSection() {
       <div className="flex gap-2">
         <Input
           className="flex-1"
+          type="number" min={MIN_BODYWEIGHT_LB} max={MAX_BODYWEIGHT_LB} step="any" aria-label="Weight in pounds" aria-invalid={invalidWeight} aria-describedby={invalidWeight || saveFailed ? "deep-weight-error" : undefined}
           inputMode="decimal"
           value={w}
-          onChange={(e) => setW(e.target.value)}
+          onChange={(e) => { setW(e.target.value); setSaveFailed(false); }}
           placeholder="Weight in lb"
         />
-        <PrimaryButton onClick={submit}>Save</PrimaryButton>
+        <PrimaryButton disabled={weightLb === undefined} onClick={submit}>Save</PrimaryButton>
       </div>
+      {(invalidWeight || saveFailed) && <p id="deep-weight-error" role="alert" className="mt-2 text-sm text-destructive">{invalidWeight ? BODYWEIGHT_INPUT_ERROR : BODYWEIGHT_SAVE_ERROR}</p>}
 
       <SectionHeader title="Recent weigh-ins" />
       {sorted.length === 0 ? (
@@ -845,7 +845,7 @@ function AnalyticsTab() {
 
 function GoalsTab() {
   const { state } = useStore();
-  const mScore = momentumScore(state);
+  const mScore = momentumScore(state, Date.now(), useWhoopSnapshot());
   const [openDetail, setOpenDetail] = useState<"momentum" | null>(null);
 
   return (
@@ -1087,27 +1087,52 @@ function PhotoSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [phase, setPhase] = useState<ProgressPhoto["phase"]>("maintenance");
   const [notes, setNotes] = useState("");
   const [dataUrl, setDataUrl] = useState("");
-  const onFile = (f: File | null) => {
+  const [error, setError] = useState("");
+  const [preparing, setPreparing] = useState(false);
+  const epoch = useRef(0);
+  useEffect(() => { if (!open) { epoch.current++; setPreparing(false); } }, [open]);
+  useEffect(() => () => { epoch.current++; }, []);
+  const onFile = async (f: File | null) => {
     if (!f) return;
-    if (f.size > 4_000_000) {
-      alert("Image is too large (max 4MB)");
-      return;
+    const request = ++epoch.current;
+    setError(""); setDataUrl(""); setPreparing(true);
+    try {
+      const prepared = await prepareProgressPhoto(f);
+      if (request === epoch.current) setDataUrl(prepared);
+    } catch (cause) {
+      if (request === epoch.current) setError(cause instanceof Error ? cause.message : "Photo could not be prepared. Try another image.");
+    } finally {
+      if (request === epoch.current) setPreparing(false);
     }
-    const r = new FileReader();
-    r.onload = () => setDataUrl(r.result as string);
-    r.readAsDataURL(f);
   };
   const submit = () => {
     if (!dataUrl) return;
-    set((s) => ({
+    let tooLarge = false;
+    const saved = set((s) => {
+      const next = {
       ...s,
       progressPhotos: [
         ...s.progressPhotos,
         { id: uid(), dataUrl, view, phase, notes: notes || undefined, createdAt: Date.now() },
       ],
-    }));
+      };
+      let otherBytes = 0;
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)!;
+          if (!key.startsWith("fitcore.persistence.v1.slot.")) otherBytes += (key.length + (localStorage.getItem(key)?.length ?? 0)) * 2;
+        }
+      } catch { /* The validated transaction below reports unavailable storage. */ }
+      if (!progressPhotoFitsStorage(next, otherBytes)) { tooLarge = true; return s; }
+      return next;
+    });
+    if (tooLarge || !saved) {
+      setError(tooLarge ? "Photo is too large for device storage. Export a backup and remove older photos before retrying. Your preview is still here." : "Photo could not be saved. Your preview is still here. Free device storage or resolve the storage warning, then retry.");
+      return;
+    }
     setDataUrl("");
     setNotes("");
+    setError("");
     onClose();
   };
   return (
@@ -1163,7 +1188,10 @@ function PhotoSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
             />
           </label>
         </div>
-        <PrimaryButton className="w-full" disabled={!dataUrl} onClick={submit}>
+        <p className="text-xs text-muted-foreground">Photos are resized on this device to protect storage for meals and workouts. Keep originals separately.</p>
+        {preparing && <p role="status">Preparing photo…</p>}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        <PrimaryButton className="w-full" disabled={!dataUrl || preparing} onClick={submit}>
           Save photo
         </PrimaryButton>
       </div>
