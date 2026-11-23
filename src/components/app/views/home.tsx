@@ -511,6 +511,7 @@ function HomeDailyView({
 
       <button
         onClick={openAi}
+        aria-label="Open Jarvis"
         className="home-ai-insight animate-tile-in press"
         style={{ animationDelay: "260ms" }}
       >

@@ -1,4 +1,4 @@
-import { useWhoopSnapshot } from "@/hooks/use-whoop-snapshot";
+import { useWhoopSnapshot, useWhoopRefreshing } from "@/hooks/use-whoop-snapshot";
 import { selectWhoopEvidence } from "@/lib/whoop/evidence";
 import { StatCard } from "./ui";
 import { useStore } from "@/lib/store";
@@ -7,6 +7,17 @@ function source(at?: string, state?: string) {
   return at
     ? `WHOOP · ${state === "pending" ? "Pending · " : state === "calibrating" ? "Calibrating · " : ""}${new Date(at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
     : "WHOOP · Unavailable";
+}
+
+export function WhoopSyncStatus() {
+  const snapshot = useWhoopSnapshot();
+  const refreshing = useWhoopRefreshing();
+  const { state } = useStore();
+  if (state.demoMode || (!snapshot && !refreshing)) return null;
+  return <p className="px-5 pb-3 text-xs text-muted-foreground" role="status">
+    {refreshing ? "WHOOP refreshing" : "WHOOP updated"}
+    {snapshot && <> · <time dateTime={snapshot.lastSyncedAt}>{new Date(snapshot.lastSyncedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</time></>}
+  </p>;
 }
 
 /** Native health fields, sharing exactly the same authorized evidence as the score tiles. */

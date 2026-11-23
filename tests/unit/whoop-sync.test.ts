@@ -111,6 +111,12 @@ test("rotates credentials once and atomically reconciles corrections and deletio
       { id: "11", score: { recovery_score: 80 } },
     ]);
     await clearCooldown();
+    const permittedLive = await syncWhoop(session, { ...options, durableCacheEnabled: false });
+    expect(Date.parse(permittedLive.live!.accessExpiresAt)).toBeGreaterThan(Date.now() + 180_000);
+    expect(Date.parse(permittedLive.live!.accessExpiresAt)).toBeLessThanOrEqual(
+      Date.now() + 300_000,
+    );
+    await clearCooldown();
     restrictedPage = true;
     const live = await syncWhoop(session, options);
     expect(live).toMatchObject({ status: 200, live: { records: [{ id: "11" }] } });
