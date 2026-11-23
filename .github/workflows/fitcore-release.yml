@@ -47,7 +47,7 @@ jobs:
           whoop-callback.spec.ts whoop-dashboard.spec.ts whoop-jarvis.spec.ts whoop-jarvis-isolation.spec.ts whoop-sync.spec.ts privacy-policy.spec.ts
           workout-release-safety settings-data-safety-lifecycle-smoke
           active-workout-lifecycle-smoke workout-offline-reopen bench-program reusable-workouts workout-rest-timer training-routines personal-scores workout-storage-headroom workout-substitutions exercise-library workout-history-management
-          meal-corrections macro-trends saved-nutrition nutrition-targets jarvis-active-workout jarvis-voice jarvis-workout-history jarvis-text-provider jarvis-provider-policy jarvis-text-records recorded-sleep daily-input-usability jarvis-composer-cursor section-scroll-activity save-safety jarvis-food-photo nutrition-macro-completeness weigh-in-save-safety
+          meal-corrections macro-trends saved-nutrition nutrition-targets jarvis-active-workout jarvis-voice jarvis-workout-history jarvis-text-provider jarvis-provider-policy jarvis-text-records recorded-sleep daily-input-usability jarvis-composer-cursor section-scroll-activity save-safety jarvis-food-photo meal-photo-camera-access nutrition-macro-completeness weigh-in-save-safety
         env:
           FITCORE_TEST_IPHONE_WEBKIT: "1"
           FITCORE_TEST_PRODUCTION_BUILD: "1"

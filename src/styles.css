@@ -1866,6 +1866,22 @@ body {
   opacity: 0.34;
 }
 
+.command-bar__photo {
+  display: flex;
+  flex: 0 0 48px;
+  min-height: 48px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid color-mix(in oklab, var(--section) 60%, transparent);
+  border-radius: 0.9rem;
+  background: color-mix(in oklab, var(--section) 20%, transparent);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .command-bar__send {
   color: white;
   background: var(--section);

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useVisibleViewport } from "@/hooks/use-visible-viewport";
-import { Apple, Dumbbell, Heart, Home, Mic, Send, Sparkles, TrendingUp, X } from "lucide-react";
+import { Apple, Camera, Dumbbell, Heart, Home, Mic, Send, Sparkles, TrendingUp, X } from "lucide-react";
 import type { SectionId } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -96,6 +96,18 @@ export function BottomNav({
                 aria-label="Message Jarvis"
                 aria-description="Return adds a new line. Use Send or Control Enter to submit."
               />
+              <button
+                type="button"
+                onClick={() => {
+                  setComposerOpen(false);
+                  window.dispatchEvent(new CustomEvent("fitcore:meal-photo"));
+                }}
+                className="command-bar__photo press"
+                aria-label="Add meal photo"
+              >
+                <Camera size={19} aria-hidden="true" />
+                <span>Photo</span>
+              </button>
               <button
                 type="button"
                 disabled

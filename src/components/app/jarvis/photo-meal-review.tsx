@@ -2,6 +2,7 @@ import type { MealEntry } from "@/lib/types";
 import { photoMealTotals, type PhotoMealDraft } from "@/lib/jarvis/meal-photo-draft";
 import type { ToolResult } from "@/lib/jarvis/tools";
 import type { savedFoodMatches } from "@/lib/jarvis/saved-food-matches";
+import { Camera, Image } from "lucide-react";
 
 interface Props {
   matches: ReturnType<typeof savedFoodMatches>;
@@ -18,8 +19,16 @@ export function PhotoMealReview(props: Props) {
     {props.error && <p role="alert">{props.error}</p>}
     {!draft && <>
       <p>Choose a photo. Jarvis will estimate the foods and portions for your review.</p>
-      <label className="block py-2">Upload food photo<input type="file" accept="image/*" aria-label="Upload food photo" disabled={busy} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; props.onFile(file); }} /></label>
-      <label className="block py-2">Take food photo<input type="file" accept="image/*" capture="environment" aria-label="Take food photo" disabled={busy} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; props.onFile(file); }} /></label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-primary bg-primary/15 px-2 font-medium focus-within:outline focus-within:outline-2 focus-within:outline-primary ${busy ? "opacity-50" : ""}`}>
+          <Camera size={18} aria-hidden="true" /><span>Take photo</span>
+          <input className="sr-only" type="file" accept="image/*" capture="environment" aria-label="Take food photo" disabled={busy} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; props.onFile(file); }} />
+        </label>
+        <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border px-2 font-medium focus-within:outline focus-within:outline-2 focus-within:outline-primary ${busy ? "opacity-50" : ""}`}>
+          <Image size={18} aria-hidden="true" /><span>Choose image</span>
+          <input className="sr-only" type="file" accept="image/*" aria-label="Upload food photo" disabled={busy} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; props.onFile(file); }} />
+        </label>
+      </div>
       {image && <img src={image} alt="Food photo awaiting consent" className="max-h-40 rounded-xl object-contain" />}
     </>}
     <label className="flex gap-2 py-2"><input type="checkbox" checked={props.consent} onChange={e => props.onConsent(e.target.checked)} disabled={busy} /><span>Send this photo and meal corrections to Groq<span className="block text-xs text-muted-foreground">Uses your Groq key and Qwen vision. Later corrections send meal text only. Photos are not saved in FitCore. Provider limits and retention rules apply.</span></span></label>
