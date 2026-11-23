@@ -27,6 +27,15 @@ async function nudgeForeground(page: Page) {
   await page.clock.runFor(500);
 }
 
+async function waitForRefreshToSettle(page: Page) {
+  const expand = page.getByRole("button", { name: /Expand navigation/ });
+  if (await expand.isVisible()) await expand.click();
+  await page.getByRole("button", { name: "Recover", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "WHOOP updated" })).toBeVisible();
+  if (await expand.isVisible()) await expand.click();
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+}
+
 async function syntheticWhoopContinuity(page: Page, initialScore = 80): Promise<WhoopControl> {
   const control: WhoopControl = {
     connected: true,
@@ -154,10 +163,15 @@ test.describe("WHOOP sync continuity", () => {
     ).toBeVisible();
     await expect(page.locator(".home-orbit-score--recovery .home-orbit-value")).toHaveText("80%");
 
-    // Wait out the post-sync cooldown, then trigger a refresh that fails (502).
-    await page.clock.fastForward(121000);
+    // The ten-minute lease renews 15 seconds before expiry, not at the
+    // two-minute minimum cooldown. Observe the actual failed response.
     control.failRefresh = true;
-    await nudgeForeground(page);
+    const failedRefresh = page.waitForResponse((response) =>
+      response.url().endsWith("/api/whoop/sync") && response.status() === 502,
+    );
+    await page.clock.fastForward(585000);
+    await failedRefresh;
+    await waitForRefreshToSettle(page);
 
     // Valid authorized data must NOT be blanked by a failed refresh.
     await expect(page.locator(".home-orbit-score--recovery .home-orbit-value")).toHaveText("80%");
@@ -169,7 +183,11 @@ test.describe("WHOOP sync continuity", () => {
     control.failRefresh = false;
     control.score = 90;
     control.hrv = 64.9;
+    const recovered = page.waitForResponse((response) =>
+      response.url().endsWith("/api/whoop/sync") && response.status() === 200,
+    );
     await page.clock.fastForward(121000);
+    await recovered;
 
     await expect(page.locator(".home-orbit-score--recovery .home-orbit-value")).toHaveText("90%");
     await expect(
@@ -181,27 +199,36 @@ test.describe("WHOOP sync continuity", () => {
     page,
   }) => {
     const control = await syntheticWhoopContinuity(page, 80);
+    const before = await readPersistedFitCoreState(page);
 
     await expect(
       page.getByRole("button", { name: /^Recovery 80% · WHOOP/ }),
     ).toBeVisible();
     await expect(page.locator(".home-orbit-score--recovery .home-orbit-value")).toHaveText("80%");
 
-    // Fail a refresh, wait out cooldown, then let a later refresh succeed.
+    // Observe a failed scheduled renewal, then a successful retry.
     control.failRefresh = true;
-    await page.clock.fastForward(121000);
-    await nudgeForeground(page);
+    const failedRefresh = page.waitForResponse((response) =>
+      response.url().endsWith("/api/whoop/sync") && response.status() === 502,
+    );
+    await page.clock.fastForward(585000);
+    await failedRefresh;
+    await waitForRefreshToSettle(page);
 
     await expect(page.locator(".home-orbit-score--recovery .home-orbit-value")).toHaveText("80%");
 
     control.failRefresh = false;
+    control.score = 90;
+    const recovered = page.waitForResponse((response) =>
+      response.url().endsWith("/api/whoop/sync") && response.status() === 200,
+    );
     await page.clock.fastForward(121000);
-    await nudgeForeground(page);
+    await recovered;
 
-    await expect(page.locator(".home-orbit-score--recovery .home-orbit-value")).toHaveText("80%");
+    await expect(page.locator(".home-orbit-score--recovery .home-orbit-value")).toHaveText("90%");
 
     // Manual records are never touched by WHOOP sync interruptions.
     const state = await readPersistedFitCoreState(page);
-    expect((state.sleepEntries ?? []).some((e) => e.id === "manual-today")).toBe(true);
+    expect(state.sleepEntries).toEqual(before.sleepEntries);
   });
 });

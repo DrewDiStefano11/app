@@ -39,7 +39,7 @@ Define stress testing scope for FitCore beyond the e2e regression suite. Covers 
 
 **Scenario:** Network flakiness, expired auth, rate limiting, and failed refreshes.
 
-**Related e2e test:** `tests/e2e/whoop-sync-continuity.spec.ts` — valid authorized data survives a failed refresh and is replaced on success (blocked by test-harness timing; see FITCORE_BUG_REPORT.md).
+**Related e2e test:** `tests/e2e/whoop-sync-continuity.spec.ts` — valid authorized data survives a failed refresh and is replaced on success (scheduling harness corrected; see FITCORE_BUG_REPORT.md).
 
 **Stress extensions:**
 - 502/503/429 responses from WHOOP sync endpoint — valid data must not be blanked.

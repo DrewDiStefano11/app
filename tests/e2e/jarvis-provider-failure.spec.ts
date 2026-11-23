@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   currentFitCoreState,
   gotoDashboard,
@@ -52,6 +52,7 @@ test.describe("Jarvis provider failure", () => {
     await page.getByRole("button", { name: "Open AI composer" }).click();
     await page.getByRole("textbox", { name: "Message Jarvis" }).fill(message);
     await page.getByRole("button", { name: "Send to Jarvis" }).click();
+    await expect(page.getByText("Warning: Upstream provider returned invalid data.", { exact: true })).toBeVisible();
     const input = page.getByPlaceholder("Talk to Jarvis...");
     // Draft is preserved after a provider error.
     await expect(input).toHaveValue(message);

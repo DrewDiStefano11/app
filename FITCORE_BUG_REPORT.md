@@ -1,57 +1,13 @@
-# FitCore Bug Report
+# FitCore regression harness reconciliation
 
-Generated: Mon Nov 23 2026
-Branch: `kilo/async-queue-f7d` (rebased onto origin/main `dfe29ab`)
-Related test: `tests/e2e/whoop-sync-continuity.spec.ts`
+November 23, 2026 — PR #312, reconciled with main f784d55 after #308.
 
-## Blocker: WHOOP sync continuity test — orbit value does not update after failed-refresh recovery
+The original WHOOP failure reproduced: expected 90%, received 80%. The original explanation attributing this to React and Playwright fake clocks was not supported. The fixture grants a 600-second lease. sync-coordinator.ts schedules successful live-snapshot renewal 15 seconds before expiry (585 seconds); the 120-second cooldown is only a minimum interval. Advancing 121 seconds and dispatching focus while already foreground does not make that renewal due. The original failed-refresh assertion never proved a failed sync happened.
 
-### Symptom
+Both continuity tests now set the failure before advancing to the actual renewal, await the HTTP 502 response, and verify the authorized 80% remains visible before its original expiry. They then await a successful retry after cooldown and verify the replacement in the real UI. The timestamp case compares all manual sleep entries, including timestamps, against the original records. The fake clock remains enabled. Both corrected desktop tests pass. No production change or weakened final assertion was needed.
 
-Test "valid authorized recovery data survives a failed refresh and is replaced on success" fails at the final assertion:
+Settings coverage now changes days/week and checks its stored and rendered value after reload. The backup case reads the exported JSON, verifies export did not mutate state, changes a value, imports the export, and verifies restoration after reload. The provider-error test waits for visible error feedback before checking the retained draft. Its missing Page type import is corrected.
 
-```
-await expect(page.locator(".home-orbit-score--recovery .home-orbit-value")).toHaveText("90%");
-```
+This resolves the synthetic regression harness failure only. The user's installed-iPhone WHOOP cold-start report remains open until investigated and physically confirmed. Existing notes in the #308 checkpoint claiming physical confirmation are superseded by the current goal objective. Automated browser coverage does not establish actual camera, provider accuracy, or installed-PWA behavior.
 
-After a failed refresh (HTTP 502) is followed by a successful refresh with new scored data (recovery score 90%), the orbit value remains "80%" instead of updating to "90%".
-
-### Root cause
-
-This is a **test-harness / timing limitation**, not an application defect.
-
-1. The WHOOP sync coordinator (`src/lib/whoop/sync-coordinator.ts`) enforces a 120-second cooldown after each sync: `nextAllowed = sync_time + 120s`. During this window, automatic syncs are blocked.
-2. After the cooldown expires, the sync coordinator's renewal timer fires and publishes a new snapshot via `onChange` → `window.dispatchEvent(new CustomEvent("fitcore:whoop-snapshot-changed"))`.
-3. React components subscribed via `useSyncExternalStore` (`src/hooks/use-whoop-snapshot.ts`) should re-render with the new snapshot.
-4. Under Playwright's fake clock (`page.clock.install`), the React re-render triggered by the sync coordinator's timer callback does not reliably propagate to the DOM within the assertion timeout. The orbit value stays at the previous value ("80%").
-
-### Evidence
-
-- `whoop-dashboard.spec.ts` — 13/13 tests pass on origin/main `dfe29ab`. This suite exercises the same WHOOP sync coordinator, snapshot hook, and Home/Recovery rendering. The app correctly displays WHOOP recovery data, survives failed refreshes without blanking valid data, and recovers on success.
-- The WHOOP sync continuity test's first assertion ("80% displayed after initial sync") passes. The second assertion ("80% preserved after failed refresh") passes. Only the third assertion ("90% after recovery refresh") fails — precisely where React re-render under fake clock is required.
-- Manual DOM inspection confirms the server returns the correct new snapshot (recovery_score: 90) and the sync coordinator's `nextAllowed` cooldown is respected. The failure is in the React → DOM update path under fake clock, not in the data flow.
-
-### Why this is not an app defect
-
-- No production code path silently blanks valid authorized WHOOP data. A failed refresh (502) preserves the last known good snapshot ("80%"), as verified by the passing second assertion.
-- A successful recovery refresh publishes new scored data ("90%"), as confirmed by `whoop-dashboard.spec.ts`.
-- The React `useSyncExternalStore` subscription correctly receives snapshot changes when driven by real timers (as proven by `whoop-dashboard.spec.ts`).
-
-### Recommended resolution
-
-This test requires a real (non-fake) clock or a manual React flush mechanism to observe the sync coordinator's async publication under test. Options:
-
-1. Replace `page.clock.fastForward(120000)` with real-time waiting (`page.waitForTimeout`) for the cooldown window, then assert on the updated orbit value. This sacrifices test speed for determinism.
-2. Add a test-only mechanism to force a React re-render after the sync coordinator publishes (e.g., dispatch a synthetic focus/visibility event and wait for the DOM to update).
-3. Accept the limitation and document it: the test verifies data preservation (no blanking) and cooldown behavior, but not the post-recovery visual update under fake clock.
-
-### Decision
-
-The test is kept as-is with the failure documented. Assertions are **not** weakened and no real provider requests are made. The WHOOP sync continuity coverage remains valid for: (a) authorized data survives failed refresh without blanking, (b) cooldown is enforced, (c) manual records are untouched.
-
-## Related files
-
-- `tests/e2e/whoop-sync-continuity.spec.ts` — blocked test
-- `tests/e2e/whoop-dashboard.spec.ts` — reference suite (13/13 passing)
-- `src/lib/whoop/sync-coordinator.ts` — sync cooldown logic (`cooldownMs = 120_000`)
-- `src/hooks/use-whoop-snapshot.ts` — React snapshot subscription
+A repeat iPhone WebKit run also exposed a response-header race: a response can arrive before the coordinator records its retry deadline. The harness now waits for the existing Recovery WHOOP updated status before advancing the clock. Both final tests passed across desktop Chromium, mobile Chromium and iPhone WebKit (6/6, 22.3s).

@@ -1,15 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import {
   expectDashboardReady,
   readPersistedFitCoreState,
   seedMinimalOnboardedState,
 } from "./helpers/fitcore-test-state";
-
-function sheetByHeading(page: Page, name: string) {
-  return page
-    .getByRole("heading", { name, exact: true })
-    .locator("xpath=ancestor::div[contains(@class, 'sheet-surface')][1]");
-}
 
 async function checkNoFatalErrors(page: Page) {
   const fatalErrors = [
@@ -53,15 +48,10 @@ test.describe("Settings reload behavior", () => {
     await gotoSettings(page);
     await page.getByRole("tab", { name: "Profile", exact: true }).click();
 
-    const daysInput = page.getByLabel("Training days per week").or(
-      page.getByPlaceholder(/days/i),
-    );
-    // Ensure profile tab renders a changeable days-per-week field.
-    await expect(
-      page.getByText("Training Profile", { exact: true }).or(
-        page.getByText("days per week", { exact: true }),
-      ),
-    ).toBeVisible();
+    const daysInput = page.getByLabel("Training days per week");
+    await daysInput.fill("4");
+    await daysInput.blur();
+    await expect.poll(async () => (await persistedState(page)).profile.daysPerWeek).toBe(4);
 
     // Navigate away and back through Settings to confirm tab state behavior.
     await page.getByRole("tab", { name: "Data", exact: true }).click();
@@ -73,18 +63,12 @@ test.describe("Settings reload behavior", () => {
     await gotoSettings(page);
     await expect(page.getByRole("heading", { name: "Settings", exact: true })).toBeVisible();
     await expect(page.getByRole("tab", { name: "Profile", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "Profile", exact: true }).click();
+    await expect(daysInput).toHaveValue("4");
+    expect((await persistedState(page)).profile.daysPerWeek).toBe(4);
   });
 
   test("backup export and import round-trip without fatal errors", async ({ page }) => {
-    let exportSaved = false;
-    page.on("download", async (download) => {
-      const suggested = download.suggestedFilename();
-      if (suggested.includes("fitcore") || suggested.includes("backup") || suggested.endsWith(".json")) {
-        exportSaved = true;
-        await download.path().catch(() => {});
-      }
-    });
-
     await page.goto("/");
     await expectDashboardReady(page);
 
@@ -92,10 +76,30 @@ test.describe("Settings reload behavior", () => {
     await page.getByRole("tab", { name: "Data", exact: true }).click();
     await expect(page.getByText("Data Management", { exact: true }).first()).toBeVisible();
 
+    const original = await persistedState(page);
+    const downloading = page.waitForEvent("download");
     await page.getByRole("button", { name: "Export", exact: true }).click();
-    await expect.poll(() => exportSaved).toBe(true);
+    const download = await downloading;
+    expect(download.suggestedFilename()).toMatch(/^fitcore-backup-.*\.json$/);
+    const backup = JSON.parse(await readFile((await download.path())!, "utf8"));
+    expect(backup.profile).toEqual(original.profile);
+    expect(await persistedState(page)).toEqual(original);
 
-    await expect(page.getByText("Import", { exact: true })).toBeVisible();
-    await expect(page.getByText("Reset all data", { exact: true })).toBeVisible();
+    // Change a value, then restore the original export through the real importer.
+    await page.getByRole("tab", { name: "Profile", exact: true }).click();
+    await page.getByLabel("Training days per week").fill("4");
+    await page.getByLabel("Training days per week").blur();
+    await expect.poll(async () => (await persistedState(page)).profile.daysPerWeek).toBe(4);
+    await page.getByRole("tab", { name: "Data", exact: true }).click();
+    await page.getByLabel("Import backup file").setInputFiles({
+      name: download.suggestedFilename(), mimeType: "application/json",
+      buffer: Buffer.from(JSON.stringify(backup)),
+    });
+    await expect(page.getByRole("status")).toHaveText("Imported successfully \u2713");
+    await expect.poll(async () => (await persistedState(page)).profile).toEqual(original.profile);
+    await page.reload();
+    await expectDashboardReady(page);
+    expect((await persistedState(page)).profile).toEqual(original.profile);
+
   });
 });
