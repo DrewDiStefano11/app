@@ -2,7 +2,7 @@ name: FitCore Release Gate
 
 on:
   pull_request:
-    branches: [main, "codex/fitcore-core-integration", "codex/fitcore-jarvis-voice", "codex/fitcore-daily-usability", "codex/fitcore-record-consistency"]
+    branches: [main, "codex/fitcore-core-integration", "codex/fitcore-jarvis-voice", "codex/fitcore-daily-usability", "codex/fitcore-record-consistency", "codex/fitcore-save-safety"]
   push:
     branches: [main]
   workflow_dispatch:
@@ -11,11 +11,16 @@ permissions:
   contents: read
 
 jobs:
-  production-workout:
+  production-browser:
+    name: production-browser (${{ matrix.project }})
     runs-on: ubuntu-latest
-    # Prior voice/usability runs reached the old 25-minute job ceiling.
-    # Preserve the complete production browser selection and allow it to finish.
+    # Both engines retain the complete selection, on independent runners.
+    # The serial two-engine job exceeded its 35-minute ceiling.
     timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [iphone-webkit, mobile-390x844]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -38,17 +43,29 @@ jobs:
       - name: Test the production artifact in mobile browsers
         run: >-
           npm run test:e2e -- --reporter=line
-          --project=iphone-webkit --project=mobile-390x844
+          --project=${{ matrix.project }}
           whoop-callback.spec.ts whoop-dashboard.spec.ts whoop-jarvis.spec.ts whoop-jarvis-isolation.spec.ts whoop-sync.spec.ts privacy-policy.spec.ts
           workout-release-safety settings-data-safety-lifecycle-smoke
           active-workout-lifecycle-smoke workout-offline-reopen bench-program reusable-workouts workout-rest-timer training-routines personal-scores workout-storage-headroom workout-substitutions exercise-library workout-history-management
-          meal-corrections macro-trends saved-nutrition nutrition-targets jarvis-active-workout jarvis-voice jarvis-workout-history jarvis-text-provider jarvis-provider-policy jarvis-text-records recorded-sleep daily-input-usability jarvis-composer-cursor section-scroll-activity save-safety
+          meal-corrections macro-trends saved-nutrition nutrition-targets jarvis-active-workout jarvis-voice jarvis-workout-history jarvis-text-provider jarvis-provider-policy jarvis-text-records recorded-sleep daily-input-usability jarvis-composer-cursor section-scroll-activity save-safety jarvis-food-photo nutrition-macro-completeness weigh-in-save-safety
         env:
           FITCORE_TEST_IPHONE_WEBKIT: "1"
           FITCORE_TEST_PRODUCTION_BUILD: "1"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: fitcore-release-test-results
+          name: fitcore-release-test-results-${{ matrix.project }}
           path: test-results/
           retention-days: 14
+
+  production-workout:
+    # Keep the existing required-check name; every engine must actually pass.
+    needs: production-browser
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Require both production browser jobs to pass
+        env:
+          BROWSER_RESULT: ${{ needs.production-browser.result }}
+        run: test "$BROWSER_RESULT" = "success"

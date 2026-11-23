@@ -44,7 +44,12 @@ function PrivacyPolicy() {
             cloud text, FitCore can send your message and a bounded set of recent user messages
             through its server to Groq, using your own provider key. Gemini requests for personal
             fitness data and automatic Gemini fallback are disabled under its unpaid-service terms.
-            Food-photo AI estimation is disabled in this version.
+            Food-photo estimation is optional and uses your configured Groq key after explicit
+            consent for each selected photo. FitCore resizes the image locally and removes metadata
+            before sending it through its server to Groq. The photo is not stored in tracking
+            history or backups. Later conversational corrections send the current meal estimate
+            and correction text, without resending the image or attaching fitness history or WHOOP
+            data. The estimate stays in a review draft until you explicitly confirm saving.
           </p>
           <p>
             Short voice recordings are optional. After enabling voice input, pressing Record voice

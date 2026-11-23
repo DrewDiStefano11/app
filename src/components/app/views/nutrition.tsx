@@ -366,7 +366,9 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
       </BottomSheet>
       <BottomSheet open={!!editing} onClose={() => setEditing(null)} title="Edit meal"
         height="tall" closeLabel="Close meal editor" manageFocus>
-        {editing && <MealEditor key={editing.id} meal={editing} onCancel={() => setEditing(null)}
+        {editing && <>
+          {editing.items?.length && editing.macroStatus !== "unreported" ? <button type="button" className="min-h-11 mb-3 w-full rounded-xl border border-border px-3" onClick={() => { const mealId = editing.id; setEditing(null); window.dispatchEvent(new CustomEvent("fitcore:meal-photo", { detail: { mealId } })); }}>Correct with Jarvis</button> : null}
+          <MealEditor key={editing.id} meal={editing} onCancel={() => setEditing(null)}
           onSavePreset={draft => {
             let present = false;
             const saved = set(current => {
@@ -379,7 +381,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
             const saved = commitMeal(editing, replacement);
             if (saved) setEditing(null);
             return saved;
-          }} />}
+          }} /></>}
       </BottomSheet>
       <ConfirmDialog
         open={!!confirmDel}
@@ -532,11 +534,15 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
     });
   };
 
+  const completeCustomMacros = [p, c, fat].every(value => value.trim() !== "");
+  const emptyCustomMacros = [p, c, fat].every(value => value.trim() === "");
   const customMeal = () => ({
     id: uid(), name: name.trim(), type, createdAt: Date.now(),
-    calories: Number(cal), protein: Number(p), carbs: Number(c), fat: Number(fat),
+    calories: Number(cal),
+    ...(completeCustomMacros ? { protein: Number(p), carbs: Number(c), fat: Number(fat) } : { macroStatus: "unreported" as const }),
   });
   const canSaveCustom = !!name.trim() && !!cal.trim() &&
+    (emptyCustomMacros || completeCustomMacros) &&
     [cal, p, c, fat].every(value => Number.isFinite(Number(value)) && Number(value) >= 0);
 
   const filteredFoods = FOODS.filter(
@@ -572,9 +578,9 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
       {presetMessage && <p role={presetMessage.failed ? "alert" : "status"} className="mb-3 text-sm">{presetMessage.text}</p>}
       {saveFailed && <p role="alert" className="mb-3 text-sm text-destructive">Meal could not be saved. Try again.</p>}
       <div className="grid grid-cols-2 gap-3 mb-6 px-1 mt-2">
-        <div
+        <button type="button" aria-label="Photo Log"
           className="p-3 rounded-2xl bg-gradient-to-br from-[var(--section-soft)] to-transparent border border-[var(--section-soft)] flex items-center justify-between group press transition-all cursor-pointer"
-          onClick={() => window.dispatchEvent(new CustomEvent("fitcore:open-ai"))}
+          onClick={() => { onClose(); window.dispatchEvent(new CustomEvent("fitcore:meal-photo")); }}
         >
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-green-500/20 flex items-center justify-center text-green-400">
@@ -587,7 +593,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
               </p>
             </div>
           </div>
-        </div>
+        </button>
 
         <div className="p-3 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between opacity-50 pointer-events-none">
           <div className="flex items-center gap-2">
@@ -839,6 +845,7 @@ function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => void })
               </div>
             </div>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">Enter all three macros, or leave all three blank to mark them unreported.</p>
           <div className="pt-4">
             <PrimaryButton
               className="w-full rounded-xl h-14 shadow-lg text-lg"

@@ -3,6 +3,11 @@ import * as fs from "fs";
 import { seedMinimalOnboardedState, gotoDashboard } from "./helpers/fitcore-test-state";
 
 test.describe("Settings Data Safety Lifecycle Smoke", () => {
+  // This complete profile/import/export/reset journey exhausted the hosted
+  // WebKit 30s test budget near its end. Keep each UI action bounded separately.
+  test.setTimeout(60_000);
+  test.use({ actionTimeout: 10_000 });
+
   test.beforeEach(async ({ page }) => {
     await seedMinimalOnboardedState(page);
     await gotoDashboard(page);

@@ -82,6 +82,40 @@ async function openDetail(page: Page) {
   });
 }
 
+test("imported workouts use session dates for latest workout and filtered history without rewriting storage", async ({
+  page,
+}) => {
+  const now = Date.now();
+  const newest = session("import-newest", "Newest imported session", now - 2 * 86_400_000, 180);
+  const oldest = session("import-oldest", "Oldest imported session", now - 10 * 86_400_000, 140);
+  const middle = session("import-middle", "Middle imported session", now - 5 * 86_400_000, 160);
+  await seedRevisionedFitCoreState(
+    page,
+    currentFitCoreState({ onboardingComplete: true, workouts: [newest, oldest, middle] }),
+  );
+  await openTraining(page);
+  await expect(page.getByText(newest.name, { exact: true })).toBeVisible();
+  await expect(page.getByText(middle.name, { exact: true })).toBeHidden();
+  await page.getByText(newest.name, { exact: true }).click();
+  const history = page
+    .locator(".sheet-surface")
+    .filter({ has: page.getByRole("heading", { name: "Workout history", exact: true }) });
+  const names = history.getByText(/^(Newest|Middle|Oldest) imported session$/);
+  await expect(names).toHaveText([newest.name, middle.name, oldest.name]);
+  await history.getByRole("button", { name: "7d", exact: true }).click();
+  await expect(names).toHaveText([newest.name, middle.name]);
+  await history.getByRole("button", { name: "all", exact: true }).click();
+  await expect(names).toHaveText([newest.name, middle.name, oldest.name]);
+  expect((await readPersistedFitCoreState(page)).workouts.map((workout) => workout.id)).toEqual([
+    newest.id,
+    oldest.id,
+    middle.id,
+  ]);
+  await page.reload();
+  await openTraining(page);
+  await expect(page.getByText(newest.name, { exact: true })).toBeVisible();
+});
+
 test("correct a saved workout and recompute personal records from completed sets", async ({
   page,
 }) => {

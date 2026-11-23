@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { prepareProgressPhoto, progressPhotoFitsStorage } from "@/lib/progress-photo";
+import { parseBodyweightLb, recordManualBodyweight, MIN_BODYWEIGHT_LB, MAX_BODYWEIGHT_LB, BODYWEIGHT_INPUT_ERROR, BODYWEIGHT_SAVE_ERROR } from "@/lib/bodyweight-entry";
 import {
   Camera,
   Plus,
@@ -79,6 +80,9 @@ export function ProgressView({ layoutMode = "daily" }: { layoutMode?: LayoutMode
 function DailyViewContent() {
   const { state, set } = useStore();
   const [w, setW] = useState(String(state.profile.bodyweightLb));
+  const [saveFailed, setSaveFailed] = useState(false);
+  const weightLb = parseBodyweightLb(w);
+  const invalidWeight = w.trim() !== "" && weightLb === undefined;
   const [openDetail, setOpenDetail] = useState<"weight" | "goals" | "momentum" | "photo" | null>(
     null,
   );
@@ -103,17 +107,10 @@ function DailyViewContent() {
   const mScore = momentumScore(state, Date.now(), useWhoopSnapshot());
 
   const submitWeighIn = () => {
-    const wt = Number(w);
-    if (!wt) return;
-    set((s) => ({
-      ...s,
-      bodyweightEntries: [
-        ...s.bodyweightEntries,
-        { id: uid(), weightLb: wt, createdAt: Date.now() },
-      ],
-      profile: { ...s.profile, bodyweightLb: wt },
-      goals: s.goals.map((g) => (g.type === "bodyweight" ? { ...g, current: wt } : g)),
-    }));
+    if (weightLb === undefined) return;
+    const saved = set(s => recordManualBodyweight(s, { id: uid(), weightLb, createdAt: Date.now() }));
+    if (!saved) { setSaveFailed(true); return; }
+    setSaveFailed(false);
     setW("");
   };
 
@@ -131,13 +128,15 @@ function DailyViewContent() {
         <div className="flex gap-2">
           <Input
             className="flex-1 bg-background"
+            type="number" min={MIN_BODYWEIGHT_LB} max={MAX_BODYWEIGHT_LB} step="any" aria-label="Weight in pounds" aria-invalid={invalidWeight} aria-describedby={invalidWeight || saveFailed ? "daily-weight-error" : undefined}
             inputMode="decimal"
             value={w}
-            onChange={(e) => setW(e.target.value)}
+            onChange={(e) => { setW(e.target.value); setSaveFailed(false); }}
             placeholder="Weight in lb"
           />
-          <PrimaryButton onClick={submitWeighIn}>Save</PrimaryButton>
+          <PrimaryButton disabled={weightLb === undefined} onClick={submitWeighIn}>Save</PrimaryButton>
         </div>
+        {(invalidWeight || saveFailed) && <p id="daily-weight-error" role="alert" className="mt-2 text-sm text-destructive">{invalidWeight ? BODYWEIGHT_INPUT_ERROR : BODYWEIGHT_SAVE_ERROR}</p>}
       </Card>
 
       {/* Weight Trend Card */}
@@ -443,6 +442,9 @@ function BodyTab() {
 function WeightSection() {
   const { state, set } = useStore();
   const [w, setW] = useState(String(state.profile.bodyweightLb));
+  const [saveFailed, setSaveFailed] = useState(false);
+  const weightLb = parseBodyweightLb(w);
+  const invalidWeight = w.trim() !== "" && weightLb === undefined;
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
   const sorted = useMemo(
     () => [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt),
@@ -458,17 +460,11 @@ function WeightSection() {
   const dMonth = bodyweightDelta(state, 30);
 
   const submit = () => {
-    const wt = Number(w);
-    if (!wt) return;
-    set((s) => ({
-      ...s,
-      bodyweightEntries: [
-        ...s.bodyweightEntries,
-        { id: uid(), weightLb: wt, createdAt: Date.now() },
-      ],
-      profile: { ...s.profile, bodyweightLb: wt },
-      goals: s.goals.map((g) => (g.type === "bodyweight" ? { ...g, current: wt } : g)),
-    }));
+    if (weightLb === undefined) return;
+    const saved = set(s => recordManualBodyweight(s, { id: uid(), weightLb, createdAt: Date.now() }));
+    if (!saved) { setSaveFailed(true); return; }
+    setSaveFailed(false);
+    setW("");
   };
 
   return (
@@ -483,13 +479,15 @@ function WeightSection() {
       <div className="flex gap-2">
         <Input
           className="flex-1"
+          type="number" min={MIN_BODYWEIGHT_LB} max={MAX_BODYWEIGHT_LB} step="any" aria-label="Weight in pounds" aria-invalid={invalidWeight} aria-describedby={invalidWeight || saveFailed ? "deep-weight-error" : undefined}
           inputMode="decimal"
           value={w}
-          onChange={(e) => setW(e.target.value)}
+          onChange={(e) => { setW(e.target.value); setSaveFailed(false); }}
           placeholder="Weight in lb"
         />
-        <PrimaryButton onClick={submit}>Save</PrimaryButton>
+        <PrimaryButton disabled={weightLb === undefined} onClick={submit}>Save</PrimaryButton>
       </div>
+      {(invalidWeight || saveFailed) && <p id="deep-weight-error" role="alert" className="mt-2 text-sm text-destructive">{invalidWeight ? BODYWEIGHT_INPUT_ERROR : BODYWEIGHT_SAVE_ERROR}</p>}
 
       <SectionHeader title="Recent weigh-ins" />
       {sorted.length === 0 ? (

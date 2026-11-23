@@ -7,6 +7,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { estimateMealMacros } from "@/lib/ai.functions";
 import { JARVIS_PHOTO_ANALYSIS_ENABLED } from "@/lib/jarvis/provider-models";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
+import { parseBodyweightLb, recordManualBodyweight, MIN_BODYWEIGHT_LB, MAX_BODYWEIGHT_LB, BODYWEIGHT_INPUT_ERROR, BODYWEIGHT_SAVE_ERROR } from "@/lib/bodyweight-entry";
 
 const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack", "pre-workout", "post-workout"];
 
@@ -272,6 +273,9 @@ export function WeighInSheet({ open, onClose }: { open: boolean; onClose: () => 
   const { state, set } = useStore();
   const [w, setW] = useState(String(state.profile.bodyweightLb));
   const [notes, setNotes] = useState("");
+  const [saveFailed, setSaveFailed] = useState(false);
+  const weightLb = parseBodyweightLb(w);
+  const invalidWeight = w.trim() !== "" && weightLb === undefined;
 
   const recent = useMemo(() => {
     return [...state.bodyweightEntries]
@@ -281,16 +285,13 @@ export function WeighInSheet({ open, onClose }: { open: boolean; onClose: () => 
   }, [state.bodyweightEntries]);
 
   const last = state.bodyweightEntries[state.bodyweightEntries.length - 1];
-  const delta = last ? Number(w) - last.weightLb : 0;
+  const delta = last && weightLb !== undefined ? weightLb - last.weightLb : 0;
 
   const save = () => {
-    const wt = Number(w);
-    if (!wt) return;
-    set(s => ({ ...s,
-      bodyweightEntries: [...s.bodyweightEntries, { id: uid(), weightLb: wt, notes: notes || undefined, createdAt: Date.now() }],
-      profile: { ...s.profile, bodyweightLb: wt },
-      goals: s.goals.map(g => g.type === "bodyweight" ? { ...g, current: wt } : g),
-    }));
+    if (weightLb === undefined) return;
+    const saved = set(s => recordManualBodyweight(s, { id: uid(), weightLb, notes: notes || undefined, createdAt: Date.now() }));
+    if (!saved) { setSaveFailed(true); return; }
+    setSaveFailed(false);
     setNotes("");
     onClose();
   };
@@ -301,10 +302,10 @@ export function WeighInSheet({ open, onClose }: { open: boolean; onClose: () => 
         <div className="tile p-4">
           <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Current weight</div>
           <div className="flex items-baseline gap-2 mt-1">
-            <input type="number" inputMode="decimal" value={w} onChange={e => setW(e.target.value)}
+            <input type="number" inputMode="decimal" min={MIN_BODYWEIGHT_LB} max={MAX_BODYWEIGHT_LB} step="any" aria-label="Weight in pounds" aria-invalid={invalidWeight} aria-describedby={invalidWeight || saveFailed ? "home-weight-error" : undefined} value={w} onChange={e => { setW(e.target.value); setSaveFailed(false); }}
               className="font-display text-5xl bg-transparent outline-none w-32 tabular-nums text-white border-b border-white/10 focus:border-[var(--section)]" />
             <span className="text-sm text-white/40 font-bold uppercase">lb</span>
-            {last && (
+            {last && weightLb !== undefined && (
               <span className={`ml-auto text-xs font-bold tabular-nums ${delta > 0 ? "text-green-400" : delta < 0 ? "text-red-400" : "text-white/40"}`}>
                 {delta > 0 ? "+" : ""}{delta.toFixed(1)} vs last
               </span>
@@ -334,11 +335,12 @@ export function WeighInSheet({ open, onClose }: { open: boolean; onClose: () => 
 
         <div className="flex gap-2 pt-1">
           <button onClick={onClose} className="flex-1 h-12 rounded-xl border border-white/15 bg-white/5 font-bold text-white/80">Cancel</button>
-          <button onClick={save} className="flex-1 h-12 rounded-xl font-bold text-white flex items-center justify-center gap-2"
+          <button onClick={save} disabled={weightLb === undefined} className="flex-1 h-12 rounded-xl font-bold text-white flex items-center justify-center gap-2 disabled:opacity-40"
             style={{ background: "var(--section)" }}>
             <Check size={16} /> Save weigh-in
           </button>
         </div>
+        {(invalidWeight || saveFailed) && <p id="home-weight-error" role="alert" className="text-sm text-red-300">{invalidWeight ? BODYWEIGHT_INPUT_ERROR : BODYWEIGHT_SAVE_ERROR}</p>}
       </div>
     </BottomSheet>
   );
