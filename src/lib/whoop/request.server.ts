@@ -2,6 +2,8 @@ import process from "node:process";
 import { neon } from "@neondatabase/serverless";
 import { createWhoopIntegration } from "./integration.server";
 import { createWhoopStore } from "./postgres.server";
+import { createWhoopArchiveStore } from "./archive-store.server";
+import { createWhoopArchiveVault } from "./archive-vault.server";
 
 const privateHeaders = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" };
 
@@ -40,15 +42,14 @@ function getIntegration() {
   if (url.protocol !== "https:" || url.origin !== WHOOP_ORIGIN) return null;
 
   const sql = neon(WHOOP_DATABASE_URL);
-  const store = createWhoopStore(
-    async <Row extends Record<string, unknown>>(
-      statement: string,
-      parameters: (string | number)[],
-    ) =>
-      (await sql.query(statement, parameters, {
-        fetchOptions: { signal: AbortSignal.timeout(5000) },
-      })) as Row[],
-  );
+  const query = async <Row extends Record<string, unknown>>(
+    statement: string,
+    parameters: (string | number)[],
+  ) =>
+    (await sql.query(statement, parameters, {
+      fetchOptions: { signal: AbortSignal.timeout(5000) },
+    })) as Row[];
+  const store = createWhoopStore(query);
   return createWhoopIntegration({
     origin: WHOOP_ORIGIN,
     clientId: WHOOP_CLIENT_ID,
@@ -57,6 +58,11 @@ function getIntegration() {
     encryptionKey: WHOOP_TOKEN_ENCRYPTION_KEY,
     jarvisSharingEnabled: WHOOP_JARVIS_SHARING_ENABLED === "true",
     snapshotCacheEnabled: WHOOP_SNAPSHOT_CACHE_ENABLED === "true",
+    archive:
+      process.env.WHOOP_OWNER_ARCHIVE_ENABLED === "true" &&
+      process.env.WHOOP_ARCHIVE_DELETION_POLICY === "no-recovery-copies-v1"
+        ? createWhoopArchiveStore(query, createWhoopArchiveVault(WHOOP_TOKEN_ENCRYPTION_KEY))
+        : undefined,
     onCachePolicy:
       process.env.VERCEL_ENV === "production"
         ? (policy) => console.info("WHOOP_CACHE_POLICY", JSON.stringify(policy))
@@ -83,6 +89,8 @@ export async function handleWhoopRequest(request: Request, action: string) {
       "records",
       "webhook",
       "reconcile",
+      "archive-consent",
+      "archive-export",
     ].includes(action)
   )
     return reply(404);
@@ -127,6 +135,10 @@ export async function handleWhoopRequest(request: Request, action: string) {
         return await integration.sync(request);
       case "records":
         return await integration.records(request);
+      case "archive-consent":
+        return await integration.archiveConsent(request);
+      case "archive-export":
+        return await integration.archiveExport(request);
       case "webhook":
         return await integration.webhook(request);
       case "reconcile":

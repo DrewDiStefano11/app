@@ -1,5 +1,5 @@
 import type { WhoopTokenPair } from "./oauth.server";
-import { WhoopTokenRateLimit } from "./oauth.server";
+import { WhoopTokenRateLimit, WhoopTokenRejected } from "./oauth.server";
 import type {
   createWhoopStore,
   WhoopDeletion,
@@ -9,6 +9,7 @@ import type {
 import type { WhoopSnapshot } from "./dashboard";
 import { whoopJarvisLookbackMs } from "./jarvis-context.server";
 import type { createWhoopTokenVault } from "./token-vault.server";
+import type { createWhoopArchiveStore } from "./archive-store.server";
 import {
   readWhoopCollectionWithCache,
   WhoopReadError,
@@ -57,6 +58,10 @@ type SyncOptions = {
   purpose?: WhoopSyncPurpose;
   fetch?: (url: URL, init: RequestInit) => Promise<Response>;
   onCachePolicy?: (policy: WhoopCachePolicy) => void;
+  archive?: Pick<
+    ReturnType<typeof createWhoopArchiveStore>,
+    "getConsent" | "saveSync" | "eraseRejectedAuthorization"
+  >;
 };
 
 type SyncOutcome = {
@@ -79,6 +84,7 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
   let cooldownSeconds = 30;
   let cooldownScope: WhoopSyncPurpose | "all" = purpose;
   let finished = false;
+  let confirmedProviderRejection = false;
   try {
     let pair: WhoopTokenPair;
     try {
@@ -108,6 +114,8 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
           throw new WhoopReadError("rate_limited", error.retryAfterSeconds);
         }
         // The old rotating token may already have been spent upstream.
+        if (error instanceof WhoopTokenRejected)
+          await options.archive?.eraseRejectedAuthorization(actor, id, syncId);
         await store.failRefresh(ownerId, id, refreshId);
         throw new WhoopReadError("unauthorized");
       }
@@ -160,14 +168,37 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
     try {
       pages = await collect();
     } catch (error) {
-      if (refreshed || !(error instanceof WhoopReadError) || error.code !== "unauthorized")
+      if (refreshed || !(error instanceof WhoopReadError) || error.code !== "unauthorized") {
+        confirmedProviderRejection =
+          refreshed && error instanceof WhoopReadError && error.code === "unauthorized";
         throw error;
+      }
       await rotate();
-      pages = await collect();
+      try {
+        pages = await collect();
+      } catch (retryError) {
+        confirmedProviderRejection =
+          retryError instanceof WhoopReadError && retryError.code === "unauthorized";
+        throw retryError;
+      }
     }
     const records = pages.flatMap((page) => page.records);
     if (new Set(records.map((record) => record.user_id)).size > 1) {
       throw new WhoopReadError("invalid_data");
+    }
+    const consent = purpose === "dashboard" ? await options.archive?.getConsent(actor) : null;
+    if (consent && !consent.revokedAt) {
+      const saved = await options.archive!.saveSync(
+        actor,
+        consent,
+        syncId,
+        claim.eventRevision,
+        records,
+      );
+      if (!saved) return { status: 409 };
+      finished = true;
+      // The client reads the authoritative archive, including historical records, after this 204.
+      return { status: 200 };
     }
     const cacheExpiresAtMs =
       purpose === "dashboard" && options.durableCacheEnabled
@@ -214,6 +245,8 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
       return { status: 429, retryAfterSeconds: cooldownSeconds };
     }
     if (error instanceof WhoopReadError && error.code === "unauthorized") {
+      if (confirmedProviderRejection)
+        await options.archive?.eraseRejectedAuthorization(actor, id, syncId);
       await store.rejectSyncAuthorization(ownerId, id, syncId);
       return { status: 403 };
     }

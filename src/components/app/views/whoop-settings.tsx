@@ -2,6 +2,10 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { GhostButton, Input } from "@/components/app/ui";
 import {
+  WhoopArchiveSettings,
+  type WhoopArchiveStatus,
+} from "@/components/app/whoop-archive-settings";
+import {
   announceWhoopSnapshot,
   notifyWhoopSessionChanged,
   requestWhoopSync,
@@ -17,7 +21,7 @@ type Status =
   | "connected"
   | "reconnect_required"
   | "disconnecting";
-type StatusInfo = { status: Status; lastSyncedAt: string | null };
+type StatusInfo = { status: Status; lastSyncedAt: string | null; archive?: WhoopArchiveStatus };
 
 async function getStatus(signal?: AbortSignal): Promise<StatusInfo> {
   const response = await fetch(api + "/status", { cache: "no-store", signal });
@@ -33,7 +37,7 @@ export function WhoopSettings({
   returnResult?: "cancelled" | "failed";
   showSafariHandoff?: boolean;
 } = {}) {
-  const [{ status, lastSyncedAt }, setStatusInfo] = useState<StatusInfo>({
+  const [{ status, lastSyncedAt, archive }, setStatusInfo] = useState<StatusInfo>({
     status: "loading",
     lastSyncedAt: null,
   });
@@ -266,6 +270,12 @@ export function WhoopSettings({
             Lock WHOOP settings
           </GhostButton>
         </div>
+      )}
+      {status === "connected" && archive?.available && (
+        <WhoopArchiveSettings
+          archive={archive}
+          onChanged={async () => updateStatus(await getStatus())}
+        />
       )}
       {message && (
         <p role="status" className="text-sm text-muted-foreground">

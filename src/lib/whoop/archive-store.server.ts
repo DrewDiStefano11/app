@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { WhoopSession } from "./oauth.server";
+import type { WhoopSyncActor } from "./postgres.server";
 import type { WhoopSnapshot } from "./dashboard";
 import { createWhoopArchiveVault, type WhoopArchiveIdentity } from "./archive-vault.server";
 import type { WhoopV2Record } from "./v2.server";
@@ -33,20 +34,50 @@ const authenticatedConnection = `select connection.* from fitcore_whoop.connecti
   where browser_session.id = $1 and browser_session.owner_id = $2 and browser_session.expires_at > now()
     and connection.status = 'connected' and connection.provider_user_id is not null`;
 
+function authorizedConnection(actor: WhoopSyncActor) {
+  return "id" in actor
+    ? authenticatedConnection
+    : `select connection.* from fitcore_whoop.connections connection
+    where connection.id = $1 and connection.owner_id = $2 and connection.status = 'connected'
+      and connection.provider_user_id is not null`;
+}
+const actorId = (actor: WhoopSyncActor) => ("id" in actor ? actor.id : actor.connectionId);
+
 export function createWhoopArchiveStore(
   query: Query,
   vault: ReturnType<typeof createWhoopArchiveVault>,
 ) {
   return {
-    async getConsent(session: WhoopSession) {
+    async getConsent(session: WhoopSyncActor) {
       const [consent] = await query<WhoopArchiveConsent>(
-        `with authorized as (${authenticatedConnection})
+        `with authorized as (${authorizedConnection(session)})
          select ${consentColumns} from fitcore_whoop.archive_consents consent
          join authorized on authorized.id = consent.connection_id
            and authorized.provider_user_id = consent.provider_user_id and authorized.owner_id = consent.owner_id`,
-        [session.id, session.ownerId],
+        [actorId(session), session.ownerId],
       );
       return consent ?? null;
+    },
+
+    async getInvalidatedAt(session: WhoopSession) {
+      const [row] = await query<{ invalidatedAt: string | null }>(
+        `with authorized as (${authenticatedConnection}) select
+           to_char(archive_invalidated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "invalidatedAt"
+         from authorized`,
+        [session.id, session.ownerId],
+      );
+      return row?.invalidatedAt ?? null;
+    },
+
+    async eraseRejectedAuthorization(actor: WhoopSyncActor, connectionId: string, syncId: string) {
+      await query(
+        `with authorized as (${authorizedConnection(actor)} and connection.id = $3
+           and connection.sync_id = $4 for update of connection)
+         update fitcore_whoop.archive_consents consent set revoked_at = now()
+         from authorized where consent.connection_id = authorized.id and consent.owner_id = $2
+           and consent.provider_user_id = authorized.provider_user_id and consent.revoked_at is null`,
+        [actorId(actor), actor.ownerId, connectionId, syncId],
+      );
     },
 
     // No automatic grant: the caller must have an explicit, authenticated owner instruction.
@@ -83,7 +114,7 @@ export function createWhoopArchiveStore(
     // The shared provider sync lease and event revision fence make the complete batch atomic.
     // All payloads are normalized and encrypted before any database mutation is attempted.
     async saveSync(
-      session: WhoopSession,
+      session: WhoopSyncActor,
       consent: WhoopArchiveConsent,
       syncId: string,
       eventRevision: number,
@@ -113,7 +144,7 @@ export function createWhoopArchiveStore(
         });
       }
       const [saved] = await query<{ id: string }>(
-        `with authorized as (${authenticatedConnection} and connection.id = $3
+        `with authorized as (${authorizedConnection(session)} and connection.id = $3
            and connection.sync_id = $4 and connection.event_revision = $5 for update of connection),
          permitted as (
            select consent.* from fitcore_whoop.archive_consents consent join authorized
@@ -145,7 +176,7 @@ export function createWhoopArchiveStore(
            snapshot = null, snapshot_expires_at = null
          from stamped where connection.id = stamped.connection_id returning connection.id`,
         [
-          session.id,
+          actorId(session),
           session.ownerId,
           consent.connectionId,
           syncId,
