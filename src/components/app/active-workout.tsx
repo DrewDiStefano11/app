@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import { DEFAULT_REST_SECONDS, restTimerAfterSet } from "@/lib/active-workout-state";
+import { hasPerformedSet } from "@/lib/analytics/observed-fitness";
 import { applyWorkoutPersonalRecords, workoutRecordImprovements } from "@/lib/workout-personal-records";
 import { downloadFitCoreBackup } from "@/lib/fitcore-backup-download";
 import { isDefaultManualProvenance } from "@/lib/fitcore-data";
@@ -1002,7 +1003,8 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
   const requiredExercises = w?.exercises.filter(e => !e.target?.optional) ?? [];
   const completedEx = requiredExercises.filter(e => e.completed).length;
   const muscles = new Set<string>();
-  w?.exercises.forEach(e => findEx(e.exerciseId)?.primary.forEach(m => muscles.add(m)));
+  w?.exercises.filter(e => e.sets.some(set => hasPerformedSet(set) && set.modifier !== "warmup"))
+    .forEach(e => findEx(e.exerciseId)?.primary.forEach(m => muscles.add(m)));
 
   const newPRs = useMemo(
     () => w ? workoutRecordImprovements(w, state.workouts, state.customExercises) : [],

@@ -1,6 +1,14 @@
-import type { AppState, RecoveryCheckIn, SleepEntry, Workout } from "../types";
+import type { AppState, RecoveryCheckIn, SetEntry, SleepEntry, Workout } from "../types";
 import { dayKey } from "./date-time";
 import { clampScore, safeNumber, safeRatio, safeSum } from "./safe-math";
+
+/** A completion flag alone is not evidence that a planned set was performed. */
+export function hasPerformedSet(set: SetEntry): boolean {
+  if (!set.completed || set.provenance?.confirmation === "unconfirmed") return false;
+  return [set.reps, set.durationMin, set.distanceMi].some(
+    value => typeof value === "number" && Number.isFinite(value) && value > 0,
+  );
+}
 
 export function calculateSetVolume(weight: unknown, repetitions: unknown): number {
   if (

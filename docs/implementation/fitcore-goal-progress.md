@@ -1,6 +1,6 @@
 # FitCore integrated application progress
 
-Updated: 2026-11-23. Worktree: fitcore-core-integration. Current branch: codex/fitcore-daily-usability, based on voice PR #303.
+Updated: 2026-11-23. Worktree: fitcore-core-integration. Current branch: codex/fitcore-record-consistency, based on daily-usability PR #304.
 
 ## Four primary goals
 
@@ -140,3 +140,38 @@ Daily usability review candidate: `codex/fitcore-daily-usability`, stacked on PR
 - Preserved photo integration at local `codex/fitcore-food-photo` commit919446a;954 unit tests and a build passed before final review/rapid-save refinements. Its final production acceptance (including new voice case) still needs completion. #305 and #306 are drafts; #303 and #304 already merged. After publishing WHOOP fix, return to photo/library final integration. No general audit.
 
 Final WHOOP evidence: implementation commit `c0e9d12`; 950 units/0 failures, TypeScript, scoped production lint and final Vercel build passed. Final production mobile WHOOP lifecycle/callback/Jarvis-isolation batch passed36/36 in2.9 minutes. No production source changed after this artifact build. Physical installed-iPhone acceptance remains pending; no manual deployment or cache-permission changes performed. Publish focused PR from codex/fitcore-whoop-lifecycle into main, then resume photo/library on preserved919446a.
+## Latest user direction: implementation, no duplicate general audit
+
+Freebuff has independently reported21 defects in five reports: FITCORE_AUDIT.md, FITCORE_BUG_REPORT.md, FITCORE_UI_RECOMMENDATIONS.md, FITCORE_TEST_PLAN.md, FITCORE_PRIORITY_ROADMAP.md. Use those as the comprehensive baseline once available. One filename search found none in this repository or shared `other` workspace; continue implementation without repeating the search or a general audit. Read findings individually when supplied and compare against current branches.
+
+General audit stopped at the user's instruction. The partial local IAB captures are preserved in ignored `playwright-report/audit-2026-11-23/`, not a new inventory/report deliverable. Targeted handoff: fitcore-targeted-defects.md. Daily usability is published as https://github.com/DrewDiStefano11/app/pull/304 . Preserve #303 and #302; none are merged or deployed.
+
+Targeted fixes now implemented: planned/blank exercise and set rows no longer become logged activity; completed strength, bodyweight, time, distance and warmup evidence remains. Raw saved workouts and planned rows are unchanged. Missing numeric values stay missing. Future/unconfirmed events are excluded; confirmed Jarvis audit events remain visible and authoritative entities still suppress duplicate audit cards. Section changes reset document scroll to their heading without touching same-section typing. Finish's muscle count excludes untouched planned exercises.
+
+Observed regressions before fixes: four activity rows for one real saved set; Nutrition heading at y=-123 after section navigation. Review caught an overstrict audit-provenance filter; a failing regression now ensures confirmed Jarvis saves remain visible while suggestions do not. Full940 units, TypeScript, scoped semantic lint and Vercel build passed. Production mobile batch39/40 passed; a collapsing-navigation harness race was corrected, then navigation passed2/2 in both engines. All40 selected scenarios have passing evidence. Screenshot of the corrected activity feed was inspected; no physical-device certification is claimed.
+
+Hosted gate evidence: #303 release run45199531906 was cancelled at15:21:15UTC after starting14:56:03UTC, with181/188 cases reached and no reported test assertion failure. This is consistent with its25-minute job ceiling. Budget is now35 minutes, every prior selector retained and section-scroll-activity appended. Unit/build/install steps had passed. #304's dependency review, CI build and ordinary Playwright passed; its release run45207062962 was still running at the single milestone check. Do not repeatedly poll it.
+
+Next action after this focused validated PR: resume the preserved conversational food-photo implementation and saved-food matching/reuse. Do not perform another comprehensive audit. Missing core functionality should be driven by Freebuff's findings and direct implementation verification. The photo checkpoint needs integration of this branch and daily/voice prerequisites before it is a usable application feature.
+
+Freebuff reports are now available: branch `freebuff/bd2ddd2dfd6e1e767988885d`, commit `56a2a2a`. After publishing this targeted fix, fetch/read its highest-priority data-loss findings first, especially photo limits and failed meal persistence. Compare with the latest code before changing it, then continue the photo/library workflow. Targeted PR lookup: https://github.com/DrewDiStefano11/app/pulls?q=is%3Apr+head%3Acodex%2Ffitcore-record-consistency . No merge or deployment performed.
+
+
+### Save safety and authorized integration checkpoint (2026-11-23)
+
+- Published targeted activity/navigation fixes in draft PR #305, commit `726b400`.
+- Fetched Freebuff exact baseline `56a2a2a1a859708e5e0d46a9e8b18daef2d43dca`; use its five root reports instead of another audit. Verified BUG-01 and BUG-04 against this branch: rejected Home meal saves and progress-photo saves discarded drafts; photos stored raw data URLs.
+- Save-safety branch retains drafts/previews on rejected transactions. Progress images decode locally, resize/re-encode JPEG (metadata stripped), cap at 40,000 characters, and pass conservative two-snapshot/storage-headroom preflight. No existing images are rewritten/deleted and no schema changes. Twenty capped photos plus workout and meal pass a simulated 5 MB atomic-storage test.
+- Analytics completeness handling for BUG-03 is already present in current code. Home blank-macro conversion from BUG-02 remained and now uses unreported status; partial/invalid macros must be corrected. Fuel custom-entry parity still needs checking during meal-library integration.
+- 942 unit tests pass; TypeScript passes. Initial targeted browser tests pass 4/4 in mobile Chromium and iPhone WebKit. Production verification pending. Scoped lint found only three pre-existing explicit-any violations in progress.tsx; do not claim full lint clean.
+- User explicitly authorized merging #303 then #304 at this checkpoint, correcting bases and validating combined integration first. Prerequisite #302 was already squash-merged by the time main was fetched: `44ff20b`, tree identical to original #302 head `13c3e40`. Preserve completed work and avoid repeating #302. #303/#304 current heads unchanged; their build/desktop/mobile/dependency checks passed; release jobs cancelled at ~25m. New gate ceiling35m exists in #305.
+- After integration, resume local photo checkpoint `de9cfef` and saved-food matching/reuse, including stale-save target fix documented above. Goal remains active.
+
+
+### Completed main integration (2026-11-23)
+
+- Combined production checkpoint passed 34/34 mobile Chromium/iPhone WebKit scenarios (3.1 minutes), with 942 unit tests, TypeScript, and final Vercel build passed.
+- #303 retargeted to main and merged as `4bd5cd8ad721e8d7b54bf6b804546347bdea193c`. Reconciled squash ancestry without changing the reviewed voice tree.
+- #304 retargeted to main and merged as `ebc5f41a923d023881bb9e9ab11760154af1e72f`. Final merged tree verified equal to reviewed daily tree plus the validated 35-minute release-job ceiling, all test selectors retained. Original code diff against d87b7a9 is only the workflow budget/comments.
+- Follow-up drafts #305 (activity/scroll) and #306 (save safety, head ecb3710) remain separately preserved. User merge authorization specifically covered #303/#304. No manual deployment or provider changes performed.
+- Resume photo/library implementation now. Official Groq vision docs rechecked 2026-11-23: https://console.groq.com/docs/vision lists qwen/qwen3.8-27b with JSON mode, matching checkpoint model.

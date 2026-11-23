@@ -1,4 +1,4 @@
-import { recordedRecoveryCheckIns, recoveryCheckInReadinessScore } from "./analytics/observed-fitness";
+import { hasPerformedSet, recordedRecoveryCheckIns, recoveryCheckInReadinessScore } from "./analytics/observed-fitness";
 import { calculatePersonalScores, scoreStatusLabel } from "./analytics/personal-scores";
 import type {
   AppState,
@@ -549,7 +549,21 @@ function projectedProvenance(s: AppState, entity: Record<string, unknown>) {
 function allLogs(s: AppState): FitCoreLog[] {
   const workouts = s.workouts.flatMap(w => {
     const session = createLog({ ...projectedProvenance(s, w as unknown as Record<string, unknown>), id: w.id, type: "workout_session", subtype: w.name, createdAt: w.startedAt, updatedAt: w.endedAt ?? w.startedAt, notes: w.notes, metrics: { completed: !!w.endedAt, volume: w.exercises.flatMap(e => e.sets).reduce((n, x) => n + (x.completed ? (x.weight ?? 0) * (x.reps ?? 0) : 0), 0) } });
-    const children = w.exercises.flatMap((e, order) => [createLog({ ...projectedProvenance(s, e as unknown as Record<string, unknown>), id: e.id, type: "workout_exercise", subtype: e.exerciseId, createdAt: w.startedAt, notes: e.notes, relatedIds: [w.id], tags: e.exerciseTags, metrics: { order, completed: e.completed } }), ...e.sets.map((x, i) => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "workout_set", subtype: e.exerciseId, createdAt: w.startedAt, relatedIds: [w.id, e.id], tags: x.modifier && x.modifier !== "normal" ? [x.modifier] : [], metrics: { order: i, reps: x.reps ?? 0, weight: x.weight ?? 0, completed: x.completed, modifier: x.modifier ?? "normal" } }))]);
+    const children = w.exercises.flatMap((e, order) => {
+      const performed = e.sets.flatMap((set, index) => hasPerformedSet(set) ? [{ set, index }] : []);
+      if (!performed.length) return [];
+      return [
+        createLog({ ...projectedProvenance(s, e as unknown as Record<string, unknown>), id: e.id, type: "workout_exercise", subtype: e.exerciseId, createdAt: w.startedAt, notes: e.notes, relatedIds: [w.id], tags: e.exerciseTags, metrics: { order, completed: e.completed } }),
+        ...performed.map(({ set: x, index: i }) => createLog({
+          ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "workout_set", subtype: e.exerciseId,
+          createdAt: w.startedAt, relatedIds: [w.id, e.id], tags: x.modifier && x.modifier !== "normal" ? [x.modifier] : [],
+          metrics: { order: i, completed: x.completed, modifier: x.modifier ?? "normal",
+            ...(x.reps !== undefined ? { reps: x.reps } : {}), ...(x.weight !== undefined ? { weight: x.weight } : {}),
+            ...(x.durationMin !== undefined ? { durationMin: x.durationMin } : {}), ...(x.distanceMi !== undefined ? { distanceMi: x.distanceMi } : {}),
+          },
+        })),
+      ];
+    });
     return [session, ...children];
   });
   const signals = s.recoverySignals;
@@ -559,7 +573,7 @@ function allLogs(s: AppState): FitCoreLog[] {
     ...s.bodyweightEntries.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "weigh_in", subtype: "bodyweight", createdAt: x.createdAt, notes: x.notes, metrics: { weightLb: x.weightLb } })),
     ...s.recoveryCheckIns.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "check_in", subtype: "daily", createdAt: x.createdAt, notes: x.notes, metrics: { energy: x.energy, soreness: x.soreness, stress: x.stress, motivation: x.motivation } })),
     ...signals.map(x => createLog({ ...projectedProvenance(s, x as unknown as Record<string, unknown>), id: x.id, type: "recovery_signal", subtype: x.kind, createdAt: x.createdAt, notes: x.notes, relatedIds: [x.sourceLogId], tags: x.bodyArea ? [x.bodyArea] : [], metrics: { severity: x.severity } })),
-    ...s.jarvisAudit.filter(x => !x.undone).map(x => createLog({ id: `ai:${x.id}`, type: "ai_event", subtype: x.tool, createdAt: x.createdAt, provenance: createJarvisProvenance({ confidence: x.confidence ?? "unknown", auditId: x.id, originalText: x.originalText, assumptions: x.assumptions }), notes: x.summary, relatedIds: x.entityIds, metrics: { status: x.status } })),
+    ...s.jarvisAudit.filter(x => !x.undone).map(x => createLog({ id: `ai:${x.id}`, type: "ai_event", subtype: x.tool, createdAt: x.createdAt, provenance: createJarvisProvenance({ confidence: x.confidence ?? "unknown", confirmed: x.status === "logged" || x.status === "edited", auditId: x.id, originalText: x.originalText, assumptions: x.assumptions }), notes: x.summary, relatedIds: x.entityIds, metrics: { status: x.status } })),
   ].sort((a, b) => b.createdAt - a.createdAt);
 }
 
@@ -589,7 +603,9 @@ export const getRecentActivity = (s: AppState, limit = 8) => {
   const logs = allLogs(s);
   const entityIds = new Set(logs.filter(x => x.type !== "ai_event").map(x => x.id));
   return logs.filter(x =>
-    x.type !== "workout_exercise"
+    x.createdAt <= Date.now()
+    && x.provenance.confirmation !== "unconfirmed"
+    && x.type !== "workout_exercise"
     && x.type !== "template"
     && !(x.type === "ai_event" && x.relatedIds.some(entityId => entityIds.has(entityId))),
   ).slice(0, Math.max(1, limit));

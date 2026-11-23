@@ -22,6 +22,7 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [p, setP] = useState("");
   const [c, setC] = useState("");
   const [f, setF] = useState("");
+  const [saveFailed, setSaveFailed] = useState(false);
 
   const [photo, setPhoto] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -32,6 +33,7 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
   const reset = () => {
     setName(""); setType("dinner"); setCal(""); setP(""); setC(""); setF("");
     setPhoto(null); setAiLoading(false); setAiError(null); setAiConfidence(null); setAiNotes(null);
+    setSaveFailed(false);
   };
   const close = () => { reset(); onClose(); };
 
@@ -65,14 +67,19 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
     reader.readAsDataURL(file);
   };
 
-  const canSave = name.trim() && Number(cal) > 0;
+  const completeMacros = [p, c, f].every(value => value.trim() !== "");
+  const emptyMacros = [p, c, f].every(value => value.trim() === "");
+  const canSave = name.trim() && Number.isFinite(Number(cal)) && Number(cal) > 0 &&
+    (emptyMacros || (completeMacros && [p, c, f].every(value => Number.isFinite(Number(value)) && Number(value) >= 0)));
   const save = () => {
     if (!canSave) return;
-    set(s => ({ ...s, mealEntries: [...s.mealEntries, {
+    const saved = set(s => ({ ...s, mealEntries: [...s.mealEntries, {
       id: uid(), name: name.trim(), type,
-      calories: Number(cal) || 0, protein: Number(p) || 0, carbs: Number(c) || 0, fat: Number(f) || 0,
+      calories: Number(cal),
+      ...(completeMacros ? { protein: Number(p), carbs: Number(c), fat: Number(f) } : { macroStatus: "unreported" as const }),
       createdAt: Date.now(),
     }]}));
+    if (!saved) { setSaveFailed(true); return; }
     close();
   };
 
@@ -161,6 +168,8 @@ export function LogMealSheet({ open, onClose }: { open: boolean; onClose: () => 
           </div>
         </div>
 
+        <p className="text-xs text-white/50">Enter all three macros, or leave all three blank to mark them unreported.</p>
+        {saveFailed && <p role="alert" className="text-sm text-red-300">Meal could not be saved. Your draft is still here. Free device storage or resolve the storage warning, then retry.</p>}
         <div className="flex gap-2 pt-1">
           <button onClick={close} className="flex-1 h-12 rounded-xl border border-white/15 bg-white/5 font-bold text-white/80">Cancel</button>
           <button onClick={save} disabled={!canSave}
