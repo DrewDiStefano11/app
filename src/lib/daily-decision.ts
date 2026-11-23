@@ -372,8 +372,9 @@ export function buildDailyDecisionContext(state: AppState, now = Date.now()): Da
     ),
   );
   const caloriesToday = trustedTodayMeals.reduce((sum, item) => sum + item.calories, 0);
-  const proteinToday = trustedTodayMeals.reduce((sum, item) => sum + item.protein, 0);
-  const carbsToday = trustedTodayMeals.reduce((sum, item) => sum + item.carbs, 0);
+  const proteinToday = trustedTodayMeals.reduce((sum, item) => sum + (item.protein ?? 0), 0);
+  const carbsToday = trustedTodayMeals.reduce((sum, item) => sum + (item.carbs ?? 0), 0);
+  const missingMacros = trustedTodayMeals.some((item) => item.macroStatus === "unreported");
   const calorieTarget = state.nutritionTargets.calories ?? state.userGoalsProfile.calorieGoal ?? 0;
   const proteinTarget = state.nutritionTargets.protein ?? state.userGoalsProfile.proteinGoal ?? 0;
   const trainingVolume = recentWorkouts.reduce((sum, item) => sum + workoutVolume(item), 0);
@@ -414,7 +415,7 @@ export function buildDailyDecisionContext(state: AppState, now = Date.now()): Da
     hasThreeMeals(trustedTodayMeals) &&
     hour >= 19 &&
     ((calorieTarget > 0 && caloriesToday < calorieTarget * expectedProgress * 0.72) ||
-      (proteinTarget > 0 && proteinToday < proteinTarget * expectedProgress * 0.65));
+      (!missingMacros && proteinTarget > 0 && proteinToday < proteinTarget * expectedProgress * 0.65));
   const trust = getDataTrustSummary(state, now);
   const dataUsed: DataUsed[] = [];
   if (recentWorkouts.length)
@@ -672,9 +673,10 @@ export function getWhatChangedSignals(state: AppState, now = Date.now()): WhatCh
     const loggedDays = completeDates.length;
     if (loggedDays >= 2) {
       const usualCalories = priorMeals.reduce((sum, item) => sum + item.calories, 0) / loggedDays;
-      const usualProtein = priorMeals.reduce((sum, item) => sum + item.protein, 0) / loggedDays;
+      const proteinIncomplete = [...context.trustedTodayMeals, ...priorMeals].some((meal) => meal.macroStatus === "unreported");
+      const usualProtein = proteinIncomplete ? 0 : priorMeals.reduce((sum, item) => sum + (item.protein ?? 0), 0) / loggedDays;
       const caloriesRatio = context.caloriesToday / usualCalories;
-      const proteinRatio = usualProtein ? context.proteinToday / usualProtein : caloriesRatio;
+      const proteinRatio = proteinIncomplete ? Number.POSITIVE_INFINITY : usualProtein ? context.proteinToday / usualProtein : caloriesRatio;
       if (caloriesRatio <= 0.65 || proteinRatio <= 0.65) {
         signals.push({
           type: "nutrition",
@@ -934,7 +936,8 @@ export function buildDailyDecision(state: AppState, now = Date.now()): DailyDeci
   };
 
   const calorieGap = context.calorieTarget ? context.calorieTarget - context.caloriesToday : null;
-  const proteinGap = context.proteinTarget ? context.proteinTarget - context.proteinToday : null;
+  const missingMacros = context.trustedTodayMeals.some((meal) => meal.macroStatus === "unreported");
+  const proteinGap = context.proteinTarget && !missingMacros ? context.proteinTarget - context.proteinToday : null;
   let nutritionRecommendation = "Keep meals balanced and continue logging confirmed intake.";
   let nutritionReason = "Confirmed nutrition is reasonably aligned with today's target.";
   let carbTimingSuggestion: string | null = null;
@@ -948,6 +951,9 @@ export function buildDailyDecision(state: AppState, now = Date.now()): DailyDeci
     nutritionReason = "No nutrition entries are available for today.";
   } else if (calorieGap === null && proteinGap === null) {
     nutritionReason = "No calorie or protein targets are set for today.";
+  } else if (missingMacros && !context.underEating) {
+    nutritionRecommendation = "Add the missing meal macros when available.";
+    nutritionReason = "Some meals have unreported macros.";
   } else if (proteinGap != null && proteinGap >= 30) {
     const nextMealProtein = Math.max(35, Math.min(45, Math.round(proteinGap / 5) * 5));
     nutritionRecommendation = `Protein is behind target; prioritize about ${nextMealProtein}g at your next meal.`;

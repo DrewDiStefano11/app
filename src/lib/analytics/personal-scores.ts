@@ -249,7 +249,10 @@ function trainingScore(state: AppState, all: Workout[], now: number) {
 }
 
 export function calculateNutritionAdherence(state: AppState, now: number) {
+  const incompleteDays = new Set(state.mealEntries.filter((meal) => meal.macroStatus === "unreported").map((meal) => dayKey(meal.createdAt)));
   const recorded = state.mealEntries
+    .filter((meal) => meal.macroStatus !== "unreported")
+    .filter((meal) => !incompleteDays.has(dayKey(meal.createdAt)))
     .map((meal) => ({ ...meal, at: meal.createdAt }))
     .filter(
       (meal) =>

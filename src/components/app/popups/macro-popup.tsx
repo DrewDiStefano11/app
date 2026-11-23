@@ -29,11 +29,11 @@ export function MacroDetailSheet({ open, onClose }: { open: boolean; onClose: ()
             <span className="font-display text-4xl">{today.calories}</span>
             <span className="text-xs text-white/40 font-bold uppercase">{targets.calories > 0 ? `/ ${targets.calories} kcal` : "kcal · No target"}</span>
           </div>
-          <div className="grid grid-cols-3 gap-3 mt-4">
+          {todayMeals.some(meal => meal.macroStatus === "unreported") ? <p className="mt-4 text-sm text-muted-foreground">Some meals have unreported macros.</p> : <div className="grid grid-cols-3 gap-3 mt-4">
             <MacroRing label="P" val={today.protein} target={targets.protein} color="rgb(239 68 68)" />
             <MacroRing label="C" val={today.carbs} target={targets.carbs} color="rgb(245 158 11)" />
             <MacroRing label="F" val={today.fat} target={targets.fat} color="rgb(34 197 94)" />
-          </div>
+          </div>}
           </> : <p className="mt-2 text-sm text-muted-foreground">No meals logged today</p>}
         </div>
 
