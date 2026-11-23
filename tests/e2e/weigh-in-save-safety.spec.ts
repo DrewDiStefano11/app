@@ -25,7 +25,13 @@ for (const entry of ["Home", "Stats Daily", "Stats Body"] as const) {
     } else {
       if (entry === "Stats Body")
         await page.getByRole("button", { name: "Deep Dive", exact: true }).click();
-      await page.getByRole("button", { name: "Stats", exact: true }).click();
+      // Switching display modes may scroll the longer dashboard and collapse
+      // navigation before the tap. Reopen its visible control when needed.
+      await expect(async () => {
+        const expand = page.getByRole("button", { name: /Expand navigation, current section/ });
+        if (await expand.isVisible()) await expand.click({ timeout: 1500 });
+        await page.getByRole("button", { name: "Stats", exact: true }).click({ timeout: 1500 });
+      }).toPass({ timeout: 10000 });
       if (entry === "Stats Body")
         await page.getByRole("tab", { name: "Body", exact: true }).click();
     }
