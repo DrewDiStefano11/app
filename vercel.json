@@ -8,6 +8,7 @@
       "codex/fitcore-core-integration": false,
       "codex/fitcore-jarvis-voice": false,
       "codex/fitcore-daily-usability": false,
+      "codex/fitcore-whoop-lifecycle": false,
       "codex/fitcore-record-consistency": false
     }
   }

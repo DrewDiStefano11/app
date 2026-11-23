@@ -15,6 +15,7 @@ function receiveChange(change: Change) {
 
 const coordinator = createWhoopSyncCoordinator({
   now: () => Date.now(),
+  isOnline: () => navigator.onLine,
   setTimer(callback, delay) {
     const timer = window.setTimeout(callback, delay);
     return () => window.clearTimeout(timer);
@@ -34,7 +35,7 @@ const coordinator = createWhoopSyncCoordinator({
 });
 
 function foreground() {
-  return !pageHidden && document.visibilityState === "visible" && navigator.onLine;
+  return !pageHidden && document.visibilityState === "visible";
 }
 
 function recheckForeground() {
@@ -63,7 +64,7 @@ function initializeLiveDisplay() {
   });
   window.addEventListener("focus", recheckForeground);
   window.addEventListener("online", recheckForeground);
-  window.addEventListener("offline", () => coordinator.setForeground(false));
+  window.addEventListener("offline", recheckForeground);
   document.addEventListener("visibilitychange", recheckForeground);
   coordinator.setForeground(foreground());
 }
@@ -102,7 +103,7 @@ export function requestWhoopSync(mode: "automatic" | "manual" = "manual"): Promi
 }
 
 export function getWhoopSnapshot(): WhoopSnapshot | null {
-  return typeof document !== "undefined" && foreground() ? coordinator.getSnapshot() : null;
+  return typeof document !== "undefined" ? coordinator.getSnapshot() : null;
 }
 
 export function getWhoopRefreshing() {

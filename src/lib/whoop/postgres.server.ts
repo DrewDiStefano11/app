@@ -154,8 +154,9 @@ export function createWhoopStore(query: Query) {
     },
 
     async getSnapshot(session: WhoopSession) {
-      const [snapshot] = await query<WhoopSnapshot>(
-        `select to_char(connection.last_synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "lastSyncedAt",
+      const [snapshot] = await query<WhoopSnapshot & { version: string }>(
+        `select connection.id::text || ':' || connection.event_revision::text as version,
+           to_char(connection.last_synced_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "lastSyncedAt",
            to_char(least(browser_session.expires_at, connection.snapshot_expires_at) at time zone 'UTC',
              'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "accessExpiresAt",
            connection.snapshot as records
