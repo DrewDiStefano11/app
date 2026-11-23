@@ -76,6 +76,9 @@ function harness(jarvisSharingEnabled = true) {
         if (purpose === "jarvis") jarvisClaims++;
         return null;
       },
+      async getSyncRetryAfter() {
+        return null;
+      },
       async expireAbandonedRefresh() {},
       async claimRefresh() {
         return null;

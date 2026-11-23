@@ -20,6 +20,7 @@ async function syntheticWhoop(page: Page, initialScore = 80, lifetime = 120000) 
     strain: 11.3,
     syncs: 0,
     denySync: 0,
+    retryAfter: "300",
     state: "SCORED",
     lifetime,
     statusFailure: 0,
@@ -130,7 +131,7 @@ async function syntheticWhoop(page: Page, initialScore = 80, lifetime = 120000) 
       });
     if (!control.connected) return route.fulfill({ status: 401 });
     if (control.denySync)
-      return route.fulfill({ status: control.denySync, headers: { "Retry-After": "300" } });
+      return route.fulfill({ status: control.denySync, headers: { "Retry-After": control.retryAfter } });
     serverSnapshot = await snapshot();
     return route.fulfill({ json: serverSnapshot, headers: { "Cache-Control": "no-store" } });
   });
@@ -462,6 +463,37 @@ test("cold JS startup restores the authorized server snapshot before status and 
   const stored = await page.evaluate(() =>
     JSON.stringify({ local: localStorage, session: sessionStorage }),
   );
+  expect(stored).not.toContain("hrv_rmssd_milli");
+  expect(stored).not.toContain("recovery_score");
+});
+
+test("cold live-only restart automatically restores after the server's remaining cooldown", async ({ page }) => {
+  const control = await syntheticWhoop(page, 80, 600000);
+  control.denySync = 409;
+  control.retryAfter = "10";
+  control.holdSync = true;
+  control.releaseSync = null;
+  await page.reload();
+  await expect.poll(() => Boolean(control.releaseSync)).toBe(true);
+  await recovery(page);
+  await expect(page.getByRole("status").filter({ hasText: "WHOOP refreshing" })).toBeVisible();
+  const conflict = page.waitForResponse(response => response.url().endsWith("/api/whoop/sync") && response.status() === 409);
+  control.holdSync = false;
+  control.releaseSync!();
+  await conflict;
+  await expect(page.getByRole("status").filter({ hasText: "WHOOP refreshing" })).toBeHidden();
+  expect(control.syncs).toBe(2);
+  control.denySync = 0;
+  control.score = 91;
+  await page.clock.runFor(8000);
+  expect(control.syncs).toBe(2);
+  await page.clock.runFor(3000);
+  await expect.poll(() => control.syncs).toBe(3);
+  const expand = page.getByRole("button", { name: /Expand navigation/ });
+  if (await expand.isVisible()) await expand.click();
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^Recovery 91% · WHOOP/ })).toBeVisible();
+  const stored = await page.evaluate(() => JSON.stringify({ local: localStorage, session: sessionStorage }));
   expect(stored).not.toContain("hrv_rmssd_milli");
   expect(stored).not.toContain("recovery_score");
 });

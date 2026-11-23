@@ -33,6 +33,7 @@ function deletedByWebhook(record: WhoopV2Record, event: WhoopDeletion) {
 export type WhoopSyncStore = Pick<
   ReturnType<typeof createWhoopStore>,
   | "claimSync"
+  | "getSyncRetryAfter"
   | "expireAbandonedRefresh"
   | "claimRefresh"
   | "saveRefresh"
@@ -63,7 +64,10 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
   const { ownerId } = actor;
   await store.expireAbandonedRefresh(actor);
   const claim = await store.claimSync(actor, purpose);
-  if (!claim) return { status: 409 };
+  if (!claim) {
+    const retryAfterSeconds = await store.getSyncRetryAfter(actor, purpose);
+    return retryAfterSeconds === null ? { status: 409 } : { status: 409, retryAfterSeconds };
+  }
 
   const { id, syncId } = claim;
   let cooldownSeconds = 30;
