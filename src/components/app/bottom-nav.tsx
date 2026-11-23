@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useVisibleViewport } from "@/hooks/use-visible-viewport";
 import { Apple, Dumbbell, Heart, Home, Mic, Send, Sparkles, TrendingUp, X } from "lucide-react";
-import { Settings2 } from "lucide-react";
 import type { SectionId } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Settings2 } from "lucide-react";
 
 const items: { id: SectionId; label: string; Icon: typeof Dumbbell }[] = [
   { id: "home", label: "Home", Icon: Home },
