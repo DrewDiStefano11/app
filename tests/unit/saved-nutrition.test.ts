@@ -114,3 +114,15 @@ test("invalid preset data fails integrity without masking an existing workout", 
   );
   expect(state.workouts[0].name).toBe("Saved workout");
 });
+
+
+test("calorie-only saved meals retain unknown macros across reuse and backup", () => {
+  const meal = { id: "calorie-meal", name: "Snack", type: "snack", createdAt,
+    calories: 250, macroStatus: "unreported" as const };
+  const state = addNutritionPreset(defaultState, { id: "calorie-preset", kind: "meal", meal });
+  const reused = copyMealForLog(state.savedNutrition![0].meal, "reused", createdAt + 1);
+  expect(reused.macroStatus).toBe("unreported");
+  expect(reused.protein).toBeUndefined();
+  expect(validateFitCoreDataIntegrity({ ...state, mealEntries: [reused] }).status).toBe("valid");
+  expect(createFitCoreBackupEnvelope(state, { exportedAt: new Date(createdAt).toISOString() }).safeToExport).toBe(true);
+});

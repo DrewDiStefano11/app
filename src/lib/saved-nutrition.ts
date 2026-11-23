@@ -17,9 +17,9 @@ function mealDefinition(meal: MealEntry) {
     name: meal.name,
     type: meal.type,
     calories: meal.calories,
-    protein: meal.protein,
-    carbs: meal.carbs,
-    fat: meal.fat,
+    ...(meal.macroStatus === "unreported"
+      ? { macroStatus: "unreported" as const }
+      : { protein: meal.protein, carbs: meal.carbs, fat: meal.fat }),
     ...(meal.fiber !== undefined && { fiber: meal.fiber }),
     ...(meal.items && {
       items: meal.items.map((item) =>

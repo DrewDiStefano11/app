@@ -1,4 +1,5 @@
 import type { AppState, RecoveryCheckIn } from "../types";
+import { dayKey } from "./date-time";
 import { calculateWorkoutVolume, recoveryCheckInReadinessScore } from "./domain-metrics";
 import type { FitCoreAnalyticsResult } from "./fitcore-analytics";
 import { METRIC_DEPENDENCY_GRAPH } from "./metric-dependency-graph";
@@ -224,15 +225,18 @@ function buildSeries(state: AppState, adapter: AdapterDefinition): AnalyticsTime
         })),
       adapter.aggregation,
     );
-  if (["calories", "protein", "carbs", "fat"].includes(adapter.series))
+  if (["calories", "protein", "carbs", "fat"].includes(adapter.series)) {
+    const field = adapter.series as "calories" | "protein" | "carbs" | "fat";
+    const incompleteDays = new Set(state.mealEntries.filter(meal => meal.macroStatus === "unreported").map(meal => dayKey(meal.createdAt)));
     return bucketDaily(
-      state.mealEntries.map((meal) => ({
-        id: meal.id,
-        timestamp: meal.createdAt,
-        value: meal[adapter.series as "calories" | "protein" | "carbs" | "fat"],
-      })),
+      state.mealEntries.flatMap((meal) => {
+        const value = meal[field];
+        return value === undefined || (field !== "calories" && incompleteDays.has(dayKey(meal.createdAt)))
+          ? [] : [{ id: meal.id, timestamp: meal.createdAt, value }];
+      }),
       adapter.aggregation,
     );
+  }
   if (["soreness", "energy", "motivation", "stress", "readiness"].includes(adapter.series))
     return bucketDaily(
       state.recoveryCheckIns.map((checkIn) => ({

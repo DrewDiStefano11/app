@@ -1,3 +1,4 @@
+import { todayMealEntries } from "./analytics/observed-fitness";
 import type { AppState, Workout } from "./types";
 import type { WhoopSnapshot } from "./whoop/dashboard";
 import { EXERCISES, type MuscleGroup } from "./data";
@@ -740,9 +741,7 @@ export function weeklyVolumeSeries(
 }
 
 export function todayMealTotals(state: AppState, now = Date.now()) {
-  const range = todayWindow(now);
-  const today = state.mealEntries.filter((m) => dateRangeContains(range, m.createdAt) && m.createdAt <= now);
-  return calculateMealTotals(today);
+  return calculateMealTotals(todayMealEntries(state, now));
 }
 
 export function trainingStreak(state: AppState, now = Date.now()): number {

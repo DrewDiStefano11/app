@@ -1,3 +1,4 @@
+import { SleepQualitySelect } from "@/components/app/sleep-quality-select";
 import { CheckInSheet } from "@/components/app/popups/quick-popups";
 import { ReadinessDetailSheet } from "@/components/app/popups/readiness-popup";
 import { usePersonalScores } from "@/components/app/score-evidence";
@@ -516,7 +517,7 @@ function SleepDeepDiveTab() {
             No sleep logged in the last 7 days.
           </p>
         ) : (
-          <ol className="grid grid-cols-7 gap-1">
+          <ol aria-label="Recorded sleep by day" className="grid grid-cols-7 gap-1">
             {history.map(({ date, at, hours, observation }) => (
               <li key={date} className="min-w-0 text-center text-xs tabular-nums">
                 <div className="h-20 flex items-end justify-center" aria-hidden="true">
@@ -611,13 +612,15 @@ function InsightsTab() {
 function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { set } = useStore();
   const [hours, setHours] = useState("");
-  const [quality, setQuality] = useState(7);
+  const [quality, setQuality] = useState(0);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [bed, setBed] = useState("");
   const [wake, setWake] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const valid = Number(hours) > 0 && Number(hours) <= 24;
   const close = () => {
     setConfirmed(false);
+    setSaveFailed(false);
     onClose();
   };
   const submit = () => {
@@ -631,8 +634,9 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
         { id: uid(), hours: h, quality, notes: notes || undefined, createdAt: Date.now() },
       ],
     }));
-    if (!saved) return;
+    if (!saved) { setSaveFailed(true); return; }
     setHours("");
+    setQuality(0);
     close();
   };
   return (
@@ -653,21 +657,7 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
               onChange={(e) => setHours(e.target.value)}
             />
           </div>
-          <div>
-            <div className="flex justify-between">
-              <Label>Quality</Label>
-              <span className="text-xs tabular-nums">{quality}/10</span>
-            </div>
-            <input
-              aria-label="Sleep quality"
-              type="range"
-              min={1}
-              max={10}
-              value={quality}
-              onChange={(e) => setQuality(Number(e.target.value))}
-              className="w-full accent-[var(--section)] mt-1"
-            />
-          </div>
+          <SleepQualitySelect value={quality} onChange={setQuality} />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -680,16 +670,13 @@ function SleepSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
           </div>
         </div>
         <label className="flex items-start gap-2 text-sm text-muted-foreground">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(event) => {
-              event.stopPropagation();
-              setConfirmed(event.target.checked);
-            }}
-          />
-          I confirm the sleep hours and quality I entered.
+          <input type="checkbox" checked={confirmed} onChange={(event) => {
+            event.stopPropagation();
+            setConfirmed(event.target.checked);
+          }} />
+          I confirm the sleep hours and any quality rating I entered.
         </label>
+        {saveFailed && <p role="alert" className="text-sm text-destructive">Sleep could not be saved. Your entries are still here.</p>}
         <PrimaryButton className="w-full" onClick={submit} disabled={!valid || !confirmed}>
           Save sleep
         </PrimaryButton>

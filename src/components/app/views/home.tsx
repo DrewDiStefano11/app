@@ -198,9 +198,8 @@ function HomeDailyView({
       ? Math.round(((weekVol - lastWeekVol) / lastWeekVol) * 100)
       : null;
   const targets = state.nutritionTargets;
-  const hasMealsToday = view.mealEntries.some(
-    (meal) => isToday(meal.createdAt) && meal.createdAt <= now,
-  );
+  const hasMealsToday = view.mealEntries.some((meal) => isToday(meal.createdAt) && meal.createdAt <= now);
+  const missingMacrosToday = view.mealEntries.some((meal) => isToday(meal.createdAt) && meal.createdAt <= now && meal.macroStatus === "unreported");
   const kcalPct =
     targets.calories > 0 ? Math.min(100, Math.round((meals.calories / targets.calories) * 100)) : 0;
   const proteinPct =
@@ -419,7 +418,7 @@ function HomeDailyView({
                     {targets.calories > 0 ? `/ ${targets.calories}` : "kcal"}
                   </span>
                 </div>
-                <div className="mt-5 space-y-2">
+                {missingMacrosToday ? <p className="mt-5 text-sm text-muted-foreground">Some meals have unreported macros.</p> : <div className="mt-5 space-y-2">
                   <MacroBar
                     label="P"
                     value={meals.protein}
@@ -441,7 +440,7 @@ function HomeDailyView({
                     pct={fatPct}
                     color="rgb(34 197 94)"
                   />
-                </div>
+                </div>}
                 <div className="mt-3 text-[9px] font-bold uppercase tracking-widest text-white/35">
                   {targets.calories > 0
                     ? `${kcalPct}% of daily goal · logged so far`

@@ -79,6 +79,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
   };
   const tg = state.nutritionTargets;
   const hasMeals = today.length > 0;
+  const missingMacros = today.some((meal) => meal.macroStatus === "unreported");
 
   const supplements = state.supplementLogs
     ? state.supplementLogs.filter((s) => isToday(s.createdAt))
@@ -117,7 +118,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                   {tg.calories > 0 ? `${Math.round(t.c / tg.calories * 100)}% Goal` : "No calorie target"}
                 </p>
               </div>
-              <div className="flex-1 space-y-3">
+              {missingMacros ? <p className="flex-1 text-sm text-muted-foreground">Some meals have unreported macros.</p> : <div className="flex-1 space-y-3">
                 <MacroBar
                   label="Protein"
                   value={t.p}
@@ -133,7 +134,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
                   color="rgb(245 158 11)"
                 />
                 <MacroBar label="Fat" value={t.f} target={tg.fat} unit="g" color="rgb(34 197 94)" />
-              </div>
+              </div>}
             </div>}
           </Tile>
 
@@ -207,7 +208,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
         <div className="px-5 space-y-4 mt-2">
           <SectionHeader title="Macro detail" />
           <div className="premium-card rounded-2xl border border-white/10 bg-white/5 p-4">
-            {hasMeals ? <>
+            {missingMacros ? <p className="text-sm text-muted-foreground">Some meals have unreported macros.</p> : hasMeals ? <>
             <MacroBar
               label="Protein"
               value={t.p}
@@ -424,7 +425,9 @@ function MealRows({ meals, onEdit, onDelete }: {
           <div className="text-right">
             <p className="font-display text-lg tabular-nums text-white">{Math.round(meal.calories)} kcal</p>
             <p className="text-xs tabular-nums text-muted-foreground">
-              P{Math.round(meal.protein)} C{Math.round(meal.carbs)} F{Math.round(meal.fat)}
+              {meal.macroStatus === "unreported"
+                ? "Macros unreported"
+                : `P${Math.round(meal.protein)} C${Math.round(meal.carbs)} F${Math.round(meal.fat)}`}
             </p>
           </div>
           <div className="flex">

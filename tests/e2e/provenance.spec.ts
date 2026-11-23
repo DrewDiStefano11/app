@@ -190,6 +190,7 @@ test.describe("FitCore provenance foundation", () => {
       let state = data.migrateFitCoreDataIfNeeded(structuredClone(types.defaultState));
       const set = (update: (current: typeof state) => typeof state) => {
         state = data.migrateFitCoreDataIfNeeded(update(state));
+        return true;
       };
       const ctx = (confirmed = false) => ({
         state,
@@ -204,31 +205,29 @@ test.describe("FitCore provenance foundation", () => {
       const pendingEstimate = tools.runTool(
         "logMeal",
         {
-          name: "Photo meal",
+          name: "Estimated meal",
           mealType: "dinner",
           calories: 650,
           protein: 35,
           carbs: 75,
           fat: 22,
           confidence: "low",
-          source: "camera",
-          originalText: "photo of dinner",
+          originalText: "described dinner",
         },
         ctx(),
       );
       const confirmedEstimate = tools.runTool(
         "logMeal",
         {
-          name: "Photo meal",
+          name: "Estimated meal",
           mealType: "dinner",
           calories: 650,
           protein: 35,
           carbs: 75,
           fat: 22,
           confidence: "low",
-          source: "camera",
-          originalText: "photo of dinner",
-          draftId: "photo-meal",
+          originalText: "described dinner",
+          draftId: "text-meal",
         },
         ctx(true),
       );
@@ -240,6 +239,8 @@ test.describe("FitCore provenance foundation", () => {
         },
         ctx(),
       );
+      const pendingWeightDidNotSave = state.bodyweightEntries.length === 0;
+      tools.runTool("logBodyWeight", { weightLb: 182.2, originalText: "I weigh 182.2" }, ctx(true));
       const confirmedWorkout = tools.runTool(
         "logWorkout",
         {
@@ -264,7 +265,8 @@ test.describe("FitCore provenance foundation", () => {
         meal: meal.provenance,
         mealIsLowConfidence: data.isLowConfidence(meal),
         mealRequiresConfirmation: data.shouldRequireConfirmation(meal),
-        unconfirmedWeight: unconfirmedWeight.ok,
+        unconfirmedWeight: unconfirmedWeight.needsConfirmation,
+        pendingWeightDidNotSave,
         weight: weight.provenance,
         weightRequiresConfirmation: data.shouldRequireConfirmation(weight),
         confirmedWorkout: confirmedWorkout.ok,
@@ -285,8 +287,9 @@ test.describe("FitCore provenance foundation", () => {
       mealIsLowConfidence: true,
       mealRequiresConfirmation: false,
       unconfirmedWeight: true,
-      weight: { source: "jarvis", confidence: "high", confirmation: "unconfirmed" },
-      weightRequiresConfirmation: true,
+      pendingWeightDidNotSave: true,
+      weight: { source: "jarvis", confidence: "high", confirmation: "confirmed" },
+      weightRequiresConfirmation: false,
       confirmedWorkout: true,
       workout: { source: "jarvis", confidence: "high", confirmation: "confirmed" },
       exercise: { source: "jarvis", confidence: "high", confirmation: "confirmed" },
@@ -308,6 +311,16 @@ test.describe("FitCore provenance foundation", () => {
       };
       let state = data.migrateFitCoreDataIfNeeded({
         ...structuredClone(types.defaultState),
+        workouts: [
+          {
+            id: "saved-workout",
+            name: "AI workout",
+            startedAt: Date.now() - 120_000,
+            endedAt: Date.now() - 60_000,
+            exercises: [],
+            provenance: data.createJarvisProvenance({ confidence: "high", confirmed: true }),
+          },
+        ],
         activeWorkout: {
           id: "imported-active",
           name: "Imported active workout",
@@ -335,6 +348,7 @@ test.describe("FitCore provenance foundation", () => {
       });
       const set = (update: (current: typeof state) => typeof state) => {
         state = data.migrateFitCoreDataIfNeeded(update(state));
+        return true;
       };
       const ctx = (confirmed = false) => ({
         state,
@@ -353,14 +367,13 @@ test.describe("FitCore provenance foundation", () => {
           carbs: 90,
           fat: 20,
           confidence: "low",
-          source: "camera",
-          originalText: "photo of a bowl",
+          originalText: "described bowl",
           draftId: "estimated-bowl",
         },
         ctx(true),
       );
       const mealId = state.mealEntries[0].id;
-      const mealEdit = tools.runTool(
+      const spoofedMealEdit = tools.runTool(
         "updateMeal",
         {
           id: mealId,
@@ -369,6 +382,12 @@ test.describe("FitCore provenance foundation", () => {
             provenance: { source: "manual", confidence: "high", confirmation: "confirmed" },
           },
         },
+        ctx(true),
+      );
+
+      const mealEdit = tools.runTool(
+        "updateMeal",
+        { id: mealId, patch: { calories: 610 } },
         ctx(true),
       );
 
@@ -381,7 +400,7 @@ test.describe("FitCore provenance foundation", () => {
           motivation: 8,
           originalText: "feeling okay",
         },
-        ctx(),
+        ctx(true),
       );
       const checkInEdit = tools.runTool(
         "updateDailyCheckIn",
@@ -391,7 +410,7 @@ test.describe("FitCore provenance foundation", () => {
         ctx(true),
       );
 
-      tools.runTool(
+      const overlappingWorkout = tools.runTool(
         "logWorkout",
         {
           name: "AI workout",
@@ -429,6 +448,8 @@ test.describe("FitCore provenance foundation", () => {
       const restored = data.migrateFitCoreDataIfNeeded(structuredClone(state));
       return {
         meal: restored.mealEntries[0],
+        spoofRejected: !spoofedMealEdit.ok,
+        overlappingWorkoutRejected: !overlappingWorkout.ok,
         mealEditAuditId: mealEdit.auditId,
         checkIn: restored.recoveryCheckIns[0],
         checkInEditAuditId: checkInEdit.auditId,
@@ -441,6 +462,8 @@ test.describe("FitCore provenance foundation", () => {
       };
     });
 
+    expect(result.spoofRejected).toBe(true);
+    expect(result.overlappingWorkoutRejected).toBe(true);
     expect(result.meal).toMatchObject({
       calories: 610,
       source: "edited",
@@ -449,7 +472,7 @@ test.describe("FitCore provenance foundation", () => {
         source: "ai-estimated",
         confidence: "low",
         confirmation: "confirmed",
-        originalText: "photo of a bowl",
+        originalText: "described bowl",
         editedBy: "user",
         editAuditId: result.mealEditAuditId,
       },
