@@ -1363,6 +1363,7 @@ function validateProfile(context: ValidationContext, value: PlainRecord): void {
     "macroStrictness",
     "sleepGoalH",
     "stepGoal",
+    "weeklyVolumeGoalLb",
     "cardioGoalMin",
     "recoveryPriority",
     "injuries",
@@ -1406,6 +1407,7 @@ function validateProfile(context: ValidationContext, value: PlainRecord): void {
       "cardioGoalMin",
     ] as const)
       validateOptionalNumber(context, record, location, field, { nonNegative: true });
+    validateOptionalNumber(context, record, location, "weeklyVolumeGoalLb", { positive: true });
     validateOptionalString(context, record, location, "name");
     const enums: [string, readonly string[]][] = [
       ["sex", ["male", "female", "other"]],
