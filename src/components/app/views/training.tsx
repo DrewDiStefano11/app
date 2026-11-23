@@ -122,7 +122,10 @@ function DailyTrainingView({
 }) {
   const { state, startWorkout } = useStore();
   const todays = state.workouts.filter(w => isToday(w.startedAt));
-  const lastWorkout = state.workouts[state.workouts.length - 1];
+  const lastWorkout = state.workouts.reduce<(typeof state.workouts)[number] | undefined>(
+    (latest, workout) => !latest || workout.startedAt > latest.startedAt ? workout : latest,
+    undefined,
+  );
 
   const weekWorkouts = state.workouts.filter(w => w.startedAt > Date.now() - 7*86400000);
   const weekCardio = state.cardioEntries.filter(c => c.createdAt > Date.now() - 7*86400000);
@@ -482,7 +485,7 @@ function HistorySection() {
   };
 
   const now = Date.now();
-  const filtered = [...state.workouts].reverse().filter(w =>
+  const filtered = [...state.workouts].sort((a, b) => b.startedAt - a.startedAt).filter(w =>
     filter === "all" ? true : filter === "7d" ? w.startedAt > now - 7*86400000 : w.startedAt > now - 30*86400000
   );
   const w = detail ? state.workouts.find(x => x.id === detail) : null;

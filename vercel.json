@@ -13,7 +13,8 @@
       "codex/fitcore-food-photo": false,
       "codex/fitcore-whoop-lifecycle": false,
       "codex/fitcore-weigh-in-safety": false,
-      "codex/fitcore-core-release-integration": false
+      "codex/fitcore-core-release-integration": false,
+      "codex/fitcore-workout-history-order": false
     }
   }
 }
