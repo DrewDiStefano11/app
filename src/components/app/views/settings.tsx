@@ -436,8 +436,8 @@ export function SettingsView({
               <HubCard
                 id="preferences"
                 title="Preferences & Reminders"
-                description="Workout, weigh-in, lunch reminder toggles, and demo data."
-                status="Active"
+                description="Units, saved reminder preferences, and demo data."
+                status="Notifications planned"
                 icon={<Bell size={18} />}
                 expanded={expanded.preferences}
                 onToggle={toggleSection}
@@ -463,11 +463,11 @@ export function SettingsView({
                     ]}
                   />
                   <div className="space-y-2 pt-2">
-                    <p className="text-sm font-semibold">Reminders</p>
+                    <p className="text-sm font-semibold">Reminder preferences</p>
                     <p className="text-xs leading-relaxed text-muted-foreground">
-                      Reminders use local browser notifications. The app functions normally without
-                      them.
+                      FitCore does not schedule or send notifications yet.
                     </p>
+                    <p className="text-xs leading-relaxed text-muted-foreground">These choices are saved for future notifications. Times below use a 24-hour clock.</p>
                     {(["workout", "weighIn", "lunch"] as const).map((k) => (
                       <label
                         key={k}
@@ -475,10 +475,10 @@ export function SettingsView({
                       >
                         <span className="text-sm capitalize leading-snug">
                           {k === "weighIn"
-                            ? "Weigh-in 9 PM"
+                            ? `Weigh-in · ${state.personalization.reminders?.weighInTime ?? "09:00"}`
                             : k === "workout"
-                              ? "Workout 5 PM"
-                              : "Lunch log 12 PM"}
+                              ? `Workout · ${state.personalization.reminders?.workoutTime ?? "17:00"}`
+                              : `Lunch log · ${state.personalization.reminders?.mealLogTime ?? "12:00"}`}
                         </span>
                         <input
                           type="checkbox"

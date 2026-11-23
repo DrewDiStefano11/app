@@ -3,6 +3,7 @@ import { useVisibleViewport } from "@/hooks/use-visible-viewport";
 import { Apple, Camera, Dumbbell, Heart, Home, Mic, Send, Sparkles, TrendingUp, X } from "lucide-react";
 import type { SectionId } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Settings2 } from "lucide-react";
 
 const items: { id: SectionId; label: string; Icon: typeof Dumbbell }[] = [
   { id: "home", label: "Home", Icon: Home },
@@ -15,6 +16,7 @@ const items: { id: SectionId; label: string; Icon: typeof Dumbbell }[] = [
 export function BottomNav({
   active,
   onChange,
+  onOpenSettings,
 }: {
   active: SectionId;
   onChange: (section: SectionId) => void;
@@ -167,6 +169,12 @@ export function BottomNav({
                   </button>
                 );
               })}
+              {active !== "home" && (
+                <button onClick={onOpenSettings} className="command-bar__nav-item press" aria-label="Settings">
+                  <Settings2 size={19} />
+                  <span>Settings</span>
+                </button>
+              )}
               <button
                 onClick={() => setComposerOpen(true)}
                 className="command-bar__nav-item command-bar__nav-ai press"
