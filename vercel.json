@@ -9,7 +9,8 @@
       "codex/fitcore-jarvis-voice": false,
       "codex/fitcore-daily-usability": false,
       "codex/fitcore-whoop-lifecycle": false,
-      "codex/fitcore-record-consistency": false
+      "codex/fitcore-record-consistency": false,
+      "codex/fitcore-weigh-in-safety": false
     }
   }
 }

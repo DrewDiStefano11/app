@@ -1,0 +1,9 @@
+# Manual weigh-in safety checkpoint
+
+Freebuff BUG-05 was verified against main after #306/#307. Negative weights were already blocked by validated persistence, so the report overstates that particular corruption path; the UI nevertheless closed/cleared the draft after rejection. Oversized positive weights had no manual range guard. This is a targeted implementation fix, not another audit.
+
+The three manual forms (Home, Stats Daily, Deep Dive Body) now share decimal parsing and the established Jarvis40–700lb entry range. Invalid input has an accessible message and cannot be saved. One updater keeps the entry, profile and bodyweight goals consistent. Each form honors the validated transaction result, retaining value/notes on failure and clearing only after a verified success.
+
+Evidence: new Home regression failed before implementation because Save remained enabled for invalid input. New parser/updater units2/2 pass; TypeScript passes. Targeted iPhone WebKit/mobile Chromium batch16/16 passes, including all three failed-write/retry paths, unchanged profile/goals after invalid input, notes retained, one saved entry after retry/reload and the existing weigh-in smoke cases. No schema or dependency changes. Production build/release checks and focused review remain pending.
+
+This branch is preserved before the user's cold-start-only WHOOP follow-up. Food-photo/library work is published in draft #308 at2f23b6f and remains intact. WHOOP foreground restoration is physically confirmed fixed; do not repeat it. User says cold-start measurements return automatically with no delay; clarify whether the remaining symptom is an empty initial render before any cold-start code change. Session lifetime is already30days; initial rollout intentionally leaves durable snapshot caching disabled. Do not enable cache flags or add persistent browser measurements merely to hide a loading frame.
