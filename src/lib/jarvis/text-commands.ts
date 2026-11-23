@@ -6,6 +6,7 @@ import { queryRecoveryText, type RecoveryDraft } from "./recovery-text";
 import { queryBenchHistory, queryTrainingText, type BenchDate } from "./workout-queries";
 import { jarvisScheduledWorkout, WEEKDAYS } from "./scheduled-workout";
 import { queryUsualMeals } from "./usual-meals";
+import { querySavedNutrition } from "./saved-food-matches";
 import type { AppState, WorkoutExercise } from "../types";
 import { exerciseName, findActiveExercise } from "./active-exercise";
 import type { ToolName } from "./tools";
@@ -457,6 +458,8 @@ export function interpretJarvisText(
         originalText: raw,
       },
     };
+  const saved = querySavedNutrition(normalized, state);
+  if (saved) return saved;
   const usual = queryUsualMeals(normalized, state);
   if (usual) return usual;
   if (/^undo (?:the |my |that )?(?:last|most recent) meal$/.test(text)) {

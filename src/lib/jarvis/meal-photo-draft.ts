@@ -81,6 +81,7 @@ export function applyPhotoMealPatch(draft: PhotoMealDraft, input: unknown, wordi
   }
   if (!photoEstimateSchema.safeParse(nextEstimate(next)).success) return { ok: false, error: "Keep at least one ingredient and valid bounded portions. The draft is unchanged." };
   next.corrections.push(wording.trim());
+  next.question = "";
   next.revision++;
   return { ok: true, draft: next };
 }

@@ -11,6 +11,7 @@ import type { CommitJarvisState } from "@/lib/jarvis/action-transaction";
 import type { AppState, MealEntry } from "@/lib/types";
 import { uid } from "@/lib/store";
 import { PhotoMealReview } from "./photo-meal-review";
+import { savedFoodMatches } from "@/lib/jarvis/saved-food-matches";
 
 const cooldown = { until: 0 };
 type Usage = { provider: string; actualModel: string; callType: string; timestamp: number; status?: number; errorCategory?: string; promptTokens?: number; completionTokens?: number };
@@ -18,6 +19,7 @@ interface Options { active: boolean; stateRef: RefObject<AppState>; commit: Comm
 
 export function usePhotoMeal(options: Options) {
   const [shown, setShown] = useState(false);
+  const open = useCallback(() => setShown(true), []);
   const [image, setImage] = useState<string>();
   const [consent, setConsent] = useState(false);
   const [draft, setDraft] = useState<PhotoMealDraft>();
@@ -89,23 +91,18 @@ export function usePhotoMeal(options: Options) {
     if (!context.draft || request.current || context.receipt?.ok) return;
     const result = savePhotoMealDraft(context.draft, context.options.stateRef.current, context.options.commit, true, context.target);
     if (!result.ok) { setError(result.summary); return; }
-    const id = (result.data as { id?: string } | undefined)?.id;
-    // The store updates synchronously; keep the expected saved value for future revisions.
+    // Capture the verified transaction result; React's state ref can still be from
+    // the previous render here. Never silently rebase onto a later external edit.
     setReceipt(result); current.current.receipt = result;
     setError(undefined);
-    const saved = id ? context.options.stateRef.current.mealEntries.find(m => m.id === id) : undefined;
+    const saved = (result.data as { savedMeal?: MealEntry } | undefined)?.savedMeal;
     if (saved) { setTarget(structuredClone(saved)); current.current.target = structuredClone(saved); }
     options.onReply(result.summary);
   };
   const applyRevision = (next: PhotoMealDraft) => {
     const context = current.current;
-    let expected = context.target;
-    if (context.receipt?.ok) {
-      const audit = context.options.stateRef.current.jarvisAudit.find(a => a.id === context.receipt?.auditId);
-      const saved = context.options.stateRef.current.mealEntries.find(m => m.id === audit?.entityIds?.[0]);
-      if (!saved || audit?.undone) { setError("This saved meal is no longer available. Reopen its latest version in Nutrition."); return; }
-      expected = structuredClone(saved);
-    }
+    const expected = context.target;
+    if (context.receipt?.ok && !expected) { setError("Reopen the saved meal before correcting it. Your review is retained."); return; }
     setDraft(next); setReceipt(undefined); setTarget(expected); setError(undefined);
     current.current = { ...context, draft: next, receipt: undefined, target: expected };
     options.onReply("Updated the meal estimate. Review the revised breakdown before saving.");
@@ -126,7 +123,7 @@ export function usePhotoMeal(options: Options) {
     const timeout = window.setTimeout(() => { if (version === epoch.current) { interrupt(); setError("Correction timed out. Your draft is unchanged."); } }, 25000);
     try {
       const result = await revise({ signal: controller.signal, data: { consent: true, estimate: nextEstimate(context.draft), correction: wording, userGroqApiKey: jarvisProviderKeys.read("groq").key, groqKeyMode: "local" } });
-      if (version !== epoch.current || controller.signal.aborted) return true;
+      if (version !== epoch.current || controller.signal.aborted || current.current.draft !== context.draft) return true;
       options.onUsage({ provider: "groq", actualModel: "qwen/qwen3.8-27b", callType: "mealPhotoCorrection", timestamp: Date.now(), ...(result.ok ? { status: 200, ...result.usage } : { status: result.status, errorCategory: result.code }) });
       if (!result.ok) { cooldown.until = Date.now() + Math.min(result.retryAfterMs ?? 0, 86400000); setError(result.error); return true; }
       const applied = applyPhotoMealPatch(context.draft, result.patch, wording);
@@ -150,8 +147,8 @@ export function usePhotoMeal(options: Options) {
   }, [interrupt]);
   return {
     busy, shown, draft, handleMessage, discard, reopen,
-    open: () => setShown(true),
-    view: shown ? <PhotoMealReview image={image} draft={draft} target={target} receipt={receipt} error={error} busy={busy} consent={consent} onConsent={setConsent} onFile={onFile} onAnalyse={analyse} onDiscard={discard} onSave={save} onEdit={(patch, wording) => { if (!current.current.draft) return; const result = applyPhotoMealPatch(current.current.draft, patch, wording); if (result.ok) applyRevision(result.draft); else setError(result.error); }} onUndo={() => {
+    open,
+    view: shown ? <PhotoMealReview matches={draft ? savedFoodMatches(draft, options.stateRef.current) : []} image={image} draft={draft} target={target} receipt={receipt} error={error} busy={busy} consent={consent} onConsent={setConsent} onFile={onFile} onAnalyse={analyse} onDiscard={discard} onSave={save} onEdit={(patch, wording) => { if (!current.current.draft) return; const result = applyPhotoMealPatch(current.current.draft, patch, wording); if (result.ok) applyRevision(result.draft); else setError(result.error); }} onUndo={() => {
       const auditId = current.current.receipt?.auditId;
       if (!auditId) return;
       const result = undoAuditEntry(auditId, options.stateRef.current, options.commit);

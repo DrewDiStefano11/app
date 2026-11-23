@@ -276,7 +276,7 @@ const handlers: Record<ToolName, ToolHandler> = {
     }
     const type = String(args.mealType);
     const calories = Number(args.calories);
-    const name = type[0].toUpperCase() + type.slice(1);
+    const name = textArg(args, "name") ?? type[0].toUpperCase() + type.slice(1);
     const approximate = args.approximate === true;
     const amounts = `${approximate ? "about " : ""}${calories} kcal, macros unreported`;
     if (!confirmed) return { ok: true, summary: `Log ${name}: ${amounts}?` };
