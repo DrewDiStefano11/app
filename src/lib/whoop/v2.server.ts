@@ -127,10 +127,19 @@ export class WhoopReadError extends Error {
   }
 }
 
+export type WhoopCachePolicy = {
+  collection: Kind;
+  cacheControl: string | null;
+  age: string | null;
+  date: string | null;
+  expiresAt: number;
+};
+
 type Options = {
   fetch?: (url: URL, init: RequestInit) => Promise<Response>;
   wait?: (ms: number) => Promise<void>;
   signal?: AbortSignal;
+  onCachePolicy?: (policy: WhoopCachePolicy) => void;
 };
 
 export function whoopRetryAfter(headers: Headers) {
@@ -166,7 +175,7 @@ function cacheDeadline(headers: Headers, requestedAt: number, receivedAt: number
   return remaining > 0 ? receivedAt + remaining : 0;
 }
 
-async function fetchPage(url: URL, accessToken: string, options: Options) {
+async function fetchPage(kind: Kind, url: URL, accessToken: string, options: Options) {
   const send = options.fetch ?? fetch;
   const wait = options.wait ?? ((ms: number) => new Promise<void>((done) => setTimeout(done, ms)));
   const budget = options.signal;
@@ -187,6 +196,19 @@ async function fetchPage(url: URL, accessToken: string, options: Options) {
       const expiresAt = cacheDeadline(response.headers, requestedAt, Date.now());
       const parsed = collection.safeParse(await response.json().catch(() => null));
       if (!parsed.success) throw new WhoopReadError("invalid_data");
+      // Operational metadata only: never pass a body, URL, token or provider ID.
+      // Diagnostics must not turn a successful read into a failed sync.
+      try {
+        options.onCachePolicy?.({
+          collection: kind,
+          cacheControl: response.headers.get("Cache-Control"),
+          age: response.headers.get("Age"),
+          date: response.headers.get("Date"),
+          expiresAt,
+        });
+      } catch {
+        /* Observation is best-effort. */
+      }
       return { ...parsed.data, expiresAt };
     }
     if (response?.status === 401) throw new WhoopReadError("unauthorized");
@@ -213,7 +235,7 @@ export async function readWhoopCollectionWithCache(
   let earliestFreshness = Infinity;
 
   for (let page = 0; page < 8; page++) {
-    const result = await fetchPage(new URL(endpoint), accessToken, options);
+    const result = await fetchPage(kind, new URL(endpoint), accessToken, options);
     expiresAt = Math.min(expiresAt, result.expiresAt);
     if (result.expiresAt > 0) earliestFreshness = Math.min(earliestFreshness, result.expiresAt);
     for (const raw of result.records) {

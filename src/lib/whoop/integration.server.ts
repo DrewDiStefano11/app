@@ -4,6 +4,7 @@ import type { createWhoopStore, WhoopSyncActor, WhoopSyncPurpose } from "./postg
 import { syncWhoop, type WhoopSyncStore } from "./sync.server";
 import { createWhoopTokenVault } from "./token-vault.server";
 import { verifyWhoopWebhook } from "./webhook.server";
+import type { WhoopCachePolicy } from "./v2.server";
 
 const sessionCookie = "__Host-fitcore-whoop-session";
 const flowCookie = "__Host-fitcore-whoop-flow";
@@ -25,6 +26,7 @@ type WhoopIntegrationConfig = {
   encryptionKey: string;
   jarvisSharingEnabled?: boolean;
   snapshotCacheEnabled?: boolean;
+  onCachePolicy?: (policy: WhoopCachePolicy) => void;
   fetch?: (url: string, init: RequestInit) => Promise<Response>;
   background?: {
     store: Pick<
@@ -113,6 +115,7 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
         config.snapshotCacheEnabled === true &&
         /^[A-Za-z0-9_-]{32,128}$/.test(config.background?.cronSecret ?? ""),
       fetch: config.fetch ? (url, init) => config.fetch!(url.href, init) : undefined,
+      onCachePolicy: config.onCachePolicy,
     });
 
   function syncReply(outcome: Awaited<ReturnType<typeof syncWhoop>>) {
@@ -250,6 +253,7 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
         {
           status: connection?.status ?? "disconnected",
           lastSyncedAt: connection?.lastSyncedAt ?? null,
+          lastDeletedAt: connection?.lastDeletedAt,
           version:
             connection?.status === "connected"
               ? connection.id + ":" + connection.eventRevision

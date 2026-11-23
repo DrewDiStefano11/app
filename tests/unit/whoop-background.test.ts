@@ -106,6 +106,7 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
     let regenerated = false;
     let restricted = false;
     let jarvisRead = false;
+    const observedPolicies: unknown[] = [];
     const integration = createWhoopIntegration({
       store,
       origin,
@@ -114,6 +115,9 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
       ownerKeyDigest,
       clientId: "synthetic-client",
       snapshotCacheEnabled: true,
+      onCachePolicy: (policy) => {
+        observedPolicies.push(policy);
+      },
       jarvisSharingEnabled: true,
       background: { store, cronSecret },
       fetch: async (url, init) => {
@@ -185,8 +189,17 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
     expect(fetched).toBe(0);
 
     const removeRecovery = () => hook("recovery-1", "recovery.deleted");
+    const beforeDeletion = (await store.getConnection(owner))!.lastDeletedAt;
     expect((await integration.webhook(removeRecovery())).status).toBe(204);
     expect((await integration.webhook(removeRecovery())).status).toBe(204);
+    const deletionWatermark = (await store.getConnection(owner))!.lastDeletedAt;
+    expect(Date.parse(deletionWatermark!)).toBeGreaterThanOrEqual(Date.parse(beforeDeletion!));
+    const statusReply = await integration.status(
+      new Request(origin + "/api/whoop/status", {
+        headers: { Cookie: "__Host-fitcore-whoop-session=" + sessionToken },
+      }),
+    );
+    expect((await statusReply.json()).lastDeletedAt).toBe(deletionWatermark);
     expect((await store.getSnapshot(session))?.records.map((row) => row.kind)).toEqual([
       "sleep",
       "workout",
@@ -240,6 +253,9 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
     expect(live.status).toBe(200);
     expect(live.headers.get("Cache-Control")).toBe("no-store");
     const payload = (await live.json()) as WhoopSnapshot;
+    expect(observedPolicies.length).toBeGreaterThanOrEqual(4);
+    expect(JSON.stringify(observedPolicies)).not.toContain("recovery_score");
+    expect(JSON.stringify(observedPolicies)).not.toContain("synthetic-access");
     expect(payload.records.map((record) => record.kind)).toEqual(["workout"]);
     const persisted = await integration.records(
       new Request(origin + "/api/whoop/records", { headers: browser }),
@@ -259,10 +275,12 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
     expect(await store.getSnapshot(session)).toBeNull();
     expect((await store.getConnection(owner))?.lastSyncedAt).toBe(beforeJarvis?.lastSyncedAt);
     expect(await access?.isCurrent()).toBe(true);
+    const watermarkBeforeUpdate = (await store.getConnection(owner))!.lastDeletedAt;
     expect(
       (await integration.webhook(hook("new-event", "workout.updated", workoutId))).status,
     ).toBe(204);
     expect(await access?.isCurrent()).toBe(false);
+    expect((await store.getConnection(owner))!.lastDeletedAt).toBe(watermarkBeforeUpdate);
     jarvisRead = false;
 
     await db.exec("update fitcore_whoop.connections set sync_after = null");

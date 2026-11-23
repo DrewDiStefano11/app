@@ -1,4 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
+import { devices, expect, test, type Page } from "@playwright/test";
+import type { WhoopSnapshot } from "../../src/lib/whoop/dashboard";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import {
@@ -14,6 +15,7 @@ async function syntheticWhoop(page: Page, initialScore = 80, lifetime = 120000) 
   const control = {
     connected: true,
     version: "synthetic:1",
+    lastDeletedAt: null as string | null,
     score: initialScore,
     hrv: 56.45,
     lightHours: 4,
@@ -112,6 +114,7 @@ async function syntheticWhoop(page: Page, initialScore = 80, lifetime = 120000) 
             json: {
               status: "connected",
               version: control.version,
+              lastDeletedAt: control.lastDeletedAt,
               lastSyncedAt: new Date(now).toISOString(),
             },
           })
@@ -131,7 +134,10 @@ async function syntheticWhoop(page: Page, initialScore = 80, lifetime = 120000) 
       });
     if (!control.connected) return route.fulfill({ status: 401 });
     if (control.denySync)
-      return route.fulfill({ status: control.denySync, headers: { "Retry-After": control.retryAfter } });
+      return route.fulfill({
+        status: control.denySync,
+        headers: { "Retry-After": control.retryAfter },
+      });
     serverSnapshot = await snapshot();
     return route.fulfill({ json: serverSnapshot, headers: { "Cache-Control": "no-store" } });
   });
@@ -325,11 +331,12 @@ test("lock clears every native WHOOP field and stops renewals without changing m
   expect(await page.evaluate(() => JSON.stringify(localStorage))).toContain("manual-today");
 });
 
-test("changed provider revision clears stale measurements and the next automatic renewal restores them", async ({
+test("provider deletion clears stale measurements and the next automatic renewal restores them", async ({
   page,
 }) => {
   const control = await syntheticWhoop(page);
   control.version = "synthetic:2";
+  control.lastDeletedAt = await page.evaluate(() => new Date().toISOString());
   control.score = 91;
   await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
   await expect(page.getByRole("button", { name: /^Recovery 80/ })).toHaveCount(0);
@@ -337,6 +344,168 @@ test("changed provider revision clears stale measurements and the next automatic
   await page.clock.fastForward(120000);
   await expect(page.getByRole("button", { name: /^Recovery 91% · WHOOP/ })).toBeVisible();
 });
+
+test("ordinary provider revision retains native fields through replacement and rate limiting", async ({
+  page,
+}) => {
+  const control = await syntheticWhoop(page, 80, 600000);
+  control.version = "synthetic:2";
+  control.score = 91;
+  control.hrv = 63;
+  control.holdSync = true;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(page.getByRole("button", { name: /^Recovery 80% · WHOOP/ })).toBeVisible();
+  await page.clock.runFor(120000);
+  await expect.poll(() => Boolean(control.releaseSync)).toBe(true);
+  await recovery(page);
+  await expect(
+    page.getByLabel("Health measurements").getByText("56.45 ms", { exact: true }),
+  ).toBeVisible();
+  control.holdSync = false;
+  control.releaseSync!();
+  await expect(
+    page.getByLabel("Health measurements").getByText("63 ms", { exact: true }),
+  ).toBeVisible();
+  control.denySync = 429;
+  control.retryAfter = "120";
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.clock.runFor(120000);
+  await expect(
+    page.getByLabel("Health measurements").getByText("63 ms", { exact: true }),
+  ).toBeVisible();
+  const menu = page.getByRole("button", { name: /Expand navigation/ });
+  if (await menu.isVisible()) await menu.click();
+  await page.getByRole("button", { name: "Home", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^Recovery 91% · WHOOP/ })).toBeVisible();
+});
+
+for (const permission of ["authorized", "expired", "revoked"] as const) {
+  test(`new browser process handles ${permission} server evidence and refreshes only when authorized`, async ({
+    playwright,
+    browserName,
+    baseURL,
+  }) => {
+    const engine = playwright[browserName];
+    const profile =
+      browserName === "webkit"
+        ? devices["iPhone 13"]
+        : { viewport: { width: 390, height: 844 }, isMobile: true };
+    const initialBrowser = await engine.launch();
+    let saved: WhoopSnapshot & { version: string };
+    let storageState: Awaited<
+      ReturnType<import("@playwright/test").BrowserContext["storageState"]>
+    >;
+    try {
+      const context = await initialBrowser.newContext({
+        ...profile,
+        baseURL,
+        serviceWorkers: "block",
+      });
+      const initialPage = await context.newPage();
+      const firstSync = initialPage.waitForResponse(
+        (response) => response.url().endsWith("/api/whoop/sync") && response.status() === 200,
+      );
+      await syntheticWhoop(initialPage, 80, 600000);
+      saved = await (await firstSync).json();
+      storageState = await context.storageState({ indexedDB: true });
+      expect(JSON.stringify(storageState)).not.toContain("recovery_score");
+      expect(JSON.stringify(storageState)).not.toContain("hrv_rmssd_milli");
+    } finally {
+      // Close the entire engine process, including every JavaScript context.
+      await initialBrowser.close();
+    }
+    const restartedBrowser = await engine.launch();
+    let releaseStatus = () => {};
+    let releaseSync = () => {};
+    const statusGate = new Promise<void>((resolve) => {
+      releaseStatus = resolve;
+    });
+    const syncGate = new Promise<void>((resolve) => {
+      releaseSync = resolve;
+    });
+    try {
+      const context = await restartedBrowser.newContext({
+        ...profile,
+        baseURL,
+        storageState: storageState!,
+        serviceWorkers: "block",
+      });
+      const restarted = await context.newPage();
+      const restartedAt =
+        permission === "expired" ? Date.parse(saved.accessExpiresAt) + 1 : now + 30000;
+      await restarted.clock.install({ time: new Date(restartedAt) });
+      await restarted.route("**/api/whoop/status", async (route) => {
+        await statusGate;
+        await route.fulfill(
+          permission === "revoked"
+            ? { status: 403 }
+            : { json: { status: "connected", version: saved.version, lastDeletedAt: null } },
+        );
+      });
+      let recordsRead = false;
+      await restarted.route("**/api/whoop/records", async (route) => {
+        recordsRead = true;
+        await route.fulfill(
+          permission === "revoked"
+            ? { status: 403 }
+            : { json: saved, headers: { "Cache-Control": "no-store" } },
+        );
+      });
+      let syncing = false;
+      await restarted.route("**/api/whoop/sync", async (route) => {
+        syncing = true;
+        await syncGate;
+        await route.fulfill({
+          json: {
+            ...saved,
+            lastSyncedAt: new Date(restartedAt).toISOString(),
+            accessExpiresAt: new Date(restartedAt + 600000).toISOString(),
+            records: saved.records.map((record) =>
+              record.kind === "recovery"
+                ? { ...record, score: { ...record.score, recovery_score: 91, hrv_rmssd_milli: 63 } }
+                : record,
+            ),
+          },
+          headers: { "Cache-Control": "no-store" },
+        });
+      });
+      await restarted.goto("/");
+      await expectDashboardReady(restarted);
+      await expect.poll(() => recordsRead).toBe(true);
+      const value = restarted.locator(".home-orbit-score--recovery .home-orbit-value");
+      if (permission === "authorized") await expect(value).toHaveText("80%");
+      else
+        await expect(restarted.getByRole("button", { name: /^Recovery 80% · WHOOP/ })).toHaveCount(
+          0,
+        );
+      releaseStatus();
+      if (permission === "revoked") {
+        await restarted.clock.runFor(120000);
+        expect(syncing).toBe(false);
+      } else {
+        await expect.poll(() => syncing).toBe(true);
+        if (permission === "authorized") await expect(value).toHaveText("80%");
+        releaseSync();
+        await expect(value).toHaveText("91%");
+        await recovery(restarted);
+        await expect(
+          restarted.getByLabel("Health measurements").getByText("63 ms", { exact: true }),
+        ).toBeVisible();
+      }
+      const persisted = JSON.stringify(await context.storageState({ indexedDB: true }));
+      expect(persisted).not.toContain("recovery_score");
+      expect(persisted).not.toContain("hrv_rmssd_milli");
+      expect(await restarted.evaluate(() => JSON.stringify(sessionStorage))).not.toContain(
+        "recovery_score",
+      );
+      expect(await restarted.evaluate(() => caches.keys())).toEqual([]);
+    } finally {
+      releaseStatus();
+      releaseSync();
+      await restartedBrowser.close();
+    }
+  });
+}
 
 test("pending wearable scores remain unavailable and do not invent manual sleep quality", async ({
   page,
@@ -467,7 +636,9 @@ test("cold JS startup restores the authorized server snapshot before status and 
   expect(stored).not.toContain("recovery_score");
 });
 
-test("cold live-only restart automatically restores after the server's remaining cooldown", async ({ page }) => {
+test("cold live-only restart automatically restores after the server's remaining cooldown", async ({
+  page,
+}) => {
   const control = await syntheticWhoop(page, 80, 600000);
   control.denySync = 409;
   control.retryAfter = "10";
@@ -477,7 +648,9 @@ test("cold live-only restart automatically restores after the server's remaining
   await expect.poll(() => Boolean(control.releaseSync)).toBe(true);
   await recovery(page);
   await expect(page.getByRole("status").filter({ hasText: "WHOOP refreshing" })).toBeVisible();
-  const conflict = page.waitForResponse(response => response.url().endsWith("/api/whoop/sync") && response.status() === 409);
+  const conflict = page.waitForResponse(
+    (response) => response.url().endsWith("/api/whoop/sync") && response.status() === 409,
+  );
   control.holdSync = false;
   control.releaseSync!();
   await conflict;
@@ -493,7 +666,9 @@ test("cold live-only restart automatically restores after the server's remaining
   if (await expand.isVisible()) await expand.click();
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await expect(page.getByRole("button", { name: /^Recovery 91% · WHOOP/ })).toBeVisible();
-  const stored = await page.evaluate(() => JSON.stringify({ local: localStorage, session: sessionStorage }));
+  const stored = await page.evaluate(() =>
+    JSON.stringify({ local: localStorage, session: sessionStorage }),
+  );
   expect(stored).not.toContain("hrv_rmssd_milli");
   expect(stored).not.toContain("recovery_score");
 });

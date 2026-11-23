@@ -9,7 +9,12 @@ import type {
 import type { WhoopSnapshot } from "./dashboard";
 import { whoopJarvisLookbackMs } from "./jarvis-context.server";
 import type { createWhoopTokenVault } from "./token-vault.server";
-import { readWhoopCollectionWithCache, WhoopReadError, type WhoopV2Record } from "./v2.server";
+import {
+  readWhoopCollectionWithCache,
+  WhoopReadError,
+  type WhoopV2Record,
+  type WhoopCachePolicy,
+} from "./v2.server";
 
 const jarvisCollections = ["recovery", "sleep", "cycle"] as const;
 const dashboardCollections = [...jarvisCollections, "workout"] as const;
@@ -51,6 +56,7 @@ type SyncOptions = {
   durableCacheEnabled?: boolean;
   purpose?: WhoopSyncPurpose;
   fetch?: (url: URL, init: RequestInit) => Promise<Response>;
+  onCachePolicy?: (policy: WhoopCachePolicy) => void;
 };
 
 type SyncOutcome = {
@@ -124,6 +130,7 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
           readWhoopCollectionWithCache(kind, pair.accessToken, window, {
             fetch: options.fetch,
             signal: readSignal,
+            onCachePolicy: options.onCachePolicy,
           }).catch((error: unknown) => {
             if (error instanceof WhoopReadError && error.code === "rate_limited") attempt.abort();
             throw error;
