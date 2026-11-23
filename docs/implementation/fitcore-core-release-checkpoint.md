@@ -1,0 +1,19 @@
+# Combined core implementation checkpoint
+
+This is an integration candidate, not a claim that main is merged or the complete application is release-certified. No new audit, manual deployment, provider configuration change, or persistent browser WHOOP caching was performed.
+
+Published work retained:
+
+- PR #308, codex/fitcore-food-photo, c7e18130666aafdf76a8cb0afdd0cd60f2de06d7: conversational photo estimates, text/voice revisions, saved labels/reuse, explicit validated save, correction of the same meal, and full visible macro parity regression. Ready for review; hosted checks still need final inspection.
+- PR #309, codex/fitcore-weigh-in-safety, 857b04b4785594aa02932c26ba19910814b57a3e: three safe manual weigh-in forms, synchronized profile/goals, retained rejected drafts; includes the test-only collapsed-navigation follow-up.
+- PR #310, codex/fitcore-workout-history-order, 1ad1315d2dfe00cbe5e73b5c63ef5f9eead7aa0f: latest/history follows session dates after unsorted imports, preserving stored record order.
+
+The local candidate codex/fitcore-core-release-integration merges those three heads from main dfe29ab. All 28 changed application/test files exactly match their owning final published branch (line endings normalized). Only workflow, deployment mapping and chronological progress notes needed reconciliation. An initial local metadata resolver dropped selectors/notes; the preservation check caught it before publication. Final workflow was reconstructed from the exact photo workflow plus the weigh-in selector; every branch's release selector, production environment and step count are verified preserved. Existing deployment exclusions plus all new branch exclusions are retained. Focused independent review found no actionable final integration issue.
+
+Combined validation: 21 focused units passed across seven files; TypeScript passed; final Vercel artifact built successfully. Production mobile batch passed 25/26 in 4.7 minutes. The remaining Stats Body case timed out before entering the form because mode switching collapsed navigation. Its bounded expansion/tap harness was corrected, then both affected production engine cases passed (2/2,16.2s). Thus all 26 selected scenarios have passing evidence across the batches; do not describe the initial batch as26/26. No application source changed after that build. The final edited test passes default ESLint. Earlier per-PR full/focused checks remain recorded in their implementation notes.
+
+Acceptance covers synthetic photo estimation and one-image text/voice corrections; explicit one-record saving; same-ID correction/undo/reload; saved-label selection and meal reuse; all calorie/protein/carbohydrate/fat values across Jarvis/Home/Nutrition Daily/Deep Dive; custom-food unknown macros; three weigh-in invalid/rejected/retry paths; and chronological history with existing correction/deletion safety.
+
+User physical iPhone clarification confirms WHOOP values already present immediately on the first usable screen after a fully terminated installed PWA relaunch. No further cold-start defect is currently reproduced; preserve #307 and its authorization/expiry safeguards. Other physical lifecycle, real camera/audio and actual Groq estimate-accuracy checks are not implied by synthetic browser coverage.
+
+Next: inspect terminal hosted checks on the exact PR heads above; diagnose any specific failures without blindly repeating broad suites. Use this combined candidate's source and preservation evidence when reconciling the PRs against evolving main. Preserve all branches and validated changes. Do not create a duplicate implementation PR just for this candidate or claim the full goal complete. Continue remaining core work from Freebuff56a2a2a only after integrating these completed workflows and resolving release checks.
