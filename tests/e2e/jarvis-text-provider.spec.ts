@@ -58,7 +58,7 @@ test("a transport failure restores the draft and the retry sends it once", async
   const input = page.getByPlaceholder("Talk to Jarvis...");
   await expect(page.getByText("Jarvis could not complete the request. Try again.")).toBeVisible();
   await expect(input).toHaveValue(message);
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText("Synthetic training answer.")).toBeVisible();
   const payload = await page.locator("html").getAttribute("data-retry-payload");
   expect(payload?.split(message).length).toBe(2);
@@ -199,7 +199,7 @@ test("a text meal estimate supports portion edits and commits a single AI-estima
 
   const input = page.getByRole("textbox", { name: "Jarvis message" });
   await input.fill("Actually, that was three cups of rice.");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText(/Correct Chicken and rice.*830 kcal/)).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/Corrected Chicken and rice.*830 kcal/)).toBeVisible();
@@ -216,7 +216,7 @@ test("a text meal estimate supports portion edits and commits a single AI-estima
   expect(revised.mealEntries[0].items?.[0]).toEqual(saved.mealEntries[0].items?.[0]);
 
   await input.fill("Undo that.");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/Undid: Corrected Chicken and rice/)).toBeVisible();
   const undone = await readPersistedFitCoreState(page);
@@ -230,7 +230,7 @@ test("a text meal estimate supports portion edits and commits a single AI-estima
   });
 
   await input.fill("Add another cup of rice.");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText(/Correct Chicken and rice.*830 kcal/)).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/Corrected Chicken and rice.*830 kcal/)).toBeVisible();
@@ -300,7 +300,7 @@ test("temporary credentials and local records stay out of persistent storage and
   await expect(page.getByText("Logged 182.6 lb")).toBeVisible();
   const input = page.getByRole("textbox", { name: "Jarvis message" });
   await input.fill("Explain what progressive overload means.");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText("Synthetic general answer.")).toBeVisible();
   const payload = await page.locator("html").getAttribute("data-synthetic-jarvis-request");
   expect(payload).toContain("Explain what progressive overload means.");
@@ -349,11 +349,11 @@ test("a food library meal can be saved and undone independently without a cloud 
   });
   const conversation = page.getByRole("textbox", { name: "Jarvis message" });
   await conversation.fill("Log 5 grams of creatine.");
-  await conversation.press("Enter");
+  await conversation.press("Control+Enter");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/Logged creatine/)).toBeVisible();
   await conversation.fill("Undo the last meal.");
-  await conversation.press("Enter");
+  await conversation.press("Control+Enter");
   await expect(page.getByText(/^Undo: Logged Banana \+ Whole Wheat Bread/)).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/Undid: Logged Banana \+ Whole Wheat Bread/)).toBeVisible();
@@ -465,7 +465,7 @@ test("saved meal preferences can be corrected and forgotten without changing nut
 
   const input = page.getByRole("textbox", { name: "Jarvis message" });
   await input.fill("Forget my usual breakfast.");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText(/Forget Banana as your usual breakfast/)).toBeVisible();
   expect((await readPersistedFitCoreState(page)).userGoalsProfile.usualBreakfast).toBe("Banana");
   await page.getByRole("button", { name: "Save", exact: true }).click();

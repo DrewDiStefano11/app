@@ -22,7 +22,7 @@ test("Gemini cannot receive personal fitness requests under the unpaid-provider 
   await page.evaluate(() => window.dispatchEvent(new Event("fitcore:open-jarvis")));
   const input = page.getByRole("textbox", { name: "Jarvis message" });
   await input.fill("Explain this synthetic fitness question please.");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText(/Gemini is unavailable for personal fitness data/)).toBeVisible();
   await expect(input).toHaveValue("Explain this synthetic fitness question please.");
   expect((await readPersistedFitCoreState(page)).mealEntries).toEqual([]);

@@ -16,7 +16,7 @@ test("local text saves confirmed weigh-in, sleep and supplement records", async 
   const input = page.getByPlaceholder("Talk to Jarvis...");
   const send = async (text: string) => {
     await input.fill(text);
-    await input.press("Enter");
+    await input.press("Control+Enter");
   };
   const save = page.getByRole("button", { name: "Save", exact: true });
   await save.click();
@@ -58,7 +58,7 @@ test("StairMaster follow-ups save only reported values and retain distinct sessi
   const input = page.getByRole("textbox", { name: "Jarvis message" });
   const send = async (message: string) => {
     await input.fill(message);
-    await input.press("Enter");
+    await input.press("Control+Enter");
   };
   const save = page.getByRole("button", { name: "Log cardio", exact: true });
   await send("24.5 minutes");
@@ -100,7 +100,7 @@ test("recovery ratings collected in follow-ups save together only after review",
   const input = page.getByRole("textbox", { name: "Jarvis message" });
   const send = async (text: string) => {
     await input.fill(text);
-    await input.press("Enter");
+    await input.press("Control+Enter");
   };
   await send("I'm very sore from yesterday.");
   await expect(page.getByText("How strong is the soreness on a scale of 1 to 10?")).toBeVisible();
@@ -184,7 +184,7 @@ test("workout history, the rest timer, and the schedule answer from saved data o
   const input = page.getByRole("textbox", { name: "Jarvis message" });
   const send = async (message: string) => {
     await input.fill(message);
-    await input.press("Enter");
+    await input.press("Control+Enter");
   };
   await send("How much did I bench last Monday?");
   await expect(page.getByText(/190 lb × 5/)).toBeVisible();

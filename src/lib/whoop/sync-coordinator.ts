@@ -199,7 +199,11 @@ export function createWhoopSyncCoordinator(transport: Transport) {
 
   function retryStatus(retryAt = 0) {
     authorization = "unknown";
-    resetEvidence("updated");
+    // A transient status failure is not a revocation. Fence pending requests,
+    // but retain already-authorized evidence until its unchanged access deadline.
+    generation++;
+    reading?.abort();
+    expire();
     nextRenewal = Math.max(transport.now() + cooldownMs, retryAt);
   }
 
@@ -223,8 +227,10 @@ export function createWhoopSyncCoordinator(transport: Transport) {
           void requestSync("automatic").catch(() => {});
         }
         arm();
+        transport.onChange("updated");
       });
     checking = { controller, promise };
+    transport.onChange("updated");
     arm();
     return promise;
   }
@@ -299,8 +305,13 @@ export function createWhoopSyncCoordinator(transport: Transport) {
       ) {
         publish(value, live ? "live" : "cached");
       }
-    } else if (live || snapshotSource === "cached") {
+    } else if (!live && snapshotSource === "cached" && value === null) {
+      // An authenticated cache read can explicitly withdraw cached evidence.
       publish(null);
+    } else {
+      // An invalid replacement cannot invalidate the previous authorized lease.
+      // expire() above still removes it at its original deadline.
+      expire();
     }
   }
 
@@ -372,12 +383,17 @@ export function createWhoopSyncCoordinator(transport: Transport) {
         inFlight = undefined;
         reading = undefined;
         arm();
+        transport.onChange("updated");
       });
+    transport.onChange("updated");
     arm();
     return inFlight;
   }
 
   return {
+    getRefreshing() {
+      return foreground && Boolean(checking || inFlight);
+    },
     getSnapshot() {
       return foreground && expiresAt > transport.now() ? snapshot : null;
     },

@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [main, "codex/fitcore-core-integration"]
+    branches: [main, "codex/fitcore-core-integration", "codex/fitcore-jarvis-voice"]
 
 permissions:
   contents: read

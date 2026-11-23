@@ -31,7 +31,7 @@ test("a Jarvis set finishes into one canonical workout and answers from saved hi
   await page.getByRole("button", { name: "Open Jarvis" }).click();
   const input = page.getByRole("textbox", { name: "Jarvis message" });
   await input.fill("I benched 185 pounds for 8 reps");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(
     page.getByText("Logged Barbell Bench Press: 185 lb for 8 reps", { exact: true }),
@@ -51,6 +51,6 @@ test("a Jarvis set finishes into one canonical workout and answers from saved hi
   expect(state.prs.filter((record) => record.exerciseId === "bench-press")).toHaveLength(1);
   await page.evaluate(() => window.dispatchEvent(new Event("fitcore:open-jarvis")));
   await input.fill("What did I bench last time?");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText(/185 lb × 8/)).toBeVisible();
 });

@@ -30,7 +30,7 @@ import { BottomSheet } from "@/components/app/sheet";
 import { WhoopDashboard } from "@/components/app/whoop-dashboard";
 import { useWhoopSnapshot } from "@/hooks/use-whoop-snapshot";
 import { selectSleepEvidence } from "@/lib/whoop/evidence";
-import { WhoopHealthFields, WhoopSleepFields } from "@/components/app/native-whoop-fields";
+import { WhoopHealthFields, WhoopSleepFields, WhoopSyncStatus } from "@/components/app/native-whoop-fields";
 import { sleepDuration } from "@/lib/whoop/format";
 
 const MUSCLES = [
@@ -114,6 +114,7 @@ export function RecoveryView({ layoutMode = "daily" }: { layoutMode?: LayoutMode
         title="Recovery"
         subtitle={`${scoreStatusLabel(readiness)} · ${isDeepDive ? "Deep Dive" : "Daily View"}`}
       />
+      <WhoopSyncStatus />
 
       {!isDeepDive ? (
         <DailyViewRecovery />

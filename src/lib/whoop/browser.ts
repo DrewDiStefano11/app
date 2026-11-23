@@ -105,6 +105,10 @@ export function getWhoopSnapshot(): WhoopSnapshot | null {
   return typeof document !== "undefined" && foreground() ? coordinator.getSnapshot() : null;
 }
 
+export function getWhoopRefreshing() {
+  return typeof document !== "undefined" && foreground() && coordinator.getRefreshing();
+}
+
 export async function readWhoopSnapshot(signal: AbortSignal): Promise<WhoopSnapshot | null> {
   return signal.aborted ? null : getWhoopSnapshot();
 }

@@ -473,6 +473,18 @@ body {
   scrollbar-width: thin;
 }
 
+@media (max-height: 600px) {
+  .jarvis-suggestions { display: none; }
+}
+.sheet-root[data-compact="true"] .jarvis-suggestions { display: none; }
+.jarvis-layout textarea {
+  max-height: min(144px, max(48px, calc(var(--sheet-visible-height, 100dvh) * 0.28)));
+}
+
+/* Prevent iOS focus zoom and keep workout input metrics stable while typing. */
+.active-workout input,
+.active-workout textarea { font-size: 16px; }
+
 .sheet-action-bar {
   position: sticky;
   bottom: 0;
@@ -1810,20 +1822,23 @@ body {
   padding: 0.45rem;
 }
 
-.command-bar__composer input {
+.command-bar__composer textarea {
   min-width: 0;
   height: 48px;
   flex: 1;
   border: 1px solid rgb(255 255 255 / 10%);
   border-radius: 1rem;
   background: rgb(255 255 255 / 5%);
-  padding: 0 0.8rem;
+  padding: 0.65rem 0.8rem;
   color: white;
-  font-size: 0.82rem;
+  font-size: 16px;
+  line-height: 24px;
+  resize: none;
+  overflow-y: auto;
   outline: none;
 }
 
-.command-bar__composer input:focus {
+.command-bar__composer textarea:focus {
   border-color: color-mix(in oklab, var(--section) 68%, white 8%);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--section) 13%, transparent);
 }

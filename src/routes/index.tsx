@@ -107,7 +107,7 @@ function FitCoreApp() {
     <>
       <div className="phone-shell" data-section={displayedSection} key={displayedSection}>
         {storageMessage}
-        <div className="animate-tile-in">
+        <div className={showActiveWorkout ? undefined : "animate-tile-in"}>
           {settingsOpen && !hasActiveWorkout ? (
             <SettingsView onBack={() => setSettingsOpen(false)} layoutMode={layoutMode} />
           ) : (

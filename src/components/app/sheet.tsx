@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, type KeyboardEvent, type ReactNode } from "re
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useVisibleViewport } from "@/hooks/use-visible-viewport";
 
 function keepDialogFocus(event: KeyboardEvent<HTMLDivElement>, onClose: () => void) {
   if (event.key === "Escape") {
@@ -34,6 +35,7 @@ export function BottomSheet({
   height = "auto",
   closeLabel,
   manageFocus = false,
+  fitViewport = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -42,8 +44,31 @@ export function BottomSheet({
   height?: "auto" | "tall" | "full";
   closeLabel?: string;
   manageFocus?: boolean;
+  fitViewport?: boolean;
 }) {
+  const viewport = useVisibleViewport(open && fitViewport);
   const surface = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open || !fitViewport) return;
+    const scroller = surface.current?.querySelector<HTMLElement>(".sheet-scroll");
+    if (!scroller) return;
+    let frame = 0;
+    const keepFocusedFieldVisible = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const field = document.activeElement;
+        if (!(field instanceof HTMLElement) || !scroller.contains(field) || !field.matches("input, textarea, select, [contenteditable=true]")) return;
+        const bounds = scroller.getBoundingClientRect();
+        const target = field.getBoundingClientRect();
+        // Move only the sheet's own scroll region and only the distance needed.
+        if (target.bottom > bounds.bottom - 12) scroller.scrollTop += target.bottom - bounds.bottom + 12;
+        else if (target.top < bounds.top + 12) scroller.scrollTop += target.top - bounds.top - 12;
+      });
+    };
+    scroller.addEventListener("focusin", keepFocusedFieldVisible);
+    keepFocusedFieldVisible();
+    return () => { cancelAnimationFrame(frame); scroller.removeEventListener("focusin", keepFocusedFieldVisible); };
+  }, [open, fitViewport, viewport]);
   useEffect(() => {
     if (!open) return;
     const orig = document.body.style.overflow;
@@ -65,7 +90,8 @@ export function BottomSheet({
   if (!open) return null;
   const section = typeof document !== "undefined" ? document.querySelector('.phone-shell')?.getAttribute('data-section') || 'home' : 'home';
   return createPortal(
-    <div className="sheet-root fixed inset-0 z-50 flex items-end justify-center" data-section={section}>
+    <div className="sheet-root fixed inset-0 z-50 flex items-end justify-center" data-section={section} data-compact={fitViewport && viewport && viewport.height < 600 ? "true" : undefined}
+      style={fitViewport && viewport ? { top: viewport.top, height: viewport.height, bottom: "auto", "--sheet-visible-height": `${viewport.height}px` } as React.CSSProperties : undefined}>
       <div
         className="sheet-backdrop absolute inset-0 bg-black/80 backdrop-blur-md animate-in fade-in"
         onClick={onClose}
@@ -82,6 +108,7 @@ export function BottomSheet({
           height === "tall" && "max-h-[88dvh]",
           height === "full" && "h-[100dvh] rounded-none",
         )}
+        style={fitViewport ? { maxHeight: "min(88dvh, var(--sheet-visible-height, 100dvh))" } : undefined}
       >
         <div className="sheet-header flex min-h-16 items-center justify-between border-b border-white/[0.06] px-5 pb-3 pt-5">
           <div className="sheet-grabber absolute left-1/2 top-2 -translate-x-1/2 h-1 w-10 rounded-full bg-white/25" />
@@ -98,7 +125,7 @@ export function BottomSheet({
         </div>
         <div
           className="sheet-scroll overflow-y-auto px-5 pb-[max(24px,env(safe-area-inset-bottom))] pt-4"
-          style={{ maxHeight: "calc(88dvh - 60px)" }}
+          style={{ maxHeight: fitViewport ? "calc(min(88dvh, var(--sheet-visible-height, 100dvh)) - 64px)" : "calc(88dvh - 60px)" }}
         >
           {children}
         </div>

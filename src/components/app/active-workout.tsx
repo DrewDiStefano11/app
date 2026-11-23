@@ -294,7 +294,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div className="pb-32">
+    <div className="active-workout pb-32">
       {/* Header with real timer */}
       <div className="sticky top-0 z-10 glass border-b border-border">
         <div className="px-5 py-3 flex items-center gap-3">
@@ -1066,7 +1066,7 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
   if (!w) return null;
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Finish workout" height="tall">
+    <BottomSheet open={open} onClose={onClose} title="Finish workout" height="tall" fitViewport>
       <div className="space-y-4">
         {/* Summary */}
         <div className="grid grid-cols-3 gap-2">
