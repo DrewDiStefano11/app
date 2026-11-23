@@ -7,6 +7,7 @@ type SnapshotSource = "live" | "cached";
 
 type Transport = {
   now(): number;
+  isOnline?(): boolean;
   setTimer(callback: () => void, delay: number): () => void;
   status(signal: AbortSignal): Promise<Response>;
   records(signal: AbortSignal): Promise<Response>;
@@ -111,7 +112,14 @@ export function createWhoopSyncCoordinator(transport: Transport) {
   }
 
   function nextCheck() {
-    if (!active || !foreground || authorization === "blocked" || checking || inFlight) {
+    if (
+      !active ||
+      !foreground ||
+      transport.isOnline?.() === false ||
+      authorization === "blocked" ||
+      checking ||
+      inFlight
+    ) {
       return Infinity;
     }
     return Math.max(nextAllowed, nextRenewal, statusNotBefore);
@@ -120,7 +128,7 @@ export function createWhoopSyncCoordinator(transport: Transport) {
   function arm() {
     cancelTimer?.();
     cancelTimer = undefined;
-    if (!foreground) return;
+    // Expiry still applies while hidden/offline; only network work pauses.
     const deadline = Math.min(expiresAt, nextCheck());
     if (!Number.isFinite(deadline)) return;
     const delay = Math.min(Math.max(0, deadline - transport.now()), maxTimeoutMs);
@@ -160,36 +168,45 @@ export function createWhoopSyncCoordinator(transport: Transport) {
     if (isAuthorizationError(response)) {
       block(response.status);
     } else if (response.ok) {
-      await displaySnapshot(response, false, readGeneration, signal);
+      return displaySnapshot(response, false, readGeneration, signal);
     } else if (deferRecordsRead(response)) {
       recordCooldown(response);
     }
   }
 
-  async function checkStatus(signal: AbortSignal, restoreCache: boolean) {
+  async function readStatus(signal: AbortSignal, restoreCache: boolean, checkGeneration: number) {
     const response = await transport.status(signal);
     signal.throwIfAborted();
     const info = response.ok ? await response.json() : null;
     signal.throwIfAborted();
+    if (checkGeneration !== generation) return;
     if (info?.status === "connected") {
       const nextVersion = typeof info.version === "string" ? info.version : undefined;
-      if (version !== undefined && version !== nextVersion) resetEvidence("updated");
+      const versionChanged = version !== undefined && version !== nextVersion;
+      if (versionChanged) resetEvidence("updated");
       version = nextVersion;
       authorization = "connected";
       const cachedSnapshotChanged =
         snapshotSource === "cached" &&
         (typeof info.lastSyncedAt === "string" || info.lastSyncedAt === null) &&
         info.lastSyncedAt !== snapshot?.lastSyncedAt;
-      if (restoreCache && (!snapshot || cachedSnapshotChanged) && !inFlight) {
+      if ((restoreCache || versionChanged) && (!snapshot || cachedSnapshotChanged)) {
         await restoreCachedSnapshot(signal);
       }
-    } else if (!response.ok && isRecoverable(response)) {
+    } else if (!response.ok && !isAuthorizationError(response)) {
       const now = transport.now();
       const retryAt = retryDeadline(response, now);
       if (response.status === 429 || retryAt > 0) {
         statusNotBefore = Math.max(statusNotBefore, now + cooldownMs, retryAt);
       }
       retryStatus(retryAt);
+    } else if (
+      response.ok &&
+      !["disconnected", "disconnecting", "reconnect_required", "locked", "unavailable"].includes(
+        info?.status,
+      )
+    ) {
+      retryStatus();
     } else {
       block(
         isAuthorizationError(response) ? response.status : info?.status === "locked" ? 401 : 503,
@@ -197,28 +214,52 @@ export function createWhoopSyncCoordinator(transport: Transport) {
     }
   }
 
+  async function checkStatus(signal: AbortSignal, restoreCache: boolean) {
+    const checkGeneration = generation;
+    // /records independently authenticates the session and current connection.
+    // Restore its original authorized lease without waiting for status or WHOOP.
+    const restoring =
+      restoreCache && !snapshot
+        ? restoreCachedSnapshot(signal).catch(() => {
+            signal.throwIfAborted();
+          })
+        : undefined;
+    const [, restored] = await Promise.all([
+      readStatus(signal, restoreCache && !restoring, checkGeneration).catch(() => {
+        signal.throwIfAborted();
+        if (checkGeneration === generation) retryStatus();
+      }),
+      restoring,
+    ]);
+    // A response issued before the status read can belong to an older revision.
+    // Fetch the current authorized server snapshot once, without forcing WHOOP sync.
+    if (restored === false && authorization === "connected") await restoreCachedSnapshot(signal);
+  }
+
   function retryStatus(retryAt = 0) {
     authorization = "unknown";
-    // A transient status failure is not a revocation. Fence pending requests,
-    // but retain already-authorized evidence until its unchanged access deadline.
-    generation++;
-    reading?.abort();
+    // A transport failure does not revoke an authenticated records response or
+    // an existing lease. Only authorization/lifecycle fences advance generation.
     expire();
     nextRenewal = Math.max(transport.now() + cooldownMs, retryAt);
   }
 
   function revalidate(restoreCache = true) {
     expire();
-    if (!active || !foreground) return Promise.resolve();
+    if (!active || !foreground || transport.isOnline?.() === false) {
+      arm();
+      return Promise.resolve();
+    }
     if (checking) return checking.promise;
     if (transport.now() < statusNotBefore) {
       arm();
       return Promise.resolve();
     }
     const controller = new AbortController();
+    const checkGeneration = generation;
     const promise = withinDeadline(controller, (signal) => checkStatus(signal, restoreCache))
       .catch(() => {
-        if (checking?.controller === controller) retryStatus();
+        if (checking?.controller === controller && checkGeneration === generation) retryStatus();
       })
       .finally(() => {
         if (checking?.controller !== controller) return;
@@ -244,11 +285,15 @@ export function createWhoopSyncCoordinator(transport: Transport) {
     if (value === foreground) return;
     foreground = value;
     if (foreground) {
+      expire();
+      nextRenewal = 0;
+      transport.onChange("updated");
       void revalidate();
     } else {
       cancelStatusCheck();
-      authorization = "unknown";
-      resetEvidence("updated");
+      generation++;
+      reading?.abort();
+      expire();
       arm();
     }
   }
@@ -277,11 +322,11 @@ export function createWhoopSyncCoordinator(transport: Transport) {
   }
 
   function handleSyncFailure(response: Response) {
-    if (isRecoverable(response)) {
-      nextRenewal = 0;
-    } else {
-      block(isAuthorizationError(response) ? response.status : 503);
+    if (isAuthorizationError(response)) {
+      block(response.status);
       cancelStatusCheck();
+    } else {
+      nextRenewal = 0;
     }
   }
 
@@ -296,6 +341,14 @@ export function createWhoopSyncCoordinator(transport: Transport) {
     if (syncGeneration !== generation) return;
     expire();
     if (isSnapshot(value, transport.now())) {
+      if (!live) {
+        if (
+          typeof value.version !== "string" ||
+          (version !== undefined && value.version !== version)
+        )
+          return false;
+        version = value.version;
+      }
       if (live && typeof value.version === "string") version = value.version;
       if (
         live ||
@@ -350,7 +403,8 @@ export function createWhoopSyncCoordinator(transport: Transport) {
   }
 
   function requestSync(mode: SyncMode = "manual"): Promise<Response> {
-    if (!foreground) return Promise.resolve(new Response(null, { status: 503 }));
+    if (!foreground || transport.isOnline?.() === false)
+      return Promise.resolve(new Response(null, { status: 503 }));
     if (inFlight) return inFlight;
     if (checking) {
       return checking.promise.then(() => requestSync(mode));
@@ -395,7 +449,7 @@ export function createWhoopSyncCoordinator(transport: Transport) {
       return foreground && Boolean(checking || inFlight);
     },
     getSnapshot() {
-      return foreground && expiresAt > transport.now() ? snapshot : null;
+      return expiresAt > transport.now() ? snapshot : null;
     },
     start() {
       active = true;

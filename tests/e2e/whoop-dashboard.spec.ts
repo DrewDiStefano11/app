@@ -24,6 +24,9 @@ async function syntheticWhoop(page: Page, initialScore = 80, lifetime = 120000) 
     lifetime,
     statusFailure: 0,
     holdSync: false,
+    holdStatus: false,
+    restoreServer: false,
+    releaseStatus: null as (() => void) | null,
     releaseSync: null as (() => void) | null,
   };
   await page.clock.install({ time: new Date(now) });
@@ -95,25 +98,41 @@ async function syntheticWhoop(page: Page, initialScore = 80, lifetime = 120000) 
       ],
     };
   };
-  await page.route("**/api/whoop/status", (route) =>
-    control.statusFailure ? route.fulfill({ status: control.statusFailure, headers: { "Retry-After": "600" } }) : control.connected
-      ? route.fulfill({
-          json: {
-            status: "connected",
-            version: control.version,
-            lastSyncedAt: new Date(now).toISOString(),
-          },
-        })
-      : route.fulfill({ status: 401 }),
+  let serverSnapshot: unknown = null;
+  await page.route("**/api/whoop/status", async (route) => {
+    if (control.holdStatus)
+      await new Promise<void>((resolve) => {
+        control.releaseStatus = resolve;
+      });
+    return control.statusFailure
+      ? route.fulfill({ status: control.statusFailure, headers: { "Retry-After": "600" } })
+      : control.connected
+        ? route.fulfill({
+            json: {
+              status: "connected",
+              version: control.version,
+              lastSyncedAt: new Date(now).toISOString(),
+            },
+          })
+        : route.fulfill({ status: 401 });
+  });
+  await page.route("**/api/whoop/records", (route) =>
+    route.fulfill({
+      json: control.restoreServer ? serverSnapshot : null,
+      headers: { "Cache-Control": "no-store" },
+    }),
   );
-  await page.route("**/api/whoop/records", (route) => route.fulfill({ json: null }));
   await page.route("**/api/whoop/sync", async (route) => {
     control.syncs++;
-    if (control.holdSync) await new Promise<void>(resolve => { control.releaseSync = resolve; });
+    if (control.holdSync)
+      await new Promise<void>((resolve) => {
+        control.releaseSync = resolve;
+      });
     if (!control.connected) return route.fulfill({ status: 401 });
     if (control.denySync)
       return route.fulfill({ status: control.denySync, headers: { "Retry-After": "300" } });
-    return route.fulfill({ json: await snapshot(), headers: { "Cache-Control": "no-store" } });
+    serverSnapshot = await snapshot();
+    return route.fulfill({ json: serverSnapshot, headers: { "Cache-Control": "no-store" } });
   });
   await seedRevisionedFitCoreState(
     page,
@@ -135,15 +154,19 @@ async function syntheticWhoop(page: Page, initialScore = 80, lifetime = 120000) 
   return control;
 }
 
-test("valid WHOOP measurements survive a delayed renewal and transient status failure until authorized expiry", async ({ page }) => {
+test("valid WHOOP measurements survive a delayed renewal and transient status failure until authorized expiry", async ({
+  page,
+}) => {
   const control = await syntheticWhoop(page, 80, 300000);
   const value = page.locator(".home-orbit-score--recovery .home-orbit-value");
   await expect(value).toHaveText("80%");
-  control.holdSync = true; control.score = 83;
+  control.holdSync = true;
+  control.score = 83;
   await page.clock.runFor(285000);
   await expect.poll(() => Boolean(control.releaseSync)).toBe(true);
   await expect(value).toHaveText("80%");
-  control.holdSync = false; control.releaseSync!();
+  control.holdSync = false;
+  control.releaseSync!();
   await expect(value).toHaveText("83%");
   control.statusFailure = 503;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -353,3 +376,92 @@ for (const action of ["Lock WHOOP settings", "Disconnect WHOOP"]) {
     expect(await page.evaluate(() => JSON.stringify(localStorage))).toContain("manual-today");
   });
 }
+
+for (const away of [30000, 300000]) {
+  test(`WHOOP survives iPhone-style hide/resume after ${away / 1000} seconds before status completes`, async ({
+    page,
+  }) => {
+    const control = await syntheticWhoop(page, 80, 600000);
+    const value = page.locator(".home-orbit-score--recovery .home-orbit-value");
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "hidden",
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    await page.clock.runFor(away);
+    control.holdStatus = true;
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        get: () => "visible",
+      });
+      window.dispatchEvent(new Event("pageshow"));
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect(value).toHaveText("80%");
+    await expect.poll(() => Boolean(control.releaseStatus)).toBe(true);
+    expect(control.syncs).toBe(1);
+    control.holdStatus = false;
+    control.releaseStatus!();
+    if (away === 300000) await expect.poll(() => control.syncs).toBe(2);
+  });
+}
+
+test("offline return retains valid WHOOP evidence, reconnect refreshes, and expiry never extends", async ({
+  page,
+}) => {
+  const control = await syntheticWhoop(page, 80, 600000);
+  const value = page.locator(".home-orbit-score--recovery .home-orbit-value");
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+    window.dispatchEvent(new Event("offline"));
+    window.dispatchEvent(new Event("pagehide"));
+  });
+  await page.clock.runFor(300000);
+  await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
+  await expect(value).toHaveText("80%");
+  expect(control.syncs).toBe(1);
+  control.score = 87;
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => true });
+    window.dispatchEvent(new Event("online"));
+  });
+  await expect(value).toHaveText("87%");
+  control.statusFailure = 503;
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });
+    window.dispatchEvent(new Event("offline"));
+  });
+  await page.clock.runFor(600000);
+  await expect(value).not.toHaveText("87%");
+});
+
+test("cold JS startup restores the authorized server snapshot before status and fresh sync", async ({
+  page,
+}) => {
+  const control = await syntheticWhoop(page, 80, 600000);
+  control.restoreServer = true;
+  control.holdStatus = true;
+  control.holdSync = true;
+  control.score = 91;
+  await page.reload();
+  const value = page.locator(".home-orbit-score--recovery .home-orbit-value");
+  await expect(value).toHaveText("80%");
+  await expect.poll(() => Boolean(control.releaseStatus)).toBe(true);
+  expect(control.syncs).toBe(1);
+  control.holdStatus = false;
+  control.releaseStatus!();
+  await expect.poll(() => Boolean(control.releaseSync)).toBe(true);
+  await expect(value).toHaveText("80%");
+  control.holdSync = false;
+  control.releaseSync!();
+  await expect(value).toHaveText("91%");
+  const stored = await page.evaluate(() =>
+    JSON.stringify({ local: localStorage, session: sessionStorage }),
+  );
+  expect(stored).not.toContain("hrv_rmssd_milli");
+  expect(stored).not.toContain("recovery_score");
+});
