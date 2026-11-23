@@ -37,7 +37,7 @@ test("typed bench entry reviews, saves, reloads and undoes a planned row offline
   const input = page.getByPlaceholder("Talk to Jarvis...");
   await page.context().setOffline(true);
   await input.fill("I just benched 195 for 4 reps.");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText("Was that load in kilograms or pounds?")).toBeVisible();
   expect((await readPersistedFitCoreState(page)).activeWorkout?.exercises[0].sets[0]).toMatchObject(
     {
@@ -46,7 +46,7 @@ test("typed bench entry reviews, saves, reloads and undoes a planned row offline
     },
   );
   await input.fill("pounds");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText("Log Barbell Bench Press: 195 lb for 4 reps")).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Logged Barbell Bench Press: 195 lb for 4 reps")).toBeVisible();
@@ -65,7 +65,7 @@ test("typed bench entry reviews, saves, reloads and undoes a planned row offline
   await expect(page.getByRole("heading", { name: "Upper A" })).toBeVisible();
   await page.getByRole("button", { name: "Open Jarvis" }).click();
   await input.fill("Undo that last entry.");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(
     page.getByText("Undid: Logged Barbell Bench Press: 195 lb for 4 reps"),
@@ -101,7 +101,7 @@ test("follow-up, correction and cancel preserve the intended set rows", async ({
   const input = page.getByPlaceholder("Talk to Jarvis...");
   const send = async (text: string) => {
     await input.fill(text);
-    await input.press("Enter");
+    await input.press("Control+Enter");
   };
   const save = page.getByRole("button", { name: "Save", exact: true });
 

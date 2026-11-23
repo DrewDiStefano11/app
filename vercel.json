@@ -6,7 +6,9 @@
       "codex/whoop-first-account-readiness": false,
       "codex/whoop-native-auto-refresh": false,
       "codex/fitcore-core-integration": false,
-      "codex/fitcore-jarvis-voice": false
+      "codex/fitcore-jarvis-voice": false,
+      "codex/fitcore-daily-usability": false,
+      "codex/fitcore-record-consistency": false
     }
   }
 }

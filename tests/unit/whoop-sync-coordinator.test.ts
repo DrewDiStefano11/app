@@ -117,6 +117,37 @@ test("repeated 200 replies renew the snapshot for 35 foreground minutes", async 
   expect(coordinator.getSnapshot()?.lastSyncedAt).toBe(new Date(start + 1_995_000).toISOString());
 });
 
+test.each([429, 503, "network"])(
+  "transient status %s retains valid authorized evidence until its original deadline",
+  async (failure) => {
+    const fixture = setup((_, now) => live(now));
+    fixture.launch();
+    await drain();
+    const original = fixture.coordinator.getSnapshot();
+    expect(original).not.toBeNull();
+    fixture.setStatus(() => {
+      if (failure === "network") throw new Error("Synthetic status failure");
+      return new Response(null, { status: failure, headers: { "Retry-After": "600" } });
+    });
+    await fixture.coordinator.revalidate();
+    expect(fixture.coordinator.getSnapshot()).toBe(original);
+    await fixture.runFor(5 * minute);
+    expect(fixture.coordinator.getSnapshot()).toBeNull();
+  },
+);
+
+test("a malformed renewal never hides unexpired previous evidence or extends its expiry", async () => {
+  let calls = 0;
+  const fixture = setup((_, now) => (++calls === 1 ? live(now) : Response.json({ invalid: true })));
+  fixture.launch();
+  await drain();
+  const original = fixture.coordinator.getSnapshot();
+  await fixture.runFor(285000);
+  expect(fixture.coordinator.getSnapshot()).toBe(original);
+  await fixture.runFor(15000);
+  expect(fixture.coordinator.getSnapshot()).toBeNull();
+});
+
 test("continues to retry recoverable 409s and network failures", async () => {
   let attempts = 0;
   const { launch, runFor, requests } = setup((_, now) => {

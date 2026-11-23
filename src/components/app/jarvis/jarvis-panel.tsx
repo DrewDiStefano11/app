@@ -2,7 +2,8 @@ import { BatchReview } from "./batch-review";
 import { interpretJarvisInput, reviewJarvisBatch, commitJarvisBatch, type JarvisBatchReview } from "@/lib/jarvis/mixed-commands";
 import { VoiceInput } from "./voice-input";
 import { JARVIS_GEMINI_PERSONAL_DATA_ENABLED } from "@/lib/jarvis/provider-models";
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
+import { JarvisReplyContent } from "./reply-content";
 import { Sparkles, Send, Loader2 } from "lucide-react";
 import { BottomSheet } from "../sheet";
 import { Chip, GhostButton } from "../ui";
@@ -159,6 +160,13 @@ export function JarvisPanel({ section }: { section: string }) {
   const resolvedDrafts = useRef(new WeakSet<object>());
   const chatFn = useServerFn(aiChat);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const field = composerRef.current;
+    if (!field || !open) return;
+    field.style.height = "0px";
+    field.style.height = `${Math.min(144, Math.max(48, field.scrollHeight))}px`;
+  }, [input, open]);
 
   const clearWhoop = useCallback(() => {
     whoopEpoch.current++;
@@ -450,8 +458,8 @@ export function JarvisPanel({ section }: { section: string }) {
 
   return (
     <>
-      <BottomSheet open={open} onClose={() => { clearWhoop(); setCanShareWhoop(false); setOpen(false); }} title="Jarvis" height="tall" manageFocus>
-        <div className="flex min-h-0 flex-col" style={{ height: "calc(88dvh - 112px)" }}>
+      <BottomSheet open={open} onClose={() => { clearWhoop(); setCanShareWhoop(false); setOpen(false); }} title="Jarvis" height="tall" manageFocus fitViewport>
+        <div className="jarvis-layout flex min-h-0 flex-col" style={{ height: "calc(min(88dvh, var(--sheet-visible-height, 100dvh)) - 112px)" }}>
         <div className="flex shrink-0 items-center gap-2 mb-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--surface-2)]">
             <span className={`w-1.5 h-1.5 rounded-full ${sending ? "animate-pulse" : ""}`} style={{ background: sending ? "var(--section)" : "var(--success, #10b981)" }} />
@@ -476,7 +484,7 @@ export function JarvisPanel({ section }: { section: string }) {
                 {m.content && (
                   <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl text-sm whitespace-pre-wrap ${m.role === "user" ? "text-white" : "bg-[var(--surface-2)]"}`}
                     style={m.role === "user" ? { background: "var(--section)" } : undefined}>
-                    {m.content}
+                    {m.role === "assistant" ? <JarvisReplyContent text={m.content} /> : m.content}
                   </div>
                 )}
                 {m.id === latestToolMessageId && m.batch && <BatchReview review={m.batch.review} outcome={m.batch.outcome} cancelled={m.batch.cancelled}
@@ -499,7 +507,7 @@ export function JarvisPanel({ section }: { section: string }) {
           {sending && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 size={14} className="animate-spin" />Jarvis is thinking...</div>}
         </div>
 
-        <div className="flex shrink-0 gap-2 overflow-x-auto no-scrollbar py-3 -mx-1 px-1">
+        <div className="jarvis-suggestions flex shrink-0 gap-2 overflow-x-auto no-scrollbar py-3 -mx-1 px-1">
           {SUGGESTED.map(s => <Chip key={s} onClick={() => send(s)}>{s}</Chip>)}
         </div>
 
@@ -522,9 +530,9 @@ export function JarvisPanel({ section }: { section: string }) {
         )}
         <VoiceInput key={voiceEpoch} enabled={settings.enabled && settings.voiceModeEnabled && !state.demoMode} active={open && !sending} onTranscript={appendTranscript} onBusyChange={setVoiceBusy} onUsage={recordDiagnostics} />
         <div className="flex shrink-0 gap-2 pb-2 pt-1" style={{ background: "var(--surface)" }}>
-          <input value={input} onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) void send(input, canShareWhoop && shareWhoop); }}
-            aria-label="Jarvis message" placeholder="Talk to Jarvis..." className="flex-1 px-4 py-3 rounded-xl bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)]" />
+          <textarea ref={composerRef} rows={1} value={input} onChange={e => setInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) { e.preventDefault(); void send(input, canShareWhoop && shareWhoop); } }}
+            aria-label="Jarvis message" aria-description="Return adds a new line. Use Send or Control Enter to submit." placeholder="Talk to Jarvis..." className="min-w-0 flex-1 resize-none overflow-y-auto px-4 py-3 text-base rounded-xl bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)]" />
           <button onClick={() => void send(input, canShareWhoop && shareWhoop)} disabled={sending || voiceBusy || !input.trim()}
             aria-label="Send message to Jarvis"
             className="w-12 h-12 rounded-xl flex items-center justify-center text-white disabled:opacity-50"

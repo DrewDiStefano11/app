@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { prepareProgressPhoto, progressPhotoFitsStorage } from "@/lib/progress-photo";
 import {
   Camera,
   Plus,
@@ -1088,27 +1089,52 @@ function PhotoSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [phase, setPhase] = useState<ProgressPhoto["phase"]>("maintenance");
   const [notes, setNotes] = useState("");
   const [dataUrl, setDataUrl] = useState("");
-  const onFile = (f: File | null) => {
+  const [error, setError] = useState("");
+  const [preparing, setPreparing] = useState(false);
+  const epoch = useRef(0);
+  useEffect(() => { if (!open) { epoch.current++; setPreparing(false); } }, [open]);
+  useEffect(() => () => { epoch.current++; }, []);
+  const onFile = async (f: File | null) => {
     if (!f) return;
-    if (f.size > 4_000_000) {
-      alert("Image is too large (max 4MB)");
-      return;
+    const request = ++epoch.current;
+    setError(""); setDataUrl(""); setPreparing(true);
+    try {
+      const prepared = await prepareProgressPhoto(f);
+      if (request === epoch.current) setDataUrl(prepared);
+    } catch (cause) {
+      if (request === epoch.current) setError(cause instanceof Error ? cause.message : "Photo could not be prepared. Try another image.");
+    } finally {
+      if (request === epoch.current) setPreparing(false);
     }
-    const r = new FileReader();
-    r.onload = () => setDataUrl(r.result as string);
-    r.readAsDataURL(f);
   };
   const submit = () => {
     if (!dataUrl) return;
-    set((s) => ({
+    let tooLarge = false;
+    const saved = set((s) => {
+      const next = {
       ...s,
       progressPhotos: [
         ...s.progressPhotos,
         { id: uid(), dataUrl, view, phase, notes: notes || undefined, createdAt: Date.now() },
       ],
-    }));
+      };
+      let otherBytes = 0;
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)!;
+          if (!key.startsWith("fitcore.persistence.v1.slot.")) otherBytes += (key.length + (localStorage.getItem(key)?.length ?? 0)) * 2;
+        }
+      } catch { /* The validated transaction below reports unavailable storage. */ }
+      if (!progressPhotoFitsStorage(next, otherBytes)) { tooLarge = true; return s; }
+      return next;
+    });
+    if (tooLarge || !saved) {
+      setError(tooLarge ? "Photo is too large for device storage. Export a backup and remove older photos before retrying. Your preview is still here." : "Photo could not be saved. Your preview is still here. Free device storage or resolve the storage warning, then retry.");
+      return;
+    }
     setDataUrl("");
     setNotes("");
+    setError("");
     onClose();
   };
   return (
@@ -1164,7 +1190,10 @@ function PhotoSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
             />
           </label>
         </div>
-        <PrimaryButton className="w-full" disabled={!dataUrl} onClick={submit}>
+        <p className="text-xs text-muted-foreground">Photos are resized on this device to protect storage for meals and workouts. Keep originals separately.</p>
+        {preparing && <p role="status">Preparing photo…</p>}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        <PrimaryButton className="w-full" disabled={!dataUrl || preparing} onClick={submit}>
           Save photo
         </PrimaryButton>
       </div>

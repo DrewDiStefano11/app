@@ -10,7 +10,7 @@ import {
 test.use({ serviceWorkers: "block", reducedMotion: "reduce" });
 const now = Date.parse("2026-11-19T15:00:00Z");
 
-async function syntheticWhoop(page: Page, initialScore = 80) {
+async function syntheticWhoop(page: Page, initialScore = 80, lifetime = 120000) {
   const control = {
     connected: true,
     version: "synthetic:1",
@@ -21,7 +21,10 @@ async function syntheticWhoop(page: Page, initialScore = 80) {
     syncs: 0,
     denySync: 0,
     state: "SCORED",
-    lifetime: 120000,
+    lifetime,
+    statusFailure: 0,
+    holdSync: false,
+    releaseSync: null as (() => void) | null,
   };
   await page.clock.install({ time: new Date(now) });
   const snapshot = async () => {
@@ -93,7 +96,7 @@ async function syntheticWhoop(page: Page, initialScore = 80) {
     };
   };
   await page.route("**/api/whoop/status", (route) =>
-    control.connected
+    control.statusFailure ? route.fulfill({ status: control.statusFailure, headers: { "Retry-After": "600" } }) : control.connected
       ? route.fulfill({
           json: {
             status: "connected",
@@ -106,6 +109,7 @@ async function syntheticWhoop(page: Page, initialScore = 80) {
   await page.route("**/api/whoop/records", (route) => route.fulfill({ json: null }));
   await page.route("**/api/whoop/sync", async (route) => {
     control.syncs++;
+    if (control.holdSync) await new Promise<void>(resolve => { control.releaseSync = resolve; });
     if (!control.connected) return route.fulfill({ status: 401 });
     if (control.denySync)
       return route.fulfill({ status: control.denySync, headers: { "Retry-After": "300" } });
@@ -130,6 +134,25 @@ async function syntheticWhoop(page: Page, initialScore = 80) {
   ).toBeVisible();
   return control;
 }
+
+test("valid WHOOP measurements survive a delayed renewal and transient status failure until authorized expiry", async ({ page }) => {
+  const control = await syntheticWhoop(page, 80, 300000);
+  const value = page.locator(".home-orbit-score--recovery .home-orbit-value");
+  await expect(value).toHaveText("80%");
+  control.holdSync = true; control.score = 83;
+  await page.clock.runFor(285000);
+  await expect.poll(() => Boolean(control.releaseSync)).toBe(true);
+  await expect(value).toHaveText("80%");
+  control.holdSync = false; control.releaseSync!();
+  await expect(value).toHaveText("83%");
+  control.statusFailure = 503;
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.clock.runFor(1000);
+  await expect(value).toHaveText("83%");
+  await page.clock.runFor(300000);
+  await expect(value).not.toHaveText("83%");
+  await expect(page.getByRole("button", { name: "Open AI composer", exact: true })).toBeVisible();
+});
 
 async function recovery(page: Page) {
   const menu = page.getByRole("button", { name: /Expand navigation/ });

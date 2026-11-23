@@ -10,7 +10,7 @@
 name: 'Dependency review'
 on:
   pull_request:
-    branches: [main, "codex/fitcore-core-integration"]
+    branches: [main, "codex/fitcore-core-integration", "codex/fitcore-jarvis-voice", "codex/fitcore-daily-usability", "codex/fitcore-record-consistency"]
 
 # If using a dependency submission action in this workflow this permission will need to be set to:
 #

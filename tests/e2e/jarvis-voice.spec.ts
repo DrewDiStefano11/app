@@ -127,7 +127,7 @@ test("voice produces editable text, then the normal confirmation saves one activ
   ).toBe(false);
   expect((await readPersistedFitCoreState(page)).activeWorkout?.restEndsAt).toBe(originalRest);
   await input.fill("I benched 195 pounds for 8 reps.");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(
     page.getByText("Logged Barbell Bench Press: 195 lb for 8 reps", { exact: true }),
@@ -147,7 +147,7 @@ test("voice produces editable text, then the normal confirmation saves one activ
   await expect(input).toHaveValue(
     "Actually, that was two hundred thirty-five pounds for six reps.",
   );
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText(/Correct Barbell Bench Press, set 1 .*235 lb/)).toBeVisible();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/Corrected Barbell Bench Press, set 1 .*235 lb/)).toBeVisible();
@@ -160,7 +160,7 @@ test("voice produces editable text, then the normal confirmation saves one activ
   });
   expect(corrected.activeWorkout?.restEndsAt).toBe(restAfterFirstSet);
   await input.fill("Undo that");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/Undid: Voice: Corrected Barbell Bench Press/)).toBeVisible();
   expect((await readPersistedFitCoreState(page)).activeWorkout?.exercises[0].sets[0]).toMatchObject(
@@ -239,7 +239,7 @@ test("one spoken mixed command reviews each entry and saves the selected records
   await page.getByRole("button", { name: "Stop and transcribe", exact: true }).click();
   const input = page.getByRole("textbox", { name: "Jarvis message" });
   await expect(input).toHaveValue(/20 minutes treadmill/);
-  await input.press("Enter");
+  await input.press("Control+Enter");
   const review = page.getByRole("group", { name: "Review mixed entries" });
   await expect(review.getByRole("checkbox")).toHaveCount(3);
   expect((await readPersistedFitCoreState(page)).mealEntries).toEqual([]);
@@ -296,7 +296,7 @@ test("clearing a conversation cancels live voice without losing a typed draft", 
   await voiceFixture(page);
   const input = page.getByRole("textbox", { name: "Jarvis message" });
   await input.fill("How many calories have I eaten today?");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText("There are no meals logged today.", { exact: true })).toBeVisible();
   await input.fill("Keep this draft");
   await page.getByRole("button", { name: "Record voice", exact: true }).click();
@@ -332,10 +332,10 @@ test("voice origin survives a typed clarification before a mixed save", async ({
   await page.getByRole("button", { name: "Stop and transcribe", exact: true }).click();
   const input = page.getByRole("textbox", { name: "Jarvis message" });
   await expect(input).toHaveValue("I slept seven hours; log creatine");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await expect(page.getByText(/Part 1 needs clarification/)).toBeVisible();
   await input.fill("quality 7");
-  await input.press("Enter");
+  await input.press("Control+Enter");
   await page.getByRole("button", { name: "Save selected entries", exact: true }).click();
   await expect(page.getByText("Saved 2 reviewed entries.", { exact: true })).toBeVisible();
   const saved = await readPersistedFitCoreState(page);

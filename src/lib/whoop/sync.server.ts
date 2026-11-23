@@ -175,9 +175,14 @@ export async function syncWhoop(actor: WhoopSyncActor, options: SyncOptions): Pr
     if (!saved) return { status: 409 };
     finished = true;
     if (!saved.accessExpiresAt) return { status: 200 };
+    const reusableUntil = Math.min(...pages.map((page) => page.expiresAt));
     const displayExpiresAt = Math.min(
       Date.parse(saved.accessExpiresAt),
-      Date.now() + syncCooldownSeconds * 1000,
+      // A cache-permitted in-memory view can outlive the sync cooldown, leaving
+      // time to renew. No-cache/no-store pages retain the existing live bound.
+      reusableUntil > Date.now()
+        ? Math.min(reusableUntil, Date.now() + 300_000)
+        : Date.now() + syncCooldownSeconds * 1000,
       ...pages.map((page) => page.earliestFreshness),
     );
     return {

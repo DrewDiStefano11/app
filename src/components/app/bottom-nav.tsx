@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useVisibleViewport } from "@/hooks/use-visible-viewport";
 import { Apple, Dumbbell, Heart, Home, Mic, Send, Sparkles, TrendingUp, X } from "lucide-react";
 import type { SectionId } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -22,6 +23,14 @@ export function BottomNav({
   const [collapsed, setCollapsed] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
+  const input = useRef<HTMLTextAreaElement>(null);
+  const viewport = useVisibleViewport(composerOpen);
+  useLayoutEffect(() => {
+    if (!composerOpen || !input.current) return;
+    const field = input.current;
+    field.style.height = "0px";
+    field.style.height = `${Math.min(144, Math.max(48, field.scrollHeight))}px`;
+  }, [composerOpen, prompt]);
   const lastScrollY = useRef(0);
 
   useEffect(() => {
@@ -59,6 +68,7 @@ export function BottomNav({
         composerOpen && "app-bottom-nav--composing",
       )}
       aria-label="Primary navigation"
+      style={viewport && composerOpen ? { bottom: Math.max(0, window.innerHeight - viewport.height - viewport.top) } : undefined}
     >
       <div className="app-bottom-nav__inner pointer-events-auto w-full max-w-[480px] px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2">
         <div className="nav-shell command-bar">
@@ -67,22 +77,24 @@ export function BottomNav({
               <button
                 onClick={() => {
                   setComposerOpen(false);
-                  setPrompt("");
                 }}
                 className="command-bar__icon press"
                 aria-label="Close AI composer"
               >
                 <X size={18} />
               </button>
-              <input
+              <textarea
+                ref={input}
+                rows={1}
                 autoFocus
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter") submitPrompt();
+                  if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !event.nativeEvent.isComposing) { event.preventDefault(); submitPrompt(); }
                 }}
                 placeholder="Ask or log anything…"
                 aria-label="Message Jarvis"
+                aria-description="Return adds a new line. Use Send or Control Enter to submit."
               />
               <button
                 type="button"

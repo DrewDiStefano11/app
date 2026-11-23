@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import { DEFAULT_REST_SECONDS, restTimerAfterSet } from "@/lib/active-workout-state";
+import { hasPerformedSet } from "@/lib/analytics/observed-fitness";
 import { applyWorkoutPersonalRecords, workoutRecordImprovements } from "@/lib/workout-personal-records";
 import { downloadFitCoreBackup } from "@/lib/fitcore-backup-download";
 import { isDefaultManualProvenance } from "@/lib/fitcore-data";
@@ -294,7 +295,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <div className="pb-32">
+    <div className="active-workout pb-32">
       {/* Header with real timer */}
       <div className="sticky top-0 z-10 glass border-b border-border">
         <div className="px-5 py-3 flex items-center gap-3">
@@ -1002,7 +1003,8 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
   const requiredExercises = w?.exercises.filter(e => !e.target?.optional) ?? [];
   const completedEx = requiredExercises.filter(e => e.completed).length;
   const muscles = new Set<string>();
-  w?.exercises.forEach(e => findEx(e.exerciseId)?.primary.forEach(m => muscles.add(m)));
+  w?.exercises.filter(e => e.sets.some(set => hasPerformedSet(set) && set.modifier !== "warmup"))
+    .forEach(e => findEx(e.exerciseId)?.primary.forEach(m => muscles.add(m)));
 
   const newPRs = useMemo(
     () => w ? workoutRecordImprovements(w, state.workouts, state.customExercises) : [],
@@ -1066,7 +1068,7 @@ function FinishWorkoutSheet({ open, onClose, notes, onNotesChange, elapsedMs, fi
   if (!w) return null;
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Finish workout" height="tall">
+    <BottomSheet open={open} onClose={onClose} title="Finish workout" height="tall" fitViewport>
       <div className="space-y-4">
         {/* Summary */}
         <div className="grid grid-cols-3 gap-2">
