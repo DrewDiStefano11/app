@@ -358,6 +358,8 @@ export interface Profile {
   macroStrictness?: MacroStrictness;
   sleepGoalH?: number;
   stepGoal?: number;
+  /** User-selected seven-day lifting volume target, stored in pounds × repetitions. */
+  weeklyVolumeGoalLb?: number;
   cardioGoalMin?: number;
   recoveryPriority?: "low" | "moderate" | "high";
   injuries?: string[];
