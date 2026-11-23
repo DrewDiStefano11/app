@@ -115,7 +115,7 @@ export interface RunContext {
   confirmed?: boolean;
   mealPortionEdited?: boolean;
   referenceMeal?: boolean;
-  inputMethod?: "text" | "voice";
+  inputMethod?: "text" | "voice" | "photo";
   now?: Date;
 }
 type StagedRunContext = Omit<RunContext, "set"> & { set: Updater };
@@ -276,7 +276,7 @@ const handlers: Record<ToolName, ToolHandler> = {
     }
     const type = String(args.mealType);
     const calories = Number(args.calories);
-    const name = type[0].toUpperCase() + type.slice(1);
+    const name = textArg(args, "name") ?? type[0].toUpperCase() + type.slice(1);
     const approximate = args.approximate === true;
     const amounts = `${approximate ? "about " : ""}${calories} kcal, macros unreported`;
     if (!confirmed) return { ok: true, summary: `Log ${name}: ${amounts}?` };
@@ -299,7 +299,7 @@ const handlers: Record<ToolName, ToolHandler> = {
     });
     return { ok: true, summary, auditId, data: { id } };
   },
-  logMeal: (args, { set, state, confirmed, mealPortionEdited, referenceMeal }) => {
+  logMeal: (args, { set, state, confirmed, mealPortionEdited, referenceMeal, inputMethod }) => {
     const dupeAudit = hasAuditKey(state, "logMeal", args, audit => loggedMealExists(state, audit));
     if (dupeAudit) return duplicateResult(dupeAudit);
     const name = String(args.name ?? "").trim() || "Meal";
@@ -328,7 +328,7 @@ const handlers: Record<ToolName, ToolHandler> = {
       const itemConfidence = asConfidence(it.confidence, confidence);
       return { name: String(it.name ?? "item"), qty: textArg(it, "qty"), calories: Math.round(Number(it.calories) || 0), protein: Math.round(Number(it.protein) || 0), carbs: Math.round(Number(it.carbs) || 0), fat: Math.round(Number(it.fat) || 0), source: (it.source as MealItem["source"]) ?? "jarvis", confidence: itemConfidence, provenance: (referenceMeal ? createJarvisProvenance : createAiEstimateProvenance)({ confidence: itemConfidence, confirmed, auditId, originalText, assumptions }) };
     }) : undefined;
-    const entry: MealEntry = { id, name, type: mealType, calories, protein, carbs, fat, fiber, items, source, confidence, originalText, assumptions, confirmed: provenance.confirmation === "confirmed", auditId, provenance, createdAt: Date.now() };
+    const entry: MealEntry = { id, name, type: mealType, calories, protein, carbs, fat, fiber, items, source: inputMethod === "photo" ? "camera" : source, confidence, originalText, assumptions, notes: textArg(args, "notes"), confirmed: provenance.confirmation === "confirmed", auditId, provenance, createdAt: Date.now() };
     set(s => ({ ...s, mealEntries: [...s.mealEntries, entry] }));
     const summary = `Logged ${name} - ${calories} kcal, ${protein}g P / ${carbs}g C / ${fat}g F`;
     pushAudit(set, { id: auditId, tool: "logMeal", summary, status: "logged", originalText, confidence, assumptions, entityIds: [id], entityKind: "meal", patch: { name, mealType, calories, protein, carbs, fat, actionKey: actionKey("logMeal", args) }, createdAt: Date.now() });
@@ -583,9 +583,9 @@ export function runTool(name: string, args: Record<string, unknown>, ctx: RunCon
   }
   return commitJarvisAction(ctx.state, ctx.set, set => {
     const result = handler(checked, { ...ctx, set });
-    if (result.ok && ctx.inputMethod === "voice" && result.auditId) {
+    if (result.ok && (ctx.inputMethod === "voice" || ctx.inputMethod === "photo") && result.auditId) {
       set(next => ({ ...next, jarvisAudit: next.jarvisAudit.map(entry => entry.id === result.auditId
-        ? { ...entry, summary: `Voice: ${entry.summary}`, patch: { ...entry.patch, inputMethod: "voice" } } : entry) }));
+        ? { ...entry, summary: `${ctx.inputMethod === "photo" ? "Photo" : "Voice"}: ${entry.summary}`, patch: { ...entry.patch, inputMethod: ctx.inputMethod } } : entry) }));
     }
     if (result.ok && draftId) {
       set(next => ({

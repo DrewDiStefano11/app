@@ -33,3 +33,7 @@ export function reserveJarvisCloudTextRequest(storage: RequestStorage, now = Dat
 export function reserveJarvisVoiceRequest(storage: RequestStorage, now = Date.now()) {
   return reserveRequest(storage, now, "fitcore.jarvis.voiceRequests.v1", 4, 40, "voice transcription");
 }
+
+export function reserveJarvisPhotoRequest(storage: RequestStorage, now = Date.now()) {
+  return reserveRequest(storage, now, "fitcore.jarvis.photoRequests.v1", 3, 20, "meal photo and correction");
+}

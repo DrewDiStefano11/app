@@ -1,6 +1,7 @@
 import { BatchReview } from "./batch-review";
 import { interpretJarvisInput, reviewJarvisBatch, commitJarvisBatch, type JarvisBatchReview } from "@/lib/jarvis/mixed-commands";
 import { VoiceInput } from "./voice-input";
+import { usePhotoMeal } from "./use-photo-meal";
 import { JARVIS_GEMINI_PERSONAL_DATA_ENABLED } from "@/lib/jarvis/provider-models";
 import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { JarvisReplyContent } from "./reply-content";
@@ -145,6 +146,7 @@ export function JarvisPanel({ section }: { section: string }) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [voiceEpoch, setVoiceEpoch] = useState(0);
   const clarificationMethod = useRef<"text" | "voice">("text");
   const inputMethod = useRef<"text" | "voice">("text");
@@ -154,6 +156,9 @@ export function JarvisPanel({ section }: { section: string }) {
   const [messages, setMessages] = useState<RenderedMsg[]>([]);
   const { state, set } = useStore();
   const stateRef = useRef(state);
+  const onPhotoReply = useCallback((content: string) => setMessages(previous => [...previous, { id: uid(), role: "assistant", content, createdAt: Date.now(), local: true }]), []);
+  const photo = usePhotoMeal({ active: open, stateRef, commit: set, onReply: onPhotoReply, onBusyChange: setPhotoBusy, onUsage: recordDiagnostics });
+  const { open: openMealPhoto, reopen: reopenPhotoMeal } = photo;
   const sendingRef = useRef(false);
   const whoopEpoch = useRef(0);
   const conversation = useRef<JarvisTextContext>({});
@@ -208,7 +213,16 @@ export function JarvisPanel({ section }: { section: string }) {
   }, [messages, clearWhoop]);
 
   useEffect(() => { stateRef.current = state; }, [state]);
-  useEffect(() => { if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [open, messages.length]);
+  useEffect(() => {
+    const openPhoto = (event: Event) => {
+      const mealId = (event as CustomEvent<{ mealId?: string }>).detail?.mealId;
+      setOpen(true);
+      if (mealId) reopenPhotoMeal(mealId); else openMealPhoto();
+    };
+    window.addEventListener("fitcore:meal-photo", openPhoto);
+    return () => window.removeEventListener("fitcore:meal-photo", openPhoto);
+  }, [openMealPhoto, reopenPhotoMeal]);
+  useEffect(() => { if (open && !photo.shown) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [open, messages.length, photo.shown]);
   useEffect(() => {
     const h = (event: Event) => {
       const detail = (event as CustomEvent<JarvisTextContext["focusedExercise"]>).detail;
@@ -255,7 +269,7 @@ export function JarvisPanel({ section }: { section: string }) {
 
   const send = useCallback(async (text: string, includeWhoop = false) => {
     const content = text.trim();
-    if (!content || sendingRef.current || voiceBusy) return;
+    if (!content || sendingRef.current || voiceBusy || photoBusy) return;
     sendingRef.current = true;
     setShareWhoop(false);
     if (!settings.enabled) {
@@ -265,6 +279,14 @@ export function JarvisPanel({ section }: { section: string }) {
       return;
     }
     const live = stateRef.current;
+    if (photo.shown && !includeWhoop) {
+      const photoMessageId = uid();
+      setMessages(previous => [...previous, { id: photoMessageId, role: "user", content, createdAt: Date.now(), local: true }]);
+      try {
+        if (await photo.handleMessage(content)) { setInput(""); inputMethod.current = "text"; sendingRef.current = false; return; }
+        setMessages(previous => previous.filter(message => message.id !== photoMessageId));
+      } catch { onPhotoReply("That correction could not be applied. Your meal review is retained."); sendingRef.current = false; return; }
+    }
     const context = conversation.current;
     const local = !includeWhoop && !live.demoMode && interpretJarvisInput(content, live, new Date(), context);
     conversation.current = { focusedExercise: context.focusedExercise, lastMealId: context.lastMealId, ...(local ? local.nextContext : {}) };
@@ -389,7 +411,7 @@ export function JarvisPanel({ section }: { section: string }) {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [settings, chatFn, messages, reviewTool, section, voiceBusy]);
+  }, [settings, chatFn, messages, reviewTool, section, voiceBusy, photoBusy, photo, onPhotoReply]);
 
   useEffect(() => {
     const handleCompose = (event: Event) => {
@@ -505,6 +527,7 @@ export function JarvisPanel({ section }: { section: string }) {
             );
           })}
           {sending && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 size={14} className="animate-spin" />Jarvis is thinking...</div>}
+          {photo.view}
         </div>
 
         <div className="jarvis-suggestions flex shrink-0 gap-2 overflow-x-auto no-scrollbar py-3 -mx-1 px-1">
@@ -528,12 +551,13 @@ export function JarvisPanel({ section }: { section: string }) {
             </span>
           </label>
         )}
-        <VoiceInput key={voiceEpoch} enabled={settings.enabled && settings.voiceModeEnabled && !state.demoMode} active={open && !sending} onTranscript={appendTranscript} onBusyChange={setVoiceBusy} onUsage={recordDiagnostics} />
+        <button className="min-h-11 shrink-0 rounded-xl border border-border px-3 text-sm" disabled={sending || voiceBusy || photoBusy} onClick={() => photo.open()}>Meal photo</button>
+        <VoiceInput key={voiceEpoch} enabled={settings.enabled && settings.voiceModeEnabled && !state.demoMode} active={open && !sending && !photoBusy} onTranscript={appendTranscript} onBusyChange={setVoiceBusy} onUsage={recordDiagnostics} />
         <div className="flex shrink-0 gap-2 pb-2 pt-1" style={{ background: "var(--surface)" }}>
           <textarea ref={composerRef} rows={1} value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) { e.preventDefault(); void send(input, canShareWhoop && shareWhoop); } }}
             aria-label="Jarvis message" aria-description="Return adds a new line. Use Send or Control Enter to submit." placeholder="Talk to Jarvis..." className="min-w-0 flex-1 resize-none overflow-y-auto px-4 py-3 text-base rounded-xl bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)]" />
-          <button onClick={() => void send(input, canShareWhoop && shareWhoop)} disabled={sending || voiceBusy || !input.trim()}
+          <button onClick={() => void send(input, canShareWhoop && shareWhoop)} disabled={sending || voiceBusy || photoBusy || !input.trim()}
             aria-label="Send message to Jarvis"
             className="w-12 h-12 rounded-xl flex items-center justify-center text-white disabled:opacity-50"
             style={{ background: "var(--section)" }}>
@@ -541,7 +565,7 @@ export function JarvisPanel({ section }: { section: string }) {
           </button>
         </div>
         {messages.length > 0 && (
-          <div className="mt-2 shrink-0"><GhostButton className="w-full text-sm" onClick={() => { clearWhoop(); conversation.current = {}; clarificationMethod.current = "text"; setVoiceEpoch(value => value + 1); setMessages([]); }}>Clear conversation</GhostButton></div>
+          <div className="mt-2 shrink-0"><GhostButton className="w-full text-sm" onClick={() => { photo.discard(); clearWhoop(); conversation.current = {}; clarificationMethod.current = "text"; setVoiceEpoch(value => value + 1); setMessages([]); }}>Clear conversation</GhostButton></div>
         )}
         </div>
       </BottomSheet>

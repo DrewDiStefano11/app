@@ -1,4 +1,5 @@
 import { transcriptionInputSchema, transcribeJarvisAudio } from "./jarvis/transcription.server";
+import { estimatePhotoMeal, proposePhotoMealCorrection, photoInputSchema, photoCorrectionInputSchema } from "./jarvis/food-photo.server";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
@@ -31,6 +32,19 @@ import {
 } from "./jarvis/provider-models";
 
 const aiProviderSchema = z.enum(["groq", "gemini", "legacy-lovable"]);
+
+export const estimateJarvisMealPhoto = createServerFn({ method: "POST" })
+  .inputValidator(photoInputSchema)
+  .handler(({ data }) => {
+    setResponseHeader("Cache-Control", "no-store");
+    return estimatePhotoMeal(data, { signal: getRequest().signal });
+  });
+export const reviseJarvisMealPhoto = createServerFn({ method: "POST" })
+  .inputValidator(photoCorrectionInputSchema)
+  .handler(({ data }) => {
+    setResponseHeader("Cache-Control", "no-store");
+    return proposePhotoMealCorrection(data, { signal: getRequest().signal });
+  });
 const aiKeyModeSchema = z.enum(["local", "environment", "user"]);
 const geminiModelSchema = z.enum(STORED_GEMINI_MODELS);
 const groqModelSchema = z.enum(STORED_GROQ_MODELS);

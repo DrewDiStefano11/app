@@ -13,3 +13,11 @@ Validation: 950 unit tests passed (0 failures); TypeScript, scoped production li
 Physical checklist: switch away for 30 seconds; repeat for 5 minutes; repeat offline then reconnect; fully terminate/reopen; verify automatic replacement; lock/logout/disconnect/revoke; leave beyond original expiry and confirm clearing. Record server snapshot availability and original expiry when checking the five-minute case.
 
 Campaign preservation: #303 and #304 merged into main as 4bd5cd8 and ebc5f41. #305 activity/scroll and #306 save-safety remain drafts. Conversational photo+library integration is preserved locally on codex/fitcore-food-photo at 919446a, including 954 passing units and a build before final UX/review refinements. Final photo production tests remain pending. After this fix, return to that branch, merge this change and finish photo validation; do not repeat Freebuff audit 56a2a2a.
+
+## Physical cold-start clarification (2026-11-23)
+
+The user's follow-up installed-iPhone test reports that, after fully terminating and reopening FitCore, WHOOP values are present immediately on the first usable screen. They return automatically with no observed delay. This does not reproduce the previously reported remaining cold-start failure; no additional WHOOP behavior change is justified by this result. App-switch restoration was separately confirmed fixed. Do not treat this as full sign-off for offline, revocation, expiration, or every device scenario.
+
+Source tracing confirms startup requests authenticated server records concurrently with status, independently of a fresh provider sync. Restoration requires an authorized, unexpired server snapshot; its actual deployed availability/configuration was not inspected. No missing-snapshot, cookie, network-latency, or initialization-delay cause was established for the now-unreproduced report. Preserve the existing original deadlines, no-store transports, and absence of persistent browser health caching. Do not change production cache flags. An offline fresh JavaScript process cannot restore RAM-only measurements through this server path.
+
+Food-photo progress remains preserved in PR #308. Continue its hosted release checks and the manual weigh-in checkpoint rather than inventing a cold-start fix or repeating the broader audit.
