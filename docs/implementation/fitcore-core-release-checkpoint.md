@@ -4,7 +4,7 @@ This is an integration candidate, not a claim that main is merged or the complet
 
 Published work retained:
 
-- PR #308, codex/fitcore-food-photo, c7e18130666aafdf76a8cb0afdd0cd60f2de06d7: conversational photo estimates, text/voice revisions, saved labels/reuse, explicit validated save, correction of the same meal, and full visible macro parity regression. Ready for review; hosted checks still need final inspection.
+- PR #308, codex/fitcore-food-photo, f5a309daaf822ad1f7b43f72dc2ca1cbffe31bca: conversational photo estimates, text/voice revisions, saved labels/reuse, explicit validated save, correction of the same meal, and full visible macro parity regression. Ready for review; hosted checks still need final inspection.
 - PR #309, codex/fitcore-weigh-in-safety, 857b04b4785594aa02932c26ba19910814b57a3e: three safe manual weigh-in forms, synchronized profile/goals, retained rejected drafts; includes the test-only collapsed-navigation follow-up.
 - PR #310, codex/fitcore-workout-history-order, 1ad1315d2dfe00cbe5e73b5c63ef5f9eead7aa0f: latest/history follows session dates after unsorted imports, preserving stored record order.
 
@@ -17,3 +17,9 @@ Acceptance covers synthetic photo estimation and one-image text/voice correction
 User physical iPhone clarification confirms WHOOP values already present immediately on the first usable screen after a fully terminated installed PWA relaunch. No further cold-start defect is currently reproduced; preserve #307 and its authorization/expiry safeguards. Other physical lifecycle, real camera/audio and actual Groq estimate-accuracy checks are not implied by synthetic browser coverage.
 
 Next: inspect terminal hosted checks on the exact PR heads above; diagnose any specific failures without blindly repeating broad suites. Use this combined candidate's source and preservation evidence when reconciling the PRs against evolving main. Preserve all branches and validated changes. Do not create a duplicate implementation PR just for this candidate or claim the full goal complete. Continue remaining core work from Freebuff56a2a2a only after integrating these completed workflows and resolving release checks.
+
+## Release throughput follow-up
+
+Photo head f5a309d adds workflow/test-budget changes only: independent mandatory production browser jobs and the preserved production-workout aggregate check, plus the long Settings lifecycle test overall60s/action10s limits. Prior head2f23b6f run45226393362 exceeded35min and also recorded a Settings WebKit overall30s scenario timeout; it was not a clean pass. The bounded Settings flow passed2/2 in CI mode (32.1s). All selector/setup/environment preservation checks and actual gate-command failure/cancellation/skipped trials passed; independent review clear.
+
+Candidate merge7c605ec incorporates that follow-up. All29 changed application/test files exactly match the final published feature branches; every branch progress line is preserved as UTF-8, every release selector and production environment is retained, and the matrix/aggregate match the reviewed photo workflow. No application source changed since the combined production artifact and26-scenario acceptance evidence. Hosted run45234399204 on exact photo headf5a309d remains to inspect. The older serial c7 run45230348400 is still being watched through local exec session44412; do not cancel or restart it merely because observation returns a session. No duplicate candidate PR or manual deployment.
