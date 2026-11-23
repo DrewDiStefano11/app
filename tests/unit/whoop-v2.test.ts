@@ -45,6 +45,61 @@ const recovery = {
   },
 };
 
+test("cache observation exposes only policy metadata for every page and cannot interrupt synchronization", async () => {
+  const observed: unknown[] = [];
+  const result = await readWhoopCollectionWithCache("recovery", "synthetic-secret-token", span, {
+    fetch: async (url) =>
+      url.searchParams.has("nextToken")
+        ? Response.json({ records: [] }, { headers: { "Cache-Control": "no-store" } })
+        : Response.json(
+            { records: [recovery], next_token: "synthetic-page-token" },
+            {
+              headers: {
+                "Cache-Control": "private, max-age=60",
+                Age: "5",
+                Date: new Date().toUTCString(),
+              },
+            },
+          ),
+    onCachePolicy(policy) {
+      observed.push(policy);
+    },
+  });
+  expect(observed).toHaveLength(2);
+  expect(Object.keys(observed[0] as object).sort()).toEqual([
+    "age",
+    "cacheControl",
+    "collection",
+    "date",
+    "expiresAt",
+  ]);
+  expect(observed[1]).toEqual({
+    collection: "recovery",
+    cacheControl: "no-store",
+    age: null,
+    date: null,
+    expiresAt: 0,
+  });
+  const encoded = JSON.stringify(observed);
+  for (const secret of [
+    "synthetic-secret-token",
+    "synthetic-page-token",
+    "user_id",
+    "records",
+    "recovery_score",
+  ])
+    expect(encoded).not.toContain(secret);
+  expect(result.expiresAt).toBe(0);
+  expect(result.records).toHaveLength(1);
+  const uninterrupted = await readWhoopCollectionWithCache("recovery", "synthetic", span, {
+    fetch: async () => Response.json({ records: [recovery] }),
+    onCachePolicy() {
+      throw new Error("Synthetic observer failure");
+    },
+  });
+  expect(uninterrupted.records).toHaveLength(1);
+});
+
 describe("WHOOP v2 collections", () => {
   test("paginates an exact time window and retains corrections by source record ID", async () => {
     const requests: URL[] = [];

@@ -380,7 +380,7 @@ test("ordinary provider revision retains native fields through replacement and r
 });
 
 for (const permission of ["authorized", "expired", "revoked"] as const) {
-  test(`new browser process restores only an ${permission} server snapshot and automatically replaces it`, async ({
+  test(`new browser process handles ${permission} server evidence and refreshes only when authorized`, async ({
     playwright,
     browserName,
     baseURL,

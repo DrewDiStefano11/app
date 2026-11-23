@@ -57,6 +57,10 @@ function getIntegration() {
     encryptionKey: WHOOP_TOKEN_ENCRYPTION_KEY,
     jarvisSharingEnabled: WHOOP_JARVIS_SHARING_ENABLED === "true",
     snapshotCacheEnabled: WHOOP_SNAPSHOT_CACHE_ENABLED === "true",
+    onCachePolicy:
+      process.env.VERCEL_ENV === "production"
+        ? (policy) => console.info("WHOOP_CACHE_POLICY", JSON.stringify(policy))
+        : undefined,
     store,
     background:
       WHOOP_BACKGROUND_ENABLED === "true" ? { store, cronSecret: CRON_SECRET } : undefined,

@@ -106,6 +106,7 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
     let regenerated = false;
     let restricted = false;
     let jarvisRead = false;
+    const observedPolicies: unknown[] = [];
     const integration = createWhoopIntegration({
       store,
       origin,
@@ -114,6 +115,9 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
       ownerKeyDigest,
       clientId: "synthetic-client",
       snapshotCacheEnabled: true,
+      onCachePolicy: (policy) => {
+        observedPolicies.push(policy);
+      },
       jarvisSharingEnabled: true,
       background: { store, cronSecret },
       fetch: async (url, init) => {
@@ -249,6 +253,9 @@ test("background routes authenticate, fence concurrent writes, and reconcile WHO
     expect(live.status).toBe(200);
     expect(live.headers.get("Cache-Control")).toBe("no-store");
     const payload = (await live.json()) as WhoopSnapshot;
+    expect(observedPolicies.length).toBeGreaterThanOrEqual(4);
+    expect(JSON.stringify(observedPolicies)).not.toContain("recovery_score");
+    expect(JSON.stringify(observedPolicies)).not.toContain("synthetic-access");
     expect(payload.records.map((record) => record.kind)).toEqual(["workout"]);
     const persisted = await integration.records(
       new Request(origin + "/api/whoop/records", { headers: browser }),
