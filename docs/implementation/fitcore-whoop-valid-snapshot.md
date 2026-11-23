@@ -14,7 +14,7 @@ Home, Recovery, Sleep, Stats and Deep Dive continue using the existing single ex
 
 ## Cache policy and the remaining production prerequisite
 
-WHOOP's current API Terms, effective October 6, 2026, section 4.2.2 prohibit permanent copies and cached copies beyond the provider's cache header. Section 4.2.6 requires deletion when API access ends. See [WHOOP API Terms](https://developer.whoop.com/api-terms-of-use/).
+WHOOP's current API Terms, effective October 6, 2026, section 4.2.2 restrict permanent copies and cached copies beyond the provider's cache header, subject to the express data-owner authorization exception in section 4.2. Section 7.1 requires deletion when API access ends. This PR's temporary-cache path does not record or rely on owner retention consent. See [WHOOP API Terms](https://developer.whoop.com/api-terms-of-use/).
 
 No published universal duration was established for Recovery, Sleep, Cycle or Workout. The **actual authenticated response headers have not been observed in this session**, so no specific live retention duration or claim that WHOOP forbids all caching is justified. Vercel marks the production credentials as Secret and disables copying their values. User approval for a read-only header check does not make those values retrievable through that UI.
 

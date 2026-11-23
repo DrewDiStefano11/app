@@ -99,7 +99,7 @@ const collection = z.object({
   next_token: z.string().max(4096).nullish(),
 });
 
-function normalizeOrThrow(kind: Kind, input: unknown) {
+export function normalizeWhoopRecord(kind: Kind, input: unknown) {
   const result = schemas[kind].safeParse(input);
   if (!result.success) throw new WhoopReadError("invalid_data");
   const { score, ...record } = result.data;
@@ -114,7 +114,7 @@ function normalizeOrThrow(kind: Kind, input: unknown) {
   };
 }
 
-export type WhoopV2Record = ReturnType<typeof normalizeOrThrow>;
+export type WhoopV2Record = ReturnType<typeof normalizeWhoopRecord>;
 
 export class WhoopReadError extends Error {
   constructor(
@@ -239,7 +239,7 @@ export async function readWhoopCollectionWithCache(
     expiresAt = Math.min(expiresAt, result.expiresAt);
     if (result.expiresAt > 0) earliestFreshness = Math.min(earliestFreshness, result.expiresAt);
     for (const raw of result.records) {
-      const record = normalizeOrThrow(kind, raw);
+      const record = normalizeWhoopRecord(kind, raw);
       const previous = records.get(record.id);
       if (!previous || Date.parse(previous.updated_at) <= Date.parse(record.updated_at)) {
         records.set(record.id, record);
