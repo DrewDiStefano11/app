@@ -242,6 +242,9 @@ test("food photo is independently estimated, conversationally corrected, explici
   const review = page.getByRole("region", { name: "Meal photo review" });
   await expect(review.getByText("698 kcal", { exact: true })).toBeVisible();
   await expect(
+    review.getByText("73g protein / 45g carbs / 22g fat for the amount eaten", { exact: true }),
+  ).toBeVisible();
+  await expect(
     review.getByRole("list").first().getByText("Olive Oil", { exact: true }),
   ).toBeVisible();
   expect(calls).toBe(1);
@@ -270,6 +273,7 @@ test("food photo is independently estimated, conversationally corrected, explici
   const saved = (await readPersistedFitCoreState(page)).mealEntries;
   expect(saved).toHaveLength(1);
   expect(saved[0].id).toBe(first.id);
+  expect(saved[0]).toMatchObject({ protein: 77, carbs: 90, fat: 22 });
   await review.getByRole("button", { name: "Undo saved meal", exact: true }).click();
   await expect
     .poll(async () => (await readPersistedFitCoreState(page)).mealEntries[0].calories)
@@ -277,13 +281,36 @@ test("food photo is independently estimated, conversationally corrected, explici
   await page.reload();
   expect((await readPersistedFitCoreState(page)).mealEntries).toHaveLength(1);
   await expect(page.locator(".home-section-card--macros")).toContainText("698");
+  for (const [label, grams] of [
+    ["P", 73],
+    ["C", 45],
+    ["F", 22],
+  ] as const) {
+    await expect(
+      page.locator(".home-section-card--macros").getByText(label, { exact: true }).locator(".."),
+    ).toContainText(new RegExp(`${grams}(?:/[\\d.]+)?g`));
+  }
   await page.getByRole("button", { name: "Fuel", exact: true }).click();
   await expect(page.getByText("698 kcal logged today", { exact: true })).toBeVisible();
+  await expectNutritionMacros(page);
   await page.getByRole("button", { name: "Home", exact: true }).click();
   await page.getByRole("button", { name: "Deep Dive", exact: true }).click();
   await page.getByRole("button", { name: "Fuel", exact: true }).click();
   await expect(page.getByText("698 kcal logged today", { exact: true })).toBeVisible();
+  await expectNutritionMacros(page);
 });
+
+async function expectNutritionMacros(page: Page) {
+  for (const [label, grams] of [
+    ["Protein", 73],
+    ["Carbs", 45],
+    ["Fat", 22],
+  ] as const) {
+    await expect(page.getByText(label, { exact: true }).first().locator("..")).toContainText(
+      new RegExp(`${grams}(?:/[\\d.]+)?g`),
+    );
+  }
+}
 
 test("photo rate limit leaves ordinary text logging and stored records available", async ({
   page,
