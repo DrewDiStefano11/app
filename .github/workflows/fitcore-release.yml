@@ -13,8 +13,8 @@ permissions:
 jobs:
   production-workout:
     runs-on: ubuntu-latest
-    # Voice run45199531906 reached181/188 cases at the old25m ceiling.
-    # Keep every test and allow runner/provisioning variance to finish the gate.
+    # Prior voice/usability runs reached the old 25-minute job ceiling.
+    # Preserve the complete production browser selection and allow it to finish.
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
