@@ -21,7 +21,7 @@ function PrivacyPolicy() {
           Back to FitCore
         </Link>
         <h1 className="text-3xl font-bold sm:text-4xl">FitCore Privacy Policy</h1>
-        <p className="text-sm text-muted-foreground">Updated November 19, 2026</p>
+        <p className="text-sm text-muted-foreground">Updated November 23, 2026</p>
       </header>
 
       <div className="space-y-7 leading-relaxed text-muted-foreground">
@@ -40,20 +40,35 @@ function PrivacyPolicy() {
         <section className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">AI features</h2>
           <p>
-            Using Jarvis or an AI estimate can send your message, the details you enter, and
-            relevant fitness context through FitCore&apos;s server to the configured AI provider.
-            Providers can include Lovable&apos;s AI gateway, Google Gemini, or Groq. Their privacy
-            terms apply to the information they receive. Selecting a meal photo for an AI estimate
-            sends the photo through FitCore&apos;s server to Gemini before you save the meal. Voice
-            input uses your browser&apos;s speech recognition, which may send audio to a speech
-            service. If you submit the transcript to Jarvis, the transcript is treated as your
-            message.
+            Ordinary fitness tracking and supported Jarvis commands work locally. If you enable
+            cloud text, FitCore can send your message and a bounded set of recent user messages
+            through its server to Groq, using your own provider key. Gemini requests for personal
+            fitness data and automatic Gemini fallback are disabled under its unpaid-service terms.
+            Food-photo AI estimation is disabled in this version.
           </p>
           <p>
-            Jarvis activity, text associated with saved records, and AI preferences can stay on your
-            device. If you enter your own AI provider keys, FitCore can save them in this browser.
-            Saved keys can accompany AI requests to FitCore&apos;s server for provider
-            authentication. You can remove your keys in Jarvis settings.
+            Short voice recordings are optional. After enabling voice input, pressing Record voice
+            starts the microphone; stopping it sends that clip through FitCore&apos;s server to Groq
+            for transcription. FitCore processes the recording for that request and does not save
+            audio clips in tracking history or backups. Existing fitness records and WHOOP snapshots
+            are not attached to transcription requests. The transcript appears in an editable field;
+            it does not create fitness records until you send the text and confirm a reviewed
+            action. Closing or clearing Jarvis, leaving the foreground, or losing connectivity
+            cancels recording or transcription in progress. Groq&apos;s own data handling and
+            retention terms apply:{" "}
+            <a href="https://console.groq.com/docs/your-data" className="text-primary underline">
+              Groq data controls
+            </a>
+            .
+          </p>
+          <p>
+            Jarvis activity, text associated with confirmed records, and AI preferences can stay on
+            your device. Provider keys can be used temporarily until reload or explicitly remembered
+            in this browser; they accompany authorized requests for provider authentication. You can
+            remove them in Jarvis settings. Bounded usage diagnostics store request times, model and
+            status, audio duration and a paid-rate cost estimate, without audio clips or
+            transcripts. The estimate is not a charge or confirmation that your provider account has
+            free quota.
           </p>
         </section>
 

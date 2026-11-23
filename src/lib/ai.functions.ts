@@ -1,3 +1,4 @@
+import { transcriptionInputSchema, transcribeJarvisAudio } from "./jarvis/transcription.server";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequest, setResponseHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
@@ -370,4 +371,12 @@ Numbers are grams and kcal for the full plate visible. Be conservative if portio
         code: "tool_parse" as const,
       };
     }
+  });
+
+
+export const transcribeVoice = createServerFn({ method: "POST" })
+  .inputValidator(transcriptionInputSchema)
+  .handler(async ({ data }) => {
+    setResponseHeader("Cache-Control", "no-store");
+    return transcribeJarvisAudio(data, { signal: getRequest().signal });
   });

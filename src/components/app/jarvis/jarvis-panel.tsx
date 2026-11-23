@@ -1,6 +1,9 @@
+import { BatchReview } from "./batch-review";
+import { interpretJarvisInput, reviewJarvisBatch, commitJarvisBatch, type JarvisBatchReview } from "@/lib/jarvis/mixed-commands";
+import { VoiceInput } from "./voice-input";
 import { JARVIS_GEMINI_PERSONAL_DATA_ENABLED } from "@/lib/jarvis/provider-models";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Send, Loader2, Mic } from "lucide-react";
+import { Sparkles, Send, Loader2 } from "lucide-react";
 import { BottomSheet } from "../sheet";
 import { Chip, GhostButton } from "../ui";
 import { jarvisProviderKeys } from "@/lib/jarvis/provider-keys";
@@ -10,7 +13,7 @@ import { subscribeToWhoopChanges, whoopApi } from "@/lib/whoop/browser";
 import { useServerFn } from "@tanstack/react-start";
 import { reserveJarvisCloudTextRequest } from "@/lib/jarvis/cloud-usage";
 import { mealItemTotals, type JarvisMealItem } from "@/lib/jarvis/meal-math";
-import { interpretJarvisText, type JarvisTextContext } from "@/lib/jarvis/text-commands";
+import { type JarvisTextContext } from "@/lib/jarvis/text-commands";
 import { canProposeJarvisMutation } from "@/lib/jarvis/action-schemas";
 import { isReadOnlyJarvisTool, TOOL_SPECS, runTool, undoAuditEntry, type ToolResult } from "@/lib/jarvis/tools";
 import { ConfirmCard } from "./confirm-card";
@@ -32,6 +35,8 @@ type AiDiagnostics = {
   toolsSent?: number;
   messagesSent?: number;
   timestamp?: number;
+  audioSeconds?: number;
+  estimatedPaidTierCostUsd?: number;
 };
 type ChatResp = { ok: true; content: string; toolCalls?: { id: string; name: string; argsJson: string }[]; notice?: string; diagnostics?: AiDiagnostics; whoopExpiresAt?: string } | { ok: false; error: string; diagnostics?: AiDiagnostics };
 
@@ -39,7 +44,8 @@ interface RenderedMsg {
   id: string;
   role: "user" | "assistant";
   content: string;
-  toolResults?: { tool: string; result: ToolResult; pending?: { draftId: string; args: Record<string, unknown>; base: ReturnType<typeof useStore>["state"]; reviewedAt: Date } }[];
+  batch?: { review: JarvisBatchReview; outcome?: ToolResult; cancelled?: boolean };
+  toolResults?: { tool: string; result: ToolResult; pending?: { draftId: string; args: Record<string, unknown>; base: ReturnType<typeof useStore>["state"]; reviewedAt: Date; inputMethod?: "text" | "voice" } }[];
   createdAt: number;
   whoopExpiresAtMs?: number;
   local?: boolean;
@@ -78,6 +84,7 @@ function recordDiagnostics(diag?: AiDiagnostics) {
 
 function expirePendingConfirmations(messages: RenderedMsg[]): RenderedMsg[] {
   return messages.map(m => {
+    if (m.batch && !m.batch.outcome?.ok) return { ...m, batch: { ...m.batch, cancelled: true } };
     if (!m.toolResults?.some(tr => tr.pending && tr.result.needsConfirmation)) return m;
     return {
       ...m,
@@ -89,7 +96,7 @@ function expirePendingConfirmations(messages: RenderedMsg[]): RenderedMsg[] {
 }
 
 function stripToolCards(messages: RenderedMsg[]): RenderedMsg[] {
-  return expirePendingConfirmations(messages).map(m => m.toolResults ? { ...m, toolResults: undefined } : m);
+  return expirePendingConfirmations(messages).map(m => ({ ...m, toolResults: undefined, batch: undefined }));
 }
 
 function friendlyAssistantContent(content: string, toolResults: RenderedMsg["toolResults"]) {
@@ -136,6 +143,11 @@ export function JarvisPanel({ section }: { section: string }) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const [voiceEpoch, setVoiceEpoch] = useState(0);
+  const clarificationMethod = useRef<"text" | "voice">("text");
+  const inputMethod = useRef<"text" | "voice">("text");
+  const appendTranscript = useCallback((text: string) => { inputMethod.current = "voice"; setInput(previous => [previous.trim(), text].filter(Boolean).join(" ")); }, []);
   const [shareWhoop, setShareWhoop] = useState(false);
   const [canShareWhoop, setCanShareWhoop] = useState(false);
   const [messages, setMessages] = useState<RenderedMsg[]>([]);
@@ -153,6 +165,17 @@ export function JarvisPanel({ section }: { section: string }) {
     setShareWhoop(false);
     setMessages((current) => current.filter((message) => message.whoopExpiresAtMs === undefined));
   }, []);
+  useEffect(() => {
+    if (!open) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      clearWhoop();
+      setCanShareWhoop(false);
+      setOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [open, clearWhoop]);
   useEffect(() => {
     const unsubscribe = subscribeToWhoopChanges((change) => {
       if (change === "clear") {
@@ -204,9 +227,9 @@ export function JarvisPanel({ section }: { section: string }) {
       });
     return () => request.abort();
   }, [open, settings.enabled]);
-  const latestToolMessageId = [...messages].reverse().find(m => m.toolResults?.length)?.id;
+  const latestToolMessageId = [...messages].reverse().find(m => m.toolResults?.length || m.batch)?.id;
 
-  const reviewTool = useCallback((tool: string, args: Record<string, unknown>) => {
+  const reviewTool = useCallback((tool: string, args: Record<string, unknown>, method: "text" | "voice" = "text") => {
     const live = stateRef.current;
     const reviewedAt = new Date();
     const result = runTool(tool, args, { state: live, set, settings: live.jarvisSettings, now: reviewedAt });
@@ -218,13 +241,13 @@ export function JarvisPanel({ section }: { section: string }) {
         ...result,
         summary: ["addPlannedExerciseSet", "logUsualMeal", "logCaloriesOnly", "saveUsualMeal", "deleteUsualMeal", "logSleep", "logCardio", "updateBodyWeight", "logExerciseSet", "updateExerciseSet", "deleteExerciseSet", "updateMeal", "correctMealPortion", "deleteMeal", "updateWorkout", "updateActiveWorkout", "undoLastAction", "startRestTimer", "startScheduledWorkout"].includes(tool) ? result.summary : humanizeArgs(tool, args),
       },
-      pending: { draftId, args: { ...(["logUsualMeal", "logWorkout"].includes(tool) ? args : result.data as Record<string, unknown>), draftId }, base: live, reviewedAt },
+      pending: { draftId, args: { ...(["logUsualMeal", "logWorkout"].includes(tool) ? args : result.data as Record<string, unknown>), draftId }, base: live, reviewedAt, inputMethod: method },
     };
   }, [set]);
 
   const send = useCallback(async (text: string, includeWhoop = false) => {
     const content = text.trim();
-    if (!content || sendingRef.current) return;
+    if (!content || sendingRef.current || voiceBusy) return;
     sendingRef.current = true;
     setShareWhoop(false);
     if (!settings.enabled) {
@@ -235,14 +258,27 @@ export function JarvisPanel({ section }: { section: string }) {
     }
     const live = stateRef.current;
     const context = conversation.current;
-    const local = !includeWhoop && !live.demoMode && interpretJarvisText(content, live, new Date(), context);
+    const local = !includeWhoop && !live.demoMode && interpretJarvisInput(content, live, new Date(), context);
     conversation.current = { focusedExercise: context.focusedExercise, lastMealId: context.lastMealId, ...(local ? local.nextContext : {}) };
     if (local) {
       setInput("");
       const createdAt = Date.now();
+      const continues = Boolean(context.mixedDraft || ("tool" in local && (
+        (context.sleepHours !== undefined && local.tool === "logSleep") ||
+        (context.setCorrection && local.tool === "updateExerciseSet") ||
+        ((context.setDraft || context.repeatSet) && local.tool === "logExerciseSet") ||
+        (context.recovery && ["logDailyCheckIn", "updateDailyCheckIn"].includes(local.tool))
+      )));
+      const method = inputMethod.current === "voice" || (continues && clarificationMethod.current === "voice") ? "voice" : "text";
+      const pendingContext = local.nextContext;
+      clarificationMethod.current = pendingContext && (pendingContext.setCorrection || pendingContext.mixedDraft || pendingContext.sleepHours !== undefined || pendingContext.setDraft || pendingContext.repeatSet || pendingContext.recovery) ? method : "text";
+      const batch = "actions" in local ? reviewJarvisBatch(local.actions, live, method) : undefined;
       const reply = "reply" in local
         ? { content: local.reply }
-        : { content: "", toolResults: [reviewTool(local.tool, local.args)] };
+        : "actions" in local
+          ? batch && "entries" in batch ? { content: "", batch: { review: batch } } : { content: (batch as ToolResult | undefined)?.summary ?? "Review could not be prepared. Nothing was saved." }
+          : { content: "", toolResults: [reviewTool(local.tool, local.args, method)] };
+      inputMethod.current = "text";
       setMessages(previous => [
         ...stripToolCards(previous),
         { id: uid(), role: "user", content, createdAt, local: true },
@@ -271,11 +307,13 @@ export function JarvisPanel({ section }: { section: string }) {
     }
     setInput("");
     setSending(true);
+    const sourceMethod = inputMethod.current;
+    inputMethod.current = "text";
     const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now(), ...(includeWhoop ? { whoopExpiresAtMs: Infinity } : {}) };
     setMessages(m => [...stripToolCards(m), userMsg]);
     const sentWhoopEpoch = whoopEpoch.current;
     const restoreCloudDraft = (error: string) => {
-      setInput(value => value || content);
+      setInput(value => { if (value) return value; inputMethod.current = sourceMethod; return content; });
       setMessages(previous => [
         ...previous.filter(message => message.id !== userMsg.id),
         { id: uid(), role: "assistant", content: error, createdAt: Date.now() },
@@ -332,7 +370,7 @@ export function JarvisPanel({ section }: { section: string }) {
         staged.add(fingerprint);
 
         if (stateRef.current.jarvisSettings.allowCloudText !== true) break;
-        toolResults.push(reviewTool(tc.name, toolArgs));
+        toolResults.push(reviewTool(tc.name, toolArgs, sourceMethod));
       }
 
       const assistantContent = friendlyAssistantContent(res.toolCalls?.length ? "" : res.content, toolResults) || (toolResults.length ? "" : "I couldn't complete that request.");
@@ -343,7 +381,7 @@ export function JarvisPanel({ section }: { section: string }) {
       sendingRef.current = false;
       setSending(false);
     }
-  }, [settings, chatFn, messages, reviewTool, section]);
+  }, [settings, chatFn, messages, reviewTool, section, voiceBusy]);
 
   useEffect(() => {
     const handleCompose = (event: Event) => {
@@ -381,7 +419,7 @@ export function JarvisPanel({ section }: { section: string }) {
     const sameReviewDay = !["startScheduledWorkout", "logDailyCheckIn", "updateDailyCheckIn"].includes(tool)
       || pending.reviewedAt.toDateString() === new Date().toDateString();
     const r = pending.base === current && sameReviewDay
-      ? runTool(tool, args, { state: current, set, settings: current.jarvisSettings, confirmed: true, mealPortionEdited })
+      ? runTool(tool, args, { state: current, set, settings: current.jarvisSettings, confirmed: true, mealPortionEdited, inputMethod: pending.inputMethod })
       : { ok: false, summary: "FitCore changed since this review. Ask again to review the current data." };
     if (r.ok && r.auditId && ["logMeal", "logReferenceMeal", "logUsualMeal", "correctMealPortion"].includes(tool)) {
       const saved = r.data as { id?: string } | undefined;
@@ -412,8 +450,9 @@ export function JarvisPanel({ section }: { section: string }) {
 
   return (
     <>
-      <BottomSheet open={open} onClose={() => { clearWhoop(); setCanShareWhoop(false); setOpen(false); }} title="Jarvis" height="tall">
-        <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
+      <BottomSheet open={open} onClose={() => { clearWhoop(); setCanShareWhoop(false); setOpen(false); }} title="Jarvis" height="tall" manageFocus>
+        <div className="flex min-h-0 flex-col" style={{ height: "calc(88dvh - 112px)" }}>
+        <div className="flex shrink-0 items-center gap-2 mb-3 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--surface-2)]">
             <span className={`w-1.5 h-1.5 rounded-full ${sending ? "animate-pulse" : ""}`} style={{ background: sending ? "var(--section)" : "var(--success, #10b981)" }} />
             {sending ? "Thinking..." : "Ready"}
@@ -421,7 +460,7 @@ export function JarvisPanel({ section }: { section: string }) {
           <span className="ml-auto capitalize">{providerName} / {settings.permission < 2 ? "Read only" : "Review before saving"}</span>
         </div>
 
-        <div ref={scrollRef} className="space-y-3 max-h-[45dvh] overflow-y-auto pb-2">
+        <div ref={scrollRef} className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-2">
           {messages.length === 0 && (
             <div className="text-center py-6">
               <div className="inline-flex w-12 h-12 items-center justify-center rounded-2xl mb-3" style={{ background: "var(--section-soft)", color: "var(--section)" }}>
@@ -440,6 +479,14 @@ export function JarvisPanel({ section }: { section: string }) {
                     {m.content}
                   </div>
                 )}
+                {m.id === latestToolMessageId && m.batch && <BatchReview review={m.batch.review} outcome={m.batch.outcome} cancelled={m.batch.cancelled}
+                  onSave={selected => {
+                    const result = commitJarvisBatch(m.batch!.review, selected, stateRef.current, set);
+                    setMessages(previous => previous.map(message => message.id === m.id && message.batch ? { ...message, batch: { ...message.batch, outcome: result } } : message));
+                    return result;
+                  }}
+                  onCancel={() => setMessages(previous => previous.map(message => message.id === m.id && message.batch ? { ...message, batch: { ...message.batch, cancelled: true } } : message))}
+                  onUndo={undoAction} />}
                 {visibleToolResults?.map((tr, i) => (
                   <ConfirmCard key={i} tool={tr.tool} result={tr.result}
                     onConfirm={items => applyPending(m.id, i, items)}
@@ -452,12 +499,12 @@ export function JarvisPanel({ section }: { section: string }) {
           {sending && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 size={14} className="animate-spin" />Jarvis is thinking...</div>}
         </div>
 
-        <div className="flex gap-2 overflow-x-auto no-scrollbar py-3 -mx-1 px-1">
+        <div className="flex shrink-0 gap-2 overflow-x-auto no-scrollbar py-3 -mx-1 px-1">
           {SUGGESTED.map(s => <Chip key={s} onClick={() => send(s)}>{s}</Chip>)}
         </div>
 
         {settings.enabled && canShareWhoop && (
-          <label className="flex items-start gap-2 py-2 text-xs leading-relaxed">
+          <label className="flex shrink-0 items-start gap-2 py-2 text-xs leading-relaxed">
             <input
               type="checkbox"
               className="mt-1 size-4 shrink-0"
@@ -473,14 +520,12 @@ export function JarvisPanel({ section }: { section: string }) {
             </span>
           </label>
         )}
-        <div className="flex gap-2 sticky bottom-0 pb-2 pt-1" style={{ background: "var(--surface)" }}>
+        <VoiceInput key={voiceEpoch} enabled={settings.enabled && settings.voiceModeEnabled && !state.demoMode} active={open && !sending} onTranscript={appendTranscript} onBusyChange={setVoiceBusy} onUsage={recordDiagnostics} />
+        <div className="flex shrink-0 gap-2 pb-2 pt-1" style={{ background: "var(--surface)" }}>
           <input value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && !e.nativeEvent.isComposing) void send(input, canShareWhoop && shareWhoop); }}
             aria-label="Jarvis message" placeholder="Talk to Jarvis..." className="flex-1 px-4 py-3 rounded-xl bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)]" />
-          <button disabled title="Voice mode - coming in Phase 6" className="w-12 h-12 rounded-xl flex items-center justify-center bg-[var(--surface-2)] text-muted-foreground opacity-60">
-            <Mic size={18} />
-          </button>
-          <button onClick={() => void send(input, canShareWhoop && shareWhoop)} disabled={sending || !input.trim()}
+          <button onClick={() => void send(input, canShareWhoop && shareWhoop)} disabled={sending || voiceBusy || !input.trim()}
             aria-label="Send message to Jarvis"
             className="w-12 h-12 rounded-xl flex items-center justify-center text-white disabled:opacity-50"
             style={{ background: "var(--section)" }}>
@@ -488,8 +533,9 @@ export function JarvisPanel({ section }: { section: string }) {
           </button>
         </div>
         {messages.length > 0 && (
-          <div className="mt-2"><GhostButton className="w-full text-sm" onClick={() => { clearWhoop(); conversation.current = {}; setMessages([]); }}>Clear conversation</GhostButton></div>
+          <div className="mt-2 shrink-0"><GhostButton className="w-full text-sm" onClick={() => { clearWhoop(); conversation.current = {}; clarificationMethod.current = "text"; setVoiceEpoch(value => value + 1); setMessages([]); }}>Clear conversation</GhostButton></div>
         )}
+        </div>
       </BottomSheet>
     </>
   );

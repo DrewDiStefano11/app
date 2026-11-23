@@ -26,6 +26,8 @@ interface SetDraft {
 }
 
 export interface JarvisTextContext {
+  setCorrection?: { workoutId: string; exerciseEntryId: string; setId: string; expected: string; weight: string; reps: number };
+  mixedDraft?: { clauses: string[]; resolved: (Extract<LocalJarvisCommand, { tool: string }> | null)[]; index: number; pendingContext?: Omit<JarvisTextContext, "mixedDraft"> };
   focusedExercise?: ActiveExerciseReference;
   benchHistory?: BenchDate[];
   lastMealId?: string;
@@ -230,6 +232,28 @@ function workoutSet(
           durationMin: Number(timed[2]) / (timed[3].startsWith("second") ? 60 : 1),
         },
       };
+  }
+  const pendingCorrection = context.setCorrection;
+  const correctionUnit = pendingCorrection ? LOAD_UNIT.exec(text)?.[1] : undefined;
+  if (pendingCorrection && correctionUnit) {
+    const row = active?.exercises.find(item => item.id === pendingCorrection.exerciseEntryId);
+    const current = row?.sets.find(item => item.id === pendingCorrection.setId);
+    if (active?.id !== pendingCorrection.workoutId || JSON.stringify(current) !== pendingCorrection.expected) {
+      return { reply: "That set changed while you were clarifying. Review its current values before correcting it." };
+    }
+    return { tool: "updateExerciseSet", args: { setId: pendingCorrection.setId, patch: { weight: pounds(pendingCorrection.weight, correctionUnit), reps: pendingCorrection.reps } } };
+  }
+  const completeCorrection = new RegExp(`^(?:actually,? (?:that|it) was|(?:that|it) was|make that)\\s+${LOAD}\\s+(?:for|x|×)\\s*(\\d+)(?:\\s*reps?)?$`).exec(text);
+  if (completeCorrection) {
+    const latest = latestActiveJarvisSet(state);
+    if (!latest || !active) return { reply: "Which completed set should I correct?" };
+    if (!completeCorrection[2] && state.profile.units === "kg") {
+      return { reply: "Was that corrected load in kilograms or pounds?", nextContext: { setCorrection: {
+        workoutId: active.id, exerciseEntryId: latest.row.id, setId: latest.set.id,
+        expected: JSON.stringify(latest.set), weight: completeCorrection[1], reps: Number(completeCorrection[3]),
+      } } };
+    }
+    return { tool: "updateExerciseSet", args: { setId: latest.set.id, patch: { weight: pounds(completeCorrection[1], completeCorrection[2]), reps: Number(completeCorrection[3]) } } };
   }
   const correction =
     /^make that (\d+(?:\.\d+)?)(?: (lb|lbs|pounds?|kg))?(?: instead of (\d+(?:\.\d+)?))?$/.exec(

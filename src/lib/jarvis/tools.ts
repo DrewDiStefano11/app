@@ -115,6 +115,7 @@ export interface RunContext {
   confirmed?: boolean;
   mealPortionEdited?: boolean;
   referenceMeal?: boolean;
+  inputMethod?: "text" | "voice";
   now?: Date;
 }
 type StagedRunContext = Omit<RunContext, "set"> & { set: Updater };
@@ -582,6 +583,10 @@ export function runTool(name: string, args: Record<string, unknown>, ctx: RunCon
   }
   return commitJarvisAction(ctx.state, ctx.set, set => {
     const result = handler(checked, { ...ctx, set });
+    if (result.ok && ctx.inputMethod === "voice" && result.auditId) {
+      set(next => ({ ...next, jarvisAudit: next.jarvisAudit.map(entry => entry.id === result.auditId
+        ? { ...entry, summary: `Voice: ${entry.summary}`, patch: { ...entry.patch, inputMethod: "voice" } } : entry) }));
+    }
     if (result.ok && draftId) {
       set(next => ({
         ...next,
