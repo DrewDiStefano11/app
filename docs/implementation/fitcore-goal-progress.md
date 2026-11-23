@@ -218,6 +218,10 @@ Publish/review branch codex/fitcore-food-photo against main; PR lookup https://g
 
 Photo follow-up: same existing acceptance test now verifies all three visible macros as well as calories across Jarvis/Home/Fuel Daily/Fuel Deep Dive, plus revised persisted macros before Undo. Rebuilt unchanged production source and passed2/2 mobile cases (34.1s); edited test passes default ESLint. No new feature/source changes. Publish this test/doc follow-up before final PR acceptance; prior head2f23b6f hosted gate is not evidence for the next head. #309 now separately publishes the validated manual weigh-in fix at98d6294; physical WHOOP first-screen cold restoration was confirmed by the user and documented there.
 
+### Food-photo release gate stabilization
+
+Earlier photo head2f23b6f hosted run45226393362 exceeded its35-minute job budget (authoritative annotation), reaching final workout cases; it also had one Settings WebKit scenario exhaust its overall30s deadline at different late reset steps across retries. Local same scenario passed2/2; no stuck-dialog product defect reproduced. Photo branch now splits the complete unchanged release selection into mandatory iphone-webkit/mobile-390x844 matrix jobs, preserving the production-workout aggregate name and failing it for any non-success dependency result. Settings scenario overall60s/action10s; CI-mode focused production checks2/2 pass, workflow preservation and actual gate-command truth cases pass, independent review clear. No application source changes. Old c7 serialrun45230348400 remains running and must be reported honestly at termination; final new-head matrix CI remains necessary. Preserve #309857b04b, #3101ad1315 and combined93baccf; integrate this workflow into the candidate without repeating unchanged application suites.
+
 
 ### Weigh-in safety and physical WHOOP clarification
 
