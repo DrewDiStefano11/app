@@ -234,7 +234,7 @@ export function JarvisPanel({ section }: { section: string }) {
     }
     const live = stateRef.current;
     const context = conversation.current;
-    const local = !live.demoMode && interpretJarvisText(content, live, new Date(), context);
+    const local = !includeWhoop && !live.demoMode && interpretJarvisText(content, live, new Date(), context);
     conversation.current = { focusedExercise: context.focusedExercise, lastMealId: context.lastMealId, ...(local ? local.nextContext : {}) };
     if (local) {
       setInput("");
@@ -270,7 +270,7 @@ export function JarvisPanel({ section }: { section: string }) {
     }
     setInput("");
     setSending(true);
-    const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now() };
+    const userMsg: RenderedMsg = { id: uid(), role: "user", content, createdAt: Date.now(), ...(includeWhoop ? { whoopExpiresAtMs: Infinity } : {}) };
     setMessages(m => [...stripToolCards(m), userMsg]);
     const sentWhoopEpoch = whoopEpoch.current;
     const restoreCloudDraft = (error: string) => {
@@ -282,7 +282,7 @@ export function JarvisPanel({ section }: { section: string }) {
     };
 
     try {
-      const recent = [...messages.filter(message => message.role === "user" && !message.local && message.whoopExpiresAtMs === undefined).slice(-4), userMsg]
+      const recent = [...(includeWhoop ? [] : messages.filter(message => message.role === "user" && !message.local && message.whoopExpiresAtMs === undefined).slice(-4)), userMsg]
         .map(message => ({ role: "user" as const, content: message.content.slice(0, 4_096) }));
       const tools = TOOL_SPECS.filter(tool => isReadOnlyJarvisTool(tool.name)
         || (!includeWhoop && settings.permission >= 2 && canProposeJarvisMutation(tool.name)));

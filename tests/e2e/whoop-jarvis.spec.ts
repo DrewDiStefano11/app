@@ -20,7 +20,7 @@ test("Jarvis asks permission for each WHOOP message and fails closed without the
     page,
     currentFitCoreState({
       onboardingComplete: true,
-      jarvisSettings: { enabled: true },
+      jarvisSettings: { enabled: true, allowCloudText: true },
     }),
   );
   await page.route("**/_serverFn/**", async (route) => {
@@ -37,7 +37,7 @@ test("Jarvis asks permission for each WHOOP message and fails closed without the
   const send = async (message: string) => {
     await input.fill(message);
     const request = page.waitForRequest("**/_serverFn/**");
-    await page.getByRole("button", { name: "Send message" }).click();
+    await page.getByRole("button", { name: "Send message to Jarvis" }).click();
     return (await request).postData() ?? "";
   };
   expect(await send("Review my recent workouts")).not.toContain("includeWhoop");
@@ -58,7 +58,7 @@ test("WHOOP replies clear on lock and a delayed reply stays hidden after closing
     page,
     currentFitCoreState({
       onboardingComplete: true,
-      jarvisSettings: { enabled: true },
+      jarvisSettings: { enabled: true, allowCloudText: true },
     }),
   );
   let release!: () => void;
@@ -89,7 +89,7 @@ test("WHOOP replies clear on lock and a delayed reply stays hidden after closing
     await share.check();
     await page.getByPlaceholder("Talk to Jarvis...").fill("How did I recover?");
     const request = page.waitForRequest("**/_serverFn/**");
-    await page.getByRole("button", { name: "Send message" }).click();
+    await page.getByRole("button", { name: "Send message to Jarvis" }).click();
     await request;
   };
 

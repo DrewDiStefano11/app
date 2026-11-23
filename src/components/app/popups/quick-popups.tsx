@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Camera, Loader2, Sparkles, ImagePlus, Check, AlertCircle } from "lucide-react";
 import { BottomSheet } from "../sheet";
+import { SleepQualitySelect } from "@/components/app/sleep-quality-select";
 import { useStore, uid } from "@/lib/store";
 import { useServerFn } from "@tanstack/react-start";
 import { estimateMealMacros } from "@/lib/ai.functions";
@@ -181,7 +182,8 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [stress, setStress] = useState(3);
   const [motivation, setMotivation] = useState(8);
   const [sleepHours, setSleepHours] = useState("");
-  const [sleepQ, setSleepQ] = useState(7);
+  const [sleepQ, setSleepQ] = useState(0);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [notes, setNotes] = useState("");
 
   const [confirmed, setConfirmed] = useState(false);
@@ -189,6 +191,7 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
   const validSleep = !sleepHours || (sleepDuration > 0 && sleepDuration <= 24);
   const close = () => {
     setConfirmed(false);
+    setSaveFailed(false);
     onClose();
   };
 
@@ -204,8 +207,8 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
       }
       return next;
     });
-    if (!saved) return;
-    setNotes(""); setSleepHours("");
+    if (!saved) { setSaveFailed(true); return; }
+    setNotes(""); setSleepHours(""); setSleepQ(0);
     close();
   };
 
@@ -224,11 +227,7 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
             <input type="number" inputMode="decimal" value={sleepHours} onChange={e => setSleepHours(e.target.value)}
               placeholder="7.5 hrs"
               className="px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white outline-none focus:border-[var(--section)]" />
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] text-white/40 font-bold uppercase">Quality {sleepQ}/10</span>
-              <input type="range" min={1} max={10} value={sleepQ} onChange={e => setSleepQ(Number(e.target.value))}
-                className="accent-[var(--section)]" />
-            </div>
+            <SleepQualitySelect value={sleepQ} onChange={setSleepQ} />
           </div>
         </div>
 
@@ -246,6 +245,7 @@ export function CheckInSheet({ open, onClose }: { open: boolean; onClose: () => 
           I confirm these ratings and any sleep details reflect what I experienced.
         </label>
         {!validSleep && <p role="alert" className="text-xs text-destructive">Enter up to 24 hours of sleep.</p>}
+        {saveFailed && <p role="alert" className="text-sm text-destructive">Check-in could not be saved. Your entries are still here.</p>}
         <div className="flex gap-2 pt-1">
           <button onClick={close} className="flex-1 h-12 rounded-xl border border-white/15 bg-white/5 font-bold text-white/80">Cancel</button>
           <button onClick={save} disabled={!confirmed || !validSleep} className="flex-1 h-12 rounded-xl font-bold text-white disabled:opacity-40 flex items-center justify-center gap-2"
