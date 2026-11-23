@@ -22,8 +22,10 @@ function setup(sync: Sync) {
   let records: (signal: AbortSignal) => Response | Promise<Response> = () => Response.json(null);
   let statusReads = 0;
   let recordsReads = 0;
+  let online = true;
   const coordinator = createWhoopSyncCoordinator({
     now: () => now,
+    isOnline: () => online,
     setTimer(run, delay) {
       const id = nextTimer++;
       timers.set(id, {
@@ -74,6 +76,9 @@ function setup(sync: Sync) {
     changes,
     launch,
     runFor,
+    setOnline: (value: boolean) => {
+      online = value;
+    },
     statusReads: () => statusReads,
     recordsReads: () => recordsReads,
     setStatus: (read: typeof status) => {
@@ -96,6 +101,7 @@ async function drain() {
 
 function snapshot(now: number, life = 5 * minute) {
   return {
+    version: "synthetic:1",
     accessExpiresAt: new Date(now + life).toISOString(),
     lastSyncedAt: new Date(now).toISOString(),
     records: [],
@@ -406,7 +412,8 @@ test("cached reads respect their own Retry-After across focus and hidden resume"
   await fixture.runFor(5 * second);
   fixture.coordinator.setForeground(true);
   await fixture.coordinator.revalidate();
-  expect(fixture.recordsReads()).toBe(3);
+  // Hidden transitions retain this lease, so redisplay needs no records read.
+  expect(fixture.recordsReads()).toBe(2);
   expect(fixture.requests).toHaveLength(1);
   expect(fixture.coordinator.getSnapshot()).not.toBeNull();
 });
@@ -570,8 +577,9 @@ test("pauses hidden or offline work and revalidates when the foreground returns"
   fixture.launch();
   await drain();
   expect(fixture.coordinator.getSnapshot()).not.toBeNull();
+  const original = fixture.coordinator.getSnapshot();
   fixture.coordinator.setForeground(false);
-  expect(fixture.coordinator.getSnapshot()).toBeNull();
+  expect(fixture.coordinator.getSnapshot()).toBe(original);
   expect((await fixture.coordinator.requestSync()).ok).toBe(false);
   await fixture.runFor(20 * minute);
   expect(fixture.requests).toHaveLength(1);
@@ -708,4 +716,167 @@ test("provider revision change clears the previous snapshot before the cooldown 
   await fixture.coordinator.revalidate();
   expect(fixture.coordinator.getSnapshot()).toBeNull();
   expect(fixture.requests).toHaveLength(1);
+});
+
+test.each([30 * second, 5 * minute])(
+  "hidden resume after %i ms redisplays the original lease before any status or synchronization completes",
+  async (away) => {
+    const fixture = setup((_, now) => live(now, 10 * minute));
+    fixture.launch();
+    await drain();
+    const original = fixture.coordinator.getSnapshot();
+    fixture.coordinator.setForeground(false);
+    expect(fixture.coordinator.getSnapshot()).toBe(original);
+    fixture.suspendFor(away);
+    const status = Promise.withResolvers<Response>();
+    fixture.setStatus(() => status.promise);
+    fixture.coordinator.setForeground(true);
+    expect(fixture.coordinator.getSnapshot()).toBe(original);
+    expect(fixture.coordinator.getSnapshot()?.accessExpiresAt).toBe(
+      new Date(start + 10 * minute).toISOString(),
+    );
+    status.resolve(Response.json({ status: "connected", version: "synthetic:1" }));
+    await drain();
+  },
+);
+
+test("offline resume keeps evidence, performs no network work and clears at the unchanged expiry", async () => {
+  const fixture = setup((_, now) => live(now, 10 * minute));
+  fixture.launch();
+  await drain();
+  const original = fixture.coordinator.getSnapshot();
+  fixture.setOnline(false);
+  fixture.coordinator.setForeground(false);
+  await fixture.runFor(5 * minute);
+  fixture.coordinator.setForeground(true);
+  await fixture.coordinator.revalidate();
+  expect(fixture.coordinator.getSnapshot()).toBe(original);
+  expect(fixture.statusReads()).toBe(1);
+  expect(fixture.requests).toHaveLength(1);
+  await fixture.runFor(5 * minute);
+  expect(fixture.coordinator.getSnapshot()).toBeNull();
+  fixture.setOnline(true);
+  await fixture.coordinator.revalidate();
+  await drain();
+  expect(fixture.requests).toHaveLength(2);
+  expect(fixture.coordinator.getSnapshot()).not.toBeNull();
+});
+
+test("cold startup restores an authorized server snapshot before slow status and fresh sync complete", async () => {
+  const status = Promise.withResolvers<Response>();
+  const sync = Promise.withResolvers<Response>();
+  const fixture = setup(() => sync.promise);
+  fixture.setStatus(() => status.promise);
+  fixture.setRecords(() => Response.json(snapshot(start, 10 * minute)));
+  fixture.launch();
+  await drain();
+  expect(fixture.recordsReads()).toBe(1);
+  expect(fixture.coordinator.getSnapshot()?.lastSyncedAt).toBe(new Date(start).toISOString());
+  expect(fixture.requests).toHaveLength(0);
+  status.resolve(Response.json({ status: "connected", version: "synthetic:1" }));
+  await drain();
+  expect(fixture.requests).toHaveLength(1);
+  sync.resolve(live(start + minute, 9 * minute));
+  await drain();
+  expect(fixture.coordinator.getSnapshot()?.lastSyncedAt).toBe(
+    new Date(start + minute).toISOString(),
+  );
+});
+
+test.each(["disconnected", "disconnecting", "reconnect_required", "locked"])(
+  "confirmed %s clears a retained lease immediately",
+  async (status) => {
+    const fixture = setup((_, now) => live(now, 10 * minute));
+    fixture.launch();
+    await drain();
+    expect(fixture.coordinator.getSnapshot()).not.toBeNull();
+    fixture.coordinator.setForeground(false);
+    fixture.suspendFor(30000);
+    fixture.setStatus(() => Response.json({ status }));
+    fixture.coordinator.setForeground(true);
+    await fixture.coordinator.revalidate();
+    expect(fixture.coordinator.getSnapshot()).toBeNull();
+    expect(fixture.changes).toContain("clear");
+  },
+);
+
+test.each([401, 403])("cold authorization %i fences a late protected snapshot", async (status) => {
+  const records = Promise.withResolvers<Response>();
+  const fixture = setup((_, now) => live(now));
+  fixture.setStatus(() => new Response(null, { status }));
+  fixture.setRecords(() => records.promise);
+  fixture.launch();
+  await drain();
+  records.resolve(Response.json(snapshot(start, 10 * minute)));
+  await drain();
+  expect(fixture.coordinator.getSnapshot()).toBeNull();
+  expect(fixture.requests).toHaveLength(0);
+});
+
+test.each(["records-first", "status-first"])(
+  "cold snapshot restoration binds connection revision (%s)",
+  async (order) => {
+    const status = Promise.withResolvers<Response>();
+    const oldRecords = Promise.withResolvers<Response>();
+    const fixture = setup(() => new Response(null, { status: 204 }));
+    fixture.setStatus(() => status.promise);
+    let reads = 0;
+    fixture.setRecords(() =>
+      ++reads === 1
+        ? oldRecords.promise
+        : Response.json({
+            ...snapshot(start, 10 * minute),
+            version: "synthetic:2",
+            lastSyncedAt: new Date(start + second).toISOString(),
+          }),
+    );
+    fixture.launch();
+    await drain();
+    if (order === "records-first") {
+      oldRecords.resolve(Response.json(snapshot(start, 10 * minute)));
+      await drain();
+      expect(fixture.coordinator.getSnapshot()).not.toBeNull();
+      status.resolve(Response.json({ status: "connected", version: "synthetic:2" }));
+    } else {
+      status.resolve(Response.json({ status: "connected", version: "synthetic:2" }));
+      await drain();
+      oldRecords.resolve(Response.json(snapshot(start, 10 * minute)));
+    }
+    await drain();
+    expect(fixture.coordinator.getSnapshot()?.lastSyncedAt).toBe(
+      new Date(start + second).toISOString(),
+    );
+  },
+);
+
+test("a concurrent status transport failure cannot undo a definitive records denial", async () => {
+  const status = Promise.withResolvers<Response>();
+  const fixture = setup((_, now) => live(now));
+  fixture.setStatus(() => status.promise);
+  fixture.setRecords(() => new Response(null, { status: 403 }));
+  fixture.launch();
+  await drain();
+  status.reject(new Error("Synthetic transport failure"));
+  await drain();
+  await fixture.runFor(10 * minute);
+  expect(fixture.coordinator.getSnapshot()).toBeNull();
+  expect(fixture.statusReads()).toBe(1);
+  expect(fixture.requests).toHaveLength(0);
+});
+
+test("resume can restore authorized server evidence while an earlier POST is still pending", async () => {
+  const pending = Promise.withResolvers<Response>();
+  const fixture = setup(() => pending.promise);
+  fixture.launch();
+  await drain();
+  expect(fixture.requests).toHaveLength(1);
+  fixture.coordinator.setForeground(false);
+  fixture.suspendFor(30000);
+  fixture.setRecords(() => Response.json(snapshot(start, 10 * minute)));
+  fixture.coordinator.setForeground(true);
+  await drain();
+  expect(fixture.coordinator.getSnapshot()?.lastSyncedAt).toBe(new Date(start).toISOString());
+  expect(fixture.requests).toHaveLength(1);
+  pending.resolve(live(start + 30000));
+  await drain();
 });

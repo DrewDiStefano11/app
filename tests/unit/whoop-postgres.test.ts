@@ -41,6 +41,22 @@ test("the production runtime role can sync and delete but cannot change schemas 
     const claim = (await store.claimSync(session))!;
     // saveSync reads webhook_events even during the live-only first release.
     assert.ok(await store.saveSync(session, claim.id, claim.syncId, [], 0, claim.eventRevision, 0));
+    assert.equal(await store.getSnapshot(session), null);
+    const cachedClaim = (await store.claimSync(session))!;
+    assert.ok(
+      await store.saveSync(
+        session,
+        cachedClaim.id,
+        cachedClaim.syncId,
+        [],
+        0,
+        cachedClaim.eventRevision,
+        Date.now() + 120000,
+      ),
+    );
+    const authorizedSnapshot = (await store.getSnapshot(session))!;
+    assert.equal(authorizedSnapshot.version, `${cachedClaim.id}:${cachedClaim.eventRevision}`);
+    assert.ok(Date.parse(authorizedSnapshot.accessExpiresAt) <= Date.now() + 61000);
     assert.equal(await store.getSnapshot(other), null);
     assert.equal(await store.claimSync({ ...other, ownerId: session.ownerId }), null);
     assert.equal(await store.getSession("expired-digest"), null);
