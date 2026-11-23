@@ -2,7 +2,7 @@ name: FitCore Release Gate
 
 on:
   pull_request:
-    branches: [main, "codex/fitcore-core-integration", "codex/fitcore-jarvis-voice"]
+    branches: [main, "codex/fitcore-core-integration", "codex/fitcore-jarvis-voice", "codex/fitcore-daily-usability"]
   push:
     branches: [main]
   workflow_dispatch:
@@ -13,7 +13,9 @@ permissions:
 jobs:
   production-workout:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Voice run45199531906 reached181/188 cases at the old25m ceiling.
+    # Keep every test and allow runner/provisioning variance to finish the gate.
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,7 +42,7 @@ jobs:
           whoop-callback.spec.ts whoop-dashboard.spec.ts whoop-jarvis.spec.ts whoop-jarvis-isolation.spec.ts whoop-sync.spec.ts privacy-policy.spec.ts
           workout-release-safety settings-data-safety-lifecycle-smoke
           active-workout-lifecycle-smoke workout-offline-reopen bench-program reusable-workouts workout-rest-timer training-routines personal-scores workout-storage-headroom workout-substitutions exercise-library workout-history-management
-          meal-corrections macro-trends saved-nutrition nutrition-targets jarvis-active-workout jarvis-voice jarvis-workout-history jarvis-text-provider jarvis-provider-policy jarvis-text-records recorded-sleep daily-input-usability jarvis-composer-cursor
+          meal-corrections macro-trends saved-nutrition nutrition-targets jarvis-active-workout jarvis-voice jarvis-workout-history jarvis-text-provider jarvis-provider-policy jarvis-text-records recorded-sleep daily-input-usability jarvis-composer-cursor section-scroll-activity
         env:
           FITCORE_TEST_IPHONE_WEBKIT: "1"
           FITCORE_TEST_PRODUCTION_BUILD: "1"

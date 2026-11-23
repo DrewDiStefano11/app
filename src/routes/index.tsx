@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { StoreProvider, useStore } from "@/lib/store";
 import { BottomNav } from "@/components/app/bottom-nav";
 import { JarvisPanel, JarvisUndoSnackbar } from "@/components/app/jarvis/jarvis-panel";
@@ -59,6 +59,11 @@ function FitCoreApp() {
   const hasActiveWorkout = activeWorkoutId !== undefined;
   const showActiveWorkout = activeWorkoutId !== undefined && activeWorkoutId !== overviewWorkoutId;
   const displayedSection = hasActiveWorkout ? "training" : section;
+  useLayoutEffect(() => {
+    // New sections start at their heading. Record edits within a section must
+    // never reset the user's scroll position or move a focused input.
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [displayedSection]);
   useEffect(() => {
     if (!hasHydrated || !state.onboardingComplete || state.demoMode) return;
     return startWhoopRefresh();
