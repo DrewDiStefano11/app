@@ -16,7 +16,7 @@ Updated: 2026-11-23. Worktree: fitcore-core-integration. Branch: codex/fitcore-c
 - [x] Reconcile existing Jarvis text PR #286 without removing current nutrition targets or saved foods.
 - [x] Reconcile recorded sleep PR #298 against native WHOOP precedence.
 - [x] Validate shared persistence, correction/undo, missing macros, consent and provider failure with synthetic unit and mobile production-artifact tests.
-- [x] Prepare the focused review candidate and record validation evidence; PR publication follows this commit.
+- [x] Prepare the focused review candidate and record validation evidence; published as draft PR #302.
 - [ ] Continue voice/photo integration only after this core candidate is reliable.
 
 ## Decisions and boundaries
@@ -89,3 +89,22 @@ Active review candidate: codex/fitcore-core-integration, based on main 5179692. 
 - Earlier corrected sleep, personal-score, workout interruption, offline reopen, failed-write/retry and backup cases passed in the 39 passing cases of the preceding 42-case batch. Its three consent-harness failures were corrected and passed in the later batches. The earlier 50-case batch's four stale sleep assertions were corrected and passed in that 42-case batch.
 - All browser tests are synthetic. No physical iPhone, live provider, merge-to-main, production deployment, billing activation, or production secrets changes are certified or performed.
 - Next unblocked development: add push-to-talk transcription through this same review/save lifecycle; then approved vision-provider meal review. Obtain physical-device and provider acceptance before a release decision.
+
+
+## Voice stage started 2026-11-23
+Previous turn: verified development progress (PR #302, 874 passing units, integrated mobile evidence). Current branch `codex/fitcore-jarvis-voice` starts at #302 head 13c3e40 in the existing isolated worktree. PR #302 is mergeable, not merged; dependency review passed and CI/release/mobile jobs 45189201361 / 45189201656 / 45189201738 were in progress at the initial check. Do not repeatedly poll them; recheck at the next milestone.
+Plan: docs/implementation/fitcore-voice-plan.md . No new dependencies or fitness snapshot/backup schema changes are planned; voice usage stores bounded non-content timestamps in browser metadata. Physical iPhone and live-provider acceptance remain pending.
+
+
+## Core candidate hosted acceptance
+PR #302's production-artifact release gate succeeded: 174 passed in 18.2 minutes, job 137742742801, run https://github.com/DrewDiStefano11/app/actions/runs/45189201656 . Unit and Vercel artifact steps also passed. Regular Playwright jobs passed at desktop, 360x800 and 390x844; dependency review and the CI build passed. CI lint/format steps use continue-on-error, so job success is not proof those strict checks are clean. No merge or deployment occurred.
+
+## Voice implementation status
+Implemented local-first typed/transcribed routing, selectable atomic mixed-event reviews, follow-up clarification, spoken-number preprocessing, voice weight/reps correction with stale-target and unit guards, opt-in microphone recording, bounded caller-key Groq transcription, usage metadata/cost reference, cancellation/background/close/clear cleanup and source attribution in the existing audit patch. No audio is persisted; no new database or schema is introduced. Full unit suite most recently passed 926 tests before the final correction tests. Final combined validation is in progress; physical iPhone and actual Groq audio accuracy remain unverified.
+
+
+Voice validation details: six initial synthetic mobile capture cases passed before mixed input was added. Three later browser regressions reproduced missing close/reopen busy reset, live capture after Clear conversation, and lost voice source through typed clarification. Fixes reset capture on conversation clear, clear parent busy state on unmount, and carry origin only through genuine clarification context. The paid-rate estimate is explicitly a reference at the published Groq rate, not a charge or a claim that the account is free. Provider backoff persists across panel remounts in memory; browser counters cap voice requests at 4/minute and 40/day. No audio/transcript is stored in usage metadata.
+
+Voice milestone: final full unit suite 929 passed / 0 failed, TypeScript and Vercel build passed. Combined synthetic mobile acceptance 52 passed, then affected layout/source/WHOOP batch 26 passed in Chromium and iPhone WebKit. The final six-case focus/privacy batch exposed Chrome losing keyboard focus when Record is replaced with Stop; Escape now closes the panel even after focus falls to the document. Final rerun recorded separately below. Strict lint of new modules passed; two existing settings-effect warnings remain. No actual microphone/provider/iPhone verification or deployment occurred.
+
+Final voice focus/privacy rerun: 6/6 passed (23.9 seconds), both mobile engines. Final TypeScript passed after the focus fix.

@@ -6,21 +6,30 @@ const DAY_LIMIT = 80;
 
 type RequestStorage = Pick<Storage, "getItem" | "setItem">;
 
-export function reserveJarvisCloudTextRequest(storage: RequestStorage, now = Date.now()) {
+function reserveRequest(storage: RequestStorage, now: number, key: string, minuteLimit: number, dayLimit: number, label: string) {
   try {
-    const parsed: unknown = JSON.parse(storage.getItem(CLOUD_REQUESTS_KEY) ?? "[]");
+    const parsed: unknown = JSON.parse(storage.getItem(key) ?? "[]");
     if (!Array.isArray(parsed)) return "Jarvis could not verify cloud usage for this browser.";
     const used = parsed.filter(
       (time): time is number => typeof time === "number" && time <= now && now - time < DAY,
     );
-    if (used.length >= DAY_LIMIT)
-      return "Jarvis reached its cloud text limit for this browser. Try again later.";
-    if (used.filter((time) => now - time < MINUTE).length >= MINUTE_LIMIT) {
+    if (used.length >= dayLimit)
+      return `Jarvis reached its ${label} limit for this browser. Try again later.`;
+    if (used.filter((time) => now - time < MINUTE).length >= minuteLimit) {
       return "Jarvis has sent several cloud requests in the last minute. Wait a moment and retry.";
     }
-    storage.setItem(CLOUD_REQUESTS_KEY, JSON.stringify([...used, now]));
+    storage.setItem(key, JSON.stringify([...used, now]));
     return undefined;
   } catch {
     return "Jarvis could not verify cloud usage for this browser.";
   }
+}
+
+
+export function reserveJarvisCloudTextRequest(storage: RequestStorage, now = Date.now()) {
+  return reserveRequest(storage, now, CLOUD_REQUESTS_KEY, MINUTE_LIMIT, DAY_LIMIT, "cloud text");
+}
+
+export function reserveJarvisVoiceRequest(storage: RequestStorage, now = Date.now()) {
+  return reserveRequest(storage, now, "fitcore.jarvis.voiceRequests.v1", 4, 40, "voice transcription");
 }

@@ -34,6 +34,8 @@ type AiDiagnostics = {
   toolsSent?: number;
   messagesSent?: number;
   timestamp?: number;
+  audioSeconds?: number;
+  estimatedPaidTierCostUsd?: number;
 };
 
 
@@ -293,15 +295,18 @@ export function JarvisSettingsCard() {
             <span>Auto-routed</span><span>{diagSummary.last?.routed ? "yes" : "no"}</span>
             <span>Fallback</span><span>{diagSummary.last?.fallback ? "yes" : "no"}</span>
             <span>Fallback reason</span><span>{diagSummary.last?.fallbackReason ?? "none"}</span>
-            <span>AI calls this session</span><span>{diagSummary.total}</span>
+            <span>Recent AI calls (up to 50)</span><span>{diagSummary.total}</span>
             <span>AI calls last minute</span><span>{diagSummary.lastMinute}</span>
             <span>Last call type</span><span>{diagSummary.last?.callType ?? "none"}</span>
             <span>Last status/error</span><span>{diagSummary.last?.status ?? diagSummary.last?.errorCategory ?? "none"}</span>
             <span>Last request</span><span>{diagSummary.last?.provider ?? "none"} / {modelLabel(diagSummary.last?.actualModel)}</span>
             <span>Last input size</span><span>{diagSummary.last?.inputSize ?? 0}</span>
             <span>Tools/messages sent</span><span>{diagSummary.last?.toolsSent ?? 0} / {diagSummary.last?.messagesSent ?? 0}</span>
+            <span>Last voice duration</span><span>{typeof diagSummary.last?.audioSeconds === "number" ? `${diagSummary.last.audioSeconds.toFixed(1)} seconds` : "none"}</span>
+            <span>Voice paid-rate estimate</span><span>{typeof diagSummary.last?.estimatedPaidTierCostUsd === "number" ? `$${diagSummary.last.estimatedPaidTierCostUsd.toFixed(6)}` : "unavailable"}</span>
             <span>Retry/fallback count</span><span>{diagSummary.last?.retryCount ?? 0} / {diagSummary.last?.fallbackCount ?? 0}</span>
           </div>
+          <p className="text-xs text-muted-foreground">Voice cost is an estimate at Groq’s published paid rate, not a charge. Actual free quota and billing depend on your provider account.</p>
         </div>
 
         <div>
@@ -365,8 +370,8 @@ export function JarvisSettingsCard() {
         </div>
 
         <div className="space-y-1 border-t border-border pt-3">
-          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Voice (coming Phase 6)</p>
-          <Toggle disabled label="Voice mode" val={s.voiceModeEnabled} onChange={v => upd({ voiceModeEnabled: v })} />
+          <p className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">Voice input</p>
+          <Toggle label="Allow Groq voice transcription" val={s.voiceModeEnabled} onChange={v => upd({ voiceModeEnabled: v })} hint="Records only when you press Record voice. Sends that short clip to Groq; no background microphone. Review the transcript before sending." />
           <Toggle disabled label="Spoken responses" val={s.spokenResponses} onChange={v => upd({ spokenResponses: v })} />
         </div>
       </Card>
