@@ -5,6 +5,49 @@ import { createWhoopStore } from "../../src/lib/whoop/postgres.server";
 import { createWhoopTokenVault } from "../../src/lib/whoop/token-vault.server";
 import { syncWhoop } from "../../src/lib/whoop/sync.server";
 
+test("cold retry returns the authorized server cooldown remainder without fetching or storing measurements", async () => {
+  const db = new PGlite();
+  try {
+    for (const file of ["001-credentials.sql", "002-sync.sql", "003-webhooks.sql", "004-cache.sql", "005-jarvis-read.sql"]) {
+      await db.exec(await readFile(new URL("../../db/whoop/" + file, import.meta.url), "utf8"));
+    }
+    const store = createWhoopStore(async (sql, params) => (await db.query(sql, params)).rows);
+    const session = await store.createSession("retry-owner", "retry-digest", 600);
+    const other = await store.createSession("other-owner", "other-digest", 600);
+    await store.beginAttempt(session, "retry-proof", 600);
+    const attempt = (await store.claimAttempt(session, "retry-proof"))!;
+    await store.saveConnection(session, attempt, "encrypted-unused", 3600);
+    await db.exec("update fitcore_whoop.connections set sync_after = now() + interval '10 seconds'");
+    let providerCalls = 0;
+    const options = {
+      store,
+      vault: createWhoopTokenVault(Buffer.alloc(32, 5).toString("base64url")),
+      refresh: async () => { throw new Error("Must not refresh credentials during cooldown"); },
+      fetch: async () => { providerCalls++; throw new Error("Must not request provider during cooldown"); },
+    };
+    const outcome = await syncWhoop(session, options);
+    expect(outcome.status).toBe(409);
+    expect(outcome.retryAfterSeconds).toBeGreaterThan(0);
+    expect(outcome.retryAfterSeconds).toBeLessThanOrEqual(10);
+    expect(providerCalls).toBe(0);
+    expect(await store.getSnapshot(session)).toBeNull();
+    await db.exec("update fitcore_whoop.connections set sync_id = '00000000-0000-0000-0000-000000000001', sync_started_at = now()");
+    const syncing = await syncWhoop(session, options);
+    expect(syncing.retryAfterSeconds).toBeGreaterThan(10);
+    expect(syncing.retryAfterSeconds).toBeLessThanOrEqual(90);
+    await db.exec("update fitcore_whoop.connections set sync_id = null, sync_started_at = null, refresh_id = '00000000-0000-0000-0000-000000000002', refresh_started_at = now()");
+    const rotating = await syncWhoop(session, options);
+    expect(rotating.retryAfterSeconds).toBeGreaterThan(10);
+    expect(rotating.retryAfterSeconds).toBeLessThanOrEqual(45);
+    expect(providerCalls).toBe(0);
+    expect(await syncWhoop({ ...other, ownerId: session.ownerId }, options)).toEqual({ status: 409 });
+    await db.exec("update fitcore_whoop.sessions set expires_at = now() - interval '1 second'");
+    expect(await syncWhoop(session, options)).toEqual({ status: 409 });
+  } finally {
+    await db.close();
+  }
+});
+
 test("rotates credentials once and atomically reconciles corrections and deletions", async () => {
   const db = new PGlite();
   try {
@@ -100,7 +143,7 @@ test("rotates credentials once and atomically reconciles corrections and deletio
     mode = "interrupted";
     expect(await syncWhoop(session, options)).toEqual({ status: 429, retryAfterSeconds: 120 });
     expect(interruptedSibling?.aborted).toBe(true);
-    expect(await syncWhoop(session, { ...options, purpose: "jarvis" })).toEqual({ status: 409 });
+    expect(await syncWhoop(session, { ...options, purpose: "jarvis" })).toEqual({ status: 409, retryAfterSeconds: 120 });
     expect(await store.getSnapshot(session)).toEqual(firstSnapshot);
     expect((await syncWhoop(session, options)).status).toBe(409);
 

@@ -154,6 +154,22 @@ test("a malformed renewal never hides unexpired previous evidence or extends its
   expect(fixture.coordinator.getSnapshot()).toBeNull();
 });
 
+test("cold startup retries at the server's remaining cooldown instead of restarting two minutes", async () => {
+  let attempts = 0;
+  const fixture = setup((_mode, now) => ++attempts === 1
+    ? new Response(null, { status: 409, headers: { "Retry-After": "10" } })
+    : live(now));
+  fixture.launch();
+  await drain();
+  expect(attempts).toBe(1);
+  expect(fixture.coordinator.getSnapshot()).toBeNull();
+  await fixture.runFor(9_999);
+  expect(attempts).toBe(1);
+  await fixture.runFor(1);
+  expect(attempts).toBe(2);
+  expect(fixture.coordinator.getSnapshot()).not.toBeNull();
+});
+
 test("continues to retry recoverable 409s and network failures", async () => {
   let attempts = 0;
   const { launch, runFor, requests } = setup((_, now) => {
@@ -166,6 +182,22 @@ test("continues to retry recoverable 409s and network failures", async () => {
   await runFor(8 * minute);
   expect(requests.map(({ at }) => at)).toEqual([0, 120_000, 240_000, 360_000, 480_000]);
 });
+
+test.each([[409, "0"], [409, "invalid"], [429, "10"]] as const)(
+  "status %s with Retry-After %s preserves the default minimum cooldown",
+  async (status, retry) => {
+    let attempts = 0;
+    const fixture = setup((_mode, now) => ++attempts === 1
+      ? new Response(null, { status, headers: { "Retry-After": retry } })
+      : live(now));
+    fixture.launch();
+    await drain();
+    await fixture.runFor(119_999);
+    expect(attempts).toBe(1);
+    await fixture.runFor(1);
+    expect(attempts).toBe(2);
+  },
+);
 
 test("respects Retry-After in seconds and HTTP dates for automatic and manual requests", async () => {
   let attempts = 0;

@@ -209,6 +209,24 @@ export function createWhoopStore(query: Query) {
       return claim ?? null;
     },
 
+    async getSyncRetryAfter(actor: WhoopSyncActor, purpose: WhoopSyncPurpose = "dashboard") {
+      const [retry] = await query<{ seconds: number }>(
+        `select greatest(1, ceil(extract(epoch from greatest(
+           coalesce(case when $4 = 'jarvis' then jarvis_after else sync_after end, now()),
+           case when sync_id is not null then sync_started_at + interval '90 seconds' else now() end,
+           case when refresh_id is not null then refresh_started_at + interval '45 seconds' else now() end
+         ) - now())))::integer as seconds
+         from fitcore_whoop.connections
+         where owner_id = $1 and status = 'connected'
+           and ($4 <> 'jarvis' or $3 = 'session')
+           and (($3 = 'connection' and id = $2) or
+             ($3 = 'session' and exists (select 1 from fitcore_whoop.sessions
+               where owner_id = $1 and id = $2 and expires_at > now())))`,
+        [actor.ownerId, ...syncPrincipal(actor), purpose],
+      );
+      return retry?.seconds ?? null;
+    },
+
     async expireAbandonedRefresh(actor: WhoopSyncActor) {
       await query(
         `update fitcore_whoop.connections

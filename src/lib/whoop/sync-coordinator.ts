@@ -308,7 +308,11 @@ export function createWhoopSyncCoordinator(transport: Transport) {
 
   function recordCooldown(response: Response) {
     const now = transport.now();
-    nextAllowed = Math.max(nextAllowed, now + cooldownMs, retryDeadline(response, now));
+    const retryAt = retryDeadline(response, now);
+    // A cold process has no local sync history. The authenticated server knows
+    // the remaining lease/cooldown; do not restart two minutes for a short 409.
+    const minimum = response.status === 409 && retryAt > now ? retryAt : now + cooldownMs;
+    nextAllowed = Math.max(nextAllowed, minimum, retryAt);
     rateLimited = response.status === 429;
   }
 
