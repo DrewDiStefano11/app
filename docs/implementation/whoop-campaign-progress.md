@@ -7,7 +7,7 @@ Updated November 24, 2026. Production changes and PR merges require Drew's appro
 - Branch: `codex/fitcore-whoop-archive-restoration`; base main `47a214e8dacaaa7be4748fd91b82d9921238d609`.
 - Root cause: #319 squash-merged foundation commit `1e083ef`; the stacked branch independently added three files also added on main. Git reported add/add conflicts in archive-store, archive tests and archive documentation.
 - Merged current main, retaining the restoration extensions. Final comparison excludes the existing migration 006, archive grants and archive vault. Goals #317 and correlations #318 remain intact.
-- Local validation: 1,013 unit tests pass (including actual PostgreSQL/PGlite SQL under the restricted role); TypeScript, changed-file ESLint and Vercel production build pass. Mobile production-artifact acceptance is running. No inline review threads were reported.
+- Local validation: 1,013 unit tests pass (including actual PostgreSQL/PGlite SQL under the restricted role); TypeScript, changed-file ESLint and Vercel production build pass. All 18 targeted production-artifact checks pass across iPhone WebKit and mobile Chromium, covering encrypted SQL cold restoration, Goals and Stats. GitHub reports the branch mergeable. Hosted checks are pending for the new head. No inline review threads were reported.
 - Not merged, not production activated, not physically verified on iPhone.
 
 ## Production inspection (read-only)
