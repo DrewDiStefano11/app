@@ -98,6 +98,7 @@ export interface SavedNutritionPreset {
   kind: "food" | "meal";
   meal: MealEntry;
   servingLabel?: string;
+  isFavorite?: boolean;
 }
 
 export interface SupplementLog {

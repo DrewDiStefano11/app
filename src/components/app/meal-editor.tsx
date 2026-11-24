@@ -188,9 +188,16 @@ export function MealEditor({
         <PrimaryButton type="submit">Save changes</PrimaryButton>
       </div>
       {onSavePreset && (
-        <GhostButton type="submit" name="action" value="preset">
-          {confirmEstimate ? "Confirm values and save preset" : "Save as reusable meal"}
-        </GhostButton>
+        <div className="flex flex-wrap gap-2">
+          <GhostButton type="submit" name="action" value="preset">
+            {confirmEstimate ? "Confirm values and save preset" : "Save as reusable meal"}
+          </GhostButton>
+          {!confirmEstimate && (
+            <GhostButton type="submit" name="action" value="preset">
+              Save to Library
+            </GhostButton>
+          )}
+        </div>
       )}
     </form>
   );

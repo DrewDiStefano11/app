@@ -1,6 +1,8 @@
 import { FOODS, type Food } from "../data";
 import { mealItemTotals, type JarvisMealItem } from "./meal-math";
 import type { LocalJarvisCommand } from "./text-commands";
+import { requiresNutritionPresetConfirmation } from "../saved-nutrition";
+import type { AppState, SavedNutritionPreset } from "../types";
 
 const WORDS = [
   "zero",
@@ -120,4 +122,149 @@ export function resolveLibraryPortions(items: JarvisMealItem[]) {
     return replaced;
   });
   return { items: resolved, matched };
+}
+
+// ---- Saved-nutrition-aware helpers ----
+
+const normalizedName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/** Find confirmed saved presets whose name fuzzy-matches `query`. */
+function matchSavedPresets(query: string, state: AppState): SavedNutritionPreset[] {
+  const q = normalizedName(query);
+  return (state.savedNutrition ?? []).filter(
+    (p) =>
+      !requiresNutritionPresetConfirmation(p.meal) &&
+      p.meal.macroStatus !== "unreported" &&
+      normalizedName(p.meal.name).includes(q),
+  );
+}
+
+/** Convert a confirmed saved preset (with optional servings multiplier) into a JarvisMealItem. */
+function presetToItem(preset: SavedNutritionPreset, servings = 1): JarvisMealItem {
+  const m = preset.meal;
+  // m.macroStatus !== "unreported" guaranteed by caller
+  const meal = m as Extract<typeof m, { protein: number }>;
+  return {
+    name: meal.name,
+    qty: preset.servingLabel
+      ? servings === 1
+        ? preset.servingLabel
+        : `${servings} × ${preset.servingLabel}`
+      : undefined,
+    calories: Math.round(meal.calories * servings),
+    protein: Math.round(meal.protein * servings),
+    carbs: Math.round(meal.carbs * servings),
+    fat: Math.round(meal.fat * servings),
+  };
+}
+
+/**
+ * Like `queryLibraryMeal` but checks `state.savedNutrition` before the FOODS catalog.
+ * Supports phrases like:
+ *   "I had two servings of my teriyaki beef"
+ *   "log the same breakfast as yesterday"
+ *   "add another scoop of protein powder"
+ *   "200 grams of the chicken from last week"
+ *
+ * When multiple materially different matches exist, returns a reply asking the user to clarify.
+ * Always routes through the existing review-before-saving flow (tool: logReferenceMeal).
+ */
+export function queryLibraryMealWithSaved(
+  text: string,
+  originalText: string,
+  state: AppState,
+): LocalJarvisCommand | undefined {
+  // Pattern: "i had / i ate / log <qty?> <name> [for <mealType>]"
+  const match =
+    /^(?:i (?:ate|had)|log|add|added|had) (.+?)(?: for (breakfast|lunch|dinner|snack|pre-workout|post-workout))?$/.exec(
+      text,
+    );
+  if (!match) return undefined;
+
+  const rawItems = match[1];
+  const mealType = match[2] ?? "snack";
+
+  // Strip filler phrases: "the same X as yesterday", "my usual X", "another X"
+  const cleaned = rawItems
+    .replace(/\bthe same\b/gi, "")
+    .replace(/\b(?:as|from) (?:yesterday|last week|this morning|this week)\b/gi, "")
+    .replace(/\bmy (?:usual\s+)?/gi, "")
+    .replace(/\banother\b/gi, "1")
+    .trim();
+
+  // Try to split on ", and " / " and "
+  const parts = cleaned.split(/,\s*(?:and )?|\s+and\s+/);
+  if (parts.length > 10) return undefined;
+
+  const resolvedItems: JarvisMealItem[] = [];
+  const ambiguousNames: string[] = [];
+
+  for (const part of parts) {
+    // Extract optional leading count: "2 servings of X", "two X", "1/2 cup of X"
+    const countMatch = new RegExp(
+      `^(a|an|${WORDS.join("|")}|\\d+(?:[./]\\d+)?) (.+)$`,
+    ).exec(part.trim());
+
+    let servings = 1;
+    let foodQuery = part.trim();
+
+    if (countMatch) {
+      const countStr = countMatch[1];
+      servings =
+        countStr === "a" || countStr === "an"
+          ? 1
+          : /^\d/.test(countStr)
+            ? Number(countStr)
+            : WORDS.indexOf(countStr);
+      foodQuery = countMatch[2];
+    }
+
+    // Strip "of" prefix: "2 servings of chicken"
+    foodQuery = foodQuery.replace(/^(?:servings? of|scoops? of|cups? of|oz of|g of|grams? of|oz of|pieces? of)\s+/i, "");
+
+    // 1. Search saved presets first
+    const savedMatches = matchSavedPresets(foodQuery, state);
+    if (savedMatches.length === 1) {
+      resolvedItems.push(presetToItem(savedMatches[0], servings > 0 ? servings : 1));
+      continue;
+    }
+    if (savedMatches.length > 1) {
+      // Multiple saved matches — present ambiguity
+      ambiguousNames.push(
+        `"${foodQuery}" matched: ${savedMatches.map((p) => p.meal.name).join(", ")}`,
+      );
+      continue;
+    }
+
+    // 2. Fall back to catalog lookup via existing parseItem logic
+    const catalogItem = parseItem(part.trim());
+    if (catalogItem) {
+      resolvedItems.push(catalogItem);
+      continue;
+    }
+
+    // No match at all — give up on this phrase
+    return undefined;
+  }
+
+  if (ambiguousNames.length) {
+    return {
+      reply: `I found multiple matches — please clarify:\n${ambiguousNames.join("\n")}\n\nOr open Food Library to log directly.`,
+    };
+  }
+
+  if (!resolvedItems.length) return undefined;
+
+  return {
+    tool: "logReferenceMeal",
+    args: {
+      name: resolvedItems.map((i) => i.name).join(" + "),
+      mealType,
+      ...mealItemTotals(resolvedItems),
+      items: resolvedItems,
+      confidence: "high",
+      assumptions: ["Used saved library or FitCore catalog values."],
+      originalText,
+    },
+  };
 }
