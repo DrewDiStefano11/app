@@ -5,6 +5,7 @@ import { syncWhoop, type WhoopSyncStore } from "./sync.server";
 import { createWhoopTokenVault } from "./token-vault.server";
 import { verifyWhoopWebhook } from "./webhook.server";
 import type { WhoopCachePolicy } from "./v2.server";
+import type { createWhoopArchiveStore } from "./archive-store.server";
 
 const sessionCookie = "__Host-fitcore-whoop-session";
 const flowCookie = "__Host-fitcore-whoop-flow";
@@ -26,6 +27,7 @@ type WhoopIntegrationConfig = {
   encryptionKey: string;
   jarvisSharingEnabled?: boolean;
   snapshotCacheEnabled?: boolean;
+  archive?: ReturnType<typeof createWhoopArchiveStore>;
   onCachePolicy?: (policy: WhoopCachePolicy) => void;
   fetch?: (url: string, init: RequestInit) => Promise<Response>;
   background?: {
@@ -116,6 +118,7 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
         /^[A-Za-z0-9_-]{32,128}$/.test(config.background?.cronSecret ?? ""),
       fetch: config.fetch ? (url, init) => config.fetch!(url.href, init) : undefined,
       onCachePolicy: config.onCachePolicy,
+      archive: config.archive,
     });
 
   function syncReply(outcome: Awaited<ReturnType<typeof syncWhoop>>) {
@@ -249,11 +252,34 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
       const session = await getSession(request);
       if (!session) return reply(401);
       const connection = await store.getConnection(session.ownerId);
+      const consent = await config.archive?.getConsent(session);
+      const invalidatedAt = await config.archive?.getInvalidatedAt(session);
+      const lastDeletedAt =
+        [connection?.lastDeletedAt, invalidatedAt]
+          .filter((value): value is string => !!value)
+          .sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? connection?.lastDeletedAt;
       return Response.json(
         {
           status: connection?.status ?? "disconnected",
-          lastSyncedAt: connection?.lastSyncedAt ?? null,
-          lastDeletedAt: connection?.lastDeletedAt,
+          lastSyncedAt:
+            consent && !consent.revokedAt
+              ? consent.lastSyncedAt
+              : (connection?.lastSyncedAt ?? null),
+          lastDeletedAt,
+          archive: config.archive
+            ? {
+                available: true,
+                consent: consent
+                  ? {
+                      grantedAt: consent.grantedAt,
+                      revokedAt: consent.revokedAt,
+                      noticeVersion: consent.noticeVersion,
+                      purposes: consent.purposes,
+                      source: consent.source,
+                    }
+                  : null,
+              }
+            : undefined,
           version:
             connection?.status === "connected"
               ? connection.id + ":" + connection.eventRevision
@@ -314,7 +340,66 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
       if (request.method !== "GET" || new URL(request.url).origin !== origin) return reply(400);
       const session = await getSession(request);
       if (!session) return reply(401);
-      return Response.json(await store.getSnapshot(session), { headers: privateHeaders });
+      const consent = await config.archive?.getConsent(session);
+      return Response.json(
+        consent && !consent.revokedAt
+          ? await config.archive!.getSnapshot(session)
+          : await store.getSnapshot(session),
+        { headers: privateHeaders },
+      );
+    },
+
+    async archiveConsent(request: Request) {
+      if (request.method !== "POST" && request.method !== "DELETE") return reply(405);
+      if (!isSameOriginMutation(request)) return reply(403);
+      const session = await getSession(request);
+      if (!session) return reply(401);
+      if (!config.archive) return reply(503);
+      if (request.method === "DELETE") {
+        return reply((await config.archive.revokeConsent(session)) ? 204 : 409);
+      }
+      if (request.headers.get("Content-Type")?.split(";")[0] !== "application/json")
+        return reply(415);
+      const body = await request.text();
+      if (body.length > 256) return reply(400);
+      try {
+        const input = JSON.parse(body);
+        if (
+          input.noticeVersion !== "owner-measurements-v1" ||
+          input.authorizePersonalArchive !== true
+        )
+          return reply(400);
+      } catch {
+        return reply(400);
+      }
+      return reply((await config.archive.grantConsent(session, "settings")) ? 204 : 409);
+    },
+
+    async archiveExport(request: Request) {
+      if (request.method !== "GET") return reply(405);
+      if (new URL(request.url).origin !== origin) return reply(403);
+      const session = await getSession(request);
+      if (!session) return reply(401);
+      if (!config.archive) return reply(503);
+      const consent = await config.archive.getConsent(session);
+      if (!consent || consent.revokedAt) return reply(409);
+      const snapshot = await config.archive.getSnapshot(session);
+      return Response.json(
+        {
+          format: "fitcore-whoop-owner-archive-v1",
+          exportedAt: new Date().toISOString(),
+          consent,
+          units: "whoop-v2-native",
+          lastSyncedAt: snapshot?.lastSyncedAt ?? null,
+          records: snapshot?.records ?? [],
+        },
+        {
+          headers: {
+            ...privateHeaders,
+            "Content-Disposition": 'attachment; filename="fitcore-whoop-history.json"',
+          },
+        },
+      );
     },
 
     async jarvisSnapshot(request: Request) {
