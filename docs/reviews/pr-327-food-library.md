@@ -46,3 +46,5 @@ artifact cases pass across WebKit/Chromium, including original happy paths and
 failed-write retry safety. Targeted verified-backup/fraction tests also pass.
 The release gate now selects the food-library cases. Existing PR #327 is updated;
 hosted checks and separate merge approval remain required. No dependency added.
+
+Hosted integration found a catalog-only provenance regression. The saved-food extension now defers catalog-only meals to the established parser, preserving its medium confidence and source label. All 19 food units and the unchanged catalog save/undo browser test pass in both mobile engines against the rebuilt production artifact. Mixed saved/catalog meals retain explicit mixed provenance.

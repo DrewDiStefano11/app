@@ -15,6 +15,7 @@ import {
   type SavedNutritionPreset,
 } from "../../src/lib/types";
 import { queryLibraryMealWithSaved } from "../../src/lib/jarvis/food-reference";
+import { interpretJarvisText } from "../../src/lib/jarvis/text-commands";
 import { parseFitCoreImport } from "../../src/lib/fitcore-data";
 import { validateFitCoreDataIntegrity } from "../../src/lib/data-integrity";
 import {
@@ -23,6 +24,16 @@ import {
 } from "../../src/lib/data-backup";
 
 const createdAt = Date.UTC(2026, 10, 16, 18);
+
+test("catalog-only Jarvis meals retain the established confidence and source assumptions", () => {
+  const command = interpretJarvisText(
+    "I ate a banana and two slices of whole wheat bread.",
+    defaultState,
+  );
+  expect(command?.tool).toBe("logReferenceMeal");
+  expect(command?.args.confidence).toBe("medium");
+  expect(command?.args.assumptions).toEqual(["Used FitCore food library serving values."]);
+});
 
 test("saved food quantities honor base units, fractions and serving counts", () => {
   const preset = confirmedPreset({ servingLabel: "100 g" });

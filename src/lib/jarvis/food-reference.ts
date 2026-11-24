@@ -204,6 +204,8 @@ export function queryLibraryMealWithSaved(
 
   const resolvedItems: JarvisMealItem[] = [];
   const ambiguousNames: string[] = [];
+  let usedSaved = false;
+  let usedCatalog = false;
 
   for (const part of parts) {
     // Extract optional leading count: "2 servings of X", "two X", "1/2 cup of X"
@@ -255,6 +257,7 @@ export function queryLibraryMealWithSaved(
         return { reply: "Please specify a positive quantity of up to 10 saved servings." };
       }
       resolvedItems.push(presetToItem(preset, servings));
+      usedSaved = true;
       continue;
     }
     if (savedMatches.length > 1) {
@@ -269,6 +272,7 @@ export function queryLibraryMealWithSaved(
     const catalogItem = parseItem(part.trim());
     if (catalogItem) {
       resolvedItems.push(catalogItem);
+      usedCatalog = true;
       continue;
     }
 
@@ -282,7 +286,8 @@ export function queryLibraryMealWithSaved(
     };
   }
 
-  if (!resolvedItems.length) return undefined;
+  // Keep the established catalog-only path and its original provenance intact.
+  if (!resolvedItems.length || !usedSaved) return undefined;
 
   return {
     tool: "logReferenceMeal",
@@ -291,8 +296,12 @@ export function queryLibraryMealWithSaved(
       mealType,
       ...mealItemTotals(resolvedItems),
       items: resolvedItems,
-      confidence: "high",
-      assumptions: ["Used saved library or FitCore catalog values."],
+      confidence: usedCatalog ? "medium" : "high",
+      assumptions: [
+        usedCatalog
+          ? "Used saved library and FitCore catalog values."
+          : "Used confirmed saved library serving values.",
+      ],
       originalText,
     },
   };
