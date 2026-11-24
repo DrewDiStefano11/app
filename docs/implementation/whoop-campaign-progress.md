@@ -49,3 +49,14 @@ personal storage does not grant AI sharing. Official API documentation does not
 specify a maximum historical lookback; backfill must traverse available authorized
 pages without imposing an arbitrary short window. Live account scope verification
 is separate from the scopes requested by this application.
+
+## Activation preflight follow-up
+
+Branch `codex/whoop-production-preflight`, based on #320. Prepared a read-only SQL
+preflight and an explicit activation/physical-device procedure. Found and fixed
+a prerequisite defect: the webhook route was gated on background cron, while
+archival flags did not enable signed provider deletion receipt. Archive activation
+now enables webhook receipt independently of scheduled sync. The archive grant
+script adds only INSERT on existing webhook metadata; preflight verifies it.
+Production webhook registration in the WHOOP dashboard remains unverified and is
+required before real storage consent. No production changes were made.
