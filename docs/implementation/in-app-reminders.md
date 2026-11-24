@@ -39,3 +39,10 @@ after artifact tests confirmed it previously lacked dialog semantics. Final
 production-artifact reminder/weigh-in checks all pass (8/8) in WebKit/Chromium,
 including failed dismissal persistence, a single successful weigh-in retry, saved
 times after reload, next-day delivery and navigation from every main section.
+
+Reconciled with production WHOOP main `9a4c9c8` on November 24. The only merge
+conflict was the release-test selection; both archive and reminder selections are
+preserved. TypeScript, production build, four targeted unit cases and all six
+settings/reminder artifact cases pass in iPhone WebKit and mobile Chromium.
+This remains PR #325 targeting main; no merge or production activation of
+reminders has been authorized.

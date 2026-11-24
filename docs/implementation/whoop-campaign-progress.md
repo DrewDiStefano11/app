@@ -155,3 +155,38 @@ Published focused main-target integration PR: https://github.com/DrewDiStefano11
 Merge and concrete production activation approval requested together. Actual owner
 storage and physical iPhone acceptance remain blocked on that approval and subsequent
 activation/consent; lower-priority development remains paused.
+
+## Production activation and physical acceptance — November 24, 2026
+
+Drew explicitly approved #326 merge and the exact activation package. Every hosted
+check passed before #326 merged to main `9a4c9c8e8da87ae6f14809016342e50986e1e5e2`.
+The resulting tree exactly matches the reviewed integration. Neon migrations
+006/007 and restricted grants committed successfully; read-only preflight confirms
+all tables/indexes/columns, three lifecycle guards and restricted runtime access.
+No migration was repeated during session recovery.
+
+Neon now has a zero-hour history window, disabled restore and no snapshots or
+schedule. WHOOP V2 webhook registration is saved at the canonical production URL.
+The three approved Production flags were saved, existing keys preserved, and main
+redeployed after Vercel's owner email verification. Deployment
+`DLRQ9oowCmUnD3rDSzXiCeJmR4JU` is Ready and Current at `9a4c9c8`.
+Actual unsigned/forged webhook requests return 401/no-store. No genuine signed
+provider deletion was fabricated or destructive owner-data test performed.
+
+Drew granted account-specific storage consent in the installed app. Aggregate SQL
+confirms an active consent belonging to the connected account, nonzero encrypted
+rows in all four measurement kinds, zero duplicates, and an automatic sync whose
+database timestamp matches the iPhone. Initial inspection occurred before consent
+was granted; the fresh query matched Drew's exact authorization timestamp.
+
+Drew confirmed: all three physical iPhone force-close/reopen cycles restored saved
+values before refresh finished. Production logs show repeated /records 200 reads
+while new sync requests were held by the normal 409 cooldown, and SQL confirms
+records were retained unchanged. **The primary physical cold-start requirement is
+now verified.** This is actual production/device evidence, beyond simulated tests.
+
+Historical import has committed initial recovery pages and retains its next-page
+checkpoint; other collections and complete backfill remain to verify. Genuine
+provider-signed event observation is pending. The broader campaign resumes:
+#325 is reconciled with main and passes targeted integrated acceptance; #327 is
+being reviewed read-only without modifying Antigravity's active work.
