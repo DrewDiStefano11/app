@@ -1,4 +1,4 @@
-import { devices, expect, test, type Page } from "@playwright/test";
+import { devices, expect, test, type BrowserContext, type Page } from "@playwright/test";
 import type { WhoopSnapshot } from "../../src/lib/whoop/dashboard";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -423,6 +423,7 @@ for (const permission of ["authorized", "expired", "revoked"] as const) {
     const syncGate = new Promise<void>((resolve) => {
       releaseSync = resolve;
     });
+    let restartedContext: BrowserContext | undefined;
     try {
       const context = await restartedBrowser.newContext({
         ...profile,
@@ -430,6 +431,7 @@ for (const permission of ["authorized", "expired", "revoked"] as const) {
         storageState: storageState!,
         serviceWorkers: "block",
       });
+      restartedContext = context;
       const restarted = await context.newPage();
       const restartedAt =
         permission === "expired" ? Date.parse(saved.accessExpiresAt) + 1 : now + 30000;
@@ -502,6 +504,10 @@ for (const permission of ["authorized", "expired", "revoked"] as const) {
     } finally {
       releaseStatus();
       releaseSync();
+      // A revoked records response can abort the still-gated status request.
+      // Drain its route callback before terminating WebKit's network process.
+      await restartedContext?.unrouteAll({ behavior: "wait" });
+      await restartedContext?.close();
       await restartedBrowser.close();
     }
   });
