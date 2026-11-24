@@ -372,7 +372,15 @@ export interface Personalization {
   defaultDashboardFocus?: "training" | "nutrition" | "recovery" | "progress";
   defaultGraphModes?: { volume?: string; heatmap?: string };
   units?: { weight: "lb" | "kg"; distance: "mi" | "km" };
-  reminders?: { workoutEnabled: boolean; workoutTime: string; weighInEnabled: boolean; weighInTime: string; mealLogEnabled: boolean; mealLogTime: string; };
+  reminders?: {
+    inAppEnabled?: boolean;
+    workoutEnabled: boolean;
+    workoutTime: string;
+    weighInEnabled: boolean;
+    weighInTime: string;
+    mealLogEnabled: boolean;
+    mealLogTime: string;
+  };
   aiCoachTone?: "direct" | "supportive" | "detailed" | "simple";
   aiResponseLength?: "quick" | "detailed";
   uiComplexity?: "simple" | "advanced";
