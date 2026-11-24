@@ -110,3 +110,43 @@ all three full Playwright projects, build, CodeQL and dependency review passed.
 The teardown is being repaired on #320 before requesting merge approval. Superseded
 manual #321/#322 release runs were cancelled to avoid repeating the same teardown
 failure. Production and owner data are unaffected.
+
+## Urgent production persistence priority — November 24, 09:16 EST
+
+Drew's physical iPhone cold-start test still fails. Lower-priority campaign work
+is paused until production persistence is physically verified.
+
+GitHub inspection confirms #320 merged to main (`feffe86`); #321 merged to
+`codex/fitcore-whoop-archive-restoration` (`c866896`), #322 to
+`codex/whoop-production-preflight` (`cf03453`), and #323 to
+`codex/whoop-historical-import` (`94efd85`). Their merged labels did not mean
+all implementation reached main. The earlier merge-readiness notes above are
+historical and superseded by this finding.
+
+`codex/whoop-production-integration` starts at current main and cherry-picks only
+remaining preflight/deletion, import and analytics changes (`10d20c3`, `8e8c141`,
+`072e477`). Before operational documentation updates, its entire tree is identical
+to merged head `94efd85`. No duplicate foundation/migration 006 implementation,
+reminder changes or unpublished lifecycle-test work is included.
+
+Authenticated production inspection: Vercel deployment
+`JC9hXxfgeZM8gmAYR82CYxp2Hpga` is Ready and Current at main `feffe86` (#320).
+The later WHOOP changes are previews only. Archive/history/deletion-policy flags
+are absent. Neon still has only connections/oauth_attempts/sessions/webhook_events;
+archive migrations 006/007 are unapplied, and runtime lacks webhook INSERT.
+Recovery is six hours; no snapshots or schedules, one branch. WHOOP developer app
+has no webhook configured. Its v2 canonical callback URL is prepared but unsaved.
+No production mutations, consent writes or measurement reads were performed.
+
+Integration validation: TypeScript and Vercel production build pass; 26 focused
+real-SQL/archive/import/analytics unit tests pass. Built-artifact WebKit/Chromium
+persistence acceptance is running once at this integration milestone. These are
+simulated tests, not evidence that real production storage is enabled.
+
+The updated activation procedure specifies migrations 006/007, restricted grants,
+zero recovery retention (explicit loss of point-in-time recovery), signed v2
+webhook registration, three production flags and redeployment of approved main.
+Added aggregate-only persistence SQL for before/after evidence without reading
+ciphertext, credentials, IDs or measurement values. Required approvals: PR merge
+and concrete production activation package. Owner consent, encrypted row creation,
+production restoration ordering and physical iPhone acceptance remain pending.

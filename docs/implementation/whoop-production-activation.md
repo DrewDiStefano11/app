@@ -6,15 +6,21 @@ approves the concrete steps. No production modification has been performed.
 ## Observed prerequisites
 
 The [campaign progress](whoop-campaign-progress.md) records authenticated read-only
-inspection. Production `gym-app` is Ready at main `47a214e`; the dedicated Neon
+inspection. Rechecked after the physical iPhone failure: production `gym-app` is
+Ready and Current at main `feffe86` (deployment `JC9hXxfgeZM8gmAYR82CYxp2Hpga`).
+Only #320 reached main; #321–323 merged into intermediate branches. The dedicated Neon
 database has migrations 001–005, one connected account, a restricted runtime role,
 no archive tables, no archive flags, one branch, one primary compute, no replicas,
-no snapshots and a six-hour restore history window.
+no snapshots and a six-hour restore history window. The WHOOP developer app has
+**no webhooks configured**. Production persistence is not activated or verified.
 
 ## Approval package
 
-1. Merge [PR #320](https://github.com/DrewDiStefano11/app/pull/320) after its required
-   checks pass. Confirm Vercel production points to the resulting main commit.
+1. Merge the focused `codex/whoop-production-integration` PR into **main** after
+   approval and required checks. It applies only the remaining #321–323 changes;
+   its implementation tree matches merged WHOOP head `94efd85`, excluding
+   foundation/restoration code already on main. Confirm Vercel production is
+   Ready and Current at the resulting main commit before activation.
 2. In [Neon Settings](https://console.neon.tech/app/projects/royal-term-06690298/settings#storage),
    set the project history window to **0 hours** (`history_retention_seconds=0`).
    This removes point-in-time recovery and Time Travel for this dedicated WHOOP
@@ -26,16 +32,20 @@ no snapshots and a six-hour restore history window.
    sanitization. If existing copies remain restorable, leave archival flags off.
 3. In the [Neon SQL editor](https://console.neon.tech/app/projects/royal-term-06690298/branches/br-square-night-bdsvca4t/sql-editor?database=neondb),
    as migration owner, run the repository's `006-owner-archive.sql`, then
+   `007-history-import.sql`, then
    `operations/archive-runtime-role.sql`. These scripts create no owner consent.
    Run `operations/archive-preflight.sql`: all four archive tables, the invalidation
    column and three lifecycle guards must be present; runtime must have SELECT on
    all four, INSERT/UPDATE on consents/records/imports, SELECT only on deletions,
-   and no DELETE on archive tables. The runtime also needs INSERT on webhook_events
+   and no DELETE on archive tables. Verify migration 007's nullable window_start
+   and pages/records_seen/seen_tokens columns before enabling history import.
+   The runtime also needs INSERT on webhook_events
    to receive signed deletion events. Role superuser/create DB/create role/bypass RLS
    flags must remain false. Do not re-run migration 006 after successful application.
 4. In [Vercel Production variables](https://vercel.com/drew-d611/gym-app/settings/environment-variables),
    add `WHOOP_OWNER_ARCHIVE_ENABLED=true` and
-   `WHOOP_ARCHIVE_DELETION_POLICY=no-recovery-copies-v1` only after steps 2–3 pass.
+   `WHOOP_ARCHIVE_DELETION_POLICY=no-recovery-copies-v1` and
+   `WHOOP_HISTORY_IMPORT_ENABLED=true` only after steps 2–3 pass.
    Preserve the existing encryption secret and database URL. Do not enable temporary
    snapshot caching, AI sharing or background cron as part of this activation.
    Redeploy the approved main revision to make the variables effective. Include
@@ -45,11 +55,20 @@ no snapshots and a six-hour restore history window.
    `https://gym-app-jade-eight.vercel.app/api/whoop/webhook`. Verify registration
    before granting storage consent. The handler uses the existing client secret
    to validate signatures and deletes matching rows synchronously; background
-   provider fetches remain disabled. Registration is still unverified.
+   provider fetches remain disabled. Read-only dashboard inspection confirmed no
+   webhook registration on November 24. Add it through the app's Edit screen,
+   then verify the saved v2 URL. Reject unsigned requests; do not send a real
+   deletion event as a production test without separate deletion approval.
 5. In the installed FitCore PWA, unlock Settings → Integrations & Devices → WHOOP.
    Confirm connected status and the private-history notice, then choose
    **Authorize private WHOOP history**. Verify its authorization timestamp and
    successful sync. This owner action grants personal storage purposes only.
+6. Run `operations/archive-persistence-metadata.sql` before and after owner sync.
+   Confirm active consent and increasing persistent encrypted-row counts with
+   successful timestamps. It never returns IDs, ciphertext or measurement values.
+   On cold reopen, verify the production browser's archive response completes
+   before a new sync response, and the UI first uses the prior saved timestamp.
+   A SQL count alone does not prove restoration ordering or decryptability.
 
 ## Physical iPhone acceptance after activation
 

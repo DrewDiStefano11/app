@@ -34,4 +34,13 @@ from pg_roles where rolname = 'fitcore_whoop_runtime';
 select status, count(*) as connection_count from fitcore_whoop.connections group by status;
 select coalesce(has_table_privilege((select oid from pg_roles where rolname = 'fitcore_whoop_runtime'),
   to_regclass('fitcore_whoop.webhook_events'), 'INSERT'), false) as runtime_can_receive_deletions;
+
+-- Required only when WHOOP_HISTORY_IMPORT_ENABLED is enabled (migration 007).
+with required(name) as (values ('pages'), ('records_seen'), ('seen_tokens'))
+select name as history_column, exists (select 1 from information_schema.columns
+  where table_schema = 'fitcore_whoop' and table_name = 'archive_imports'
+    and column_name = name) as present from required order by name;
+select exists (select 1 from information_schema.columns
+  where table_schema = 'fitcore_whoop' and table_name = 'archive_imports'
+    and column_name = 'window_start' and is_nullable = 'YES') as history_window_unbounded;
 commit;
