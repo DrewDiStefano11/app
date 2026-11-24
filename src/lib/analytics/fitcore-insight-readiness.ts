@@ -85,7 +85,7 @@ export interface FitCoreInsightReadinessBuildResult {
   insightReadiness: FitCoreInsightReadinessResult;
 }
 
-interface DatedValue {
+export interface DatedValue {
   timestamp: number;
   value: number;
 }
@@ -348,6 +348,8 @@ function correlation(
     algorithmVersion: FITCORE_CORRELATION_VERSION,
   };
 }
+
+export { correlation as correlateDailySeries };
 
 function confidenceFromCorrelation(result: FitCoreCorrelationResult): FitCoreInsightConfidence {
   if (result.status !== "ready") return "high";

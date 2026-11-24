@@ -120,6 +120,7 @@ export function selectSleepEvidence(
     row.at >= first && row.quality !== null ? [row.quality] : [],
   );
   return {
+    allNights,
     nights: sorted,
     history,
     last: allNights.at(-1) ?? null,
