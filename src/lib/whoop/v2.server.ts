@@ -253,6 +253,23 @@ export async function readWhoopCollectionWithCache(
   throw new WhoopReadError("pagination");
 }
 
+// One bounded page per import request; the durable checkpoint owns pagination.
+export async function readWhoopHistoryPage(
+  kind: Kind,
+  accessToken: string,
+  window: { end: string; nextToken: string | null },
+  options: Options = {},
+) {
+  const endpoint = new URL("https://api.prod.whoop.com/developer/v2" + paths[kind]);
+  endpoint.search = new URLSearchParams({ end: window.end, limit: "25" }).toString();
+  if (window.nextToken) endpoint.searchParams.set("nextToken", window.nextToken);
+  const result = await fetchPage(kind, endpoint, accessToken, options);
+  return {
+    records: result.records.map((raw) => normalizeWhoopRecord(kind, raw)),
+    nextToken: result.next_token || null,
+  };
+}
+
 export async function readWhoopCollection(
   ...args: Parameters<typeof readWhoopCollectionWithCache>
 ) {

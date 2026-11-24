@@ -180,3 +180,101 @@ test("encrypted SQL archive restores in a new browser process before WHOOP respo
     server.child.kill();
   }
 });
+
+test("historical import resumes from its encrypted SQL checkpoint after browser and database reopening", async ({
+  playwright,
+  browserName,
+}, testInfo) => {
+  test.setTimeout(120000);
+  const server = await startArchiveServer();
+  const engine = playwright[browserName];
+  const options = {
+    ...(browserName === "webkit"
+      ? devices["iPhone 13"]
+      : { viewport: { width: 390, height: 844 }, isMobile: true }),
+    baseURL: server.origin,
+    ignoreHTTPSErrors: true,
+    serviceWorkers: "block" as const,
+  };
+  let browser = await engine.launch();
+  const controlContext = await playwright.request.newContext({
+    baseURL: server.origin,
+    ignoreHTTPSErrors: true,
+    extraHTTPHeaders: { "X-Synthetic-Control": "test-only" },
+  });
+  const control = async (data = {}) => {
+    const response = await controlContext.post("/__test/control", { data });
+    expect(response.ok()).toBeTruthy();
+    return response.json();
+  };
+  try {
+    let context = await browser.newContext(options);
+    let page = await context.newPage();
+    await seedRevisionedFitCoreState(
+      page,
+      currentFitCoreState({
+        onboardingComplete: true,
+        workouts: [],
+        mealEntries: [],
+        sleepEntries: [],
+        checkIns: [],
+      }),
+    );
+    await page.goto("/integrations/whoop");
+    await page.getByLabel("FitCore integration access key").fill(server.accessKey);
+    await page.getByRole("button", { name: "Unlock WHOOP settings" }).click();
+    await page.getByRole("button", { name: "Authorize private WHOOP history" }).click();
+    await expect(
+      page.getByText("Private history enabled and synchronized.", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Import available WHOOP history" }).click();
+    await expect(
+      page.getByText("recovery: 1 provider records processed across 1 pages · In progress", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Pause historical import" }).click();
+    await expect(page.getByRole("button", { name: "Resume historical import" })).toBeVisible();
+    const stored = await context.storageState({ indexedDB: true });
+    expect(JSON.stringify(stored)).not.toContain("recovery_score");
+    await browser.close();
+    await control({ reopenDatabase: true });
+    browser = await engine.launch();
+    context = await browser.newContext({ ...options, storageState: stored });
+    page = await context.newPage();
+    await page.goto("/integrations/whoop");
+    await expect(
+      page.getByText("recovery: 1 provider records processed across 1 pages · In progress", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Resume historical import" }).click();
+    await expect(
+      page.getByText("All available authorized history imported.", { exact: true }),
+    ).toBeVisible({ timeout: 30000 });
+    expect((await control()).count).toBe(8);
+    const snapshot = await (await page.request.get(server.origin + "/api/whoop/records")).json();
+    const historical = snapshot.records.filter(
+      (record: { created_at: string }) => record.created_at === "2018-02-03T08:00:00.000Z",
+    );
+    expect(historical).toHaveLength(4);
+    expect(
+      historical.find((record: { kind: string }) => record.kind === "recovery").score
+        .recovery_score,
+    ).toBe(75);
+    const progress = await (
+      await page.request.get(server.origin + "/api/whoop/archive-import")
+    ).json();
+    expect(progress.progress.find((row: { kind: string }) => row.kind === "recovery").pages).toBe(
+      2,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath("historical-import-complete.png"),
+      fullPage: true,
+    });
+  } finally {
+    await browser.close();
+    await controlContext.dispose();
+    server.child.kill();
+  }
+});

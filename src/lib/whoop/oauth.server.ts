@@ -13,6 +13,7 @@ export type WhoopTokenPair = {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+  scopes?: string[];
 };
 
 type CallbackDependencies = {
@@ -151,6 +152,7 @@ export function createWhoopOAuthClient(config: OAuthClientConfig) {
         refresh_token: z.string().min(1),
         expires_in: z.number().int().positive().max(2_147_483_647),
         token_type: z.string().toLowerCase().pipe(z.literal("bearer")).optional(),
+        scope: z.string().max(2048).optional(),
       })
       .safeParse(result);
     if (!pair.success) throw new Error("Invalid WHOOP token response");
@@ -159,6 +161,9 @@ export function createWhoopOAuthClient(config: OAuthClientConfig) {
       accessToken: pair.data.access_token,
       refreshToken: pair.data.refresh_token,
       expiresIn: pair.data.expires_in,
+      ...(pair.data.scope === undefined
+        ? {}
+        : { scopes: [...new Set(pair.data.scope.split(/\s+/).filter(Boolean))] }),
     };
   }
 
