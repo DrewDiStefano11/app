@@ -50,6 +50,9 @@ function getIntegration() {
       fetchOptions: { signal: AbortSignal.timeout(5000) },
     })) as Row[];
   const store = createWhoopStore(query);
+  const archiveEnabled =
+    process.env.WHOOP_OWNER_ARCHIVE_ENABLED === "true" &&
+    process.env.WHOOP_ARCHIVE_DELETION_POLICY === "no-recovery-copies-v1";
   return createWhoopIntegration({
     origin: WHOOP_ORIGIN,
     clientId: WHOOP_CLIENT_ID,
@@ -58,11 +61,10 @@ function getIntegration() {
     encryptionKey: WHOOP_TOKEN_ENCRYPTION_KEY,
     jarvisSharingEnabled: WHOOP_JARVIS_SHARING_ENABLED === "true",
     snapshotCacheEnabled: WHOOP_SNAPSHOT_CACHE_ENABLED === "true",
-    archive:
-      process.env.WHOOP_OWNER_ARCHIVE_ENABLED === "true" &&
-      process.env.WHOOP_ARCHIVE_DELETION_POLICY === "no-recovery-copies-v1"
-        ? createWhoopArchiveStore(query, createWhoopArchiveVault(WHOOP_TOKEN_ENCRYPTION_KEY))
-        : undefined,
+    archive: archiveEnabled
+      ? createWhoopArchiveStore(query, createWhoopArchiveVault(WHOOP_TOKEN_ENCRYPTION_KEY))
+      : undefined,
+    webhooks: archiveEnabled ? store : undefined,
     onCachePolicy:
       process.env.VERCEL_ENV === "production"
         ? (policy) => console.info("WHOOP_CACHE_POLICY", JSON.stringify(policy))

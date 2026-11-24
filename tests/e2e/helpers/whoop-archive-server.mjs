@@ -4,7 +4,7 @@ import { createServer } from "node:https";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
-import { createCipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
@@ -192,12 +192,36 @@ const server = createServer(
       const body = Buffer.concat(chunks);
       let response;
       if (url.pathname === "/__test/control") {
+        let deletionStatus;
         if (incoming.headers["x-synthetic-control"] !== "test-only") {
           outgoing.writeHead(403).end();
           return;
         }
         if (body.length) {
           const change = JSON.parse(body.toString());
+          if (change.deleteSleep) {
+            const timestamp = String(Date.now());
+            const event = JSON.stringify({
+              user_id: 123,
+              id: "22222222-2222-4222-8222-222222222222",
+              type: "sleep.deleted",
+              trace_id: "artifact-archive-deletion",
+            });
+            const result = await artifact.fetch(
+              new Request(origin + "/api/whoop/webhook", {
+                method: "POST",
+                body: event,
+                headers: {
+                  "X-WHOOP-Signature-Timestamp": timestamp,
+                  "X-WHOOP-Signature": createHmac("sha256", "synthetic-secret")
+                    .update(timestamp)
+                    .update(event)
+                    .digest("base64"),
+                },
+              }),
+            );
+            deletionStatus = result.status;
+          }
           if (change.reopenDatabase) {
             await database.close();
             database = new PGlite(databasePath);
@@ -223,6 +247,7 @@ const server = createServer(
           count,
           providerRequests: control.providerRequests,
           archiveEnabled: process.env.WHOOP_OWNER_ARCHIVE_ENABLED === "true",
+          deletionStatus,
           temporaryCacheEnabled: false,
         });
       } else {
