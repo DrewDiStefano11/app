@@ -28,6 +28,7 @@ type WhoopIntegrationConfig = {
   jarvisSharingEnabled?: boolean;
   snapshotCacheEnabled?: boolean;
   archive?: ReturnType<typeof createWhoopArchiveStore>;
+  webhooks?: Pick<ReturnType<typeof createWhoopStore>, "registerWebhook">;
   onCachePolicy?: (policy: WhoopCachePolicy) => void;
   fetch?: (url: string, init: RequestInit) => Promise<Response>;
   background?: {
@@ -301,12 +302,13 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
 
     async webhook(request: Request) {
       if (request.method !== "POST") return reply(405);
-      if (!config.background || new URL(request.url).origin !== origin) return reply(503);
+      const webhooks = config.webhooks ?? config.background?.store;
+      if (!webhooks || new URL(request.url).origin !== origin) return reply(503);
       const event = await verifyWhoopWebhook(request, config.clientSecret);
       if (!event) return reply(401);
-      const connection = await config.background.store.registerWebhook(event);
+      const connection = await webhooks.registerWebhook(event);
       const runtimeRequest = request as Request & { waitUntil?(task: Promise<unknown>): void };
-      if (connection && runtimeRequest.waitUntil) {
+      if (config.background && connection && runtimeRequest.waitUntil) {
         runtimeRequest.waitUntil(runSync(connection).catch(() => {}));
       }
       return reply(204);

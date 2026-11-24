@@ -155,10 +155,18 @@ test("encrypted SQL archive restores in a new browser process before WHOOP respo
     expect(afterFailure.records).toEqual(saved.records);
     expect((await control()).count).toBe(4);
 
+    // Archive-only activation must process signed deletions without enabling cron.
+    const deletion = await control({ deleteSleep: true, mode: "hold" });
+    expect(deletion.deletionStatus).toBe(204);
+    expect(deletion.count).toBe(2);
+    await page.reload();
+    await expectDashboardReady(page);
+    await expect(page.getByRole("button", { name: /^Recovery 90% · WHOOP/ })).toHaveCount(0);
+
     await page.goto("/integrations/whoop");
     await page.getByRole("button", { name: "Withdraw storage consent" }).click();
     await page.getByRole("button", { name: "Keep history" }).click();
-    expect((await control()).count).toBe(4);
+    expect((await control()).count).toBe(2);
     await page.getByRole("button", { name: "Withdraw storage consent" }).click();
     await page.getByRole("button", { name: "Delete WHOOP history" }).click();
     await expect(
