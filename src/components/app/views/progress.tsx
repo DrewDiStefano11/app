@@ -21,6 +21,8 @@ import {
 import { useStore, uid } from "@/lib/store";
 import { useWhoopSnapshot } from "@/hooks/use-whoop-snapshot";
 import { MetricComparison } from "@/components/app/metric-comparison";
+import { WhoopHistoryChart } from "@/components/app/whoop-history-chart";
+import { allHistoryDays } from "@/lib/whoop/history";
 import { weeklyVolumeSeries, bodyweightDelta, momentumScore } from "@/lib/analytics";
 import type { ProgressPhoto } from "@/lib/types";
 import type { LayoutMode } from "@/components/app/layout-primitives";
@@ -633,12 +635,26 @@ function PhotosSection() {
 function AnalyticsTab() {
   const { state } = useStore();
   const snapshot = useWhoopSnapshot();
-  const [range, setRange] = useState<"14d" | "30d" | "90d">("30d");
-  const [openDetail, setOpenDetail] = useState<"volume" | "bw" | "momentum" | null>(
-    null,
-  );
+  const [range, setRange] = useState<"7d" | "14d" | "30d" | "90d" | "180d" | "1y" | "all">("30d");
+  const [openDetail, setOpenDetail] = useState<"volume" | "bw" | "momentum" | null>(null);
 
-  const days = range === "14d" ? 14 : range === "30d" ? 30 : 90;
+  const days =
+    range === "all"
+      ? allHistoryDays([
+          ...state.workouts.map((row) => row.startedAt),
+          ...state.mealEntries.map((row) => row.createdAt),
+          ...state.sleepEntries.map((row) => row.createdAt),
+          ...state.bodyweightEntries.map((row) => row.createdAt),
+          ...state.recoveryCheckIns.map((row) => row.createdAt),
+          ...(state.demoMode ? [] : (snapshot?.records ?? [])).map((row) =>
+            Date.parse(
+              "end" in row && row.end ? row.end : "start" in row ? row.start : row.created_at,
+            ),
+          ),
+        ])
+      : range === "1y"
+        ? 365
+        : Number.parseInt(range, 10);
   const series = weeklyVolumeSeries(state, days);
   const total = series.reduce((a, s) => a + s.volume, 0);
   const max = Math.max(1, ...series.map((s) => s.volume));
@@ -647,25 +663,29 @@ function AnalyticsTab() {
     () => [...state.bodyweightEntries].sort((a, b) => a.createdAt - b.createdAt),
     [state.bodyweightEntries],
   );
-  const bwInRange = sortedBw.filter((b) => b.createdAt <= Date.now() && b.createdAt > Date.now() - days * 86400000);
+  const bwInRange = sortedBw.filter(
+    (b) => b.createdAt <= Date.now() && b.createdAt > Date.now() - days * 86400000,
+  );
 
   return (
     <div className="px-5 space-y-4">
-      <div className="flex gap-2">
-        {(["14d", "30d", "90d"] as const).map((r) => (
+      <div className="flex flex-wrap gap-2">
+        {(["7d", "14d", "30d", "90d", "180d", "1y", "all"] as const).map((r) => (
           <Chip
             key={r}
             aria-label={`View ${r} range`}
             active={range === r}
             onClick={() => setRange(r)}
           >
-            {r}
+            {r === "all" ? "All" : r}
           </Chip>
         ))}
       </div>
 
       <SectionHeader title="Correlations" />
       <MetricComparison state={state} snapshot={snapshot} days={days} />
+
+      <WhoopHistoryChart snapshot={state.demoMode ? null : snapshot} days={days} />
 
       <SectionHeader title="Long-term Trends" />
 
@@ -763,8 +783,8 @@ function AnalyticsTab() {
       >
         <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            This chart connects your recorded weigh-ins over the selected {days} days.
-            It does not smooth daily fluctuations or estimate missing measurements.
+            This chart connects your recorded weigh-ins over the selected {days} days. It does not
+            smooth daily fluctuations or estimate missing measurements.
           </p>
         </div>
       </BottomSheet>

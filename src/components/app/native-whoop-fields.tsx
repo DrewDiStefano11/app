@@ -14,10 +14,26 @@ export function WhoopSyncStatus() {
   const refreshing = useWhoopRefreshing();
   const { state } = useStore();
   if (state.demoMode || (!snapshot && !refreshing)) return null;
-  return <p className="px-5 pb-3 text-xs text-muted-foreground" role="status">
-    {refreshing ? "WHOOP refreshing" : "WHOOP last synced"}
-    {snapshot && <> · <time dateTime={snapshot.lastSyncedAt}>{new Date(snapshot.lastSyncedAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</time></>}
-  </p>;
+  return (
+    <p className="px-5 pb-3 text-xs text-muted-foreground" role="status">
+      {snapshot ? "WHOOP last synced" : "WHOOP refreshing"}
+      {snapshot && (
+        <>
+          {" "}
+          ·{" "}
+          <time dateTime={snapshot.lastSyncedAt}>
+            {new Date(snapshot.lastSyncedAt).toLocaleString(undefined, {
+              month: "short",
+              day: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })}
+          </time>
+        </>
+      )}
+      {snapshot && refreshing && " · WHOOP refreshing"}
+    </p>
+  );
 }
 
 /** Native health fields, sharing exactly the same authorized evidence as the score tiles. */

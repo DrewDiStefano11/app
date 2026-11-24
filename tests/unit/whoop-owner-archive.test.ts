@@ -6,6 +6,9 @@ import { createWhoopStore } from "../../src/lib/whoop/postgres.server";
 import { createWhoopArchiveStore } from "../../src/lib/whoop/archive-store.server";
 import { createWhoopArchiveVault } from "../../src/lib/whoop/archive-vault.server";
 import { normalizeWhoopRecord } from "../../src/lib/whoop/v2.server";
+import { createHash, createHmac } from "node:crypto";
+import { createWhoopIntegration } from "../../src/lib/whoop/integration.server";
+import { createWhoopTokenVault } from "../../src/lib/whoop/token-vault.server";
 
 const key = Buffer.alloc(32, 7).toString("base64url");
 const sleepId = "11111111-1111-4111-8111-111111111111";
@@ -325,5 +328,223 @@ test("expired sessions cannot read history and one corrupt ciphertext rejects th
     assert.equal(await f.archive.revokeConsent(f.session), false);
   } finally {
     await f.database.close();
+  }
+});
+
+async function apiFixture() {
+  const f = await fixture();
+  const origin = "https://fitcore.test";
+  const ownerKeyDigest = createHash("sha256")
+    .update(Buffer.alloc(32, 8).toString("base64url"))
+    .digest("hex");
+  const token = Buffer.alloc(32, 9).toString("base64url");
+  const digest = createHmac("sha256", Buffer.from(ownerKeyDigest, "hex"))
+    .update("fitcore-whoop-session:")
+    .update(token)
+    .digest("hex");
+  await f.store.createSession(f.session.ownerId, digest, 3600);
+  await f.database.query("update fitcore_whoop.connections set token_envelope = $1 where id = $2", [
+    createWhoopTokenVault(key).seal(f.session.ownerId, f.id, {
+      accessToken: "synthetic-access",
+      refreshToken: "synthetic-refresh",
+      expiresIn: 3600,
+    }),
+    f.id,
+  ]);
+  const control = { requests: 0, fail: false, score: 80, tokenFailure: "" };
+  const integration = createWhoopIntegration({
+    origin,
+    ownerKeyDigest,
+    clientId: "synthetic-client",
+    clientSecret: "synthetic-secret",
+    encryptionKey: key,
+    snapshotCacheEnabled: false,
+    jarvisSharingEnabled: false,
+    store: f.store,
+    archive: f.archive,
+    webhooks: f.store,
+    fetch: async (url) => {
+      control.requests++;
+      if (url.includes("/oauth/oauth2/token")) {
+        if (control.tokenFailure === "invalid_grant")
+          return Response.json({ error: "invalid_grant" }, { status: 400 });
+        throw new Error("Synthetic transport interruption");
+      }
+      if (control.fail) return new Response(null, { status: 503 });
+      return Response.json(
+        {
+          records: url.includes("/recovery")
+            ? [record(new Date().toISOString(), control.score)]
+            : [],
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
+    },
+  });
+  const request = (
+    path: string,
+    method = "GET",
+    body?: unknown,
+    authenticated = true,
+    requestOrigin = origin,
+  ) =>
+    new Request(origin + "/api/whoop/" + path, {
+      method,
+      headers: {
+        Origin: requestOrigin,
+        ...(authenticated ? { Cookie: "__Host-fitcore-whoop-session=" + token } : {}),
+        ...(body ? { "Content-Type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  return { ...f, control, integration, request };
+}
+
+test("authenticated API persists no-store WHOOP results under explicit consent and restores without provider access", async () => {
+  const f = await apiFixture();
+  try {
+    const grant = { noticeVersion: "owner-measurements-v1", authorizePersonalArchive: true };
+    assert.equal(
+      (await f.integration.archiveConsent(f.request("archive-consent", "POST", grant, false)))
+        .status,
+      401,
+    );
+    assert.equal(
+      (
+        await f.integration.archiveConsent(
+          f.request("archive-consent", "POST", grant, true, "https://foreign.test"),
+        )
+      ).status,
+      403,
+    );
+    assert.equal(
+      (await f.integration.archiveConsent(f.request("archive-consent", "POST", {}))).status,
+      400,
+    );
+    assert.equal(
+      (await f.integration.archiveConsent(f.request("archive-consent", "POST", grant))).status,
+      204,
+    );
+    assert.equal((await f.integration.sync(f.request("sync", "POST"))).status, 204);
+    assert.equal(f.control.requests, 4);
+    const restored = await f.integration.records(f.request("records"));
+    assert.equal(restored.headers.get("Cache-Control"), "no-store");
+    const snapshot = await restored.json();
+    assert.equal(snapshot.records.length, 1);
+    assert.equal(snapshot.records[0].score.recovery_score, 80);
+    assert.ok(Date.parse(snapshot.accessExpiresAt) > Date.now() + 300000);
+    assert.equal(f.control.requests, 4); // restoration itself never waits for provider access
+    assert.equal(
+      (await f.database.query("select snapshot from fitcore_whoop.connections")).rows[0].snapshot,
+      null,
+    );
+    const status = await (await f.integration.status(f.request("status"))).json();
+    assert.equal(status.lastSyncedAt, snapshot.lastSyncedAt);
+    assert.equal(status.archive.consent.noticeVersion, "owner-measurements-v1");
+    assert.equal(status.jarvisSharingAvailable, false);
+    assert.equal(await f.integration.jarvisSnapshot(f.request("jarvis", "POST")), null);
+    const exported = await f.integration.archiveExport(f.request("archive-export"));
+    assert.ok(exported.headers.get("Content-Disposition")?.includes("attachment"));
+    assert.equal((await exported.json()).records.length, 1);
+    assert.equal(
+      (await f.integration.archiveExport(f.request("archive-export", "GET", undefined, false)))
+        .status,
+      401,
+    );
+    assert.equal(
+      (await f.integration.archiveConsent(f.request("archive-consent", "DELETE"))).status,
+      204,
+    );
+    const withdrawn = await (await f.integration.status(f.request("status"))).json();
+    assert.ok(withdrawn.lastDeletedAt);
+    assert.ok(withdrawn.archive.consent.revokedAt);
+    assert.notEqual(withdrawn.version, status.version);
+    assert.equal(await (await f.integration.records(f.request("records"))).json(), null);
+    assert.equal((await f.integration.archiveExport(f.request("archive-export"))).status, 409);
+  } finally {
+    await f.database.close();
+  }
+});
+
+test("API refresh failure preserves the archived snapshot and its original successful-sync time", async () => {
+  const f = await apiFixture();
+  try {
+    await f.grant();
+    assert.equal((await f.integration.sync(f.request("sync", "POST"))).status, 204);
+    const before = await (await f.integration.records(f.request("records"))).json();
+    await f.database.query("update fitcore_whoop.connections set sync_after = null where id = $1", [
+      f.id,
+    ]);
+    f.control.fail = true;
+    assert.equal((await f.integration.sync(f.request("sync", "POST"))).status, 502);
+    assert.deepEqual(await (await f.integration.records(f.request("records"))).json(), before);
+  } finally {
+    await f.database.close();
+  }
+});
+
+test("archive deletion webhooks authenticate and purge under the restricted role without enabling background jobs", async () => {
+  const f = await apiFixture();
+  try {
+    await f.grant();
+    assert.ok(await f.save());
+    const body = JSON.stringify({
+      user_id: 123,
+      id: sleepId,
+      type: "sleep.deleted",
+      trace_id: "archive-only-deletion",
+    });
+    const timestamp = String(Date.now());
+    const request = (secret: string) =>
+      new Request("https://fitcore.test/api/whoop/webhook", {
+        method: "POST",
+        body,
+        headers: {
+          "X-WHOOP-Signature-Timestamp": timestamp,
+          "X-WHOOP-Signature": createHmac("sha256", secret)
+            .update(timestamp)
+            .update(body)
+            .digest("base64"),
+        },
+      });
+    assert.equal((await f.integration.webhook(request("wrong-secret"))).status, 401);
+    assert.equal((await f.archive.getSnapshot(f.session))!.records.length, 1);
+    assert.equal((await f.integration.webhook(request("synthetic-secret"))).status, 204);
+    assert.equal((await f.archive.getSnapshot(f.session))!.records.length, 0);
+    assert.equal((await f.integration.webhook(request("synthetic-secret"))).status, 204);
+    assert.equal(
+      (await f.database.query("select * from fitcore_whoop.archive_deletions")).rows.length,
+      1,
+    );
+    assert.ok(await f.save());
+    assert.equal((await f.archive.getSnapshot(f.session))!.records.length, 0);
+    assert.equal(f.control.requests, 0);
+    assert.equal((await f.integration.reconcile(f.request("reconcile"))).status, 204);
+    assert.equal(f.control.requests, 0);
+  } finally {
+    await f.database.close();
+  }
+});
+
+test("confirmed OAuth grant rejection erases the archive; an ambiguous token transport failure preserves encrypted history", async () => {
+  for (const tokenFailure of ["invalid_grant", "transport"]) {
+    const f = await apiFixture();
+    try {
+      await f.grant();
+      assert.ok(await f.save());
+      await f.database.query(
+        "update fitcore_whoop.connections set expires_at = now() - interval '1 second' where id = $1",
+        [f.id],
+      );
+      f.control.tokenFailure = tokenFailure;
+      assert.equal((await f.integration.sync(f.request("sync", "POST"))).status, 403);
+      assert.equal(
+        (await f.database.query("select * from fitcore_whoop.archive_records")).rows.length,
+        tokenFailure === "invalid_grant" ? 0 : 1,
+      );
+      assert.equal(await (await f.integration.records(f.request("records"))).json(), null);
+    } finally {
+      await f.database.close();
+    }
   }
 });

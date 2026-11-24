@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { WhoopSession } from "./oauth.server";
+import type { WhoopSyncActor } from "./postgres.server";
 import type { WhoopSnapshot } from "./dashboard";
 import { createWhoopArchiveVault, type WhoopArchiveIdentity } from "./archive-vault.server";
 import type { WhoopV2Record } from "./v2.server";
@@ -22,6 +23,19 @@ export type WhoopArchiveConsent = {
   source: "settings" | "account-owner-request";
 };
 
+export type WhoopImportPage = {
+  kind: WhoopV2Record["kind"];
+  end: string;
+  nextToken: string | null;
+  seenTokens: string[];
+};
+export type WhoopImportProgress = {
+  kind: WhoopV2Record["kind"];
+  pages: number;
+  recordsSeen: number;
+  completedAt: string | null;
+};
+
 const consentColumns = `consent.id, consent.owner_id as "ownerId",
   consent.connection_id as "connectionId", consent.provider_user_id as "providerUserId",
   to_char(consent.granted_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "grantedAt",
@@ -33,20 +47,99 @@ const authenticatedConnection = `select connection.* from fitcore_whoop.connecti
   where browser_session.id = $1 and browser_session.owner_id = $2 and browser_session.expires_at > now()
     and connection.status = 'connected' and connection.provider_user_id is not null`;
 
+function authorizedConnection(actor: WhoopSyncActor) {
+  return "id" in actor
+    ? authenticatedConnection
+    : `select connection.* from fitcore_whoop.connections connection
+    where connection.id = $1 and connection.owner_id = $2 and connection.status = 'connected'
+      and connection.provider_user_id is not null`;
+}
+const actorId = (actor: WhoopSyncActor) => ("id" in actor ? actor.id : actor.connectionId);
+
 export function createWhoopArchiveStore(
   query: Query,
   vault: ReturnType<typeof createWhoopArchiveVault>,
 ) {
   return {
-    async getConsent(session: WhoopSession) {
-      const [consent] = await query<WhoopArchiveConsent>(
+    async importProgress(session: WhoopSession): Promise<WhoopImportProgress[]> {
+      return query<WhoopImportProgress>(
         `with authorized as (${authenticatedConnection})
+         select checkpoint.kind, checkpoint.pages, checkpoint.records_seen as "recordsSeen",
+           to_char(checkpoint.completed_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "completedAt"
+         from authorized join fitcore_whoop.archive_consents consent on consent.connection_id = authorized.id
+           and consent.owner_id = authorized.owner_id and consent.provider_user_id = authorized.provider_user_id
+         join fitcore_whoop.archive_imports checkpoint on checkpoint.consent_id = consent.id
+         where consent.revoked_at is null order by checkpoint.kind`,
+        [session.id, session.ownerId],
+      );
+    },
+
+    async prepareImport(
+      session: WhoopSyncActor,
+      consent: WhoopArchiveConsent,
+      syncId: string,
+      eventRevision: number,
+    ) {
+      const [state] = await query<{ valid: boolean; page: WhoopImportPage | null }>(
+        `with authorized as (${authorizedConnection(session)} and connection.id = $3
+          and connection.sync_id = $4 and connection.event_revision = $5 for update of connection),
+         permitted as (select consent.* from fitcore_whoop.archive_consents consent join authorized
+           on authorized.id = consent.connection_id and authorized.provider_user_id = consent.provider_user_id
+           where consent.id = $6 and consent.owner_id = $2 and consent.revoked_at is null for update of consent),
+         initialized as (insert into fitcore_whoop.archive_imports(consent_id, kind, window_start, window_end)
+           select permitted.id, kind, null, now() from permitted cross join
+             unnest(array['recovery', 'sleep', 'cycle', 'workout']) kind
+           on conflict (consent_id, kind) do nothing returning *)
+         select true as valid, (select jsonb_build_object('kind', kind,
+           'end', to_char(window_end at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'),
+           'nextToken', next_token, 'seenTokens', seen_tokens) from (
+             select checkpoint.* from fitcore_whoop.archive_imports checkpoint
+               where consent_id = permitted.id and completed_at is null
+             union all select * from initialized
+           ) pending order by case kind when 'recovery' then 1 when 'sleep' then 2 when 'cycle' then 3 else 4 end limit 1) as page
+         from permitted`,
+        [
+          actorId(session),
+          session.ownerId,
+          consent.connectionId,
+          syncId,
+          eventRevision,
+          consent.id,
+        ],
+      );
+      return state ?? { valid: false, page: null };
+    },
+
+    async getConsent(session: WhoopSyncActor) {
+      const [consent] = await query<WhoopArchiveConsent>(
+        `with authorized as (${authorizedConnection(session)})
          select ${consentColumns} from fitcore_whoop.archive_consents consent
          join authorized on authorized.id = consent.connection_id
            and authorized.provider_user_id = consent.provider_user_id and authorized.owner_id = consent.owner_id`,
-        [session.id, session.ownerId],
+        [actorId(session), session.ownerId],
       );
       return consent ?? null;
+    },
+
+    async getInvalidatedAt(session: WhoopSession) {
+      const [row] = await query<{ invalidatedAt: string | null }>(
+        `with authorized as (${authenticatedConnection}) select
+           to_char(archive_invalidated_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') as "invalidatedAt"
+         from authorized`,
+        [session.id, session.ownerId],
+      );
+      return row?.invalidatedAt ?? null;
+    },
+
+    async eraseRejectedAuthorization(actor: WhoopSyncActor, connectionId: string, syncId: string) {
+      await query(
+        `with authorized as (${authorizedConnection(actor)} and connection.id = $3
+           and connection.sync_id = $4 for update of connection)
+         update fitcore_whoop.archive_consents consent set revoked_at = now()
+         from authorized where consent.connection_id = authorized.id and consent.owner_id = $2
+           and consent.provider_user_id = authorized.provider_user_id and consent.revoked_at is null`,
+        [actorId(actor), actor.ownerId, connectionId, syncId],
+      );
     },
 
     // No automatic grant: the caller must have an explicit, authenticated owner instruction.
@@ -83,12 +176,13 @@ export function createWhoopArchiveStore(
     // The shared provider sync lease and event revision fence make the complete batch atomic.
     // All payloads are normalized and encrypted before any database mutation is attempted.
     async saveSync(
-      session: WhoopSession,
+      session: WhoopSyncActor,
       consent: WhoopArchiveConsent,
       syncId: string,
       eventRevision: number,
       records: WhoopV2Record[],
       cooldownSeconds = 120,
+      historyPage?: WhoopImportPage & { followingToken: string | null; tokenHash: string },
     ) {
       if (consent.ownerId !== session.ownerId || consent.revokedAt) return false;
       const batch = new Map<string, Record<string, string | null>>();
@@ -113,12 +207,22 @@ export function createWhoopArchiveStore(
         });
       }
       const [saved] = await query<{ id: string }>(
-        `with authorized as (${authenticatedConnection} and connection.id = $3
+        `with authorized as (${authorizedConnection(session)} and connection.id = $3
            and connection.sync_id = $4 and connection.event_revision = $5 for update of connection),
          permitted as (
            select consent.* from fitcore_whoop.archive_consents consent join authorized
              on authorized.id = consent.connection_id and authorized.provider_user_id = consent.provider_user_id
-           where consent.id = $6 and consent.owner_id = $2 and consent.revoked_at is null for update of consent
+           where consent.id = $6 and consent.owner_id = $2 and consent.revoked_at is null
+           ${
+             historyPage
+               ? `and exists (select 1 from fitcore_whoop.archive_imports checkpoint
+             where checkpoint.consent_id = consent.id and checkpoint.kind = $9::jsonb->>'kind'
+               and date_trunc('milliseconds', checkpoint.window_end) = ($9::jsonb->>'end')::timestamptz
+               and checkpoint.completed_at is null
+               and checkpoint.next_token is not distinct from ($9::jsonb->>'nextToken'))`
+               : ""
+           }
+           for update of consent
          ), upserted as (
            insert into fitcore_whoop.archive_records as previous
              (consent_id, kind, record_id, related_sleep_id, measured_at, ended_at, provider_updated_at, envelope)
@@ -136,16 +240,32 @@ export function createWhoopArchiveStore(
              ended_at = excluded.ended_at, provider_updated_at = excluded.provider_updated_at,
              envelope = excluded.envelope, synced_at = now()
            where previous.provider_updated_at <= excluded.provider_updated_at
-         ), stamped as (
+         )${
+           historyPage
+             ? `, imported as (
+           update fitcore_whoop.archive_imports checkpoint set
+             next_token = $9::jsonb->>'followingToken',
+             seen_tokens = array_append(checkpoint.seen_tokens, $9::jsonb->>'tokenHash'),
+             pages = checkpoint.pages + 1,
+             records_seen = checkpoint.records_seen + jsonb_array_length($7::jsonb),
+             updated_at = now(),
+             completed_at = case when $9::jsonb->>'followingToken' is null then now() else null end
+           from permitted where checkpoint.consent_id = permitted.id and checkpoint.kind = $9::jsonb->>'kind'
+           returning checkpoint.consent_id
+         )`
+             : ""
+         }, stamped as (
            update fitcore_whoop.archive_consents consent set last_synced_at = now()
-           from permitted where consent.id = permitted.id returning consent.connection_id
+           from permitted where consent.id = permitted.id
+           ${historyPage ? "and exists (select 1 from imported)" : ""} returning consent.connection_id
          )
-         update fitcore_whoop.connections connection set last_synced_at = now(),
-           sync_id = null, sync_started_at = null, sync_after = now() + $8 * interval '1 second',
+         update fitcore_whoop.connections connection set last_synced_at = ${historyPage ? "connection.last_synced_at" : "now()"},
+           sync_id = null, sync_started_at = null,
+           ${historyPage ? "jarvis_after" : "sync_after"} = now() + $8 * interval '1 second',
            snapshot = null, snapshot_expires_at = null
          from stamped where connection.id = stamped.connection_id returning connection.id`,
         [
-          session.id,
+          actorId(session),
           session.ownerId,
           consent.connectionId,
           syncId,
@@ -153,6 +273,7 @@ export function createWhoopArchiveStore(
           consent.id,
           JSON.stringify([...batch.values()]),
           cooldownSeconds,
+          ...(historyPage ? [JSON.stringify(historyPage)] : []),
         ],
       );
       return !!saved;

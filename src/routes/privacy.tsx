@@ -47,9 +47,9 @@ function PrivacyPolicy() {
             Food-photo estimation is optional and uses your configured Groq key after explicit
             consent for each selected photo. FitCore resizes the image locally and removes metadata
             before sending it through its server to Groq. The photo is not stored in tracking
-            history or backups. Later conversational corrections send the current meal estimate
-            and correction text, without resending the image or attaching fitness history or WHOOP
-            data. The estimate stays in a review draft until you explicitly confirm saving.
+            history or backups. Later conversational corrections send the current meal estimate and
+            correction text, without resending the image or attaching fitness history or WHOOP data.
+            The estimate stays in a review draft until you explicitly confirm saving.
           </p>
           <p>
             Short voice recordings are optional. After enabling voice input, pressing Record voice
@@ -94,10 +94,27 @@ function PrivacyPolicy() {
             remove the connection in WHOOP.
           </p>
           <p>
-            When background sync is enabled, FitCore stores WHOOP notification identifiers to
-            recognize repeat deliveries and keep deleted records from returning in an older
-            response. Scheduled cleanup removes receipt records after two days and deletion records
-            after 31 days. Disconnect WHOOP deletes these records from the live database.
+            When private history is available and you explicitly authorize it in WHOOP settings,
+            FitCore saves normalized measurements in an encrypted archive tied to your account for
+            personal display, historical tracking and fitness analysis. It restores saved
+            measurements before refreshing WHOOP. If historical import is available, you can import
+            all history available through your granted WHOOP permissions, pause and resume from
+            saved page checkpoints. Import does not create measurements for missing dates. You can
+            export this history or withdraw storage consent in WHOOP settings. Withdrawal,
+            disconnect or confirmed authorization rejection deletes archive records and import
+            state. Archive activation requires a verified recovery-copy deletion policy; the
+            operator must resolve managed restore history and separately created copies before
+            enabling it. Physical storage deletion by hosting providers can be asynchronous. Files
+            you export remain under your control. Personal storage consent does not authorize
+            sharing with AI providers.
+          </p>
+          <p>
+            When private history or background sync is enabled, FitCore stores WHOOP notification
+            identifiers to recognize repeat deliveries and keep deleted records from returning in an
+            older response. Scheduled cleanup removes receipt records after two days and deletion
+            records after 31 days when that cleanup is enabled. Private-history deletion markers
+            remain while the archive consent is active to prevent later imports from restoring
+            deleted revisions. Disconnect WHOOP deletes these records from the live database.
           </p>
           <p>
             FitCore displays those measurements in an unlocked browser session. The imported records

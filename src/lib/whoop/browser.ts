@@ -89,6 +89,12 @@ export function announceWhoopSnapshot(change: Change) {
   channel?.postMessage(change);
 }
 
+export async function refreshWhoopArchive() {
+  initializeLiveDisplay();
+  await coordinator.revalidate();
+  announceWhoopSnapshot("updated");
+}
+
 export function subscribeToWhoopChanges(onChange: (change: Change) => void) {
   initializeLiveDisplay();
   const listener = (event: Event) => onChange((event as CustomEvent<Change>).detail);

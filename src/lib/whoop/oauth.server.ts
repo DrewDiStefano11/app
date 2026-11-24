@@ -13,6 +13,7 @@ export type WhoopTokenPair = {
   accessToken: string;
   refreshToken: string;
   expiresIn: number;
+  scopes?: string[];
 };
 
 type CallbackDependencies = {
@@ -101,6 +102,12 @@ export class WhoopTokenRateLimit extends Error {
   }
 }
 
+export class WhoopTokenRejected extends Error {
+  constructor() {
+    super("WHOOP authorization is no longer valid");
+  }
+}
+
 export function createWhoopOAuthClient(config: OAuthClientConfig) {
   const redirectUri = new URL(CALLBACK_PATH, config.origin).href;
   const send = config.fetch ?? fetch;
@@ -119,10 +126,23 @@ export function createWhoopOAuthClient(config: OAuthClientConfig) {
         signal: AbortSignal.timeout(10_000),
       });
       if (response.status === 429) throw new WhoopTokenRateLimit(whoopRetryAfter(response.headers));
-      if (!response.ok) throw new Error();
+      if (!response.ok) {
+        if (response.status === 400 || response.status === 401) {
+          // Only a documented terminal grant rejection establishes owner authorization loss.
+          const body = await response.text();
+          if (body.length <= 4096) {
+            try {
+              if (JSON.parse(body).error === "invalid_grant") throw new WhoopTokenRejected();
+            } catch (error) {
+              if (error instanceof WhoopTokenRejected) throw error;
+            }
+          }
+        }
+        throw new Error();
+      }
       result = await response.json();
     } catch (error) {
-      if (error instanceof WhoopTokenRateLimit) throw error;
+      if (error instanceof WhoopTokenRateLimit || error instanceof WhoopTokenRejected) throw error;
       throw new Error("WHOOP token request failed");
     }
 
@@ -132,6 +152,7 @@ export function createWhoopOAuthClient(config: OAuthClientConfig) {
         refresh_token: z.string().min(1),
         expires_in: z.number().int().positive().max(2_147_483_647),
         token_type: z.string().toLowerCase().pipe(z.literal("bearer")).optional(),
+        scope: z.string().max(2048).optional(),
       })
       .safeParse(result);
     if (!pair.success) throw new Error("Invalid WHOOP token response");
@@ -140,6 +161,9 @@ export function createWhoopOAuthClient(config: OAuthClientConfig) {
       accessToken: pair.data.access_token,
       refreshToken: pair.data.refresh_token,
       expiresIn: pair.data.expires_in,
+      ...(pair.data.scope === undefined
+        ? {}
+        : { scopes: [...new Set(pair.data.scope.split(/\s+/).filter(Boolean))] }),
     };
   }
 

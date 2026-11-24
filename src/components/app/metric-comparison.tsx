@@ -26,9 +26,23 @@ const inputMetrics: CorrelationMetric[] = [
   "volume",
   "sleep",
   "hrv",
+  "rhr",
+  "recovery",
+  "sleepPerformance",
+  "strain",
+  "weight",
   "soreness",
 ];
-const outcomeMetrics: CorrelationMetric[] = ["weight", "volume", "readiness"];
+const outcomeMetrics: CorrelationMetric[] = [
+  "weight",
+  "volume",
+  "readiness",
+  "recovery",
+  "nextRecovery",
+  "hrv",
+  "rhr",
+  "sleep",
+];
 const number = (value: number) => value.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
 export function MetricComparison({
