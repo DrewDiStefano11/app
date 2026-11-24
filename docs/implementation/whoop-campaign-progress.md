@@ -84,3 +84,29 @@ reopening and import resume. Final validation also covers the updated privacy
 notice: all six final cases pass, with TypeScript, scoped lint and production build.
 See [import details](whoop-historical-import.md). Production and physical
 iPhone verification remain outstanding.
+
+Historical import is published as [PR #322](https://github.com/DrewDiStefano11/app/pull/322),
+commit `86613a03c5d2738f7bfa014ed8eee9a055c55693`. The hosted release gate was
+explicitly dispatched because its stacked base is outside automatic branch filters.
+
+## Historical analytics
+
+Branch `codex/whoop-history-analytics`, based on #322, integrates six historical
+health measurements and expanded time ranges into existing Stats. Existing Pearson
+comparisons now support recovery, RHR, strain, sleep performance and next-day
+recovery. Thirteen targeted analysis/correlation tests and TypeScript pass. Scoped
+lint passes outside the pre-existing Progress formatting findings, with no new
+findings on changed lines. All 1,027 integrated unit tests pass. Existing Stats and
+archive artifact cases pass; both new historical chart cases pass after correcting
+the All-button selector, with actual old dates and all six metrics checked. See
+[analytics details](whoop-history-analytics.md).
+
+## Hosted validation finding
+
+PR #320 remains mergeable but its WebKit release gate failed. Downloaded trace
+proves all revocation/privacy assertions completed; its final Browser.close call
+remained pending while intercepted requests were still attached. Chromium release,
+all three full Playwright projects, build, CodeQL and dependency review passed.
+The teardown is being repaired on #320 before requesting merge approval. Superseded
+manual #321/#322 release runs were cancelled to avoid repeating the same teardown
+failure. Production and owner data are unaffected.

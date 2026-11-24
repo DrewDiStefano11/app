@@ -272,6 +272,29 @@ test("historical import resumes from its encrypted SQL checkpoint after browser 
       path: testInfo.outputPath("historical-import-complete.png"),
       fullPage: true,
     });
+    await page.goto("/");
+    await expectDashboardReady(page);
+    await page.getByRole("button", { name: "Deep Dive", exact: true }).click();
+    await section(page, "Stats");
+    const history = page.getByRole("region", { name: "Historical WHOOP measurements" });
+    await expect(history.getByText(/1 observed days/)).toBeVisible();
+    await page.getByRole("button", { name: "All", exact: true }).click({ timeout: 10000 });
+    await expect(history.getByText(/2 observed days/)).toBeVisible();
+    await history.getByLabel("WHOOP history metric").selectOption("recovery");
+    await expect(history.getByText(/Average 77.5 %/)).toBeVisible();
+    await history.getByText("Inspect recorded whoop recovery values", { exact: true }).click();
+    const values = history.getByRole("table", { name: "WHOOP recovery recorded values" });
+    await expect(values.getByRole("row")).toHaveCount(3);
+    await expect(values.getByText("2018-02-03", { exact: true })).toBeVisible();
+    await expect(values.getByText("75", { exact: true })).toBeVisible();
+    for (const metric of ["rhr", "sleepHours", "sleepPerformance", "strain"]) {
+      await history.getByLabel("WHOOP history metric").selectOption(metric);
+      await expect(history.getByText(/2 observed days/)).toBeVisible();
+    }
+    await page.screenshot({
+      path: testInfo.outputPath("historical-stats-all-history.png"),
+      fullPage: true,
+    });
   } finally {
     await browser.close();
     await controlContext.dispose();
