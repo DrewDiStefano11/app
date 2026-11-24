@@ -21,7 +21,7 @@ no snapshots and a six-hour restore history window. The WHOOP developer app has
    its implementation tree matches merged WHOOP head `94efd85`, excluding
    foundation/restoration code already on main. Confirm Vercel production is
    Ready and Current at the resulting main commit before activation.
-2. In [Neon Settings](https://console.neon.tech/app/projects/royal-term-06690298/settings#storage),
+2. In [Neon Settings](https://console.neon.tech/app/projects/royal-term-06690298/settings/postgres),
    set the project history window to **0 hours** (`history_retention_seconds=0`).
    This removes point-in-time recovery and Time Travel for this dedicated WHOOP
    database. It does not affect FitCore's local workout backups. Do not create an

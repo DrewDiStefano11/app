@@ -140,7 +140,7 @@ No production mutations, consent writes or measurement reads were performed.
 
 Integration validation: TypeScript and Vercel production build pass; 26 focused
 real-SQL/archive/import/analytics unit tests pass. Built-artifact WebKit/Chromium
-persistence acceptance is running once at this integration milestone. These are
+persistence acceptance passed all four cases (1.2 minutes) at this integration milestone. These are
 simulated tests, not evidence that real production storage is enabled.
 
 The updated activation procedure specifies migrations 006/007, restricted grants,
@@ -150,3 +150,8 @@ Added aggregate-only persistence SQL for before/after evidence without reading
 ciphertext, credentials, IDs or measurement values. Required approvals: PR merge
 and concrete production activation package. Owner consent, encrypted row creation,
 production restoration ordering and physical iPhone acceptance remain pending.
+
+Published focused main-target integration PR: https://github.com/DrewDiStefano11/app/pull/326.
+Merge and concrete production activation approval requested together. Actual owner
+storage and physical iPhone acceptance remain blocked on that approval and subsequent
+activation/consent; lower-priority development remains paused.
