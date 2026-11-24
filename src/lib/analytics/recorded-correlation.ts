@@ -1,7 +1,8 @@
 import type { AppState, DataProvenance } from "../types";
 import type { WhoopSnapshot } from "../whoop/dashboard";
-import { selectSleepEvidence, selectWhoopEvidence } from "../whoop/evidence";
-import { calendarDaysWindow, dayKey, startOfDay } from "./date-time";
+import { selectSleepEvidence } from "../whoop/evidence";
+import { whoopDailyHistory } from "../whoop/history";
+import { addCalendarDays, calendarDaysWindow, dayKey, startOfDay } from "./date-time";
 import {
   calculateWorkoutVolume,
   recordedRecoveryCheckIns,
@@ -32,6 +33,34 @@ export const CORRELATION_METRICS = {
     label: "HRV",
     unit: "ms",
     description: "Latest scored WHOOP HRV per local day, only while the snapshot is authorized.",
+  },
+  rhr: {
+    label: "Resting heart rate",
+    unit: "bpm",
+    description: "Latest scored WHOOP resting heart rate per current-device local day.",
+  },
+  recovery: {
+    label: "WHOOP recovery",
+    unit: "%",
+    description:
+      "Latest scored WHOOP recovery per local wake date, linked to its main sleep when available.",
+  },
+  nextRecovery: {
+    label: "Next-day WHOOP recovery",
+    unit: "%",
+    description:
+      "Actual WHOOP recovery on the following local calendar day. No missing-day substitution; correlation does not imply causation.",
+  },
+  sleepPerformance: {
+    label: "Sleep performance",
+    unit: "%",
+    description:
+      "Latest scored WHOOP main-sleep performance per local wake date; naps are excluded.",
+  },
+  strain: {
+    label: "WHOOP strain",
+    unit: "strain",
+    description: "Latest scored WHOOP physiological-cycle strain per current-device local day.",
   },
   soreness: {
     label: "Soreness",
@@ -131,11 +160,13 @@ export function recordedCorrelation(
   }
   for (const entry of selectSleepEvidence(state, snapshot, now).allNights)
     put("sleep", entry.at, entry.hours, "last");
-  const whoop = state.demoMode ? null : selectWhoopEvidence(snapshot, now);
-  for (const entry of [...(whoop?.history ?? [])].reverse()) {
-    if (entry.state === "scored" && entry.hrvMs !== null)
-      put("hrv", Date.parse(entry.at), entry.hrvMs, "last");
+  const authorized = state.demoMode ? null : snapshot;
+  for (const metric of ["hrv", "rhr", "recovery", "sleepPerformance", "strain"] as const) {
+    for (const entry of whoopDailyHistory(authorized, metric, days, now))
+      put(metric, Date.parse(entry.at), entry.value, "last");
   }
+  for (const entry of whoopDailyHistory(authorized, "recovery", days + 1, now))
+    put("nextRecovery", addCalendarDays(entry.timestamp, -1), entry.value, "last");
   const series = (metric: CorrelationMetric): DatedValue[] =>
     [...maps[metric].values()]
       .filter((entry) => Number.isFinite(entry.value))

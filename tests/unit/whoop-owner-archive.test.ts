@@ -362,6 +362,7 @@ async function apiFixture() {
     jarvisSharingEnabled: false,
     store: f.store,
     archive: f.archive,
+    webhooks: f.store,
     fetch: async (url) => {
       control.requests++;
       if (url.includes("/oauth/oauth2/token")) {
@@ -477,6 +478,49 @@ test("API refresh failure preserves the archived snapshot and its original succe
     f.control.fail = true;
     assert.equal((await f.integration.sync(f.request("sync", "POST"))).status, 502);
     assert.deepEqual(await (await f.integration.records(f.request("records"))).json(), before);
+  } finally {
+    await f.database.close();
+  }
+});
+
+test("archive deletion webhooks authenticate and purge under the restricted role without enabling background jobs", async () => {
+  const f = await apiFixture();
+  try {
+    await f.grant();
+    assert.ok(await f.save());
+    const body = JSON.stringify({
+      user_id: 123,
+      id: sleepId,
+      type: "sleep.deleted",
+      trace_id: "archive-only-deletion",
+    });
+    const timestamp = String(Date.now());
+    const request = (secret: string) =>
+      new Request("https://fitcore.test/api/whoop/webhook", {
+        method: "POST",
+        body,
+        headers: {
+          "X-WHOOP-Signature-Timestamp": timestamp,
+          "X-WHOOP-Signature": createHmac("sha256", secret)
+            .update(timestamp)
+            .update(body)
+            .digest("base64"),
+        },
+      });
+    assert.equal((await f.integration.webhook(request("wrong-secret"))).status, 401);
+    assert.equal((await f.archive.getSnapshot(f.session))!.records.length, 1);
+    assert.equal((await f.integration.webhook(request("synthetic-secret"))).status, 204);
+    assert.equal((await f.archive.getSnapshot(f.session))!.records.length, 0);
+    assert.equal((await f.integration.webhook(request("synthetic-secret"))).status, 204);
+    assert.equal(
+      (await f.database.query("select * from fitcore_whoop.archive_deletions")).rows.length,
+      1,
+    );
+    assert.ok(await f.save());
+    assert.equal((await f.archive.getSnapshot(f.session))!.records.length, 0);
+    assert.equal(f.control.requests, 0);
+    assert.equal((await f.integration.reconcile(f.request("reconcile"))).status, 204);
+    assert.equal(f.control.requests, 0);
   } finally {
     await f.database.close();
   }

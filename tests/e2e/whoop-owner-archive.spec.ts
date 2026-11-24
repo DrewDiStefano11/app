@@ -155,10 +155,18 @@ test("encrypted SQL archive restores in a new browser process before WHOOP respo
     expect(afterFailure.records).toEqual(saved.records);
     expect((await control()).count).toBe(4);
 
+    // Archive-only activation must process signed deletions without enabling cron.
+    const deletion = await control({ deleteSleep: true, mode: "hold" });
+    expect(deletion.deletionStatus).toBe(204);
+    expect(deletion.count).toBe(2);
+    await page.reload();
+    await expectDashboardReady(page);
+    await expect(page.getByRole("button", { name: /^Recovery 90% · WHOOP/ })).toHaveCount(0);
+
     await page.goto("/integrations/whoop");
     await page.getByRole("button", { name: "Withdraw storage consent" }).click();
     await page.getByRole("button", { name: "Keep history" }).click();
-    expect((await control()).count).toBe(4);
+    expect((await control()).count).toBe(2);
     await page.getByRole("button", { name: "Withdraw storage consent" }).click();
     await page.getByRole("button", { name: "Delete WHOOP history" }).click();
     await expect(
@@ -166,6 +174,127 @@ test("encrypted SQL archive restores in a new browser process before WHOOP respo
     ).toBeVisible();
     expect((await control()).count).toBe(0);
     expect(await (await page.request.get(server.origin + "/api/whoop/records")).json()).toBeNull();
+  } finally {
+    await browser.close();
+    await controlContext.dispose();
+    server.child.kill();
+  }
+});
+
+test("historical import resumes from its encrypted SQL checkpoint after browser and database reopening", async ({
+  playwright,
+  browserName,
+}, testInfo) => {
+  test.setTimeout(120000);
+  const server = await startArchiveServer();
+  const engine = playwright[browserName];
+  const options = {
+    ...(browserName === "webkit"
+      ? devices["iPhone 13"]
+      : { viewport: { width: 390, height: 844 }, isMobile: true }),
+    baseURL: server.origin,
+    ignoreHTTPSErrors: true,
+    serviceWorkers: "block" as const,
+  };
+  let browser = await engine.launch();
+  const controlContext = await playwright.request.newContext({
+    baseURL: server.origin,
+    ignoreHTTPSErrors: true,
+    extraHTTPHeaders: { "X-Synthetic-Control": "test-only" },
+  });
+  const control = async (data = {}) => {
+    const response = await controlContext.post("/__test/control", { data });
+    expect(response.ok()).toBeTruthy();
+    return response.json();
+  };
+  try {
+    let context = await browser.newContext(options);
+    let page = await context.newPage();
+    await seedRevisionedFitCoreState(
+      page,
+      currentFitCoreState({
+        onboardingComplete: true,
+        workouts: [],
+        mealEntries: [],
+        sleepEntries: [],
+        checkIns: [],
+      }),
+    );
+    await page.goto("/integrations/whoop");
+    await page.getByLabel("FitCore integration access key").fill(server.accessKey);
+    await page.getByRole("button", { name: "Unlock WHOOP settings" }).click();
+    await page.getByRole("button", { name: "Authorize private WHOOP history" }).click();
+    await expect(
+      page.getByText("Private history enabled and synchronized.", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Import available WHOOP history" }).click();
+    await expect(
+      page.getByText("recovery: 1 provider records processed across 1 pages · In progress", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Pause historical import" }).click();
+    await expect(page.getByRole("button", { name: "Resume historical import" })).toBeVisible();
+    const stored = await context.storageState({ indexedDB: true });
+    expect(JSON.stringify(stored)).not.toContain("recovery_score");
+    await browser.close();
+    await control({ reopenDatabase: true });
+    browser = await engine.launch();
+    context = await browser.newContext({ ...options, storageState: stored });
+    page = await context.newPage();
+    await page.goto("/integrations/whoop");
+    await expect(
+      page.getByText("recovery: 1 provider records processed across 1 pages · In progress", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Resume historical import" }).click();
+    await expect(
+      page.getByText("All available authorized history imported.", { exact: true }),
+    ).toBeVisible({ timeout: 30000 });
+    expect((await control()).count).toBe(8);
+    const snapshot = await (await page.request.get(server.origin + "/api/whoop/records")).json();
+    const historical = snapshot.records.filter(
+      (record: { created_at: string }) => record.created_at === "2018-02-03T08:00:00.000Z",
+    );
+    expect(historical).toHaveLength(4);
+    expect(
+      historical.find((record: { kind: string }) => record.kind === "recovery").score
+        .recovery_score,
+    ).toBe(75);
+    const progress = await (
+      await page.request.get(server.origin + "/api/whoop/archive-import")
+    ).json();
+    expect(progress.progress.find((row: { kind: string }) => row.kind === "recovery").pages).toBe(
+      2,
+    );
+    await page.screenshot({
+      path: testInfo.outputPath("historical-import-complete.png"),
+      fullPage: true,
+    });
+    await page.goto("/");
+    await expectDashboardReady(page);
+    await page.getByRole("button", { name: "Deep Dive", exact: true }).click();
+    await section(page, "Stats");
+    const history = page.getByRole("region", { name: "Historical WHOOP measurements" });
+    await expect(history.getByText(/1 observed days/)).toBeVisible();
+    await page.getByRole("button", { name: "All", exact: true }).click({ timeout: 10000 });
+    await expect(history.getByText(/2 observed days/)).toBeVisible();
+    await history.getByLabel("WHOOP history metric").selectOption("recovery");
+    await expect(history.getByText(/Average 77.5 %/)).toBeVisible();
+    await history.getByText("Inspect recorded whoop recovery values", { exact: true }).click();
+    const values = history.getByRole("table", { name: "WHOOP recovery recorded values" });
+    await expect(values.getByRole("row")).toHaveCount(3);
+    await expect(values.getByText("2018-02-03", { exact: true })).toBeVisible();
+    await expect(values.getByText("75", { exact: true })).toBeVisible();
+    for (const metric of ["rhr", "sleepHours", "sleepPerformance", "strain"]) {
+      await history.getByLabel("WHOOP history metric").selectOption(metric);
+      await expect(history.getByText(/2 observed days/)).toBeVisible();
+    }
+    await page.screenshot({
+      path: testInfo.outputPath("historical-stats-all-history.png"),
+      fullPage: true,
+    });
   } finally {
     await browser.close();
     await controlContext.dispose();

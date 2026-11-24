@@ -4,7 +4,7 @@ import { createServer } from "node:https";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
-import { createCipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createHash, createHmac, randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
@@ -42,6 +42,7 @@ for (const migration of [
   "004-cache.sql",
   "005-jarvis-read.sql",
   "006-owner-archive.sql",
+  "007-history-import.sql",
 ])
   await database.exec(await readFile(join("db/whoop", migration), "utf8"));
 await database.exec(await readFile("db/whoop/operations/runtime-role.sql", "utf8"));
@@ -60,6 +61,7 @@ const ciphertext = Buffer.concat([
       accessToken: "synthetic-access",
       refreshToken: "synthetic-refresh",
       expiresIn: 3600,
+      scopes: ["read:recovery", "read:sleep", "read:cycles", "read:workout"],
     }),
   ),
   cipher.final(),
@@ -77,7 +79,7 @@ await database.query(
 await database.exec("set role fitcore_whoop_runtime");
 
 const control = { mode: "success", score: 80, providerRequests: 0, pending: [] };
-function providerResponse(url) {
+function providerResponse(url, history = false, nextToken = null) {
   const at = new Date(Date.now() - 3600000).toISOString();
   const base = {
     user_id: 123,
@@ -128,9 +130,35 @@ function providerResponse(url) {
               score: { strain: 8.4 },
             },
           ];
+  if (history) {
+    const historicalAt = "2018-02-03T08:00:00.000Z";
+    for (const record of records) {
+      record.created_at = historicalAt;
+      record.updated_at = nextToken ? "2018-02-04T08:00:00.000Z" : historicalAt;
+      if ("start" in record) record.start = "2018-02-03T00:00:00.000Z";
+      if ("end" in record) record.end = historicalAt;
+      if ("cycle_id" in record) record.cycle_id = 1999;
+      if ("sleep_id" in record) record.sleep_id = "44444444-4444-4444-8444-444444444444";
+      if ("id" in record)
+        record.id =
+          typeof record.id === "number"
+            ? 1999
+            : url.endsWith("/activity/sleep")
+              ? "44444444-4444-4444-8444-444444444444"
+              : "55555555-5555-4555-8555-555555555555";
+      if (url.endsWith("/recovery")) record.score.recovery_score = nextToken ? 75 : 70;
+    }
+  }
   return control.mode === "failure"
     ? new Response(null, { status: 503 })
-    : Response.json({ records }, { headers: { "Cache-Control": "no-store" } });
+    : Response.json(
+        {
+          records,
+          next_token:
+            history && url.endsWith("/recovery") && !nextToken ? "history-page-two" : null,
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
 }
 
 const originalFetch = globalThis.fetch;
@@ -172,7 +200,11 @@ globalThis.fetch = async (input, init) => {
           { once: true },
         );
       });
-    return providerResponse(url.pathname);
+    return providerResponse(
+      url.pathname,
+      !url.searchParams.has("start"),
+      url.searchParams.get("nextToken"),
+    );
   }
   return originalFetch(input, init);
 };
@@ -192,12 +224,36 @@ const server = createServer(
       const body = Buffer.concat(chunks);
       let response;
       if (url.pathname === "/__test/control") {
+        let deletionStatus;
         if (incoming.headers["x-synthetic-control"] !== "test-only") {
           outgoing.writeHead(403).end();
           return;
         }
         if (body.length) {
           const change = JSON.parse(body.toString());
+          if (change.deleteSleep) {
+            const timestamp = String(Date.now());
+            const event = JSON.stringify({
+              user_id: 123,
+              id: "22222222-2222-4222-8222-222222222222",
+              type: "sleep.deleted",
+              trace_id: "artifact-archive-deletion",
+            });
+            const result = await artifact.fetch(
+              new Request(origin + "/api/whoop/webhook", {
+                method: "POST",
+                body: event,
+                headers: {
+                  "X-WHOOP-Signature-Timestamp": timestamp,
+                  "X-WHOOP-Signature": createHmac("sha256", "synthetic-secret")
+                    .update(timestamp)
+                    .update(event)
+                    .digest("base64"),
+                },
+              }),
+            );
+            deletionStatus = result.status;
+          }
           if (change.reopenDatabase) {
             await database.close();
             database = new PGlite(databasePath);
@@ -223,6 +279,7 @@ const server = createServer(
           count,
           providerRequests: control.providerRequests,
           archiveEnabled: process.env.WHOOP_OWNER_ARCHIVE_ENABLED === "true",
+          deletionStatus,
           temporaryCacheEnabled: false,
         });
       } else {
@@ -270,6 +327,7 @@ Object.assign(process.env, {
   WHOOP_OWNER_KEY_SHA256: createHash("sha256").update(accessKey).digest("hex"),
   WHOOP_TOKEN_ENCRYPTION_KEY: encryptionKey.toString("base64url"),
   WHOOP_OWNER_ARCHIVE_ENABLED: "true",
+  WHOOP_HISTORY_IMPORT_ENABLED: "true",
   WHOOP_ARCHIVE_DELETION_POLICY: "no-recovery-copies-v1",
   WHOOP_SNAPSHOT_CACHE_ENABLED: "false",
   WHOOP_BACKGROUND_ENABLED: "false",

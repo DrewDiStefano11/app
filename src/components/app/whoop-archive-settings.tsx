@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GhostButton } from "@/components/app/ui";
+import { WhoopHistoryImport } from "@/components/app/whoop-history-import";
 import {
   announceWhoopSnapshot,
   notifyWhoopSessionChanged,
@@ -9,6 +10,7 @@ import {
 
 export type WhoopArchiveStatus = {
   available: boolean;
+  historyImportAvailable?: boolean;
   consent: {
     grantedAt: string;
     revokedAt: string | null;
@@ -139,6 +141,7 @@ export function WhoopArchiveSettings({
           {message}
         </p>
       )}
+      {active && archive.historyImportAvailable && <WhoopHistoryImport />}
     </section>
   );
 }
