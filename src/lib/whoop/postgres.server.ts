@@ -22,7 +22,7 @@ type Connection = {
 
 export type WhoopBackgroundConnection = { ownerId: string; connectionId: string };
 export type WhoopSyncActor = WhoopSession | WhoopBackgroundConnection;
-export type WhoopSyncPurpose = "dashboard" | "jarvis";
+export type WhoopSyncPurpose = "dashboard" | "jarvis" | "history";
 export type WhoopDeletion = {
   type: "workout.deleted" | "sleep.deleted" | "recovery.deleted";
   recordId: string;
@@ -200,7 +200,7 @@ export function createWhoopStore(query: Query) {
          set sync_id = $4, sync_started_at = now()
          where owner_id = $1 and status = 'connected' and refresh_id is null
            and (sync_id is null or sync_started_at <= now() - interval '90 seconds')
-           and coalesce(case when $5 = 'jarvis' then jarvis_after else sync_after end, '-infinity') <= now()
+            and coalesce(case when $5 in ('jarvis', 'history') then jarvis_after else sync_after end, '-infinity') <= now()
            and ($5 <> 'jarvis' or $3 = 'session')
            and (($3 = 'connection' and id = $2) or
              ($3 = 'session' and exists (select 1 from fitcore_whoop.sessions
@@ -216,7 +216,7 @@ export function createWhoopStore(query: Query) {
     async getSyncRetryAfter(actor: WhoopSyncActor, purpose: WhoopSyncPurpose = "dashboard") {
       const [retry] = await query<{ seconds: number }>(
         `select greatest(1, ceil(extract(epoch from greatest(
-           coalesce(case when $4 = 'jarvis' then jarvis_after else sync_after end, now()),
+            coalesce(case when $4 in ('jarvis', 'history') then jarvis_after else sync_after end, now()),
            case when sync_id is not null then sync_started_at + interval '90 seconds' else now() end,
            case when refresh_id is not null then refresh_started_at + interval '45 seconds' else now() end
          ) - now())))::integer as seconds
@@ -399,7 +399,7 @@ export function createWhoopStore(query: Query) {
          set sync_id = null, sync_started_at = null,
              sync_after = case when $5 in ('dashboard', 'all')
                then greatest(sync_after, now() + $4 * interval '1 second') else sync_after end,
-             jarvis_after = case when $5 in ('jarvis', 'all')
+              jarvis_after = case when $5 in ('jarvis', 'history', 'all')
                then greatest(jarvis_after, now() + $4 * interval '1 second') else jarvis_after end
          where owner_id = $1 and id = $2 and sync_id = $3 and status = 'connected'`,
         [ownerId, id, syncId, cooldownSeconds, scope],

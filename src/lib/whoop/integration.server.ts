@@ -28,6 +28,8 @@ type WhoopIntegrationConfig = {
   jarvisSharingEnabled?: boolean;
   snapshotCacheEnabled?: boolean;
   archive?: ReturnType<typeof createWhoopArchiveStore>;
+  historyImportEnabled?: boolean;
+  webhooks?: Pick<ReturnType<typeof createWhoopStore>, "registerWebhook">;
   onCachePolicy?: (policy: WhoopCachePolicy) => void;
   fetch?: (url: string, init: RequestInit) => Promise<Response>;
   background?: {
@@ -269,6 +271,7 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
           archive: config.archive
             ? {
                 available: true,
+                historyImportAvailable: config.historyImportEnabled === true,
                 consent: consent
                   ? {
                       grantedAt: consent.grantedAt,
@@ -301,12 +304,13 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
 
     async webhook(request: Request) {
       if (request.method !== "POST") return reply(405);
-      if (!config.background || new URL(request.url).origin !== origin) return reply(503);
+      const webhooks = config.webhooks ?? config.background?.store;
+      if (!webhooks || new URL(request.url).origin !== origin) return reply(503);
       const event = await verifyWhoopWebhook(request, config.clientSecret);
       if (!event) return reply(401);
-      const connection = await config.background.store.registerWebhook(event);
+      const connection = await webhooks.registerWebhook(event);
       const runtimeRequest = request as Request & { waitUntil?(task: Promise<unknown>): void };
-      if (connection && runtimeRequest.waitUntil) {
+      if (config.background && connection && runtimeRequest.waitUntil) {
         runtimeRequest.waitUntil(runSync(connection).catch(() => {}));
       }
       return reply(204);
@@ -373,6 +377,37 @@ export function createWhoopIntegration(config: WhoopIntegrationConfig) {
         return reply(400);
       }
       return reply((await config.archive.grantConsent(session, "settings")) ? 204 : 409);
+    },
+
+    async archiveImport(request: Request) {
+      if (request.method !== "GET" && request.method !== "POST") return reply(405);
+      if (
+        new URL(request.url).origin !== origin ||
+        (request.method === "POST" && !isSameOriginMutation(request))
+      )
+        return reply(403);
+      const session = await getSession(request);
+      if (!session) return reply(401);
+      if (!config.archive || !config.historyImportEnabled) return reply(503);
+      const consent = await config.archive.getConsent(session);
+      if (!consent || consent.revokedAt) return reply(409);
+      const outcome =
+        request.method === "POST" ? await runSync(session, "history") : { status: 200 };
+      return Response.json(
+        {
+          progress: await config.archive.importProgress(session),
+          reason: "reason" in outcome ? outcome.reason : undefined,
+        },
+        {
+          status: outcome.status,
+          headers: {
+            ...privateHeaders,
+            ...(outcome.retryAfterSeconds
+              ? { "Retry-After": String(outcome.retryAfterSeconds) }
+              : {}),
+          },
+        },
+      );
     },
 
     async archiveExport(request: Request) {
