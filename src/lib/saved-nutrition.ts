@@ -65,11 +65,7 @@ export function removeNutritionPreset(state: AppState, id: string): AppState {
 }
 
 /** Toggle (or explicitly set) the isFavorite flag on a saved preset. */
-export function favoriteNutritionPreset(
-  state: AppState,
-  id: string,
-  favorite: boolean,
-): AppState {
+export function favoriteNutritionPreset(state: AppState, id: string, favorite: boolean): AppState {
   return updateNutritionPreset(state, id, { isFavorite: favorite });
 }
 
@@ -126,10 +122,19 @@ export function addNutritionPreset(state: AppState, preset: SavedNutritionPreset
     return state;
 
   const meal = copyMealForLog(preset.meal, preset.meal.id, preset.meal.createdAt);
-  const { id, kind, servingLabel } = preset;
+  const { id, kind, servingLabel, isFavorite } = preset;
   return {
     ...state,
-    savedNutrition: [...saved, { id, kind, meal, ...(servingLabel && { servingLabel }) }],
+    savedNutrition: [
+      ...saved,
+      {
+        id,
+        kind,
+        meal,
+        ...(servingLabel && { servingLabel }),
+        ...(isFavorite !== undefined && { isFavorite }),
+      },
+    ],
   };
 }
 

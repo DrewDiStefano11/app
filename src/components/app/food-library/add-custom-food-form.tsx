@@ -4,7 +4,11 @@ import { addNutritionPreset, updateNutritionPreset } from "@/lib/saved-nutrition
 import type { MealEntry, SavedNutritionPreset } from "@/lib/types";
 import { GhostButton, Input, Label, PrimaryButton, Select } from "@/components/app/ui";
 
-const normalized = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const normalized = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
 const UNITS = ["g", "oz", "ml", "cup", "tbsp", "tsp", "serving", "piece", "scoop", "slice"];
 
@@ -16,7 +20,7 @@ interface Props {
 }
 
 export function AddCustomFoodForm({ initialPreset, onSaved, onCancel }: Props) {
-  const { state, set } = useStore();
+  const { set } = useStore();
 
   const init = initialPreset?.meal;
   const initMacros = init && init.macroStatus !== "unreported";
@@ -43,10 +47,16 @@ export function AddCustomFoodForm({ initialPreset, onSaved, onCancel }: Props) {
     setError(null);
 
     const trimmedName = name.trim();
-    if (!trimmedName) { setError("Name is required."); return; }
+    if (!trimmedName) {
+      setError("Name is required.");
+      return;
+    }
 
     const cal = Number(calories);
-    if (!Number.isFinite(cal) || cal < 0) { setError("Enter a valid calorie value."); return; }
+    if (!Number.isFinite(cal) || cal < 0) {
+      setError("Enter a valid calorie value.");
+      return;
+    }
 
     const hasProtein = protein !== "";
     const hasCarbs = carbs !== "";
@@ -63,14 +73,6 @@ export function AddCustomFoodForm({ initialPreset, onSaved, onCancel }: Props) {
     if (!initialPreset) {
       // Creating — check for duplicate name
       const dupName = normalized(trimmedName);
-      const dup = (state.savedNutrition ?? []).some(
-        (p) => normalized(p.meal.name) === dupName,
-      );
-      if (dup) {
-        setError(`"${trimmedName}" is already in your library. Use a different name or edit the existing entry.`);
-        return;
-      }
-
       const meal: MealEntry = hasAll
         ? {
             id: uid(),
@@ -100,19 +102,37 @@ export function AddCustomFoodForm({ initialPreset, onSaved, onCancel }: Props) {
         ...(servingLabel && { servingLabel }),
       };
 
-      const next = addNutritionPreset(state, preset);
-      if (next === state) {
+      let added = false;
+      const saved = set((current) => {
+        if ((current.savedNutrition ?? []).some((p) => normalized(p.meal.name) === dupName))
+          return current;
+        const next = addNutritionPreset(current, preset);
+        added = next !== current;
+        return next;
+      });
+      if (!saved) {
+        setError(
+          "Could not save this food. Your entries are retained; check storage and try again.",
+        );
+        return;
+      }
+      if (!added) {
         setError("Could not save — this food may already exist.");
         return;
       }
-      set(() => next);
       onSaved();
       return;
     }
 
     // Editing existing preset — update serving label and kind; leave meal macros intact
     // (we don't allow full macro re-entry in edit to avoid retroactive changes)
-    set((s) => updateNutritionPreset(s, initialPreset.id, { servingLabel }));
+    const saved = set((s) => updateNutritionPreset(s, initialPreset.id, { servingLabel }));
+    if (!saved) {
+      setError(
+        "Could not save these changes. Your entries are retained; check storage and try again.",
+      );
+      return;
+    }
     onSaved();
   }
 
@@ -216,7 +236,9 @@ export function AddCustomFoodForm({ initialPreset, onSaved, onCancel }: Props) {
             aria-label="Serving unit"
           >
             {UNITS.map((u) => (
-              <option key={u} value={u}>{u}</option>
+              <option key={u} value={u}>
+                {u}
+              </option>
             ))}
           </Select>
         </div>
@@ -230,9 +252,7 @@ export function AddCustomFoodForm({ initialPreset, onSaved, onCancel }: Props) {
 
       <div className="flex flex-wrap gap-2 pt-1">
         <GhostButton onClick={onCancel}>Cancel</GhostButton>
-        <PrimaryButton type="submit">
-          {isEditing ? "Save changes" : "Add to Library"}
-        </PrimaryButton>
+        <PrimaryButton type="submit">{isEditing ? "Save changes" : "Add to Library"}</PrimaryButton>
       </div>
     </form>
   );

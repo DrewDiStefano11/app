@@ -1,5 +1,15 @@
 import { useState } from "react";
-import { BookOpen, Heart, Clock, TrendingUp, Search, Plus, Pencil, Trash2, Zap } from "lucide-react";
+import {
+  BookOpen,
+  Heart,
+  Clock,
+  TrendingUp,
+  Search,
+  Plus,
+  Pencil,
+  Trash2,
+  Zap,
+} from "lucide-react";
 import { useStore, uid } from "@/lib/store";
 import { FOODS, type Food } from "@/lib/data";
 import type { MealEntry, SavedNutritionPreset } from "@/lib/types";
@@ -32,7 +42,11 @@ const LIBRARY_TABS: { id: LibraryTab; label: string }[] = [
   { id: "catalog", label: "Catalog" },
 ];
 
-const normalized = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const normalized = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
 function macroLine(calories: number, protein?: number, carbs?: number, fat?: number) {
   if (protein !== undefined && carbs !== undefined && fat !== undefined) {
@@ -57,9 +71,10 @@ function PresetRow({
   onToggleFavorite: (preset: SavedNutritionPreset) => void;
 }) {
   const meal = preset.meal;
-  const macros = meal.macroStatus !== "unreported"
-    ? { protein: meal.protein, carbs: meal.carbs, fat: meal.fat }
-    : {};
+  const macros =
+    meal.macroStatus !== "unreported"
+      ? { protein: meal.protein, carbs: meal.carbs, fat: meal.fat }
+      : {};
 
   return (
     <div className="flex items-start gap-3 p-4 border border-border rounded-[var(--radius-card)] bg-white/[0.02]">
@@ -124,9 +139,10 @@ function MealRow({
   onQuickLog: (meal: MealEntry) => void;
   onSaveToLibrary: (meal: MealEntry) => void;
 }) {
-  const macros = meal.macroStatus !== "unreported"
-    ? { protein: meal.protein, carbs: meal.carbs, fat: meal.fat }
-    : {};
+  const macros =
+    meal.macroStatus !== "unreported"
+      ? { protein: meal.protein, carbs: meal.carbs, fat: meal.fat }
+      : {};
   return (
     <div className="flex items-start gap-3 p-4 border border-border rounded-[var(--radius-card)] bg-white/[0.02]">
       <div className="flex-1 min-w-0">
@@ -175,7 +191,9 @@ function CatalogRow({
         <p className="text-xs text-muted-foreground mt-0.5">
           {macroLine(food.calories, food.protein, food.carbs, food.fat)}
         </p>
-        <p className="text-xs text-muted-foreground capitalize">{food.category} · {food.servingLabel}</p>
+        <p className="text-xs text-muted-foreground capitalize">
+          {food.category} · {food.servingLabel}
+        </p>
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <button
@@ -207,30 +225,55 @@ export function FoodLibraryView({ embedded = false }: { embedded?: boolean } = {
   const [confirmDel, setConfirmDel] = useState<SavedNutritionPreset | null>(null);
   const [editPreset, setEditPreset] = useState<SavedNutritionPreset | null>(null);
   const [quickLogMsg, setQuickLogMsg] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState("");
 
   const savedPresets = state.savedNutrition ?? [];
   const q = normalized(search);
 
   // ---- Filtered lists ----
   const filteredSaved = savedPresets.filter((p) => !q || normalized(p.meal.name).includes(q));
-  const filteredFavorites = savedPresets.filter((p) => p.isFavorite && (!q || normalized(p.meal.name).includes(q)));
-  const recent = recentlyConsumedFoods(state, 10).filter((m) => !q || normalized(m.name).includes(q));
-  const frequent = frequentlyConsumedFoods(state, 10).filter((m) => !q || normalized(m.name).includes(q));
-  const catalogFoods = FOODS.filter((f) => !q || normalized(f.name).includes(q) || normalized(f.category).includes(q));
+  const filteredFavorites = savedPresets.filter(
+    (p) => p.isFavorite && (!q || normalized(p.meal.name).includes(q)),
+  );
+  const recent = recentlyConsumedFoods(state, 10).filter(
+    (m) => !q || normalized(m.name).includes(q),
+  );
+  const frequent = frequentlyConsumedFoods(state, 10).filter(
+    (m) => !q || normalized(m.name).includes(q),
+  );
+  const catalogFoods = FOODS.filter(
+    (f) => !q || normalized(f.name).includes(q) || normalized(f.category).includes(q),
+  );
 
   // ---- Actions ----
+  function reportSave(saved: boolean, success?: string) {
+    setSaveError(
+      saved
+        ? ""
+        : "Could not save this change. Your previous records are retained; check storage and try again.",
+    );
+    if (!saved) setQuickLogMsg(null);
+    else if (success) {
+      setQuickLogMsg(success);
+      setTimeout(() => setQuickLogMsg(null), 2500);
+    }
+    return saved;
+  }
+
   function quickLogPreset(preset: SavedNutritionPreset) {
     const meal = copyMealForLog(preset.meal, uid());
-    set((s) => ({ ...s, mealEntries: [...s.mealEntries, meal] }));
-    setQuickLogMsg(`${preset.meal.name} logged!`);
-    setTimeout(() => setQuickLogMsg(null), 2500);
+    reportSave(
+      set((s) => ({ ...s, mealEntries: [...s.mealEntries, meal] })),
+      `${preset.meal.name} logged!`,
+    );
   }
 
   function quickLogMeal(meal: MealEntry) {
     const copy = copyMealForLog(meal, uid());
-    set((s) => ({ ...s, mealEntries: [...s.mealEntries, copy] }));
-    setQuickLogMsg(`${meal.name} logged!`);
-    setTimeout(() => setQuickLogMsg(null), 2500);
+    reportSave(
+      set((s) => ({ ...s, mealEntries: [...s.mealEntries, copy] })),
+      `${meal.name} logged!`,
+    );
   }
 
   function quickLogFood(food: Food) {
@@ -245,9 +288,10 @@ export function FoodLibraryView({ embedded = false }: { embedded?: boolean } = {
       fat: food.fat,
       ...(food.fiber ? { fiber: food.fiber } : {}),
     };
-    set((s) => ({ ...s, mealEntries: [...s.mealEntries, meal] }));
-    setQuickLogMsg(`${food.name} logged!`);
-    setTimeout(() => setQuickLogMsg(null), 2500);
+    reportSave(
+      set((s) => ({ ...s, mealEntries: [...s.mealEntries, meal] })),
+      `${food.name} logged!`,
+    );
   }
 
   function savePresetFromMeal(meal: MealEntry) {
@@ -256,7 +300,7 @@ export function FoodLibraryView({ embedded = false }: { embedded?: boolean } = {
       kind: "meal",
       meal: { ...meal, confirmed: true },
     };
-    set((s) => addNutritionPreset(s, preset));
+    reportSave(set((s) => addNutritionPreset(s, preset)));
   }
 
   function savePresetFromFood(food: Food) {
@@ -277,16 +321,15 @@ export function FoodLibraryView({ embedded = false }: { embedded?: boolean } = {
       meal,
       servingLabel: food.servingLabel,
     };
-    set((s) => addNutritionPreset(s, preset));
+    reportSave(set((s) => addNutritionPreset(s, preset)));
   }
 
   function deletePreset(preset: SavedNutritionPreset) {
-    set((s) => removeNutritionPreset(s, preset.id));
-    setConfirmDel(null);
+    if (reportSave(set((s) => removeNutritionPreset(s, preset.id)))) setConfirmDel(null);
   }
 
   function toggleFavorite(preset: SavedNutritionPreset) {
-    set((s) => favoriteNutritionPreset(s, preset.id, !preset.isFavorite));
+    reportSave(set((s) => favoriteNutritionPreset(s, preset.id, !preset.isFavorite)));
   }
 
   return (
@@ -311,6 +354,11 @@ export function FoodLibraryView({ embedded = false }: { embedded?: boolean } = {
         </div>
       )}
 
+      {saveError && (
+        <p role="alert" className="mx-5 mb-3 text-sm text-destructive">
+          {saveError}
+        </p>
+      )}
       {quickLogMsg && (
         <div
           role="status"
@@ -326,7 +374,10 @@ export function FoodLibraryView({ embedded = false }: { embedded?: boolean } = {
       {/* Search bar — always visible */}
       <div className="px-5 pb-4">
         <div className="relative">
-          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Search
+            size={16}
+            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
+          />
           <Input
             placeholder="Search foods…"
             value={search}
@@ -464,10 +515,7 @@ export function FoodLibraryView({ embedded = false }: { embedded?: boolean } = {
 
       {/* ---- Add Custom Food Sheet ---- */}
       <BottomSheet open={addOpen} onClose={() => setAddOpen(false)} title="Add Custom Food">
-        <AddCustomFoodForm
-          onSaved={() => setAddOpen(false)}
-          onCancel={() => setAddOpen(false)}
-        />
+        <AddCustomFoodForm onSaved={() => setAddOpen(false)} onCancel={() => setAddOpen(false)} />
       </BottomSheet>
 
       {/* ---- Edit preset Sheet ---- */}

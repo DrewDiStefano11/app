@@ -29,7 +29,7 @@ function portion(text: string) {
   if (!Number.isFinite(amount) || amount <= 0) return undefined;
   const unit = match[2]
     .replace(
-      /\b(?:cups|slices|scoops|whites|cakes|tbsp|ounces|grams)\b/g,
+      /\b(?:cups|slices|scoops|whites|cakes|tbsp|ounces|grams|servings|pieces)\b/g,
       (word) =>
         ({
           cups: "cup",
@@ -39,6 +39,8 @@ function portion(text: string) {
           cakes: "cake",
           ounces: "oz",
           grams: "g",
+          servings: "serving",
+          pieces: "piece",
         })[word] ?? word,
     )
     .replace(/\b(?:ounce|gram)\b/g, (word) => (word === "ounce" ? "oz" : "g"));
@@ -126,7 +128,11 @@ export function resolveLibraryPortions(items: JarvisMealItem[]) {
 
 // ---- Saved-nutrition-aware helpers ----
 
-const normalizedName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const normalizedName = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 
 /** Find confirmed saved presets whose name fuzzy-matches `query`. */
 function matchSavedPresets(query: string, state: AppState): SavedNutritionPreset[] {
@@ -201,31 +207,54 @@ export function queryLibraryMealWithSaved(
 
   for (const part of parts) {
     // Extract optional leading count: "2 servings of X", "two X", "1/2 cup of X"
-    const countMatch = new RegExp(
-      `^(a|an|${WORDS.join("|")}|\\d+(?:[./]\\d+)?) (.+)$`,
-    ).exec(part.trim());
+    const countMatch = new RegExp(`^(a|an|${WORDS.join("|")}|\\d+(?:[./]\\d+)?) (.+)$`).exec(
+      part.trim(),
+    );
 
-    let servings = 1;
+    let amount = 1;
+    let requestedUnit: string | undefined;
     let foodQuery = part.trim();
 
     if (countMatch) {
       const countStr = countMatch[1];
-      servings =
+      const count =
         countStr === "a" || countStr === "an"
           ? 1
           : /^\d/.test(countStr)
-            ? Number(countStr)
+            ? countStr
             : WORDS.indexOf(countStr);
+      amount = portion(`${count} serving`)?.amount ?? NaN;
       foodQuery = countMatch[2];
+      const measured =
+        /^(servings?|scoops?|cups?|oz|ounces?|g|grams?|pieces?|slices?|ml|tbsp|tsp)(?: of)?\s+(.+)$/.exec(
+          foodQuery,
+        );
+      if (measured) {
+        requestedUnit = portion(`1 ${measured[1]}`)?.unit;
+        foodQuery = measured[2];
+      }
     }
 
-    // Strip "of" prefix: "2 servings of chicken"
-    foodQuery = foodQuery.replace(/^(?:servings? of|scoops? of|cups? of|oz of|g of|grams? of|oz of|pieces? of)\s+/i, "");
+    foodQuery = foodQuery.replace(/^the\s+/, "");
 
     // 1. Search saved presets first
     const savedMatches = matchSavedPresets(foodQuery, state);
     if (savedMatches.length === 1) {
-      resolvedItems.push(presetToItem(savedMatches[0], servings > 0 ? servings : 1));
+      const preset = savedMatches[0];
+      let servings = amount;
+      if (requestedUnit && requestedUnit !== "serving") {
+        const base = preset.servingLabel && portion(preset.servingLabel);
+        if (!base || base.unit !== requestedUnit) {
+          return {
+            reply: `Please use servings or ${preset.servingLabel ?? "the saved serving size"} for ${preset.meal.name}; I cannot safely convert that unit.`,
+          };
+        }
+        servings = amount / base.amount;
+      }
+      if (!Number.isFinite(servings) || servings <= 0 || servings > 10) {
+        return { reply: "Please specify a positive quantity of up to 10 saved servings." };
+      }
+      resolvedItems.push(presetToItem(preset, servings));
       continue;
     }
     if (savedMatches.length > 1) {

@@ -1,8 +1,9 @@
 # PR #327 review — published head 037831d
 
-Reviewed in Codex's existing checkout on isolated `codex/food-library-review`.
-Antigravity's branch and active worktrees were not changed. Its 15 unit cases,
-TypeScript and production build pass, but the following gaps are reproducible.
+Initially reviewed in Codex's checkout on isolated `codex/food-library-review`.
+The findings below reproduce on published head `037831d`. Drew subsequently
+confirmed Antigravity had finished and authorized Codex to repair the existing PR.
+No other agent's worktree was changed. Repairs are on `codex/food-library-repair`.
 
 1. **P1 — quantity units and fractions produce incorrect nutrition.**
    `src/lib/jarvis/food-reference.ts:213–228` turns the leading number into a
@@ -23,11 +24,25 @@ TypeScript and production build pass, but the following gaps are reproducible.
    announce success after an applied commit; provide a recoverable failure state.
 
 Both failed-write behaviors reproduce against the production artifact in iPhone
-WebKit and mobile Chromium (four expected regression-test failures). Isolated
-reproduction tests are in `tests/e2e/food-library-review-failures.spec.ts`; they
-must remain failing until the implementation is fixed. These tests are not on
-Antigravity's branch and no implementation changes were made during review.
+WebKit and mobile Chromium before the fix (four regression-test failures).
+`tests/e2e/food-library-review-failures.spec.ts` now retains the original assertions
+and additionally verifies recovery/retry saves exactly once without retyping.
 
 Historical meals are copied rather than retroactively rewritten by preset CRUD.
-Do not recommend merging #327 until the confirmed calculation and persistence
-findings are resolved. Confirm active file ownership before making fixes.
+
+## Repair and validation
+
+All three findings are repaired. Saved quantities reuse the existing fraction and
+unit parser, compare requested units with the saved base portion and reject unsafe
+conversions instead of substituting a serving. Library actions check the existing
+verified-store commit result. Custom creation uses the latest transaction state,
+retains drafts after rejection and checks duplicates inside that transaction.
+Favorites are validated as optional booleans, survive verified backups and preset
+replacement, and never retroactively edit historical meals.
+
+Reconciled with production WHOOP main `9a4c9c8`. All 1,045 integrated unit tests,
+TypeScript, scoped lint and production build pass. All 12 food-library mobile
+artifact cases pass across WebKit/Chromium, including original happy paths and
+failed-write retry safety. Targeted verified-backup/fraction tests also pass.
+The release gate now selects the food-library cases. Existing PR #327 is updated;
+hosted checks and separate merge approval remain required. No dependency added.
