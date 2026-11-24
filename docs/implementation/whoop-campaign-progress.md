@@ -60,3 +60,27 @@ now enables webhook receipt independently of scheduled sync. The archive grant
 script adds only INSERT on existing webhook metadata; preflight verifies it.
 Production webhook registration in the WHOOP dashboard remains unverified and is
 required before real storage consent. No production changes were made.
+
+Published as [PR #321](https://github.com/DrewDiStefano11/app/pull/321), commit
+`34ce3793c6ebff5c97938b95b3f32efdf5286616`. Fifteen targeted SQL/API tests, TypeScript,
+scoped lint, production build and both artifact browser checks passed, including
+signed deletion without cron. Its base is #320; automatic workflow branch filters
+exclude that base, so the existing release gate was explicitly dispatched.
+
+## Historical import
+
+Branch `codex/whoop-historical-import`, based on #321. Implements the complete
+Settings import/pause/resume workflow, bounded server pages, atomic encrypted
+record/checkpoint commits, rate limits, scope verification and full-history
+pagination. Migration 007 and `WHOOP_HISTORY_IMPORT_ENABLED=true` are additional
+approved production prerequisites. Feature defaults off; existing archive paths
+continue to work without migration 007.
+
+The full unit suite passed 1,020 tests before two additional cases; all seven
+targeted import tests pass, including real checkpoint rollback and PostgreSQL
+submillisecond timestamp handling. Initial production-artifact acceptance passed
+all four cases across WebKit/Chromium, including browser termination, disk database
+reopening and import resume. Final validation also covers the updated privacy
+notice: all six final cases pass, with TypeScript, scoped lint and production build.
+See [import details](whoop-historical-import.md). Production and physical
+iPhone verification remain outstanding.

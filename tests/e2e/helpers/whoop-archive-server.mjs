@@ -42,6 +42,7 @@ for (const migration of [
   "004-cache.sql",
   "005-jarvis-read.sql",
   "006-owner-archive.sql",
+  "007-history-import.sql",
 ])
   await database.exec(await readFile(join("db/whoop", migration), "utf8"));
 await database.exec(await readFile("db/whoop/operations/runtime-role.sql", "utf8"));
@@ -60,6 +61,7 @@ const ciphertext = Buffer.concat([
       accessToken: "synthetic-access",
       refreshToken: "synthetic-refresh",
       expiresIn: 3600,
+      scopes: ["read:recovery", "read:sleep", "read:cycles", "read:workout"],
     }),
   ),
   cipher.final(),
@@ -77,7 +79,7 @@ await database.query(
 await database.exec("set role fitcore_whoop_runtime");
 
 const control = { mode: "success", score: 80, providerRequests: 0, pending: [] };
-function providerResponse(url) {
+function providerResponse(url, history = false, nextToken = null) {
   const at = new Date(Date.now() - 3600000).toISOString();
   const base = {
     user_id: 123,
@@ -128,9 +130,35 @@ function providerResponse(url) {
               score: { strain: 8.4 },
             },
           ];
+  if (history) {
+    const historicalAt = "2018-02-03T08:00:00.000Z";
+    for (const record of records) {
+      record.created_at = historicalAt;
+      record.updated_at = nextToken ? "2018-02-04T08:00:00.000Z" : historicalAt;
+      if ("start" in record) record.start = "2018-02-03T00:00:00.000Z";
+      if ("end" in record) record.end = historicalAt;
+      if ("cycle_id" in record) record.cycle_id = 1999;
+      if ("sleep_id" in record) record.sleep_id = "44444444-4444-4444-8444-444444444444";
+      if ("id" in record)
+        record.id =
+          typeof record.id === "number"
+            ? 1999
+            : url.endsWith("/activity/sleep")
+              ? "44444444-4444-4444-8444-444444444444"
+              : "55555555-5555-4555-8555-555555555555";
+      if (url.endsWith("/recovery")) record.score.recovery_score = nextToken ? 75 : 70;
+    }
+  }
   return control.mode === "failure"
     ? new Response(null, { status: 503 })
-    : Response.json({ records }, { headers: { "Cache-Control": "no-store" } });
+    : Response.json(
+        {
+          records,
+          next_token:
+            history && url.endsWith("/recovery") && !nextToken ? "history-page-two" : null,
+        },
+        { headers: { "Cache-Control": "no-store" } },
+      );
 }
 
 const originalFetch = globalThis.fetch;
@@ -172,7 +200,11 @@ globalThis.fetch = async (input, init) => {
           { once: true },
         );
       });
-    return providerResponse(url.pathname);
+    return providerResponse(
+      url.pathname,
+      !url.searchParams.has("start"),
+      url.searchParams.get("nextToken"),
+    );
   }
   return originalFetch(input, init);
 };
@@ -295,6 +327,7 @@ Object.assign(process.env, {
   WHOOP_OWNER_KEY_SHA256: createHash("sha256").update(accessKey).digest("hex"),
   WHOOP_TOKEN_ENCRYPTION_KEY: encryptionKey.toString("base64url"),
   WHOOP_OWNER_ARCHIVE_ENABLED: "true",
+  WHOOP_HISTORY_IMPORT_ENABLED: "true",
   WHOOP_ARCHIVE_DELETION_POLICY: "no-recovery-copies-v1",
   WHOOP_SNAPSHOT_CACHE_ENABLED: "false",
   WHOOP_BACKGROUND_ENABLED: "false",

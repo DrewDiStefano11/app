@@ -65,6 +65,7 @@ function getIntegration() {
       ? createWhoopArchiveStore(query, createWhoopArchiveVault(WHOOP_TOKEN_ENCRYPTION_KEY))
       : undefined,
     webhooks: archiveEnabled ? store : undefined,
+    historyImportEnabled: archiveEnabled && process.env.WHOOP_HISTORY_IMPORT_ENABLED === "true",
     onCachePolicy:
       process.env.VERCEL_ENV === "production"
         ? (policy) => console.info("WHOOP_CACHE_POLICY", JSON.stringify(policy))
@@ -93,6 +94,7 @@ export async function handleWhoopRequest(request: Request, action: string) {
       "reconcile",
       "archive-consent",
       "archive-export",
+      "archive-import",
     ].includes(action)
   )
     return reply(404);
@@ -141,6 +143,8 @@ export async function handleWhoopRequest(request: Request, action: string) {
         return await integration.archiveConsent(request);
       case "archive-export":
         return await integration.archiveExport(request);
+      case "archive-import":
+        return await integration.archiveImport(request);
       case "webhook":
         return await integration.webhook(request);
       case "reconcile":

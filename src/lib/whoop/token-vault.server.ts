@@ -9,6 +9,7 @@ const tokenPair = z.object({
   accessToken: z.string().min(1),
   refreshToken: z.string().min(1),
   expiresIn: z.number().int().positive(),
+  scopes: z.array(z.string().min(1).max(128)).max(32).optional(),
 });
 
 export function createWhoopTokenVault(encodedKey: string) {
