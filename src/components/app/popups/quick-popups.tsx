@@ -297,7 +297,7 @@ export function WeighInSheet({ open, onClose }: { open: boolean; onClose: () => 
   };
 
   return (
-    <BottomSheet open={open} onClose={onClose} title="Weigh In">
+    <BottomSheet open={open} onClose={onClose} title="Weigh In" manageFocus>
       <div className="space-y-4">
         <div className="tile p-4">
           <div className="text-[10px] uppercase tracking-widest text-white/40 font-bold">Current weight</div>

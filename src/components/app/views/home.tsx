@@ -21,6 +21,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { AiInsightStrip } from "@/components/app/ai-insight";
+import { InAppReminders } from "@/components/app/in-app-reminders";
 import { BodyHeatmap } from "@/components/app/body-heatmap";
 import { CountUp } from "@/components/app/count-up";
 import { GoalsPanel } from "@/components/app/goals-panel";
@@ -123,6 +124,11 @@ export function HomeView({
 
       <div className="space-y-4 px-4">
         <ViewModeToggle mode={layoutMode} onModeChange={onLayoutModeChange} />
+        <InAppReminders
+          onOpen={(kind) =>
+            setPopup(kind === "workout" ? "start" : kind === "weighIn" ? "weighin" : "logmeal")
+          }
+        />
 
         {layoutMode === "daily" ? (
           <HomeDailyView setPopup={setPopup} setMuscle={setMuscle} onNavigate={onNavigate} />

@@ -21,6 +21,7 @@ import { JarvisSettingsCard } from "@/components/app/jarvis/settings-card";
 import { JarvisActivityCard } from "@/components/app/jarvis/activity-view";
 import { GoalsProfileCard } from "@/components/app/jarvis/goals-profile-card";
 import { WhoopSettings } from "./whoop-settings";
+import { ReminderPreferences } from "@/components/app/reminder-preferences";
 
 type SettingsSectionId = "profile" | "preferences" | "data" | "integrations";
 
@@ -437,7 +438,7 @@ export function SettingsView({
                 id="preferences"
                 title="Preferences & Reminders"
                 description="Units, saved reminder preferences, and demo data."
-                status="Notifications planned"
+                status="In-app reminders available"
                 icon={<Bell size={18} />}
                 expanded={expanded.preferences}
                 onToggle={toggleSection}
@@ -462,39 +463,7 @@ export function SettingsView({
                       },
                     ]}
                   />
-                  <div className="space-y-2 pt-2">
-                    <p className="text-sm font-semibold">Reminder preferences</p>
-                    <p className="text-xs leading-relaxed text-muted-foreground">
-                      FitCore does not schedule or send notifications yet.
-                    </p>
-                    <p className="text-xs leading-relaxed text-muted-foreground">These choices are saved for future notifications. Times below use a 24-hour clock.</p>
-                    {(["workout", "weighIn", "lunch"] as const).map((k) => (
-                      <label
-                        key={k}
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-[var(--surface-2)] p-3"
-                      >
-                        <span className="text-sm capitalize leading-snug">
-                          {k === "weighIn"
-                            ? `Weigh-in · ${state.personalization.reminders?.weighInTime ?? "09:00"}`
-                            : k === "workout"
-                              ? `Workout · ${state.personalization.reminders?.workoutTime ?? "17:00"}`
-                              : `Lunch log · ${state.personalization.reminders?.mealLogTime ?? "12:00"}`}
-                        </span>
-                        <input
-                          type="checkbox"
-                          checked={state.reminders[k]}
-                          onChange={(e) =>
-                            set((s) => ({
-                              ...s,
-                              reminders: { ...s.reminders, [k]: e.target.checked },
-                            }))
-                          }
-                          className="h-5 w-5 shrink-0 accent-[var(--section)]"
-                          aria-label={`Toggle ${k} reminder`}
-                        />
-                      </label>
-                    ))}
-                  </div>
+                  <ReminderPreferences />
 
                   <FutureRows
                     rows={[

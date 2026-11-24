@@ -1552,7 +1552,7 @@ function validatePersonalization(context: ValidationContext, value: PlainRecord)
       });
     else if (isPlainRecord(record.reminders)) {
       const nested = { ...location, path: fieldPath(location, "reminders") };
-      const booleanFields = ["workoutEnabled", "weighInEnabled", "mealLogEnabled"];
+      const booleanFields = ["inAppEnabled", "workoutEnabled", "weighInEnabled", "mealLogEnabled"];
       const stringFields = ["workoutTime", "weighInTime", "mealLogTime"];
       unknownFields(context, record.reminders, nested, [...booleanFields, ...stringFields]);
       for (const field of booleanFields)
