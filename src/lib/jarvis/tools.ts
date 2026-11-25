@@ -1,3 +1,4 @@
+import { lastWorkoutByType, recentCompletedWorkoutHistory } from "./workout-history";
 import { exerciseProgression, progressionExerciseId, recordedExerciseHistory } from "../exercise-progression";
 import { lastExercisePerformance } from "./exercise-history";
 import { todayMealEntries } from "../analytics/observed-fitness";
@@ -88,7 +89,7 @@ export const TOOL_SPECS: ToolSpec[] = [
   { name: "logWorkout", description: "Log a complete strength workout from structured exercises/sets.", parameters: { type: "object", properties: { name: { type: "string" }, workoutType: { type: "string" }, exercises: workoutExerciseSchema, startedAt: { type: "number" }, endedAt: { type: "number" }, durationMin: { type: "number" }, notes: { type: "string" }, confidence: { type: "string" }, originalText: { type: "string" }, draftId: { type: "string" } }, required: ["exercises"] } },
   { name: "updateWorkout", description: "Patch a saved workout by id.", parameters: { type: "object", properties: { id: { type: "string" }, patch: { type: "object" } }, required: ["id", "patch"] } },
   { name: "deleteWorkout", description: "Delete a saved workout by id.", parameters: { type: "object", properties: { id: { type: "string" } }, required: ["id"] } },
-  { name: "getWorkoutHistory", description: "Recent workout history.", parameters: { type: "object", properties: { days: { type: "number" } } } },
+  { name: "getWorkoutHistory", description: "Recent confirmed completed workouts, ordered by recorded finish time.", parameters: { type: "object", properties: { days: { type: "number" } } } },
   { name: "getLastWorkoutByType", description: "Get the latest workout by type/name.", parameters: { type: "object", properties: { workoutType: { type: "string" } }, required: ["workoutType"] } },
   { name: "getLastExercisePerformance", description: "Get previous set performance for an exercise.", parameters: { type: "object", properties: { exerciseId: { type: "string" }, exerciseName: { type: "string" } } } },
   { name: "logExerciseSet", description: "Add/log a set to the active workout.", parameters: { type: "object", properties: { exerciseId: { type: "string" }, exerciseName: { type: "string" }, weight: { type: "number" }, reps: { type: "number" }, rpe: { type: "number" }, modifier: { type: "string" }, notes: { type: "string" } } } },
@@ -469,8 +470,8 @@ const handlers: Record<ToolName, ToolHandler> = {
     return { ok: true, summary: `Updated ${workout.name}`, auditId };
   },
   deleteWorkout: (args, { set, state }) => { const id = String(args.id ?? ""), workout = state.workouts.find(w => w.id === id); if (!workout) return { ok: false, summary: "workout not found" }; const auditId = uid(); set(s => ({ ...s, workouts: s.workouts.filter(w => w.id !== id) })); pushAudit(set, { id: auditId, tool: "deleteWorkout", summary: `Deleted ${workout.name}`, status: "logged", entityIds: [id], entityKind: "workoutDelete", patch: { prev: workout }, createdAt: Date.now() }); return { ok: true, summary: `Deleted ${workout.name}`, auditId }; },
-  getWorkoutHistory: (args, { state }) => { const cutoff = Date.now() - Math.min(90, Math.max(1, Number(args.days) || 30)) * 86400000; const workouts = state.workouts.filter(w => w.startedAt >= cutoff); return { ok: true, summary: `${workouts.length} workouts`, data: workouts }; },
-  getLastWorkoutByType: (args, { state }) => { const q = normalizeText(args.workoutType); const w = [...state.workouts].reverse().find(w => normalizeText(w.name).includes(q)); return { ok: true, summary: w ? `Last ${q}: ${w.name}` : `No ${q} workout found`, data: w ?? null }; },
+  getWorkoutHistory: (args, { state, now }) => recentCompletedWorkoutHistory(state, args.days, now),
+  getLastWorkoutByType: (args, { state, now }) => lastWorkoutByType(state, args.workoutType, now),
   getLastExercisePerformance: (args, { state, now }) => lastExercisePerformance(state, args.exerciseId ?? args.exerciseName, now),
   getActiveWorkout: (_a, { state }) => ({ ok: true, summary: state.activeWorkout ? `Active: ${state.activeWorkout.name}` : "No active workout", data: state.activeWorkout }),
   updateActiveWorkout: (args, { set, state, confirmed }) => {
