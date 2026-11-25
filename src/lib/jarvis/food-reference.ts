@@ -190,10 +190,12 @@ export function queryLibraryMealWithSaved(
   const rawItems = match[1];
   const mealType = match[2] ?? "snack";
 
+  if (/\b(?:yesterday|last week|this morning|this week)\b/i.test(match[1]))
+    return { reply: "Name the recorded meal and date so I can check history, or choose a saved food explicitly." };
+
   // Strip filler phrases: "the same X as yesterday", "my usual X", "another X"
   const cleaned = rawItems
     .replace(/\bthe same\b/gi, "")
-    .replace(/\b(?:as|from) (?:yesterday|last week|this morning|this week)\b/gi, "")
     .replace(/\bmy (?:usual\s+)?/gi, "")
     .replace(/\banother\b/gi, "1")
     .trim();

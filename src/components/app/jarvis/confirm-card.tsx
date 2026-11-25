@@ -51,7 +51,7 @@ function toolLabel(tool: string) {
 }
 
 export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
-  { tool: string; result: ToolResult; onConfirm: (editedItems?: JarvisMealItem[]) => void; onCancel: () => void; onUndo?: () => void }) {
+  { tool: string; result: ToolResult; onConfirm: (editedItems?: JarvisMealItem[]) => boolean | void; onCancel: () => void; onUndo?: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [portions, setPortions] = useState<Record<number, string>>({});
   const pending = result.needsConfirmation && result.ok;
@@ -74,7 +74,7 @@ export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
   const confirmOnce = () => {
     if (submitting || !pending || invalidPortions) return;
     setSubmitting(true);
-    onConfirm(changedPortions ? scaledItems : undefined);
+    if (onConfirm(changedPortions ? scaledItems : undefined) === false) setSubmitting(false);
   };
 
   return (

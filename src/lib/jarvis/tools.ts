@@ -288,7 +288,7 @@ const handlers: Record<ToolName, ToolHandler> = {
       confirmed, auditId, originalText, assumptions, confidence: approximate ? "medium" : "high",
     });
     const meal: MealEntry = {
-      id, name, type, calories, macroStatus: "unreported", source: "jarvis-confirmed",
+      id, name, type, calories, macroStatus: "unreported", source: "jarvis-confirmed", notes: textArg(args, "notes"),
       confirmed, provenance, auditId, originalText, createdAt,
     };
     const summary = `Logged ${name}: ${amounts}`;
