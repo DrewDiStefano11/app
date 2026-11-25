@@ -52,6 +52,28 @@ function FitCoreApp() {
   const { state, hasHydrated, view, persistenceStatus, persistenceRequiresReload } = useStore();
   const [section, setSection] = useState<SectionId>("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  useEffect(() => {
+    const openNotification = (value: unknown) => {
+      if (value === "training" || value === "nutrition" || value === "home") {
+        setSection(value);
+        setSettingsOpen(false);
+      }
+    };
+    const url = new URL(window.location.href);
+    const requested = url.searchParams.get("notification");
+    if (requested) {
+      openNotification(requested);
+      url.searchParams.delete("notification");
+      window.history.replaceState(window.history.state, "", url);
+    }
+    if (!("serviceWorker" in navigator)) return;
+    const receive = (event: MessageEvent) => {
+      if (event.source !== navigator.serviceWorker.controller || event.data?.type !== "fitcore-notification-open") return;
+      openNotification(event.data.section);
+    };
+    navigator.serviceWorker.addEventListener("message", receive);
+    return () => navigator.serviceWorker.removeEventListener("message", receive);
+  }, []);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("daily");
   const [overviewWorkoutId, setOverviewWorkoutId] = useState<string | null>(null);
 

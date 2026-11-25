@@ -1,3 +1,4 @@
+import { PushNotificationPreferences } from "./push-notification-preferences";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import {
@@ -100,6 +101,7 @@ export function ReminderPreferences() {
           </div>
         );
       })}
+      <PushNotificationPreferences />
       {error && (
         <p role="status" className="text-sm text-destructive">
           {error}
