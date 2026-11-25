@@ -1,3 +1,5 @@
+import { exerciseProgression, progressionExerciseId, recordedExerciseHistory } from "../exercise-progression";
+import { lastExercisePerformance } from "./exercise-history";
 import { todayMealEntries } from "../analytics/observed-fitness";
 import { calculateMealTotals } from "../analytics/domain-metrics";
 import { resolveLibraryPortions } from "./food-reference";
@@ -288,7 +290,7 @@ const handlers: Record<ToolName, ToolHandler> = {
       confirmed, auditId, originalText, assumptions, confidence: approximate ? "medium" : "high",
     });
     const meal: MealEntry = {
-      id, name, type, calories, macroStatus: "unreported", source: "jarvis-confirmed",
+      id, name, type, calories, macroStatus: "unreported", source: "jarvis-confirmed", notes: textArg(args, "notes"),
       confirmed, provenance, auditId, originalText, createdAt,
     };
     const summary = `Logged ${name}: ${amounts}`;
@@ -469,7 +471,7 @@ const handlers: Record<ToolName, ToolHandler> = {
   deleteWorkout: (args, { set, state }) => { const id = String(args.id ?? ""), workout = state.workouts.find(w => w.id === id); if (!workout) return { ok: false, summary: "workout not found" }; const auditId = uid(); set(s => ({ ...s, workouts: s.workouts.filter(w => w.id !== id) })); pushAudit(set, { id: auditId, tool: "deleteWorkout", summary: `Deleted ${workout.name}`, status: "logged", entityIds: [id], entityKind: "workoutDelete", patch: { prev: workout }, createdAt: Date.now() }); return { ok: true, summary: `Deleted ${workout.name}`, auditId }; },
   getWorkoutHistory: (args, { state }) => { const cutoff = Date.now() - Math.min(90, Math.max(1, Number(args.days) || 30)) * 86400000; const workouts = state.workouts.filter(w => w.startedAt >= cutoff); return { ok: true, summary: `${workouts.length} workouts`, data: workouts }; },
   getLastWorkoutByType: (args, { state }) => { const q = normalizeText(args.workoutType); const w = [...state.workouts].reverse().find(w => normalizeText(w.name).includes(q)); return { ok: true, summary: w ? `Last ${q}: ${w.name}` : `No ${q} workout found`, data: w ?? null }; },
-  getLastExercisePerformance: (args, { state }) => { const id = findExerciseId(args.exerciseId ?? args.exerciseName); const rows = [...state.workouts].reverse().flatMap(w => w.exercises.filter(e => e.exerciseId === id).map(e => ({ workout: w.name, when: w.startedAt, sets: e.sets.filter(s => s.completed) }))).filter(r => r.sets.length); return { ok: true, summary: rows[0] ? `Last ${exerciseById(id)?.name ?? id}: ${rows[0].sets.map(s => `${s.weight ?? ""}x${s.reps ?? "?"}`).join(", ")}` : "No previous sets found", data: rows[0] ?? null }; },
+  getLastExercisePerformance: (args, { state, now }) => lastExercisePerformance(state, args.exerciseId ?? args.exerciseName, now),
   getActiveWorkout: (_a, { state }) => ({ ok: true, summary: state.activeWorkout ? `Active: ${state.activeWorkout.name}` : "No active workout", data: state.activeWorkout }),
   updateActiveWorkout: (args, { set, state, confirmed }) => {
     if (!state.activeWorkout) return { ok: false, summary: "no active workout" };
@@ -483,7 +485,14 @@ const handlers: Record<ToolName, ToolHandler> = {
   suggestActiveWorkoutChange: (args, { state }) => { const active = state.activeWorkout; const request = normalizeText(args.request ?? args.reason); const suggestion = !active ? "Start a workout first." : request.includes("shoulder") ? "Swap incline pressing for cable fly or machine press for 3 sets of 12, and keep pain-free range." : request.includes("20") ? "Shorten to one top set per remaining exercise and skip low-priority accessories." : "Use previous performance and current fatigue: keep the next set 1-2 reps from failure."; return { ok: true, summary: suggestion, data: { suggestion, activeWorkout: active } }; },
   saveWorkoutTemplate: (args, { set, state }) => { const name = String(args.name ?? "").trim(); if (!name) return { ok: false, summary: "template name required" }; const source = state.workouts.find(w => w.id === args.workoutId) ?? state.activeWorkout ?? state.workouts.at(-1); if (!source) return { ok: false, summary: "no workout to template" }; const templateId = `jarvis-${uid()}`, auditId = uid(); set(s => ({ ...s, workoutTemplates: [...s.workoutTemplates, { id: uid(), name, templateId }] })); pushAudit(set, { id: auditId, tool: "saveWorkoutTemplate", summary: `Saved template ${name}`, status: "logged", entityKind: "workoutTemplate", patch: { templateId, source }, createdAt: Date.now() }); return { ok: true, summary: `Saved template ${name}`, auditId }; },
   getWorkoutTemplates: (_a, { state }) => ({ ok: true, summary: `${WORKOUT_TEMPLATES.length + state.workoutTemplates.length} templates`, data: { builtIn: WORKOUT_TEMPLATES, saved: state.workoutTemplates } }),
-  suggestWorkoutProgression: (args, { state }) => { const id = findExerciseId(args.exerciseId ?? args.exerciseName); const hist = [...state.workouts].reverse().flatMap(w => w.exercises.filter(e => e.exerciseId === id).flatMap(e => e.sets.filter(s => s.completed && s.weight && s.reps))); const last = hist[0]; const suggestion = !last ? "Start with a comfortable working weight." : last.reps && last.reps >= 8 ? `Try ${Math.round(((last.weight ?? 0) + 5) / 5) * 5} lb for 6-8 reps next time.` : `Repeat ${last.weight ?? "the same weight"} and build reps before adding load.`; return { ok: true, summary: suggestion, data: { exerciseId: id, last, suggestion } }; },
+  suggestWorkoutProgression: (args, { state, now = new Date() }) => {
+    const id = progressionExerciseId(state, args.exerciseId ?? args.exerciseName);
+    if (!id) return { ok: false, summary: "Name one exact saved or catalog exercise for progression advice." };
+    const history = recordedExerciseHistory(state.workouts, now.getTime()).get(id) ?? [];
+    const target = state.activeWorkout?.exercises.find(row => row.exerciseId === id)?.target ?? history[0]?.target;
+    const advice = exerciseProgression(history, target, now.getTime());
+    return { ok: true, summary: advice.summary, data: { exerciseId: id, ...advice } };
+  },
   suggestExerciseSubstitution: (args) => { const id = findExerciseId(args.exerciseId ?? args.exerciseName); const ex = exerciseById(id); const alt = args.reason && normalizeText(args.reason).includes("shoulder") ? EXERCISES.find(e => e.id === "cable-fly") : EXERCISES.find(e => e.primary.some(m => ex?.primary.includes(m)) && e.id !== id); return { ok: true, summary: alt ? `Swap ${ex?.name ?? id} for ${alt.name}.` : "Use a pain-free machine or cable alternative.", data: { from: ex, to: alt } }; },
   logWorkoutNote: (args, { set, state }) => { const notes = String(args.notes ?? "").trim(); if (!notes) return { ok: false, summary: "notes required" }; const workoutId = String(args.workoutId ?? state.activeWorkout?.id ?? ""), auditId = uid(); if (state.activeWorkout?.id === workoutId) set(s => ({ ...s, activeWorkout: s.activeWorkout ? { ...s.activeWorkout, notes: [s.activeWorkout.notes, notes].filter(Boolean).join("\n") } : null })); else set(s => ({ ...s, workouts: s.workouts.map(w => w.id === workoutId ? { ...w, notes: [w.notes, notes].filter(Boolean).join("\n") } : w) })); pushAudit(set, { id: auditId, tool: "logWorkoutNote", summary: "Added workout note", status: "logged", entityIds: [workoutId], entityKind: "workoutNote", patch: { notes }, createdAt: Date.now() }); return { ok: true, summary: "Workout note saved", auditId }; },
   logWorkoutPainOrSoreness: (args, { set, state, confirmed }) => {

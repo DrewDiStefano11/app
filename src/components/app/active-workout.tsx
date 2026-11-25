@@ -4,6 +4,8 @@ import {
   GripVertical, Calculator, Pencil, Sparkles,
 } from "lucide-react";
 import { useStore, uid } from "@/lib/store";
+import { recordedExerciseHistory, type RecordedExerciseSession } from "@/lib/exercise-progression";
+import { ExerciseProgression } from "@/components/app/exercise-progression";
 import { DEFAULT_REST_SECONDS, restTimerAfterSet } from "@/lib/active-workout-state";
 import { hasPerformedSet } from "@/lib/analytics/observed-fitness";
 import { applyWorkoutPersonalRecords, workoutRecordImprovements } from "@/lib/workout-personal-records";
@@ -167,6 +169,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
     return map;
   }, [state.customExercises]);
   const findEx = (id: string) => lookup.get(id);
+  const progressionHistory = useMemo(() => recordedExerciseHistory(state.workouts, w.startedAt), [state.workouts, w.startedAt]);
 
   // Auto-derive which card is "active": first non-completed exercise.
   const activeId = useMemo(
@@ -389,7 +392,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
             isOpen={isOpen(we)}
             canMoveUp={idx > 0}
             canMoveDown={idx < w.exercises.length - 1}
-            previousWorkout={state.workouts.slice().reverse().find(pw => pw.exercises.some(pe => pe.exerciseId === we.exerciseId))}
+            previousSessions={progressionHistory.get(we.exerciseId) ?? []}
             demoMode={state.demoMode}
             programExercise={w.templateId?.startsWith(`${BENCH_PROGRAM_ID}-`) ?? false}
             onToggle={() => toggleOpen(we.id)}
@@ -459,7 +462,7 @@ export function ActiveWorkoutView({ onBack }: { onBack: () => void }) {
 
 function ExerciseCard({
   we, exercise, isActive, isOpen, canMoveUp, canMoveDown,
-  previousWorkout, demoMode, programExercise, onToggle, onMove, onDelete, onChooseAlternative, keepOriginal, onComplete, onChange, onOpenPlate,
+  previousSessions, demoMode, programExercise, onToggle, onMove, onDelete, onChooseAlternative, keepOriginal, onComplete, onChange, onOpenPlate,
 }: {
   we: WorkoutExercise;
   exercise: Exercise | CustomExercise | undefined;
@@ -467,7 +470,7 @@ function ExerciseCard({
   isOpen: boolean;
   canMoveUp: boolean;
   canMoveDown: boolean;
-  previousWorkout: Workout | undefined;
+  previousSessions: RecordedExerciseSession[];
   demoMode: boolean;
   programExercise: boolean;
   onToggle: () => void;
@@ -495,8 +498,7 @@ function ExerciseCard({
     (best, s) => (s.weight && (!best || (s.weight ?? 0) > (best.weight ?? 0)) ? s : best), null,
   );
 
-  const prevEx = previousWorkout?.exercises.find(pe => pe.exerciseId === we.exerciseId);
-  const realPrevSets = prevEx?.sets.filter(s => s.weight != null && s.reps != null && s.modifier !== "warmup") ?? [];
+  const realPrevSets = previousSessions[0]?.sets ?? [];
   const prevSets = realPrevSets.length > 0
     ? realPrevSets
     : demoMode ? makeDemoPrevSets(we.exerciseId, we.sets.length) : [];
@@ -588,6 +590,8 @@ function ExerciseCard({
               {prevVol > 0 && <span> · vol {Math.round(prevVol)}lb</span>}
             </div>
           )}
+
+          {!duration && !bodyweight && <ExerciseProgression exercise={we} sessions={previousSessions} onTarget={target => onChange(e => ({ ...e, target }))} />}
 
           {/* Tags — arm one, then tap a set # to apply, or tap All */}
           <div>
@@ -743,10 +747,10 @@ function SetRow({ index, st, prev, done, duration, bodyweight, armedTag, onArmed
           aria-label={`Actual minutes for set ${index + 1}`}
           value={st.durationMin ?? ""} onChange={e => onChange({ durationMin: e.target.value ? Number(e.target.value) : undefined })}
           className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border text-sm" /> : <>
-        {!bodyweight && <input type="number" inputMode="decimal" placeholder={prev?.weight != null ? String(prev.weight) : "lb"}
+        {!bodyweight && <input type="number" inputMode="decimal" aria-label={`Actual weight for set ${index + 1} (lb)`} placeholder={prev?.weight != null ? String(prev.weight) : "lb"}
           value={st.weight ?? ""} onChange={e => onChange({ weight: e.target.value ? Number(e.target.value) : undefined })}
           className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-sm tabular-nums" />}
-        <input type="number" inputMode="numeric" placeholder={prev?.reps != null ? String(prev.reps) : "reps"}
+        <input type="number" inputMode="numeric" aria-label={`Actual reps for set ${index + 1}`} placeholder={prev?.reps != null ? String(prev.reps) : "reps"}
           value={st.reps ?? ""} onChange={e => onChange({ reps: e.target.value ? Number(e.target.value) : undefined })}
           className="w-20 px-3 py-2 rounded-lg bg-[var(--surface-2)] border border-border outline-none focus:border-[var(--section)] text-sm tabular-nums" />
         </>}

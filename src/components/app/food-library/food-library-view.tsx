@@ -10,6 +10,7 @@ import {
   Trash2,
   Zap,
 } from "lucide-react";
+import { nutritionPresetNames, normalizeNutritionName } from "@/lib/nutrition-aliases";
 import { useStore, uid } from "@/lib/store";
 import { FOODS, type Food } from "@/lib/data";
 import type { MealEntry, SavedNutritionPreset } from "@/lib/types";
@@ -42,11 +43,7 @@ const LIBRARY_TABS: { id: LibraryTab; label: string }[] = [
   { id: "catalog", label: "Catalog" },
 ];
 
-const normalized = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+const normalized = normalizeNutritionName;
 
 function macroLine(calories: number, protein?: number, carbs?: number, fat?: number) {
   if (protein !== undefined && carbs !== undefined && fat !== undefined) {
@@ -80,6 +77,7 @@ function PresetRow({
     <div className="flex items-start gap-3 p-4 border border-border rounded-[var(--radius-card)] bg-white/[0.02]">
       <div className="flex-1 min-w-0">
         <p className="font-semibold truncate">{meal.name}</p>
+        {!!preset.aliases?.length && <p className="text-xs text-muted-foreground">Also: {preset.aliases.join(", ")}</p>}
         <p className="text-xs text-muted-foreground mt-0.5">
           {macroLine(meal.calories, macros.protein, macros.carbs, macros.fat)}
         </p>
@@ -231,9 +229,9 @@ export function FoodLibraryView({ embedded = false }: { embedded?: boolean } = {
   const q = normalized(search);
 
   // ---- Filtered lists ----
-  const filteredSaved = savedPresets.filter((p) => !q || normalized(p.meal.name).includes(q));
+  const filteredSaved = savedPresets.filter((p) => !q || nutritionPresetNames(p).some(name => normalized(name).includes(q)));
   const filteredFavorites = savedPresets.filter(
-    (p) => p.isFavorite && (!q || normalized(p.meal.name).includes(q)),
+    (p) => p.isFavorite && (!q || nutritionPresetNames(p).some(name => normalized(name).includes(q))),
   );
   const recent = recentlyConsumedFoods(state, 10).filter(
     (m) => !q || normalized(m.name).includes(q),

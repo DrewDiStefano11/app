@@ -1,3 +1,4 @@
+import { parseNutritionAliases } from "./nutrition-aliases";
 import type { Food } from "./data";
 import { shouldRequireConfirmation } from "./fitcore-data";
 import type { AppState, DataProvenance, MealEntry, SavedNutritionPreset } from "./types";
@@ -45,12 +46,15 @@ export function frequentlyConsumedFoods(state: AppState, limit = 10): MealEntry[
 export function updateNutritionPreset(
   state: AppState,
   id: string,
-  updates: Partial<Pick<SavedNutritionPreset, "servingLabel" | "kind" | "isFavorite">>,
+  updates: Partial<Pick<SavedNutritionPreset, "servingLabel" | "kind" | "isFavorite" | "aliases">>,
 ): AppState {
   const presets = state.savedNutrition ?? [];
   const index = presets.findIndex((p) => p.id === id);
   if (index < 0) return state;
-  const updated = { ...presets[index], ...updates };
+  const aliases = updates.aliases === undefined ? undefined : parseNutritionAliases(updates.aliases);
+  if (updates.aliases !== undefined && !aliases) return state;
+  const updated = { ...presets[index], ...updates, ...(aliases && { aliases }) };
+  if (aliases && !aliases.length) delete updated.aliases;
   return {
     ...state,
     savedNutrition: presets.map((p, i) => (i === index ? updated : p)),
@@ -108,6 +112,8 @@ export function requiresNutritionPresetConfirmation(meal: MealEntry): boolean {
 
 export function addNutritionPreset(state: AppState, preset: SavedNutritionPreset): AppState {
   if (requiresNutritionPresetConfirmation(preset.meal)) return state;
+  const aliases = preset.aliases === undefined ? undefined : parseNutritionAliases(preset.aliases);
+  if (preset.aliases !== undefined && !aliases) return state;
   const saved = state.savedNutrition ?? [];
   const definition = JSON.stringify(mealDefinition(preset.meal));
   if (
@@ -133,6 +139,7 @@ export function addNutritionPreset(state: AppState, preset: SavedNutritionPreset
         meal,
         ...(servingLabel && { servingLabel }),
         ...(isFavorite !== undefined && { isFavorite }),
+        ...(aliases?.length && { aliases }),
       },
     ],
   };
