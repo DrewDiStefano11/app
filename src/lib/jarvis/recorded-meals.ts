@@ -7,7 +7,7 @@ import { readUsualMeal } from "./usual-meals";
 import type { LocalJarvisCommand } from "./text-commands";
 
 export interface MealRecallContext { candidateIds: string[]; label: string; originalText: string }
-const normalize = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+export const normalizeRecordedMealName = (text: string) => text.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}\p{M}]+/gu, " ").trim();
 const slots = "breakfast|lunch|dinner|snack|pre-workout|post-workout";
 
 export function recordedMeals(state: AppState, now: Date) {
@@ -46,7 +46,7 @@ function choose(meals: MealEntry[], label: string, originalText: string): LocalJ
   const candidates = meals.slice(0, 8);
   return { reply: `Which recorded meal for ${label}? ${candidates.map((m, i) => `${i + 1}. ${m.name} (${m.calories} kcal, ${dayKey(m.createdAt)})`).join("; ")}. Reply with its number or exact name.`, nextContext: { mealRecall: { candidateIds: candidates.map(m => m.id), label, originalText } } };
 }
-const signature = (meal: MealEntry) => JSON.stringify([normalize(meal.name), meal.type, meal.calories, meal.macroStatus ?? "reported", meal.protein, meal.carbs, meal.fat, meal.items?.map(i => [normalize(i.name), i.qty, i.calories, i.protein, i.carbs, i.fat])]);
+const signature = (meal: MealEntry) => JSON.stringify([normalizeRecordedMealName(meal.name), meal.type, meal.calories, meal.macroStatus ?? "reported", meal.protein, meal.carbs, meal.fat, meal.items?.map(i => [normalizeRecordedMealName(i.name), i.qty, i.calories, i.protein, i.carbs, i.fat])]);
 function frequencies(meals: MealEntry[], now: Date) {
   const start = new Date(now); start.setDate(start.getDate() - 28);
   const groups = new Map<string, { meal: MealEntry; days: Set<string> }>();
@@ -68,7 +68,7 @@ export function queryRecordedMeal(text: string, originalText: string, state: App
     if (/^(?:cancel|never mind|nevermind)$/.test(text)) return { reply: "Meal recall cancelled.", nextContext: { mealRecall: undefined } };
     const index = /^(?:number |option )?(\d+)$/.exec(text);
     const candidates = meals.filter(m => recall.candidateIds.includes(m.id));
-    const named = candidates.filter(m => normalize(m.name) === normalize(text.replace(/^the /, "")));
+    const named = candidates.filter(m => normalizeRecordedMealName(m.name) === normalizeRecordedMealName(text.replace(/^the /, "")));
     if (index || named.length) {
       const selected = index ? candidates.find(m => m.id === recall.candidateIds[Number(index[1]) - 1]) : named.length === 1 ? named[0] : undefined;
       return selected ? recordedMealCommand(selected, `${recall.originalText} (choice ${originalText}; recorded meal ${selected.id})`) : { reply: "That choice is unavailable or ambiguous. Ask for the meal again to review current records.", nextContext: { mealRecall: undefined } };
@@ -92,7 +92,7 @@ export function queryRecordedMeal(text: string, originalText: string, state: App
   const namedDate = /^(?:log|repeat|i (?:had|ate)) (?:my |the )?(.+?) from (yesterday|today)$/.exec(text);
   if (namedDate) {
     const date = new Date(now); if (namedDate[2] === "yesterday") date.setDate(date.getDate() - 1);
-    return choose(meals.filter(m => normalize(m.name) === normalize(namedDate[1]) && dayKey(m.createdAt) === dayKey(date.getTime())), `${namedDate[1]} from ${namedDate[2]}`, originalText);
+    return choose(meals.filter(m => normalizeRecordedMealName(m.name) === normalizeRecordedMealName(namedDate[1]) && dayKey(m.createdAt) === dayKey(date.getTime())), `${namedDate[1]} from ${namedDate[2]}`, originalText);
   }
   const usual = new RegExp(`^(?:log|i (?:had|ate)) (?:my )?usual (${slots})$`).exec(text);
   if (usual) {
@@ -106,7 +106,7 @@ export function queryRecordedMeal(text: string, originalText: string, state: App
   const named = /^(?:log|repeat|i (?:had|ate)) (?:my |the )?(.+?) again$/.exec(text);
   if (named) {
     const variants = new Map<string, MealEntry>();
-    for (const meal of meals) if (normalize(meal.name) === normalize(named[1]) && !variants.has(signature(meal))) variants.set(signature(meal), meal);
+    for (const meal of meals) if (normalizeRecordedMealName(meal.name) === normalizeRecordedMealName(named[1]) && !variants.has(signature(meal))) variants.set(signature(meal), meal);
     return choose([...variants.values()], named[1], originalText);
   }
   if (/^(?:log|repeat|i (?:had|ate)) /.test(text) && /\b(?:yesterday|last week|this morning|this week)\b/.test(text))
