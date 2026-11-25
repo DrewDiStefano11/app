@@ -1284,10 +1284,11 @@ function validateSavedNutritionPreset(
 ): void {
   const required = ["id", "kind", "meal"];
   missingFields(context, record, location, required);
-  unknownFields(context, record, location, [...required, "servingLabel"]);
+  unknownFields(context, record, location, [...required, "servingLabel", "isFavorite"]);
   if (Object.hasOwn(record, "id")) validateString(context, record.id, location, "id", { id: true });
   if (Object.hasOwn(record, "kind")) validateEnum(context, record.kind, location, "kind", ["food", "meal"]);
   validateOptionalString(context, record, location, "servingLabel");
+  validateOptionalBoolean(context, record, location, "isFavorite");
   if (Object.hasOwn(record, "meal")) {
     validateObjectRecord(context, record.meal, location.collection, fieldPath(location, "meal"), validateMeal);
   }

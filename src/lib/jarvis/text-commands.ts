@@ -1,6 +1,6 @@
 import { todayMealEntries } from "../analytics/observed-fitness";
 import { calculateMealTotals } from "../analytics/domain-metrics";
-import { queryLibraryMeal } from "./food-reference";
+import { queryLibraryMeal, queryLibraryMealWithSaved } from "./food-reference";
 import { queryMealPortion } from "./meal-portion";
 import { queryRecoveryText, type RecoveryDraft } from "./recovery-text";
 import { queryBenchHistory, queryTrainingText, type BenchDate } from "./workout-queries";
@@ -575,7 +575,7 @@ export function interpretJarvisText(
       },
     };
 
-  const referenceMeal = queryLibraryMeal(text, raw);
+  const referenceMeal = queryLibraryMealWithSaved(text, raw, state) ?? queryLibraryMeal(text, raw);
   if (referenceMeal) return referenceMeal;
 
   const correction = queryMealPortion(text, state, context.lastMealId);

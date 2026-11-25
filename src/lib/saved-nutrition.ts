@@ -2,6 +2,73 @@ import type { Food } from "./data";
 import { shouldRequireConfirmation } from "./fitcore-data";
 import type { AppState, DataProvenance, MealEntry, SavedNutritionPreset } from "./types";
 
+// ---- public helpers used by food library ----
+
+/** Unique foods consumed recently, most-recent first (deduplicated by normalised name). */
+export function recentlyConsumedFoods(state: AppState, limit = 10): MealEntry[] {
+  const seen = new Set<string>();
+  const result: MealEntry[] = [];
+  const sorted = [...state.mealEntries].sort((a, b) => b.createdAt - a.createdAt);
+  for (const meal of sorted) {
+    const key = meal.name.trim().toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      result.push(meal);
+      if (result.length >= limit) break;
+    }
+  }
+  return result;
+}
+
+/** Most-logged foods, highest count first. */
+export function frequentlyConsumedFoods(state: AppState, limit = 10): MealEntry[] {
+  const counts = new Map<string, { meal: MealEntry; count: number }>();
+  for (const meal of state.mealEntries) {
+    const key = meal.name.trim().toLowerCase();
+    const entry = counts.get(key);
+    if (entry) {
+      entry.count++;
+      // keep the most recent MealEntry as the representative
+      if (meal.createdAt > entry.meal.createdAt) entry.meal = meal;
+    } else {
+      counts.set(key, { meal, count: 1 });
+    }
+  }
+  return [...counts.values()]
+    .sort((a, b) => b.count - a.count || b.meal.createdAt - a.meal.createdAt)
+    .slice(0, limit)
+    .map((e) => e.meal);
+}
+
+/** Update a saved preset's editable fields (name/servingLabel/kind/isFavorite).
+ *  Does NOT retroactively change historical meal log entries. */
+export function updateNutritionPreset(
+  state: AppState,
+  id: string,
+  updates: Partial<Pick<SavedNutritionPreset, "servingLabel" | "kind" | "isFavorite">>,
+): AppState {
+  const presets = state.savedNutrition ?? [];
+  const index = presets.findIndex((p) => p.id === id);
+  if (index < 0) return state;
+  const updated = { ...presets[index], ...updates };
+  return {
+    ...state,
+    savedNutrition: presets.map((p, i) => (i === index ? updated : p)),
+  };
+}
+
+/** Remove a saved preset by id.  Historical meal log entries are not affected. */
+export function removeNutritionPreset(state: AppState, id: string): AppState {
+  const presets = state.savedNutrition ?? [];
+  if (!presets.some((p) => p.id === id)) return state;
+  return { ...state, savedNutrition: presets.filter((p) => p.id !== id) };
+}
+
+/** Toggle (or explicitly set) the isFavorite flag on a saved preset. */
+export function favoriteNutritionPreset(state: AppState, id: string, favorite: boolean): AppState {
+  return updateNutritionPreset(state, id, { isFavorite: favorite });
+}
+
 export function foodMeal(food: Food, type: string, id: string, createdAt = Date.now()): MealEntry {
   const { name, calories, protein, carbs, fat, fiber, servingLabel } = food;
   const item = { name, qty: servingLabel, calories, protein, carbs, fat };
@@ -55,10 +122,19 @@ export function addNutritionPreset(state: AppState, preset: SavedNutritionPreset
     return state;
 
   const meal = copyMealForLog(preset.meal, preset.meal.id, preset.meal.createdAt);
-  const { id, kind, servingLabel } = preset;
+  const { id, kind, servingLabel, isFavorite } = preset;
   return {
     ...state,
-    savedNutrition: [...saved, { id, kind, meal, ...(servingLabel && { servingLabel }) }],
+    savedNutrition: [
+      ...saved,
+      {
+        id,
+        kind,
+        meal,
+        ...(servingLabel && { servingLabel }),
+        ...(isFavorite !== undefined && { isFavorite }),
+      },
+    ],
   };
 }
 

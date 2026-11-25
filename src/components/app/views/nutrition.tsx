@@ -23,6 +23,7 @@ import {
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
 import { Tile, Eyebrow } from "@/components/app/tile";
 import { MealEditor } from "@/components/app/meal-editor";
+import { FoodLibrarySheet } from "@/components/app/food-library/food-library-view";
 import { dayKey } from "@/lib/analytics/date-time";
 import { calculateMealTotals } from "@/lib/analytics/domain-metrics";
 import { MacroTrendChart } from "@/components/app/macro-trend-chart";
@@ -43,6 +44,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
   const [editing, setEditing] = useState<MealEntry | null>(null);
   const [deleteFailed, setDeleteFailed] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [historyDate, setHistoryDate] = useState(() => dayKey(Date.now()));
   const [tab, setTab] = useState<NutritionSubtab>("macros");
   const isDeepDive = layoutMode === "deepDive";
@@ -91,8 +93,9 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
         title="Nutrition"
         subtitle={hasMeals ? `${Math.round(t.c)} kcal logged today` : "No meals logged today"}
       />
-      <div className="mb-3 px-5">
+      <div className="mb-3 px-5 flex flex-wrap gap-2">
         <GhostButton onClick={() => setReviewedTargets(tg)}>Edit nutrition targets</GhostButton>
+        <GhostButton onClick={() => setLibraryOpen(true)}><Bookmark size={16} />Food library</GhostButton>
       </div>
       {isDeepDive && <SubTabs tabs={NUTRITION_TABS} active={tab} onChange={setTab} />}
 
@@ -251,11 +254,16 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
             status="Not connected yet"
             description="Hydration will appear here once real hydration state exists. No water totals are fabricated."
           />
-          <PlannedFeatureCard
-            title="Food database & Library"
-            status="Planned"
-            description="Food library, saved foods, and common foods."
-          />
+          <div
+            onClick={() => setLibraryOpen(true)}
+            className="cursor-pointer"
+          >
+            <PlannedFeatureCard
+              title="Food database & Library"
+              status="Planned"
+              description="Browse catalog, custom foods, and favorites."
+            />
+          </div>
           <PlannedFeatureCard
             title="Fiber & Micronutrients"
             status="Coming later"
@@ -395,6 +403,7 @@ export function NutritionView({ layoutMode = "daily" }: { layoutMode?: LayoutMod
         confirmLabel="Delete"
         destructive
       />
+      <FoodLibrarySheet open={libraryOpen} onClose={() => setLibraryOpen(false)} />
     </div>
   );
 }
