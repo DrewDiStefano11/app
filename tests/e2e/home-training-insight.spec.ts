@@ -24,7 +24,10 @@ test("Home links the assigned workout to recorded performance and optional progr
   const before = await readPersistedFitCoreState(page);
   expect(before.activeWorkout).toBeNull();
   expect(before.workoutTemplates[0].plan?.exercises[0]).toMatchObject({ sets: 3, reps: "8-12" });
-  await insight.getByRole("button", { name: "Review training", exact: true }).click();
+  // Home's context card must not collide with the main navigation/view names.
+  await expect(page.getByRole("button", { name: "Train" })).toHaveCount(1);
+  await expect(page.getByRole("heading", { name: "Training" })).toHaveCount(0);
+  await insight.getByRole("button", { name: "Review workout", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Training", exact: true })).toBeVisible();
   const after = await readPersistedFitCoreState(page);
   expect(after.workouts).toEqual(before.workouts);
