@@ -51,7 +51,7 @@ function toolLabel(tool: string) {
 }
 
 export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
-  { tool: string; result: ToolResult; onConfirm: (editedItems?: JarvisMealItem[]) => void; onCancel: () => void; onUndo?: () => void }) {
+  { tool: string; result: ToolResult; onConfirm: (editedItems?: JarvisMealItem[]) => boolean | void; onCancel: () => void; onUndo?: () => void }) {
   const [submitting, setSubmitting] = useState(false);
   const [portions, setPortions] = useState<Record<number, string>>({});
   const pending = result.needsConfirmation && result.ok;
@@ -74,7 +74,7 @@ export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
   const confirmOnce = () => {
     if (submitting || !pending || invalidPortions) return;
     setSubmitting(true);
-    onConfirm(changedPortions ? scaledItems : undefined);
+    if (onConfirm(changedPortions ? scaledItems : undefined) === false) setSubmitting(false);
   };
 
   return (
@@ -96,7 +96,7 @@ export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
 
         <div className="rounded-xl bg-[var(--surface)] p-2 space-y-1.5">
           {(tool === "logMeal" || tool === "logReferenceMeal") && <p className="text-xs text-muted-foreground">
-            {tool === "logReferenceMeal" ? "FitCore food library estimate" : changedPortions ? "AI estimate with edited portions" : "AI-estimated nutrition"}
+            {tool === "logReferenceMeal" ? "Reference nutrition values" : changedPortions ? "AI estimate with edited portions" : "AI-estimated nutrition"}
           </p>}
           <div className="grid grid-cols-4 gap-1 text-center">
             <Macro label="kcal" v={totals.calories ?? 0} />

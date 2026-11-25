@@ -19,6 +19,7 @@ function fixture(active = true) {
 
 test("active workout uses chronological working sets, saves an explicit session target, and reports its status", async ({ page }) => {
   await seedRevisionedFitCoreState(page, fixture());
+  await expect(page.getByRole("heading", { name: "Progression session", exact: true })).toBeVisible({ timeout: 15000 });
   await expect(page.getByText("best 180×12", { exact: true })).toBeVisible();
   await page.getByText("Progression and session target", { exact: true }).click();
   await expect(page.getByText(/Optional: try 185 lb/)).toBeVisible();
@@ -50,6 +51,7 @@ test("active workout uses chronological working sets, saves an explicit session 
 
 test("failed target persistence retains the form and retries without changing programs or history", async ({ page }) => {
   await seedRevisionedFitCoreState(page, fixture());
+  await expect(page.getByRole("heading", { name: "Progression session", exact: true })).toBeVisible({ timeout: 15000 });
   await page.getByText("Progression and session target", { exact: true }).click();
   await page.getByLabel("Progression target sets", { exact: true }).fill("4");
   await page.getByLabel("Progression target load", { exact: true }).fill("180");

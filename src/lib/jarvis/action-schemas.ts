@@ -79,6 +79,7 @@ const schemas: Readonly<Record<string, z.ZodType<Record<string, unknown>>>> = {
   logReferenceMeal: mealDraft,
   logCaloriesOnly: z.strictObject({
     ...draft,
+    notes: notes.optional(),
     name: label.optional(),
     originalText: notes.optional(),
     mealType,

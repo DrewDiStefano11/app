@@ -1,14 +1,11 @@
 import { useState, type FormEvent } from "react";
+import { parseNutritionAliases, normalizeNutritionName } from "@/lib/nutrition-aliases";
 import { useStore, uid } from "@/lib/store";
 import { addNutritionPreset, updateNutritionPreset } from "@/lib/saved-nutrition";
 import type { MealEntry, SavedNutritionPreset } from "@/lib/types";
 import { GhostButton, Input, Label, PrimaryButton, Select } from "@/components/app/ui";
 
-const normalized = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
+const normalized = normalizeNutritionName;
 
 const UNITS = ["g", "oz", "ml", "cup", "tbsp", "tsp", "serving", "piece", "scoop", "slice"];
 
@@ -25,6 +22,7 @@ export function AddCustomFoodForm({ initialPreset, onSaved, onCancel }: Props) {
   const init = initialPreset?.meal;
   const initMacros = init && init.macroStatus !== "unreported";
 
+  const [aliasText, setAliasText] = useState(initialPreset?.aliases?.join(", ") ?? "");
   const [name, setName] = useState(init?.name ?? "");
   const [calories, setCalories] = useState(String(init?.calories ?? ""));
   const [protein, setProtein] = useState(initMacros ? String(init.protein) : "");
@@ -68,6 +66,8 @@ export function AddCustomFoodForm({ initialPreset, onSaved, onCancel }: Props) {
       return;
     }
 
+    const aliases = parseNutritionAliases(aliasText.trim() ? aliasText.split(",") : []);
+    if (!aliases) { setError("Use up to 8 nonempty aliases, each at most 80 characters, separated by commas."); return; }
     const servingLabel = servingSize && unit ? `${servingSize} ${unit}` : undefined;
 
     if (!initialPreset) {
@@ -100,6 +100,7 @@ export function AddCustomFoodForm({ initialPreset, onSaved, onCancel }: Props) {
         kind: "food",
         meal,
         ...(servingLabel && { servingLabel }),
+        ...(aliases.length && { aliases }),
       };
 
       let added = false;
@@ -126,8 +127,15 @@ export function AddCustomFoodForm({ initialPreset, onSaved, onCancel }: Props) {
 
     // Editing existing preset — update serving label and kind; leave meal macros intact
     // (we don't allow full macro re-entry in edit to avoid retroactive changes)
-    const saved = set((s) => updateNutritionPreset(s, initialPreset.id, { servingLabel }));
-    if (!saved) {
+    let changed = false, stale = false;
+    const saved = set(current => {
+      const existing = current.savedNutrition?.find(preset => preset.id === initialPreset.id);
+      if (!existing || JSON.stringify(existing) !== JSON.stringify(initialPreset)) { stale = true; return current; }
+      const next = updateNutritionPreset(current, initialPreset.id, { servingLabel, aliases });
+      changed = next !== current; return next;
+    });
+    if (stale) { setError("This saved food changed after you opened it. Reopen its current version before editing aliases or serving size."); return; }
+    if (!saved || !changed) {
       setError(
         "Could not save these changes. Your entries are retained; check storage and try again.",
       );
@@ -151,6 +159,8 @@ export function AddCustomFoodForm({ initialPreset, onSaved, onCancel }: Props) {
           disabled={isEditing}
         />
       </label>
+
+      <label className="block text-sm">Aliases (optional)<Input name="aliases" aria-label="Aliases (optional)" value={aliasText} onChange={e => setAliasText(e.target.value)} maxLength={647} placeholder="e.g. morning oats, my breakfast bowl" /><span className="mt-1 block text-xs text-muted-foreground">Up to 8 names separated by commas. Jarvis asks which food you mean if names overlap.</span></label>
 
       {!isEditing && (
         <>

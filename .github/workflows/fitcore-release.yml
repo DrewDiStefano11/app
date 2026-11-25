@@ -48,8 +48,8 @@ jobs:
           whoop-owner-archive.spec.ts
           workout-release-safety settings-data-safety-lifecycle-smoke settings-access-reminders goals-recorded-metrics
           active-workout-lifecycle-smoke workout-offline-reopen bench-program reusable-workouts workout-rest-timer exercise-progression training-routines personal-scores workout-storage-headroom workout-substitutions exercise-library workout-history-management
-          meal-corrections macro-trends saved-nutrition food-library nutrition-targets jarvis-active-workout jarvis-voice jarvis-workout-history jarvis-text-provider jarvis-provider-policy jarvis-text-records recorded-sleep daily-input-usability jarvis-composer-cursor section-scroll-activity save-safety jarvis-food-photo meal-photo-camera-access nutrition-macro-completeness weigh-in-save-safety
-          home-training-insight stats-recorded-correlations
+          meal-corrections macro-trends saved-nutrition food-library nutrition-aliases nutrition-targets jarvis-active-workout jarvis-voice jarvis-workout-history jarvis-text-provider jarvis-provider-policy jarvis-text-records jarvis-recorded-meals recorded-sleep daily-input-usability jarvis-composer-cursor section-scroll-activity save-safety jarvis-food-photo meal-photo-camera-access meal-photo-multiple nutrition-macro-completeness weigh-in-save-safety
+          training-period-analysis home-training-insight stats-recorded-correlations
         env:
           FITCORE_TEST_IPHONE_WEBKIT: "1"
           FITCORE_TEST_PRODUCTION_BUILD: "1"

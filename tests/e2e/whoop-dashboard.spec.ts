@@ -385,6 +385,9 @@ for (const permission of ["authorized", "expired", "revoked"] as const) {
     browserName,
     baseURL,
   }) => {
+    // Two isolated engine launches, IndexedDB export/import and gated-route teardown
+    // need more headroom than a single-page interaction on shared CI runners.
+    test.setTimeout(60_000);
     const engine = playwright[browserName];
     const profile =
       browserName === "webkit"
