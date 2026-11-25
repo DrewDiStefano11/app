@@ -330,7 +330,7 @@ test("a food library meal can be saved and undone independently without a cloud 
     .getByRole("textbox", { name: "Message Jarvis" })
     .fill("I ate a banana and two slices of whole wheat bread.");
   await page.getByRole("button", { name: "Send to Jarvis" }).click();
-  await expect(page.getByText("FitCore food library estimate")).toBeVisible();
+  await expect(page.getByText("Reference nutrition values", { exact: true })).toBeVisible();
   expect((await readPersistedFitCoreState(page)).mealEntries).toEqual([]);
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText(/Logged Banana \+ Whole Wheat Bread.*265 kcal/)).toBeVisible();

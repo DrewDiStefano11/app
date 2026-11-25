@@ -10,6 +10,7 @@ import { replaceSavedWorkout } from "@/lib/fitcore-data";
 import type { LayoutMode } from "@/components/app/layout-primitives";
 import { Card, StatCard, PageHeader, PrimaryButton, GhostButton, EmptyState, Chip, Input, Label, Select, Textarea, SectionHeader, SubTabs, PlannedFeatureCard } from "@/components/app/ui";
 import { BottomSheet, ConfirmDialog } from "@/components/app/sheet";
+import { TrainingPeriodAnalysis } from "@/components/app/training-period-analysis";
 import { ActiveWorkoutView } from "@/components/app/active-workout";
 import { ExerciseLibrarySheet } from "@/components/app/exercise-library";
 import { WorkoutTemplateEditor } from "@/components/app/workout-template-editor";
@@ -651,6 +652,8 @@ function PerformanceTab() {
           ))}
         </div>
       </Card>
+
+      <div className="mt-5"><TrainingPeriodAnalysis state={state} /></div>
 
       <SectionHeader title="Personal records" />
       {allPRs.length === 0 ? (

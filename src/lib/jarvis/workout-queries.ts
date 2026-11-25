@@ -1,3 +1,4 @@
+import { exerciseProgression, progressionExerciseId, recordedExerciseHistory } from "../exercise-progression";
 import { lastExercisePerformance } from "./exercise-history";
 import { exerciseById } from "../data";
 import type { AppState, SetEntry, Workout } from "../types";
@@ -175,6 +176,14 @@ function nextBenchPrescription(state: AppState, now: Date) {
 }
 
 export function queryTrainingText(text: string, state: AppState, now: Date) {
+  const progression = /^(?:suggest progression for|what should i lift next for|how should i progress) (.+)$/.exec(text);
+  if (progression) {
+    const id = progressionExerciseId(state, progression[1]);
+    if (!id) return { reply: "Name one exact saved or catalog exercise for progression advice." };
+    const history = recordedExerciseHistory(state.workouts, now.getTime()).get(id) ?? [];
+    const target = state.activeWorkout?.exercises.find(row => row.exerciseId === id)?.target ?? history[0]?.target;
+    return { reply: exerciseProgression(history, target, now.getTime()).summary };
+  }
   const lastPerformance = /^(?:show|what was) (?:my )?last (.+?) performance$/.exec(text);
   if (lastPerformance) return { reply: lastExercisePerformance(state, lastPerformance[1], now).summary };
   if (/^what(?: is|'s) (?:my|the) next prescribed bench weight$/.test(text)) {
