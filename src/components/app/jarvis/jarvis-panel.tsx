@@ -455,12 +455,16 @@ export function JarvisPanel({ section }: { section: string }) {
       const saved = r.data as { id?: string } | undefined;
       if (saved?.id) conversation.current.lastMealId = saved.id;
     }
+    if (!r.ok) resolvedDrafts.current.delete(pending);
     setMessages(prev => prev.map(m => {
       if (m.id !== msgId || !m.toolResults) return m;
       const next = [...m.toolResults];
-      next[idx] = { tool, result: { ...r, needsConfirmation: false } };
+      next[idx] = r.ok
+        ? { tool, result: { ...r, needsConfirmation: false } }
+        : { tool, pending, result: { ...existing.result, summary: `${r.summary} Your review is retained.`, needsConfirmation: true } };
       return { ...m, toolResults: next };
     }));
+    return r.ok;
   };
 
   const cancelPending = (msgId: string, idx: number) => {

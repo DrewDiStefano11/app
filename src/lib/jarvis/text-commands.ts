@@ -6,6 +6,7 @@ import { queryRecoveryText, type RecoveryDraft } from "./recovery-text";
 import { queryBenchHistory, queryTrainingText, type BenchDate } from "./workout-queries";
 import { jarvisScheduledWorkout, WEEKDAYS } from "./scheduled-workout";
 import { queryUsualMeals } from "./usual-meals";
+import { queryRecordedMeal, type MealRecallContext } from "./recorded-meals";
 import { querySavedNutrition } from "./saved-food-matches";
 import type { AppState, WorkoutExercise } from "../types";
 import { exerciseName, findActiveExercise } from "./active-exercise";
@@ -27,6 +28,7 @@ interface SetDraft {
 }
 
 export interface JarvisTextContext {
+  mealRecall?: MealRecallContext;
   setCorrection?: { workoutId: string; exerciseEntryId: string; setId: string; expected: string; weight: string; reps: number };
   mixedDraft?: { clauses: string[]; resolved: (Extract<LocalJarvisCommand, { tool: string }> | null)[]; index: number; pendingContext?: Omit<JarvisTextContext, "mixedDraft"> };
   focusedExercise?: ActiveExerciseReference;
@@ -458,6 +460,8 @@ export function interpretJarvisText(
         originalText: raw,
       },
     };
+  const recorded = queryRecordedMeal(text, raw, state, now, context.mealRecall);
+  if (recorded) return recorded;
   const saved = querySavedNutrition(normalized, state);
   if (saved) return saved;
   const usual = queryUsualMeals(normalized, state);

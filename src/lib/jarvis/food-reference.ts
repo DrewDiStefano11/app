@@ -1,3 +1,4 @@
+import { nutritionPresetNames, normalizeNutritionName } from "../nutrition-aliases";
 import { FOODS, type Food } from "../data";
 import { mealItemTotals, type JarvisMealItem } from "./meal-math";
 import type { LocalJarvisCommand } from "./text-commands";
@@ -136,13 +137,11 @@ const normalizedName = (s: string) =>
 
 /** Find confirmed saved presets whose name fuzzy-matches `query`. */
 function matchSavedPresets(query: string, state: AppState): SavedNutritionPreset[] {
-  const q = normalizedName(query);
-  return (state.savedNutrition ?? []).filter(
-    (p) =>
-      !requiresNutritionPresetConfirmation(p.meal) &&
-      p.meal.macroStatus !== "unreported" &&
-      normalizedName(p.meal.name).includes(q),
-  );
+  const q = normalizeNutritionName(query);
+  if (!q) return [];
+  const eligible = (state.savedNutrition ?? []).filter(p => !requiresNutritionPresetConfirmation(p.meal) && p.meal.macroStatus !== "unreported");
+  const exact = eligible.filter(p => nutritionPresetNames(p).some(name => normalizeNutritionName(name) === q));
+  return exact.length ? exact : eligible.filter(p => normalizeNutritionName(p.meal.name).includes(q));
 }
 
 /** Convert a confirmed saved preset (with optional servings multiplier) into a JarvisMealItem. */
@@ -190,10 +189,12 @@ export function queryLibraryMealWithSaved(
   const rawItems = match[1];
   const mealType = match[2] ?? "snack";
 
+  if (/\b(?:yesterday|last week|this morning|this week)\b/i.test(match[1]))
+    return { reply: "Name the recorded meal and date so I can check history, or choose a saved food explicitly." };
+
   // Strip filler phrases: "the same X as yesterday", "my usual X", "another X"
   const cleaned = rawItems
     .replace(/\bthe same\b/gi, "")
-    .replace(/\b(?:as|from) (?:yesterday|last week|this morning|this week)\b/gi, "")
     .replace(/\bmy (?:usual\s+)?/gi, "")
     .replace(/\banother\b/gi, "1")
     .trim();
@@ -238,6 +239,10 @@ export function queryLibraryMealWithSaved(
     }
 
     foodQuery = foodQuery.replace(/^the\s+/, "");
+
+    const unreported = (state.savedNutrition ?? []).filter(p => !requiresNutritionPresetConfirmation(p.meal)
+      && p.meal.macroStatus === "unreported" && nutritionPresetNames(p).some(name => normalizeNutritionName(name) === normalizeNutritionName(foodQuery)));
+    if (unreported.length) return { reply: `The saved food has unreported macros. Use "log saved ${foodQuery}" to review its recorded calories and serving without inventing nutrients; choose the product in Food Library if names overlap.` };
 
     // 1. Search saved presets first
     const savedMatches = matchSavedPresets(foodQuery, state);
