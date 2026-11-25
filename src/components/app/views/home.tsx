@@ -21,6 +21,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { AiInsightStrip } from "@/components/app/ai-insight";
+import { DailyTrainingInsight } from "@/components/app/daily-training-insight";
 import { InAppReminders } from "@/components/app/in-app-reminders";
 import { BodyHeatmap } from "@/components/app/body-heatmap";
 import { CountUp } from "@/components/app/count-up";
@@ -536,6 +537,8 @@ function HomeDailyView({
           {assignedWorkout && <span>{assignedWorkout}</span>}
         </span>
       </button>
+
+      <DailyTrainingInsight state={state} plan={customSession ? customSession.template?.exercises ?? [] : benchDay.exercises} onReview={() => onNavigate("training")} />
 
       <div className="grid grid-cols-3 gap-3 pb-2">
         <QuickAction
