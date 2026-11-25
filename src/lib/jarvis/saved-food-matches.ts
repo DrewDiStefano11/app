@@ -1,3 +1,4 @@
+import { nutritionPresetNames, normalizeNutritionName } from "../nutrition-aliases";
 import type { AppState, SavedNutritionPreset } from "../types";
 import { requiresNutritionPresetConfirmation } from "../saved-nutrition";
 import type { LocalJarvisCommand } from "./text-commands";
@@ -23,7 +24,8 @@ export function savedFoodMatches(draft: PhotoMealDraft, state: AppState) {
           .split(" ")
           .filter((word) => word.length > 2);
         const savedName = normalized(meal.name);
-        if (!words.length || !words.every((word) => savedName.split(" ").includes(word))) return [];
+        const aliasMatch = preset.aliases?.some(alias => normalizeNutritionName(alias) === normalizeNutritionName(item.name));
+        if (!aliasMatch && (!words.length || !words.every((word) => savedName.split(" ").includes(word)))) return [];
         const serving = /^(\d+(?:\.\d+)?)\s+(g|oz|cup|tbsp|tsp|piece|serving|ml)s?$/.exec(
           preset.servingLabel ?? "",
         );
@@ -68,7 +70,7 @@ export function querySavedNutrition(text: string, state: AppState): LocalJarvisC
   if (!request) return;
   const matches = (state.savedNutrition ?? []).filter(
     (preset) =>
-      normalized(preset.meal.name) === normalized(request[1]) &&
+      nutritionPresetNames(preset).some(name => normalizeNutritionName(name) === normalizeNutritionName(request[1])) &&
       !requiresNutritionPresetConfirmation(preset.meal),
   );
   if (matches.length !== 1)
