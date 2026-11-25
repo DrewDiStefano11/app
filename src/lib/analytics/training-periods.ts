@@ -2,7 +2,7 @@ import type { AppState } from "../types";
 import { calendarDaysWindow, dateRangeContains, dayKey, type DateRange } from "./date-time";
 import { getExerciseAndMuscleAnalytics } from "./training-detail-metrics";
 
-function period(state: AppState, range: DateRange, days: number, now: number) {
+function period(state: AppState, range: DateRange, days: number, now: number, routineAssociations: ReadonlyMap<string, string>) {
   const workouts = state.workouts.filter(workout => workout.provenance?.confirmation !== "unconfirmed"
     && typeof workout.endedAt === "number" && dateRangeContains(range, workout.endedAt))
     .map(workout => ({ ...workout, exercises: workout.exercises.filter(row => row.provenance?.confirmation !== "unconfirmed")
@@ -11,15 +11,26 @@ function period(state: AppState, range: DateRange, days: number, now: number) {
   const exercises = analytics.exercises.filter(exercise => exercise.validSetCount > 0).sort((a, b) => b.totalVolume - a.totalVolume || a.identity.id.localeCompare(b.identity.id));
   const ids = new Set(exercises.flatMap(exercise => exercise.sourceWorkoutIds));
   const trainingDays = new Set(exercises.flatMap(exercise => exercise.performanceDates).map(dayKey));
+  const routineSessions = [...ids].filter(id => !!routineAssociations.get(id)).length;
   return { range, volume: exercises.reduce((sum, exercise) => sum + exercise.totalVolume, 0),
     sets: exercises.reduce((sum, exercise) => sum + exercise.validSetCount, 0), sessions: ids.size, trainingDays: trainingDays.size,
+    routineSessions, sessionsWithoutRoutine: ids.size - routineSessions,
     exercises, muscles: analytics.muscleGroups.groups.filter(group => group.validSetCount > 0),
     hasData: exercises.length > 0, muscleCoverage: analytics.muscleGroups.metadataCoveragePercent };
 }
 /** Read-only equal calendar periods. Uses the existing validated exercise/muscle engine and completion dates. */
 export function trainingPeriodComparison(state: AppState, days: 7 | 30, now = Date.now()) {
-  const current = period(state, calendarDaysWindow(days, now), days, now);
-  const previous = period(state, calendarDaysWindow(days, now, days), days, now);
+  // Build once across the history: conflicts outside a selected window still make
+  // the shared session identity ambiguous. Only eligible engine IDs are counted.
+  const routineAssociations = new Map<string, string>();
+  for (const workout of state.workouts) {
+    const association = workout.routineId?.trim() && workout.routineDayId?.trim()
+      ? JSON.stringify([workout.routineId, workout.routineDayId]) : "";
+    const previous = routineAssociations.get(workout.id);
+    routineAssociations.set(workout.id, previous === undefined || previous === association ? association : "");
+  }
+  const current = period(state, calendarDaysWindow(days, now), days, now, routineAssociations);
+  const previous = period(state, calendarDaysWindow(days, now, days), days, now, routineAssociations);
   return { days, current, previous,
     changePercent: current.hasData && previous.hasData && previous.volume > 0 ? (current.volume - previous.volume) / previous.volume * 100 : null };
 }

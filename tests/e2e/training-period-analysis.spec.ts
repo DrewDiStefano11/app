@@ -44,3 +44,22 @@ test("Performance has truthful empty states for missing periods and schedule his
   expect(await region.innerText()).not.toMatch(/NaN|Infinity/);
   expect((await readPersistedFitCoreState(page)).workouts).toHaveLength(0);
 });
+
+
+test("custom routine session counts follow recorded links and periods without inventing adherence", async ({ page }) => {
+  const linked = { ...session("assigned", 1, 100), routineId: "retired-routine", routineDayId: "upper" };
+  const prior = { ...session("prior-assigned", 8, 100), routineId: "another-routine", routineDayId: "lower" };
+  const older = { ...session("older-assigned", 20, 100), routineId: "retired-routine", routineDayId: "upper" };
+  const workouts = [linked, session("without-routine", 2, 100), prior, older];
+  const region = await open(page, workouts);
+  const before = (await readPersistedFitCoreState(page)).workouts;
+  await expect(region.getByLabel("Custom routine weighted sessions", { exact: true })).toHaveText("1");
+  await expect(region.getByLabel("Weighted sessions without a recorded routine", { exact: true })).toHaveText("1");
+  await expect(region.getByText("1 in the preceding 7 days", { exact: true })).toBeVisible();
+  await expect(region.getByText(/Historical program adherence is unavailable/)).toBeVisible();
+  await region.getByRole("button", { name: "30 days", exact: true }).click();
+  await expect(region.getByLabel("Custom routine weighted sessions", { exact: true })).toHaveText("3");
+  await expect(region.getByLabel("Weighted sessions without a recorded routine", { exact: true })).toHaveText("1");
+  await expect(region.getByText("0 in the preceding 30 days", { exact: true })).toBeVisible();
+  expect((await readPersistedFitCoreState(page)).workouts).toEqual(before);
+});
