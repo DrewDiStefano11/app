@@ -1,4 +1,5 @@
 import { STORED_GEMINI_MODELS, STORED_GROQ_MODELS } from "./jarvis/provider-models";
+import { parseNutritionAliases } from "./nutrition-aliases";
 import { MAX_WORKOUT_TEMPLATE_SETS } from "./data";
 import { BENCH_PROGRAM } from "./bench-program";
 
@@ -1284,11 +1285,13 @@ function validateSavedNutritionPreset(
 ): void {
   const required = ["id", "kind", "meal"];
   missingFields(context, record, location, required);
-  unknownFields(context, record, location, [...required, "servingLabel", "isFavorite"]);
+  unknownFields(context, record, location, [...required, "servingLabel", "isFavorite", "aliases"]);
   if (Object.hasOwn(record, "id")) validateString(context, record.id, location, "id", { id: true });
   if (Object.hasOwn(record, "kind")) validateEnum(context, record.kind, location, "kind", ["food", "meal"]);
   validateOptionalString(context, record, location, "servingLabel");
   validateOptionalBoolean(context, record, location, "isFavorite");
+  if (record.aliases !== undefined && !parseNutritionAliases(record.aliases))
+    context.add("out_of_range_value", "error", fieldPath(location, "aliases"), { collection: location.collection, recordId: location.recordId, field: "aliases", value: record.aliases });
   if (Object.hasOwn(record, "meal")) {
     validateObjectRecord(context, record.meal, location.collection, fieldPath(location, "meal"), validateMeal);
   }
