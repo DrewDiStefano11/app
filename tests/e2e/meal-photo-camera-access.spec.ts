@@ -32,8 +32,8 @@ test("Jarvis composer camera and Fuel Photo Log open native photo choices with p
   const choosing = page.waitForEvent("filechooser");
   await review.getByText("Choose image", { exact: true }).click();
   await (await choosing).setFiles({ name: "synthetic-meal.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64") });
-  await expect(review.getByAltText("Food photo awaiting consent")).toBeVisible();
-  await expect(review.getByRole("button", { name: "Estimate meal", exact: true })).toBeDisabled();
+  await expect(review.getByAltText("Food photo 1 awaiting consent")).toBeVisible();
+  await expect(review.getByRole("button", { name: "Analyze Photos", exact: true })).toBeDisabled();
   expect(providerRequests).toBe(0);
   expect((await readPersistedFitCoreState(page)).mealEntries).toHaveLength(0);
 
