@@ -1,3 +1,4 @@
+import { queryRecordedMealCombination } from "./recorded-meal-combinations";
 import { todayMealEntries } from "../analytics/observed-fitness";
 import { calculateMealTotals } from "../analytics/domain-metrics";
 import { queryLibraryMeal, queryLibraryMealWithSaved } from "./food-reference";
@@ -460,6 +461,8 @@ export function interpretJarvisText(
         originalText: raw,
       },
     };
+  const combination = queryRecordedMealCombination(text, raw, state, now);
+  if (combination) return combination;
   const recorded = queryRecordedMeal(text, raw, state, now, context.mealRecall);
   if (recorded) return recorded;
   const saved = querySavedNutrition(normalized, state);
