@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { lastWorkoutByType } from "../../../src/lib/jarvis/workout-history";
+import { lastWorkoutByType, recentCompletedWorkoutHistory } from "../../../src/lib/jarvis/workout-history";
 import { runTool } from "../../../src/lib/jarvis/tools";
 import { interpretJarvisText } from "../../../src/lib/jarvis/text-commands";
 import { defaultState, type Workout } from "../../../src/lib/types";
@@ -42,4 +42,24 @@ test("the direct tool and deterministic local question share results and never w
   const result = runTool("getLastWorkoutByType", { workoutType: "push" }, { state, now, settings: state.jarvisSettings, set: () => { throw Error("History must not write"); } });
   expect(result.data).toMatchObject({ id: "latest" });
   expect(interpretJarvisText("What was my last push workout?", state, now)).toMatchObject({ reply: result.summary });
+});
+
+
+test("recent history uses completed dates, excludes pending/future records and returns a chronological copy", () => {
+  const state = structuredClone(defaultState);
+  const recent = workout("recent", 1000); recent.startedAt -= 2 * 86400000;
+  const yesterday = workout("yesterday", 86400000);
+  const pending = workout("pending", 2000); pending.provenance = { source: "jarvis", confidence: "high", confirmation: "unconfirmed" };
+  state.workouts = [yesterday, workout("old", 3 * 86400000), recent, workout("future", -1000), pending];
+  const before = structuredClone(state);
+  expect(recentCompletedWorkoutHistory(state, 1, now).data.map(row => row.id)).toEqual(["recent", "yesterday"]);
+  expect(state).toEqual(before);
+  const result = runTool("getWorkoutHistory", { days: 1 }, { state, now, settings: state.jarvisSettings, set: () => { throw Error("History must not write"); } });
+  expect(result.data).toEqual([recent, yesterday]);
+});
+
+test("history day bounds remain finite and never expand to unlimited or future records", () => {
+  const state = structuredClone(defaultState); state.workouts = [workout("recent", 1000), workout("too-old", 91 * 86400000)];
+  expect(recentCompletedWorkoutHistory(state, 10000, now).data.map(row => row.id)).toEqual(["recent"]);
+  expect(recentCompletedWorkoutHistory(state, Infinity, now).data.map(row => row.id)).toEqual(["recent"]);
 });
