@@ -24,6 +24,7 @@ test("recorded meal review retains edited portions after a failed save and retri
   await jarvis.send("log the same breakfast as yesterday");
   const save = page.getByRole("button", { name: "Save", exact: true });
   await expect(save).toBeVisible();
+  await expect(page.getByText("Reference nutrition values", { exact: true })).toBeVisible();
   await page.getByLabel("Portion multiplier for Overnight oats").fill("2");
   expect((await readPersistedFitCoreState(page)).mealEntries).toHaveLength(1);
   await page.evaluate(() => {

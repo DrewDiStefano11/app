@@ -96,7 +96,7 @@ export function ConfirmCard({ tool, result, onConfirm, onCancel, onUndo }:
 
         <div className="rounded-xl bg-[var(--surface)] p-2 space-y-1.5">
           {(tool === "logMeal" || tool === "logReferenceMeal") && <p className="text-xs text-muted-foreground">
-            {tool === "logReferenceMeal" ? "FitCore food library estimate" : changedPortions ? "AI estimate with edited portions" : "AI-estimated nutrition"}
+            {tool === "logReferenceMeal" ? "Reference nutrition values" : changedPortions ? "AI estimate with edited portions" : "AI-estimated nutrition"}
           </p>}
           <div className="grid grid-cols-4 gap-1 text-center">
             <Macro label="kcal" v={totals.calories ?? 0} />
