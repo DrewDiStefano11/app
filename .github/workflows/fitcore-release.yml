@@ -46,7 +46,7 @@ jobs:
           --project=${{ matrix.project }}
           whoop-callback.spec.ts whoop-dashboard.spec.ts whoop-jarvis.spec.ts whoop-jarvis-isolation.spec.ts whoop-sync.spec.ts privacy-policy.spec.ts
           whoop-owner-archive.spec.ts
-          workout-release-safety settings-data-safety-lifecycle-smoke settings-access-reminders goals-recorded-metrics
+          workout-release-safety settings-data-safety-lifecycle-smoke settings-access-reminders push-notification-foundations goals-recorded-metrics
           active-workout-lifecycle-smoke workout-offline-reopen bench-program reusable-workouts workout-rest-timer training-routines personal-scores workout-storage-headroom workout-substitutions exercise-library workout-history-management
           meal-corrections macro-trends saved-nutrition food-library nutrition-targets jarvis-active-workout jarvis-voice jarvis-workout-history jarvis-text-provider jarvis-provider-policy jarvis-text-records recorded-sleep daily-input-usability jarvis-composer-cursor section-scroll-activity save-safety jarvis-food-photo meal-photo-camera-access meal-photo-multiple nutrition-macro-completeness weigh-in-save-safety
           stats-recorded-correlations
