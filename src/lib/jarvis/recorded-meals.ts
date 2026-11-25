@@ -10,7 +10,7 @@ export interface MealRecallContext { candidateIds: string[]; label: string; orig
 const normalize = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const slots = "breakfast|lunch|dinner|snack|pre-workout|post-workout";
 
-function recordedMeals(state: AppState, now: Date) {
+export function recordedMeals(state: AppState, now: Date) {
   const undone = new Set(state.jarvisAudit.filter(a => a.undone).map(a => a.id));
   return state.mealEntries.filter(meal => Number.isFinite(meal.createdAt) && meal.createdAt > 0 && meal.createdAt <= now.getTime()
     && meal.provenance?.confirmation !== "unconfirmed" && !requiresNutritionPresetConfirmation(meal)
@@ -18,7 +18,7 @@ function recordedMeals(state: AppState, now: Date) {
     && [meal.calories, ...(meal.macroStatus === "unreported" ? [] : [meal.protein, meal.carbs, meal.fat])].every(n => typeof n === "number" && Number.isFinite(n) && n >= 0))
     .sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id));
 }
-function command(meal: MealEntry, originalText: string): LocalJarvisCommand {
+export function recordedMealCommand(meal: MealEntry, originalText: string): LocalJarvisCommand {
   const source = meal.provenance?.source ?? meal.source ?? "manual";
   const recordedConfidence = meal.provenance?.confidence ?? meal.confidence;
   const confidence = recordedConfidence === "unknown" ? "low" : recordedConfidence ?? (source === "manual" ? "high" : "low");
@@ -42,7 +42,7 @@ function command(meal: MealEntry, originalText: string): LocalJarvisCommand {
 }
 function choose(meals: MealEntry[], label: string, originalText: string): LocalJarvisCommand {
   if (!meals.length) return { reply: `I could not find a confirmed recorded meal for ${label}. Name a saved food or describe what you ate; I will not guess historical values.`, nextContext: { mealRecall: undefined } };
-  if (meals.length === 1) return command(meals[0], originalText);
+  if (meals.length === 1) return recordedMealCommand(meals[0], originalText);
   const candidates = meals.slice(0, 8);
   return { reply: `Which recorded meal for ${label}? ${candidates.map((m, i) => `${i + 1}. ${m.name} (${m.calories} kcal, ${dayKey(m.createdAt)})`).join("; ")}. Reply with its number or exact name.`, nextContext: { mealRecall: { candidateIds: candidates.map(m => m.id), label, originalText } } };
 }
@@ -71,7 +71,7 @@ export function queryRecordedMeal(text: string, originalText: string, state: App
     const named = candidates.filter(m => normalize(m.name) === normalize(text.replace(/^the /, "")));
     if (index || named.length) {
       const selected = index ? candidates.find(m => m.id === recall.candidateIds[Number(index[1]) - 1]) : named.length === 1 ? named[0] : undefined;
-      return selected ? command(selected, `${recall.originalText} (choice ${originalText}; recorded meal ${selected.id})`) : { reply: "That choice is unavailable or ambiguous. Ask for the meal again to review current records.", nextContext: { mealRecall: undefined } };
+      return selected ? recordedMealCommand(selected, `${recall.originalText} (choice ${originalText}; recorded meal ${selected.id})`) : { reply: "That choice is unavailable or ambiguous. Ask for the meal again to review current records.", nextContext: { mealRecall: undefined } };
     }
   }
   if (/^(?:show|list) my (?:frequent|frequently logged) meals$|^suggest a meal from my history$/.test(text)) {
