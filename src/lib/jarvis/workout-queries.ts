@@ -1,3 +1,4 @@
+import { lastWorkoutByType } from "./workout-history";
 import { exerciseProgression, progressionExerciseId, recordedExerciseHistory } from "../exercise-progression";
 import { lastExercisePerformance } from "./exercise-history";
 import { exerciseById } from "../data";
@@ -176,6 +177,8 @@ function nextBenchPrescription(state: AppState, now: Date) {
 }
 
 export function queryTrainingText(text: string, state: AppState, now: Date) {
+  const previousWorkout = /^(?:show|what was) (?:my )?last (.+?) workout$/.exec(text);
+  if (previousWorkout) return { reply: lastWorkoutByType(state, previousWorkout[1], now).summary };
   const progression = /^(?:suggest progression for|what should i lift next for|how should i progress) (.+)$/.exec(text);
   if (progression) {
     const id = progressionExerciseId(state, progression[1]);

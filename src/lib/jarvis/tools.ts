@@ -1,3 +1,4 @@
+import { lastWorkoutByType } from "./workout-history";
 import { exerciseProgression, progressionExerciseId, recordedExerciseHistory } from "../exercise-progression";
 import { lastExercisePerformance } from "./exercise-history";
 import { todayMealEntries } from "../analytics/observed-fitness";
@@ -470,7 +471,7 @@ const handlers: Record<ToolName, ToolHandler> = {
   },
   deleteWorkout: (args, { set, state }) => { const id = String(args.id ?? ""), workout = state.workouts.find(w => w.id === id); if (!workout) return { ok: false, summary: "workout not found" }; const auditId = uid(); set(s => ({ ...s, workouts: s.workouts.filter(w => w.id !== id) })); pushAudit(set, { id: auditId, tool: "deleteWorkout", summary: `Deleted ${workout.name}`, status: "logged", entityIds: [id], entityKind: "workoutDelete", patch: { prev: workout }, createdAt: Date.now() }); return { ok: true, summary: `Deleted ${workout.name}`, auditId }; },
   getWorkoutHistory: (args, { state }) => { const cutoff = Date.now() - Math.min(90, Math.max(1, Number(args.days) || 30)) * 86400000; const workouts = state.workouts.filter(w => w.startedAt >= cutoff); return { ok: true, summary: `${workouts.length} workouts`, data: workouts }; },
-  getLastWorkoutByType: (args, { state }) => { const q = normalizeText(args.workoutType); const w = [...state.workouts].reverse().find(w => normalizeText(w.name).includes(q)); return { ok: true, summary: w ? `Last ${q}: ${w.name}` : `No ${q} workout found`, data: w ?? null }; },
+  getLastWorkoutByType: (args, { state, now }) => lastWorkoutByType(state, args.workoutType, now),
   getLastExercisePerformance: (args, { state, now }) => lastExercisePerformance(state, args.exerciseId ?? args.exerciseName, now),
   getActiveWorkout: (_a, { state }) => ({ ok: true, summary: state.activeWorkout ? `Active: ${state.activeWorkout.name}` : "No active workout", data: state.activeWorkout }),
   updateActiveWorkout: (args, { set, state, confirmed }) => {
