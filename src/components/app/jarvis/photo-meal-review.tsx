@@ -2,38 +2,48 @@ import type { MealEntry } from "@/lib/types";
 import { photoMealTotals, type PhotoMealDraft } from "@/lib/jarvis/meal-photo-draft";
 import type { ToolResult } from "@/lib/jarvis/tools";
 import type { savedFoodMatches } from "@/lib/jarvis/saved-food-matches";
+import { MAX_MEAL_PHOTOS } from "@/lib/jarvis/meal-photo-limits";
 import { Camera, Image } from "lucide-react";
 
 interface Props {
   matches: ReturnType<typeof savedFoodMatches>;
-  image?: string; draft?: PhotoMealDraft; target?: MealEntry; receipt?: ToolResult; error?: string; busy: boolean; consent: boolean;
-  onConsent: (value: boolean) => void; onFile: (file?: File) => void; onAnalyse: () => void; onDiscard: () => void;
+  images: string[]; photoContext: string; onContext: (value: string) => void; onRemove: (index: number) => void; draft?: PhotoMealDraft; target?: MealEntry; receipt?: ToolResult; error?: string; busy: boolean; consent: boolean;
+  onConsent: (value: boolean) => void; onFiles: (files: File[], replaceIndex?: number) => void; onAnalyse: () => void; onDiscard: () => void;
   onSave: () => void; onEdit: (patch: unknown, wording: string) => void; onUndo: () => void;
 }
 /** The conversation owns revisions; this card exposes their evidence and explicit save boundary. */
 export function PhotoMealReview(props: Props) {
-  const { draft, image, busy } = props;
+  const { draft, images, busy } = props;
   const totals = draft && photoMealTotals(draft);
   return <section aria-label="Meal photo review" className="w-full rounded-2xl border border-border bg-[var(--surface-2)] p-3 space-y-3 text-sm">
-    <h4 className="font-semibold">{draft ? draft.name : "Estimate a meal photo"}</h4>
+    <h4 className="font-semibold">{draft ? draft.name : "Estimate meal photos"}</h4>
     {props.error && <p role="alert">{props.error}</p>}
     {!draft && <>
-      <p>Choose a photo. Jarvis will estimate the foods and portions for your review.</p>
+      <p>Add up to {MAX_MEAL_PHOTOS} photos of one meal: different angles, separate foods or labels. Jarvis reconciles them into one estimate for review.</p>
       <div className="grid grid-cols-2 gap-2">
         <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-primary bg-primary/15 px-2 font-medium focus-within:outline focus-within:outline-2 focus-within:outline-primary ${busy ? "opacity-50" : ""}`}>
           <Camera size={18} aria-hidden="true" /><span>Take photo</span>
-          <input className="sr-only" type="file" accept="image/*" capture="environment" aria-label="Take food photo" disabled={busy} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; props.onFile(file); }} />
+          <input className="sr-only" type="file" accept="image/*" capture="environment" aria-label="Take food photo" disabled={busy || images.length >= MAX_MEAL_PHOTOS} onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ""; props.onFiles(files); }} />
         </label>
         <label className={`flex min-h-12 cursor-pointer items-center justify-center gap-2 rounded-xl border border-border px-2 font-medium focus-within:outline focus-within:outline-2 focus-within:outline-primary ${busy ? "opacity-50" : ""}`}>
           <Image size={18} aria-hidden="true" /><span>Choose image</span>
-          <input className="sr-only" type="file" accept="image/*" aria-label="Upload food photo" disabled={busy} onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; props.onFile(file); }} />
+          <input className="sr-only" type="file" accept="image/*" multiple aria-label="Upload food photo" disabled={busy || images.length >= MAX_MEAL_PHOTOS} onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ""; props.onFiles(files); }} />
         </label>
       </div>
-      {image && <img src={image} alt="Food photo awaiting consent" className="max-h-40 rounded-xl object-contain" />}
+      <p aria-live="polite">{images.length} of {MAX_MEAL_PHOTOS} photos selected</p>
+      <ul className="grid grid-cols-2 gap-2">{images.map((image, index) => <li key={index} className="min-w-0 space-y-1">
+        <img src={image} alt={`Food photo ${index + 1} awaiting consent`} className="h-28 w-full rounded-xl object-contain" />
+        <button type="button" disabled={busy} className="min-h-11 rounded-lg border border-border px-3" onClick={() => props.onRemove(index)}>Remove photo {index + 1}</button>
+        <label className="flex min-h-11 cursor-pointer items-center rounded-lg border border-border px-3 focus-within:outline focus-within:outline-2 focus-within:outline-primary">Replace photo {index + 1}
+          <input className="sr-only" type="file" accept="image/*" aria-label={`Replace food photo ${index + 1}`} disabled={busy} onChange={e => { const files = Array.from(e.target.files ?? []); e.target.value = ""; props.onFiles(files, index); }} />
+        </label>
+      </li>)}</ul>
+      <label className="block">Meal context (optional)<textarea value={props.photoContext} disabled={busy} maxLength={2048} onChange={e => props.onContext(e.target.value)} placeholder="Same plate from two angles; label belongs to the sauce. Include portions or preparation." className="mt-1 min-h-20 w-full rounded-lg bg-[var(--surface)] p-2" /></label>
+      <p className="text-xs text-muted-foreground">Current vision model limit: {MAX_MEAL_PHOTOS} photos. Check that label text is readable in the previews. Photos stay in memory until analysis or discard.</p>
     </>}
-    <label className="flex gap-2 py-2"><input type="checkbox" checked={props.consent} onChange={e => props.onConsent(e.target.checked)} disabled={busy} /><span>Send this photo and meal corrections to Groq<span className="block text-xs text-muted-foreground">Uses your Groq key and Qwen vision. Later corrections send meal text only. Photos are not saved in FitCore. Provider limits and retention rules apply.</span></span></label>
+    <label className="flex gap-2 py-2"><input type="checkbox" checked={props.consent} onChange={e => props.onConsent(e.target.checked)} disabled={busy} /><span>Send selected photos, context and meal corrections to Groq<span className="block text-xs text-muted-foreground">Uses your Groq key and Qwen vision. Later corrections send meal text only. Photos are not saved in FitCore. Provider limits and retention rules apply.</span></span></label>
     {draft && totals && <>
-      <p>Estimated portions for the whole photo. Eating {draft.servingsEaten} of {draft.recipeServings} servings.</p>
+      <p>Estimated portions for the consolidated meal. Eating {draft.servingsEaten} of {draft.recipeServings} servings.</p>
       <ul className="space-y-3">{draft.items.map(item => <li key={item.id} className="border-b border-border pb-2">
         <strong>{item.name}</strong><span className="block">~{Number(item.quantity.toFixed(3))} {item.unit} · {item.preparation} · {item.evidence === "user" ? "user corrected" : item.evidence}</span>
         <span className="block text-xs">{Math.round(item.calories)} kcal · {Math.round(item.protein)}g P / {Math.round(item.carbs)}g C / {Math.round(item.fat)}g F</span>
@@ -51,7 +61,7 @@ export function PhotoMealReview(props: Props) {
       <div><button disabled={busy || props.receipt?.ok} className="min-h-11 rounded-lg bg-primary px-4 text-primary-foreground disabled:opacity-50" onClick={props.onSave}>{props.receipt?.ok ? "Meal saved" : props.target ? "Save corrected meal" : "Confirm and save meal"}</button></div>
       {props.receipt?.ok && <><p role="status">Meal saved. Corrections will update this same meal after another confirmation.</p><button className="min-h-11 rounded-lg border border-border px-3" onClick={props.onUndo}>Undo saved meal</button></>}
     </>}
-    {!draft && <button disabled={busy || !image || !props.consent} onClick={props.onAnalyse} className="min-h-11 rounded-lg bg-primary px-4 text-primary-foreground disabled:opacity-50">{busy ? "Estimating…" : "Estimate meal"}</button>}
+    {!draft && <button disabled={busy || !images.length || !props.consent} onClick={props.onAnalyse} className="min-h-11 rounded-lg bg-primary px-4 text-primary-foreground disabled:opacity-50">{busy ? "Estimating…" : "Analyze Photos"}</button>}
     <button className="min-h-11 rounded-lg border border-border px-3" onClick={props.onDiscard}>Discard meal photo</button>
   </section>;
 }
