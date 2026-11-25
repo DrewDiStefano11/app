@@ -16,7 +16,7 @@ export async function prepareMealPhoto(file: File, signal: AbortSignal): Promise
     });
     if (signal.aborted) throw new Error("Photo selection cancelled.");
     if (!image.width || !image.height || image.width * image.height > 40_000_000) throw new Error("Choose a smaller food image.");
-    const ratio = Math.min(1, 1280 / Math.max(image.width, image.height));
+    const ratio = Math.min(1, 1600 / Math.max(image.width, image.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(image.width * ratio));
     canvas.height = Math.max(1, Math.round(image.height * ratio));
@@ -24,7 +24,11 @@ export async function prepareMealPhoto(file: File, signal: AbortSignal): Promise
     if (!context) throw new Error("This browser could not prepare the photo.");
     context.fillStyle = "white"; context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const data = canvas.toDataURL("image/jpeg", 0.8);
+    let data = canvas.toDataURL("image/jpeg", 0.85);
+    for (const quality of [0.75, 0.65]) {
+      if (data.length <= Math.ceil(1024 * 1024 / 3) * 4 + 30) break;
+      data = canvas.toDataURL("image/jpeg", quality);
+    }
     canvas.width = canvas.height = 0;
     if (data.length > Math.ceil(2 * 1024 * 1024 / 3) * 4 + 30) throw new Error("Choose a smaller photo; the upload limit is 2 MiB.");
     return data;

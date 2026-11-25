@@ -205,11 +205,11 @@ async function start(page: Page, savedNutrition: AppState["savedNutrition"] = []
   await page.getByRole("button", { name: "Open Jarvis", exact: true }).click();
   await page.getByRole("button", { name: "Meal photo", exact: true }).click();
   await page.getByLabel("Upload food photo").setInputFiles(image);
-  await expect(page.getByRole("button", { name: "Estimate meal", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Analyze Photos", exact: true })).toBeDisabled();
 }
 async function upload(page: Page) {
-  await page.getByLabel("Send this photo and meal corrections to Groq").check();
-  await page.getByRole("button", { name: "Estimate meal", exact: true }).click();
+  await page.getByLabel("Send selected photos, context and meal corrections to Groq").check();
+  await page.getByRole("button", { name: "Analyze Photos", exact: true }).click();
   await expect(page.getByRole("region", { name: "Meal photo review" })).toBeVisible();
 }
 test("food photo is independently estimated, conversationally corrected, explicitly saved once and revised in place", async ({

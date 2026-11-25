@@ -3,6 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { estimateJarvisMealPhoto, reviseJarvisMealPhoto } from "@/lib/ai.functions";
 import { jarvisProviderKeys } from "@/lib/jarvis/provider-keys";
 import { reserveJarvisPhotoRequest } from "@/lib/jarvis/cloud-usage";
+import { MAX_MEAL_PHOTOS, MAX_MEAL_PHOTO_BYTES, mealPhotoBytes } from "@/lib/jarvis/meal-photo-limits";
 import { prepareMealPhoto } from "@/lib/jarvis/meal-photo-image";
 import { createPhotoMealDraft, applyPhotoMealPatch, revisePhotoMealLocally, nextEstimate, type PhotoMealDraft } from "@/lib/jarvis/meal-photo-draft";
 import { savePhotoMealDraft } from "@/lib/jarvis/meal-photo-transaction";
@@ -20,7 +21,8 @@ interface Options { active: boolean; stateRef: RefObject<AppState>; commit: Comm
 export function usePhotoMeal(options: Options) {
   const [shown, setShown] = useState(false);
   const open = useCallback(() => setShown(true), []);
-  const [image, setImage] = useState<string>();
+  const [images, setImages] = useState<string[]>([]);
+  const [photoContext, setPhotoContext] = useState("");
   const [consent, setConsent] = useState(false);
   const [draft, setDraft] = useState<PhotoMealDraft>();
   const [target, setTarget] = useState<MealEntry>();
@@ -29,23 +31,23 @@ export function usePhotoMeal(options: Options) {
   const [busy, setBusy] = useState(false);
   const request = useRef<AbortController | null>(null);
   const epoch = useRef(0);
-  const current = useRef({ options, draft, target, receipt, image, consent });
-  current.current = { options, draft, target, receipt, image, consent };
+  const current = useRef({ options, draft, target, receipt, images, photoContext, consent });
+  current.current = { options, draft, target, receipt, images, photoContext, consent };
   const estimate = useServerFn(estimateJarvisMealPhoto);
   const revise = useServerFn(reviseJarvisMealPhoto);
   const reportBusy = useCallback((value: boolean) => { setBusy(value); current.current.options.onBusyChange(value); }, []);
   const interrupt = useCallback(() => { epoch.current++; request.current?.abort(); request.current = null; reportBusy(false); }, [reportBusy]);
   const discard = useCallback(() => {
-    interrupt(); setImage(undefined); setDraft(undefined); setTarget(undefined); setReceipt(undefined); setError(undefined); setConsent(false); setShown(false);
-    current.current = { ...current.current, draft: undefined, target: undefined, receipt: undefined, image: undefined, consent: false };
+    interrupt(); setImages([]); setPhotoContext(""); setDraft(undefined); setTarget(undefined); setReceipt(undefined); setError(undefined); setConsent(false); setShown(false);
+    current.current = { ...current.current, draft: undefined, target: undefined, receipt: undefined, images: [], photoContext: "", consent: false };
   }, [interrupt]);
   useEffect(() => {
-    const cancel = () => { interrupt(); setImage(undefined); setConsent(false); };
+    const cancel = () => { interrupt(); };
     const hidden = () => { if (document.visibilityState === "hidden") cancel(); };
     document.addEventListener("visibilitychange", hidden); window.addEventListener("pagehide", cancel); window.addEventListener("offline", interrupt);
     return () => { document.removeEventListener("visibilitychange", hidden); window.removeEventListener("pagehide", cancel); window.removeEventListener("offline", interrupt); interrupt(); };
   }, [interrupt]);
-  useEffect(() => { if (!options.active) { interrupt(); setImage(undefined); setConsent(false); } }, [options.active, interrupt]);
+  useEffect(() => { if (!options.active) interrupt(); }, [options.active, interrupt]);
 
   const eligible = () => {
     const state = current.current.options.stateRef.current;
@@ -57,31 +59,47 @@ export function usePhotoMeal(options: Options) {
   };
   const begin = () => { interrupt(); const controller = new AbortController(); request.current = controller; reportBusy(true); setError(undefined); return { controller, version: epoch.current }; };
   const finish = (version: number) => { if (version === epoch.current) { request.current = null; reportBusy(false); } };
-  const onFile = async (file?: File) => {
-    if (!file) return;
+  const onFiles = async (files: File[], replaceIndex?: number) => {
+    if (!files.length || request.current) return;
+    const previous = current.current.images;
+    if ((replaceIndex === undefined ? previous.length + files.length : previous.length) > MAX_MEAL_PHOTOS || (replaceIndex !== undefined && (files.length !== 1 || !previous[replaceIndex]))) {
+      setError(`Choose up to ${MAX_MEAL_PHOTOS} photos. Remove a photo before adding more; nothing was changed.`); return;
+    }
     const { controller, version } = begin();
     try {
-      const prepared = await prepareMealPhoto(file, controller.signal);
+      // Commit the entire selection only after every image is readable. No silent partial uploads.
+      const prepared: string[] = [];
+      for (const file of files) prepared.push(await prepareMealPhoto(file, controller.signal));
       if (version !== epoch.current || controller.signal.aborted) return;
-      setImage(prepared); setConsent(false); setDraft(undefined); setTarget(undefined); setReceipt(undefined);
-    } catch (cause) { if (version === epoch.current) setError(cause instanceof Error ? cause.message : "Could not open this photo."); }
+      const next = [...previous];
+      if (replaceIndex === undefined) next.push(...prepared); else next[replaceIndex] = prepared[0];
+      if (mealPhotoBytes(next) > MAX_MEAL_PHOTO_BYTES) throw new Error("Photos exceed the combined 3 MiB limit. Choose smaller images; your previous selection is unchanged.");
+      setImages(next); setConsent(false); setDraft(undefined); setTarget(undefined); setReceipt(undefined);
+      current.current = { ...current.current, images: next, consent: false, draft: undefined, target: undefined, receipt: undefined };
+    } catch (cause) { if (version === epoch.current) setError(cause instanceof Error ? cause.message : "Could not open these photos."); }
     finally { finish(version); }
+  };
+  const removePhoto = (index: number) => {
+    if (request.current) return;
+    const next = current.current.images.filter((_, i) => i !== index);
+    setImages(next); setConsent(false); setError(undefined);
+    current.current = { ...current.current, images: next, consent: false };
   };
   const analyse = async () => {
     const context = current.current;
-    if (request.current || !context.image || !context.consent) return;
+    if (request.current || !context.images.length || !context.consent) return;
     const unavailable = eligible(); if (unavailable) { setError(unavailable); return; }
     const limit = reserveJarvisPhotoRequest(window.localStorage); if (limit) { setError(limit); return; }
     const { controller, version } = begin();
     const timeout = window.setTimeout(() => { if (version === epoch.current) { interrupt(); setError("Meal estimation timed out. Nothing was saved; you can retry."); } }, 25000);
     try {
-      const result = await estimate({ signal: controller.signal, data: { consent: true, imageDataUrl: context.image, userGroqApiKey: jarvisProviderKeys.read("groq").key, groqKeyMode: "local" } });
+      const result = await estimate({ signal: controller.signal, data: { consent: true, imageDataUrls: context.images, context: context.photoContext, userGroqApiKey: jarvisProviderKeys.read("groq").key, groqKeyMode: "local" } });
       if (controller.signal.aborted || version !== epoch.current) return;
       options.onUsage({ provider: "groq", actualModel: "qwen/qwen3.8-27b", callType: "mealPhoto", timestamp: Date.now(), ...(result.ok ? { status: 200, ...result.usage } : { status: result.status, errorCategory: result.code }) });
       if (!result.ok) { cooldown.until = Date.now() + Math.min(result.retryAfterMs ?? 0, 86400000); setError(result.error); return; }
       const next = createPhotoMealDraft(result.estimate, uid());
-      setDraft(next); setImage(undefined); setReceipt(undefined);
-      current.current.draft = next;
+      setDraft(next); setImages([]); setReceipt(undefined);
+      current.current = { ...current.current, draft: next, images: [] };
       options.onReply("Here is my preliminary meal estimate. Do the foods and portions look right? Correct anything by text or voice, then explicitly save.");
     } catch { if (version === epoch.current) setError("Meal estimation is unavailable. Nothing was saved; you can retry or log manually."); }
     finally { window.clearTimeout(timeout); finish(version); }
@@ -141,14 +159,14 @@ export function usePhotoMeal(options: Options) {
         return { ...item, id: `saved-${index}`, quantity: qty ? Number(qty[1]) : 1, unit: qty?.[2] ?? "serving", evidence: "user", preparation: "as saved", source: undefined, confidence: undefined, provenance: undefined, qty: undefined };
       }).map(({ name, id, quantity, unit, evidence, preparation, calories, protein, carbs, fat }) => ({ name, id, quantity, unit, evidence, preparation, calories, protein, carbs, fat }));
       const next = createPhotoMealDraft({ name: meal.name, mealType: meal.type, recipeServings: 1, servingsEaten: 1, items, assumptions: ["Starting from the saved meal; original photo is not retained."], question: "" }, uid());
-      interrupt(); setShown(true); setImage(undefined); setDraft(next); setTarget(structuredClone(meal)); setReceipt(undefined); setConsent(false); setError(undefined);
+      interrupt(); setShown(true); setImages([]); setDraft(next); setTarget(structuredClone(meal)); setReceipt(undefined); setConsent(false); setError(undefined);
       current.current = { ...current.current, draft: next, target: structuredClone(meal), receipt: undefined, consent: false };
     } catch { setError("Use Nutrition's meal editor for this meal's saved format."); }
   }, [interrupt]);
   return {
     busy, shown, draft, handleMessage, discard, reopen,
     open,
-    view: shown ? <PhotoMealReview matches={draft ? savedFoodMatches(draft, options.stateRef.current) : []} image={image} draft={draft} target={target} receipt={receipt} error={error} busy={busy} consent={consent} onConsent={setConsent} onFile={onFile} onAnalyse={analyse} onDiscard={discard} onSave={save} onEdit={(patch, wording) => { if (!current.current.draft) return; const result = applyPhotoMealPatch(current.current.draft, patch, wording); if (result.ok) applyRevision(result.draft); else setError(result.error); }} onUndo={() => {
+    view: shown ? <PhotoMealReview matches={draft ? savedFoodMatches(draft, options.stateRef.current) : []} images={images} photoContext={photoContext} onContext={setPhotoContext} onRemove={removePhoto} draft={draft} target={target} receipt={receipt} error={error} busy={busy} consent={consent} onConsent={setConsent} onFiles={onFiles} onAnalyse={analyse} onDiscard={discard} onSave={save} onEdit={(patch, wording) => { if (!current.current.draft) return; const result = applyPhotoMealPatch(current.current.draft, patch, wording); if (result.ok) applyRevision(result.draft); else setError(result.error); }} onUndo={() => {
       const auditId = current.current.receipt?.auditId;
       if (!auditId) return;
       const result = undoAuditEntry(auditId, options.stateRef.current, options.commit);
