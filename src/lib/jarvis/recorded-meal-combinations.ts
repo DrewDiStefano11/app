@@ -1,13 +1,13 @@
 import type { AppState, MealEntry } from "../types";
 import { dayKey } from "../analytics/date-time";
 import { mealItemTotals } from "./meal-math";
-import { recordedMealCommand, recordedMeals } from "./recorded-meals";
+import { normalizeRecordedMealName, recordedMealCommand, recordedMeals } from "./recorded-meals";
 import { validateJarvisMutation } from "./action-schemas";
 import type { LocalJarvisCommand } from "./text-commands";
 
 const slots = "breakfast|lunch|dinner|snack|pre-workout|post-workout";
 const fail = (reply: string): LocalJarvisCommand => ({ reply, nextContext: { mealRecall: undefined } });
-const normalized = (value: string) => value.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+const normalized = normalizeRecordedMealName;
 
 function evidence(state: AppState, now: Date) {
   const ids = new Map<string, number>();
